@@ -1,15 +1,15 @@
-![Selene Logo](https://raw.githubusercontent.com/CQCL/selene/refs/heads/main/assets/selene_logo.svg)
+![Selene Logo](https://raw.githubusercontent.com/quantinuum/selene/refs/heads/main/assets/selene_logo.svg)
 
 # Selene
 Selene is a quantum computer emulation platform written primarily in Rust with a python frontend.
 
 Selene is built with flexibility in mind. This includes:
 - A plugin system for the addition of additional components including simulators, error models, quantum runtimes to be provided within Selene or as third party plugins
-- Support for custom input formats and device APIs through [the selene-core build system](https://github.com/CQCL/selene/tree/main/selene-core/python/selene_core/build_utils).
+- Support for custom input formats and device APIs through [the selene-core build system](https://github.com/quantinuum/selene/tree/main/selene-core/python/selene_core/build_utils).
 
 ## What's included
 
-Out of the box, Selene provides first-class support for the [HUGR](https://github.com/CQCL/hugr) ecosystem, including execution of [Guppy](https://github.com/CQCL/guppy) programs in an emulation environment, making use of our [open-source compiler](https://github.com/CQCL/tket2/tree/main/qis-compiler/). You can find many examples of guppy usage in our [unit tests](https://github.com/CQCL/selene/tree/main/selene-sim/python/tests/test_guppy.py).
+Out of the box, Selene provides first-class support for the [HUGR](https://github.com/quantinuum/hugr) ecosystem, including execution of [Guppy](https://github.com/quantinuum/guppy) programs in an emulation environment, making use of our [open-source compiler](https://github.com/quantinuum/tket2/tree/main/qis-compiler/). You can find many examples of guppy usage in our [unit tests](https://github.com/quantinuum/selene/tree/main/selene-sim/python/tests/test_guppy.py).
 
 Selene provides a range of simulators, including:
 - Statevector simulation using [QuEST](https://github.com/QuEST-Kit/QuEST) and the [quest-sys crate](https://crates.io/crates/quest-sys).
@@ -28,7 +28,7 @@ And we offer two example quantum runtimes, including:
 
 ## Usage example
 
-Although examples are provided in our [tests](https://github.com/CQCL/selene/tree/main/selene-sim/python/tests) folder, here is a quick walkthrough to get you started with Selene, HUGR and Guppy.
+Although examples are provided in our [tests](https://github.com/quantinuum/selene/tree/main/selene-sim/python/tests) folder, here is a quick walkthrough to get you started with Selene, HUGR and Guppy.
 
 - First, we define the guppy program that we're interested in emulating:
 
