@@ -44,7 +44,7 @@ classifiers = [
 ]
 
 [project.urls]
-repository = "https://github.com/CQCL/selene"
+repository = "https://github.com/quantinuum/selene"
 
 [dependency-groups]
 dev = [

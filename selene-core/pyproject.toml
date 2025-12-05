@@ -12,8 +12,8 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/CQCL/selene/selene-core"
-repository = "https://github.com/CQCL/selene/selene-core"
+homepage = "https://github.com/quantinuum/selene/selene-core"
+repository = "https://github.com/quantinuum/selene/selene-core"
 
 [build-system]
 requires = ["hatchling"]
