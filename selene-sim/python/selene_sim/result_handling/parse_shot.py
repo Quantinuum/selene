@@ -21,6 +21,7 @@ from .extract_shot import (
     ShotExitMessage,
     MetricValue,
     InstructionLogEntry,
+    ShotMeasurements,
 )
 
 
@@ -94,6 +95,8 @@ def parsed_interface(
                     event_hook.try_invoke(name, [value])
                 case InstructionLogEntry(tag=tag, values=values) as entry:
                     event_hook.try_invoke(tag, values)
+                case ShotMeasurements(tag=tag, values=values):
+                    event_hook.try_invoke(tag, values)
     except Exception as error:
         # taint the stream to prevent further reading
         stream.taint()
@@ -159,6 +162,12 @@ def unparsed_interface(
                 case InstructionLogEntry():
                     raise SeleneRuntimeError(
                         "Instruction log entries are not compatible with selene's unparsed interface"
+                    )
+                case ShotMeasurements():
+                    # TODO: not supported in unparsed because we emit them all in one entry.
+                    # we could emit each measurement result as its own entry instead.
+                    raise SeleneRuntimeError(
+                        "Measurement log entries are not compatible with selene's unparsed interface"
                     )
     except Exception as e:
         # taint the stream to prevent further reading
