@@ -717,7 +717,7 @@ def test_measurement_output_multishot():
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
     ]
-    for shot_user in shots: 
+    for shot_user in shots:
         assert list(shot_user) == expected_user
     for shot_meas in measlog:
         assert [str(entry) for entry in shot_meas] == expected_meas_strs
