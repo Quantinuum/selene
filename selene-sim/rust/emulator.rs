@@ -46,6 +46,12 @@ impl Emulator {
                 crate::event_hooks::instruction_log::InstructionLog::default(),
             ));
         }
+        if config.event_hooks.provide_measurement_log {
+            event_hooks.add_hook(Box::new(
+                crate::event_hooks::measurement_log::MeasurementLog::default(),
+            ));
+        }
+
         Ok(Self {
             runtime,
             error_model,
@@ -186,6 +192,7 @@ impl Emulator {
             self.event_hooks.on_runtime_batch(&batch);
             //self.post_runtime_metrics.update(&batch);
             let results = self.error_model.handle_operations(batch)?;
+            self.event_hooks.on_runtime_results(&results);
             for bool_result in results.bool_results {
                 self.runtime
                     .set_bool_result(bool_result.result_id, bool_result.value)?;

@@ -117,8 +117,24 @@ class InstructionLogEntry:
     values: list[StreamEntryPart]
 
 
+@dataclass
+class ShotMeasurements:
+    """
+    Unparsed measurement results from the output stream. Each set of three StreamEntryParts
+    represents one result as a tuple of (is_meas_leaked, qubit_id, result_value).
+    """
+
+    tag: str
+    values: list[StreamEntryPart]
+
+
 ShotEntry = (
-    UserResult | UserStateResult | ShotExitMessage | MetricValue | InstructionLogEntry
+    UserResult
+    | UserStateResult
+    | ShotExitMessage
+    | MetricValue
+    | InstructionLogEntry
+    | ShotMeasurements
 )
 ExtractedStreamEntry = ShotStart | ShotEnd | ShotEntry | FullPanicMessage
 
@@ -174,6 +190,8 @@ def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
         return MetricValue(name=entry.tag, value=value)
     elif entry.tag == "INSTRUCTIONLOG":
         return InstructionLogEntry(tag=entry.tag, values=entry.values)
+    elif entry.tag == "MEASUREMENTLOG":
+        return ShotMeasurements(tag=entry.tag, values=entry.values)
     else:
         raise SeleneRuntimeError(f"Unexpected entry in data stream: '{entry.tag}'")
 

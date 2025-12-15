@@ -6,6 +6,7 @@ simulations.
 from .event_hook import EventHook, NoEventHook, MultiEventHook
 from .instruction_log import CircuitExtractor
 from .metrics import MetricStore
+from .measurement_log import MeasurementExtractor
 
 __all__ = [
     "EventHook",
@@ -13,4 +14,5 @@ __all__ = [
     "MultiEventHook",
     "CircuitExtractor",
     "MetricStore",
+    "MeasurementExtractor",
 ]

@@ -30,7 +30,7 @@ from guppylang.std.quantum import (
 from hugr.qsystem.result import QsysResult
 from selene_sim import ClassicalReplay, Coinflip, Quest, Stim, SimpleLeakageErrorModel
 from selene_sim.build import build
-from selene_sim.event_hooks import CircuitExtractor, MetricStore
+from selene_sim.event_hooks import CircuitExtractor, MetricStore, MeasurementExtractor
 from selene_sim.exceptions import SelenePanicError, SeleneRuntimeError
 
 
@@ -632,6 +632,95 @@ def test_circuit_output():
     expected_circuit.Rz(1, 0)
     expected_circuit.Measure(0, 0)
     assert user_circuit == expected_circuit
+
+
+def test_measurement_output():
+    @guppy
+    def main() -> None:
+        q0 = qubit()
+        q1 = qubit()
+        q2 = qubit()
+        q3 = qubit()
+
+        x(q0)
+        if measure(q0):
+            x(q1)
+            cx(q1, q2)
+            z(q3)
+        else:
+            y(q1)
+            cz(q1, q2)
+            x(q3)
+
+        if measure(q1):
+            result("q2", measure(q2))
+            q3r = measure_leaked(q3).to_result()
+            result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
+        else:
+            q2r = measure_leaked(q2).to_result()
+            result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
+            result("q3", measure(q3))
+
+    runner = build(main.compile())
+    measlog = MeasurementExtractor()
+    got = list(runner.run(Quest(), verbose=True, n_qubits=4, event_hook=measlog))
+
+    expected_user = [("q2", 1), ("q3", 0)]
+    expected_meas_strs = [
+        "MEAS:INTARR:[0, 1]",
+        "MEAS:INTARR:[1, 1]",
+        "MEAS:INTARR:[2, 1]",
+        "MEASLEAKED:INTARR:[3, 0]",
+    ]
+    assert got == expected_user
+    assert [str(entry) for entry in measlog.log_entries[0]] == expected_meas_strs
+
+
+def test_measurement_output_multishot():
+    @guppy
+    def main() -> None:
+        q0 = qubit()
+        q1 = qubit()
+        q2 = qubit()
+        q3 = qubit()
+
+        x(q0)
+        if measure(q0):
+            x(q1)
+            cx(q1, q2)
+            z(q3)
+        else:
+            y(q1)
+            cz(q1, q2)
+            x(q3)
+
+        if measure(q1):
+            result("q2", measure(q2))
+            q3r = measure_leaked(q3).to_result()
+            result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
+        else:
+            q2r = measure_leaked(q2).to_result()
+            result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
+            result("q3", measure(q3))
+
+    n_shots = 10
+    runner = build(main.compile())
+    measlog = MeasurementExtractor()
+    shots = runner.run_shots(
+        Quest(), verbose=True, n_qubits=4, n_shots=10, event_hook=measlog
+    )
+
+    expected_user = [("q2", 1), ("q3", 0)]
+    expected_meas_strs = [
+        "MEAS:INTARR:[0, 1]",
+        "MEAS:INTARR:[1, 1]",
+        "MEAS:INTARR:[2, 1]",
+        "MEASLEAKED:INTARR:[3, 0]",
+    ]
+    for shot_user in shots:
+        assert list(shot_user) == expected_user
+    for shot_meas in measlog:
+        assert [str(entry) for entry in shot_meas] == expected_meas_strs
 
 
 def test_cy():

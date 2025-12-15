@@ -1,7 +1,9 @@
 use selene_core::encoder::{OutputStream, OutputStreamError};
+use selene_core::error_model::BatchResult;
 use selene_core::runtime::BatchOperation;
 
 pub mod instruction_log;
+pub mod measurement_log;
 pub mod metrics;
 
 #[derive(Clone)]
@@ -24,6 +26,7 @@ pub enum Operation {
 pub trait EventHook {
     fn on_user_call(&mut self, _: &Operation) {}
     fn on_runtime_batch(&mut self, _: &BatchOperation) {}
+    fn on_runtime_results(&mut self, _: &BatchResult) {}
     fn write(
         &self,
         _time_cursor: u64,
@@ -54,6 +57,11 @@ impl EventHook for MultiEventHook {
     fn on_runtime_batch(&mut self, operation: &BatchOperation) {
         for hook in self.hooks.iter_mut() {
             hook.on_runtime_batch(operation);
+        }
+    }
+    fn on_runtime_results(&mut self, results: &BatchResult) {
+        for hook in self.hooks.iter_mut() {
+            hook.on_runtime_results(results);
         }
     }
     fn write(&self, time_cursor: u64, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
