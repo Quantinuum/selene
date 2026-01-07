@@ -82,7 +82,7 @@ def test_qubit_ordering_state():
         state_result("reversed", qs[1], qs[0])
         discard_array(qs)
 
-    runner = build(main.compile(), build_dir="/tmp/test_qubit_ordering_state")
+    runner = build(main.compile())
     plugin = Quest()
     shots = QsysResult(
         runner.run_shots(
@@ -92,7 +92,7 @@ def test_qubit_ordering_state():
         )
     )
     for shot in shots.results:
-        states = Quest.extract_states_dict(shot.entries, cleanup=False)
+        states = Quest.extract_states_dict(shot.entries)
         state_default = states["default"]
         state_reversed = states["reversed"]
         assert state_default.get_single_state()[2] == 1  # expect |10>
