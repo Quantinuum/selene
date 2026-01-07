@@ -133,7 +133,7 @@ environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-requires = [
   "pytest",
   "pytest-snapshot",
-  "guppylang~=0.21.6",
+  "guppylang==0.21.6", # temporary == due to an array comprehension bug in guppylang==0.21.7
   "pytket~=2.9.1",
 ]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
