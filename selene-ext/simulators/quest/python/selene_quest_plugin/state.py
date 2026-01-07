@@ -49,15 +49,17 @@ class SeleneQuestState:
         n_specified = len(self.specified_qubits)
         n_unspecified = self.total_qubits - n_specified
         permutation_lhs = []
-        permutation_rhs = []
+        permutation_rhs = [-1 for _ in range(n_specified)]
         # Note: QuEST uses the convention that qubit 0 is the least significant bit.
         # Thus to iterate over qubits and corresponding statevector indices, we need
         # to iterate from left to right in one, right to left in the other.
         for qubit_id, bit_index in enumerate(reversed(range(self.total_qubits))):
             if qubit_id in self.specified_qubits:
-                permutation_rhs.append(bit_index)
+                specified_index = self.specified_qubits.index(qubit_id)
+                permutation_rhs[specified_index] = bit_index
             else:
                 permutation_lhs.append(bit_index)
+        assert -1 not in permutation_rhs, "All specified qubits must be assigned"
         permutation = permutation_lhs + permutation_rhs
         permuted = np.transpose(state_tensor, permutation)
         # state_tensor is now in the shape ([2]*n_unspecified + [2]*n_specified).
