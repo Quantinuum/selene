@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.7](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.6...selene-sim-v0.2.7) (2026-01-08)
+
+
+### Features
+
+* Add event hook which records measurement results ([#104](https://github.com/Quantinuum/selene/issues/104)) ([01300ee](https://github.com/Quantinuum/selene/commit/01300ee5d4825e2dfc6500941d0540c3ff06988a)), closes [#103](https://github.com/Quantinuum/selene/issues/103)
+* Support state-dump passthrough on quantum replay simulator ([#108](https://github.com/Quantinuum/selene/issues/108)) ([1b01a01](https://github.com/Quantinuum/selene/commit/1b01a014f836c040554c3d1fffe8b9fc9d1eb2e3))
+
 ## [0.2.6](https://github.com/quantinuum/selene/compare/selene-sim-v0.2.5...selene-sim-v0.2.6) (2025-11-18)
 
 
