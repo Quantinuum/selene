@@ -139,8 +139,8 @@ def test_quantum_replay_state():
     assert first_shot_dict["c0"] == 0
     assert second_shot_dict["c0"] == 1
     # Second measurement is consistent with entanglement
-    assert first_shot_dict["c1"] == 0
-    assert second_shot_dict["c1"] == 1
+    assert first_shot_dict["c1"] == first_shot_dict["c0"]
+    assert second_shot_dict["c1"] == second_shot_dict["c0"]
 
     # Initial entangled state is correct
     first_entangled = first_shot_states["entangled_state"].get_single_state()
