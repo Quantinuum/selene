@@ -71,6 +71,34 @@ def test_array_subscript_state():
         assert state.get_state_vector_distribution()[0].probability == 1
 
 
+def test_qubit_ordering_state():
+    @guppy
+    def main() -> None:
+        qs = array(qubit() for _ in range(2))
+        x(qs[0])
+        # expected state is |10> so that qs[0] is the MSB
+        state_result("default", qs[0], qs[1])
+        # reversed order, expected state is |01>
+        state_result("reversed", qs[1], qs[0])
+        discard_array(qs)
+
+    runner = build(main.compile())
+    plugin = Quest()
+    shots = QsysResult(
+        runner.run_shots(
+            simulator=plugin,
+            n_qubits=2,
+            n_shots=1,
+        )
+    )
+    for shot in shots.results:
+        states = Quest.extract_states_dict(shot.entries)
+        state_default = states["default"]
+        state_reversed = states["reversed"]
+        assert state_default.get_single_state()[2] == 1  # expect |10>
+        assert state_reversed.get_single_state()[1] == 1  # expect |01>
+
+
 @pytest.mark.parametrize("cleanup_param", [True, False, None])
 def test_state_cleanup(cleanup_param):
     @guppy
