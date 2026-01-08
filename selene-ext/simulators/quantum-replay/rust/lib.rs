@@ -163,6 +163,9 @@ impl SimulatorInterface for QuantumReplaySimulator {
             n => self.wrapped.get_metric(n - 2),
         }
     }
+    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+        self.wrapped.dump_state(file, qubits)
+    }
 }
 
 #[derive(Default)]
