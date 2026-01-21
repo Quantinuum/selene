@@ -1137,6 +1137,14 @@ wheels = [
 ]
 
 [[package]]
+name = "qir-qis"
+version = "0.1.0"
+source = { path = "../qir_qis-0.1.0-cp310-abi3-manylinux_2_28_x86_64.whl" }
+wheels = [
+    { filename = "qir_qis-0.1.0-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:4e3512017fc8c6d18553e243454dbc51640346074d9f10d085f2ee2d04ddc147" },
+]
+
+[[package]]
 name = "qwasm"
 version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1350,6 +1358,7 @@ dependencies = [
     { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pydot" },
     { name = "pyyaml" },
+    { name = "qir-qis" },
     { name = "selene-core" },
     { name = "selene-hugr-qis-compiler" },
     { name = "tqdm" },
@@ -1378,6 +1387,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.1" },
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "qir-qis", path = "../qir_qis-0.1.0-cp310-abi3-manylinux_2_28_x86_64.whl" },
     { name = "selene-core", editable = "selene-core" },
     { name = "selene-hugr-qis-compiler", specifier = "~=0.2.6" },
     { name = "tqdm", specifier = ">=4.67.1" },

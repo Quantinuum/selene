@@ -15,6 +15,7 @@ dependencies = [
   "pyyaml>=6.0.2",
   "selene-core~=0.2.1",
   "selene-hugr-qis-compiler~=0.2.6",
+  "qir-qis~=0.1.0",
   "tqdm>=4.67.1",
   "ziglang~=0.13",
 ]
@@ -64,6 +65,7 @@ dev = [
 [tool.uv.sources]
 selene-sim = { workspace = true }
 selene-core = { workspace = true }
+qir-qis = { path = "../qir_qis-0.1.0-cp310-abi3-manylinux_2_28_x86_64.whl" }
 
 [tool.uv.workspace]
 members = ["selene-core"]
