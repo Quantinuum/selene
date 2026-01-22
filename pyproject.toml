@@ -65,7 +65,6 @@ dev = [
 [tool.uv.sources]
 selene-sim = { workspace = true }
 selene-core = { workspace = true }
-qir-qis = { path = "../qir_qis-0.1.0-cp310-abi3-manylinux_2_28_x86_64.whl" }
 
 [tool.uv.workspace]
 members = ["selene-core"]
