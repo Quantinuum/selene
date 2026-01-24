@@ -7,10 +7,10 @@ from guppylang.std.quantum import discard, qubit, discard_array, x, h, cx, measu
 from hugr.qsystem.result import QsysResult
 
 from selene_sim.build import build
-from selene_sim import Quest, QuantumReplay
+from selene_sim import Quest, Stim, QuantumReplay
 
 
-def test_initial_state():
+def test_initial_state_quest():
     @guppy
     def main() -> None:
         q0 = qubit()
@@ -23,7 +23,20 @@ def test_initial_state():
     assert state.get_dirac_notation()[0].probability == 1
 
 
-def test_array_state():
+def test_initial_state_stim():
+    @guppy
+    def main() -> None:
+        q0 = qubit()
+        state_result("initial_state", q0)
+        discard(q0)
+
+    runner = build(main.compile(), "initial_state")
+    got = runner.run(Stim(), n_qubits=1)
+    state = Stim.extract_states_dict(got)["initial_state"]
+    raise Exception(state.full_tableau)
+
+
+def test_array_state_quest():
     @guppy
     def main() -> None:
         qs = array(qubit() for _ in range(2))
@@ -47,7 +60,30 @@ def test_array_state():
         assert len(state.get_single_state()) == 4
 
 
-def test_array_subscript_state():
+def test_array_state_stim():
+    @guppy
+    def main() -> None:
+        qs = array(qubit() for _ in range(2))
+        for i in range(2):
+            x(qs[i])
+        state_result("array_state", qs)
+        discard_array(qs)
+
+    runner = build(main.compile(), "array_state")
+    plugin = Stim()
+    shots = QsysResult(
+        runner.run_shots(
+            simulator=plugin,
+            n_qubits=2,
+            n_shots=2,
+        )
+    )
+    for shot in shots.results:
+        state = Stim.extract_states_dict(shot.entries)["array_state"]
+        raise Exception(state.full_tableau)
+
+
+def test_array_subscript_state_quest():
     @guppy
     def main() -> None:
         qs = array(qubit() for _ in range(2))
@@ -69,6 +105,29 @@ def test_array_subscript_state():
         state = Quest.extract_states_dict(shot.entries)["array_state"]
         assert state.get_density_matrix()[1][1] == 1
         assert state.get_state_vector_distribution()[0].probability == 1
+
+
+def test_array_subscript_state_stim():
+    @guppy
+    def main() -> None:
+        qs = array(qubit() for _ in range(2))
+        h(qs[0])
+        cx(qs[0], qs[1])
+        state_result("array_state", qs[0])
+        discard_array(qs)
+
+    runner = build(main.compile(), "array_state")
+    plugin = Stim()
+    shots = QsysResult(
+        runner.run_shots(
+            simulator=plugin,
+            n_qubits=2,
+            n_shots=1,
+        )
+    )
+    for shot in shots.results:
+        state = Stim.extract_states_dict(shot.entries)["array_state"]
+        raise Exception(state.full_tableau)
 
 
 def test_qubit_ordering_state():
