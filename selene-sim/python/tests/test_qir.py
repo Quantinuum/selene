@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 from qir_qis import qir_ll_to_bc, get_entry_attributes
-from selene_sim import Quest
+from selene_sim import Stim
 from selene_sim.build import build
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
@@ -37,7 +37,7 @@ def test_adaptive_cond_loop(snapshot):
         runner = build(input_program, "no_results")
         results[name] = list(
             runner.run(
-                Quest(),
+                Stim(),
                 n_qubits=n_qubits,
                 timeout=datetime.timedelta(seconds=1),
                 random_seed=78129,

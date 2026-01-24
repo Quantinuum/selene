@@ -4,25 +4,25 @@ bc_bytes:
   - 0
 - !!python/tuple
   - 0_t1
-  - 0
+  - 1
 bc_file:
 - !!python/tuple
   - 0_t0
   - 0
 - !!python/tuple
   - 0_t1
-  - 0
+  - 1
 ll_file:
 - !!python/tuple
   - 0_t0
   - 0
 - !!python/tuple
   - 0_t1
-  - 0
+  - 1
 ll_text:
 - !!python/tuple
   - 0_t0
   - 0
 - !!python/tuple
   - 0_t1
-  - 0
+  - 1
