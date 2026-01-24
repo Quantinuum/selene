@@ -1,8 +1,7 @@
 from pathlib import Path
 import struct
-from typing import Callable, Generic, Iterable, TypeVar
+from typing import Generic, TypeVar
 from typing_extensions import Self
-from enum import Enum
 
 import numpy as np
 from dataclasses import dataclass
@@ -10,10 +9,12 @@ from dataclasses import dataclass
 
 T = TypeVar("T")
 
+
 @dataclass
 class Pauli:
     x: bool
     z: bool
+
     @classmethod
     def from_char(cls, c: str) -> Self:
         match c:
@@ -27,6 +28,7 @@ class Pauli:
                 return cls(False, True)
             case _:
                 raise ValueError(f"Invalid Pauli character: {c}")
+
     def __repr__(self) -> str:
         if not self.x and not self.z:
             return "_"
@@ -38,29 +40,40 @@ class Pauli:
             return "Z"
         else:
             raise ValueError("Invalid Pauli operator")
-    def multiply(self, other: "Pauli") -> tuple[Self, bool]:
+
+    def multiply(self, other: "Pauli") -> tuple["Pauli", bool]:
         """Multiply two Pauli operators. If the result involves a sign flip, return True as the second element."""
         new_x = self.x ^ other.x
         new_z = self.z ^ other.z
-        sign_flip = (self.x and other.z and not other.x) or (self.z and other.x and not other.z)
+        sign_flip = (self.x and other.z and not other.x) or (
+            self.z and other.x and not other.z
+        )
         return Pauli(new_x, new_z), sign_flip
 
-    
+
 class Stabilizer:
-    sign: bool # True for +1, False for -1
+    sign: bool  # True for +1, False for -1
     paulis: list[Pauli]  # len: total_qubits
-    def __init__(self, stabilizer_string: str):
+
+    def __init__(self, stabilizer_string: str) -> None:
         self.sign = stabilizer_string[0] == "+"
         self.paulis = [Pauli.from_char(c) for c in stabilizer_string[1:]]
-        
+
     def __repr__(self) -> str:
         sign_char = "+" if self.sign else "-"
         pauli_str = "".join(repr(p) for p in self.paulis)
         return f"{sign_char}{pauli_str}"
-    
-    def __mul__(self, other: "Stabilizer") -> "Stabilizer":
-        assert len(self.paulis) == len(other.paulis), "Stabilizers must have the same number of qubits to multiply"
-        new_sign = self.sign ^ other.sign
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Stabilizer):
+            return NotImplemented
+        return self.sign == other.sign and self.paulis == other.paulis
+
+    def __mul__(self, other: Self) -> "Stabilizer":
+        assert len(self.paulis) == len(other.paulis), (
+            "Stabilizers must have the same number of qubits to multiply"
+        )
+        new_sign = self.sign == other.sign
         new_paulis = []
         for p1, p2 in zip(self.paulis, other.paulis):
             new_p, sign_flip = p1.multiply(p2)
@@ -72,19 +85,30 @@ class Stabilizer:
         result.paulis = new_paulis
         return result
 
+
 class Tableau:
     entries: list[Stabilizer]  # len: specified_qubits
-    def __init__(self, stabilizers_string: str):
-        lines = stabilizers_string.splitlines()
-        n_qubits_known = len(lines)
-        self.entries = [Stabilizer(lines[i]) for i in range(n_qubits_known)]
-        assert all(len(stab.paulis) == len(self.entries[0].paulis) for stab in self.entries), (
-            "All stabilizers must have the same number of qubits, but got: " +
-            ", ".join(str(len(stab.paulis)) for stab in self.entries
+
+    def __init__(self, stabilizer_strings: list[str]):
+        n_qubits_known = len(stabilizer_strings)
+        self.entries = [
+            Stabilizer(stabilizer_strings[i]) for i in range(n_qubits_known)
+        ]
+        assert all(
+            len(stab.paulis) == len(self.entries[0].paulis) for stab in self.entries
+        ), "All stabilizers must have the same number of qubits, but got: " + ", ".join(
+            str(len(stab.paulis)) for stab in self.entries
         )
+
     def __repr__(self) -> str:
         return "\n".join(repr(stab) for stab in self.entries)
-    def reduced_to_specified(self, specified_qubits: set[int]) -> None:
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Tableau):
+            return NotImplemented
+        return self.entries == other.entries
+
+    def reduced_to_specified(self, specified_qubits: list[int]) -> None:
         # For each non-specified qubit, we permit:
         # - zero or one X
         # - zero or one Z
@@ -94,18 +118,31 @@ class Tableau:
         for i in range(len(self.entries[0].paulis)):
             if i in specified_qubits:
                 continue
-            matches = lambda stab, x, z: stab.paulis[i].x == x and stab.paulis[i].z == z
-            x_stabs = [i for i,stab in enumerate(self.entries) if matches(stab, True, False)]
-            y_stabs = [i for i,stab in enumerate(self.entries) if matches(stab, True, True)]
-            z_stabs = [i for i,stab in enumerate(self.entries) if matches(stab, False, True)]
+
+            x_stabs = [
+                j
+                for j, stab in enumerate(self.entries)
+                if stab.paulis[i].x and not stab.paulis[i].z
+            ]
+            y_stabs = [
+                j
+                for j, stab in enumerate(self.entries)
+                if stab.paulis[i].x and stab.paulis[i].z
+            ]
+            z_stabs = [
+                j
+                for j, stab in enumerate(self.entries)
+                if stab.paulis[i].z and not stab.paulis[i].x
+            ]
+
             for idx in y_stabs:
                 # Eliminate Y by multiplying with an X or Z if available
                 if x_stabs:
                     self.entries[idx] = self.entries[idx] * self.entries[x_stabs[0]]
-                    z_stabs.push(idx)  # now it's a Z
+                    z_stabs.append(idx)  # now it's a Z
                 elif z_stabs:
                     self.entries[idx] = self.entries[idx] * self.entries[z_stabs[0]]
-                    x_stabs.push(idx)  # now it's an X
+                    x_stabs.append(idx)  # now it's an X
             y_stabs = []
             if len(x_stabs) > 1:
                 # Eliminate extra Xs
@@ -115,21 +152,20 @@ class Tableau:
                 # Eliminate extra Zs
                 for idx in z_stabs[1:]:
                     self.entries[idx] = self.entries[idx] * self.entries[z_stabs[0]]
-        # Now remove any row where a non-specified qubit has an identity pauli
+        # Now remove any row where a non-specified qubit has a non-identity pauli
         rows_to_remove = set()
         for i in range(len(self.entries[0].paulis)):
             if i in specified_qubits:
                 continue
             for row_idx, stab in enumerate(self.entries):
-                if not stab.paulis[i].x and not stab.paulis[i].z:
+                if stab.paulis[i].x or stab.paulis[i].z:
                     rows_to_remove.add(row_idx)
-        self.entries = [stab for idx, stab in enumerate(self.entries) if idx not in rows_to_remove]
-        
-            
-                
-            
-
-
+        self.entries = [
+            stab for idx, stab in enumerate(self.entries) if idx not in rows_to_remove
+        ]
+        for i, entry in enumerate(self.entries):
+            # only keep specified qubits, and in the order provided
+            self.entries[i].paulis = [entry.paulis[q] for q in specified_qubits]
 
 
 @dataclass(frozen=True)
@@ -154,7 +190,7 @@ class SeleneStimState:
     #: User-specified qubits, in order of their specification
     specified_qubits: list[int]
 
-    #def get_density_matrix(self, zero_threshold: float = 1e-12) -> np.ndarray:
+    # def get_density_matrix(self, zero_threshold: float = 1e-12) -> np.ndarray:
     #    """
     #    Get the reduced density matrix of the state, tracing out unspecified qubits.
 
@@ -204,9 +240,9 @@ class SeleneStimState:
     #        result = re + 1j * im
     #    return result
 
-    #def get_state_vector_distribution(
+    # def get_state_vector_distribution(
     #    self, zero_threshold=1e-12
-    #) -> list[TracedState[np.ndarray]]:
+    # ) -> list[TracedState[np.ndarray]]:
     #    """
     #    The reduced density matrix may be written as
     #    :math:`\\rho = \\sum_i p_i |i\\rangle \\langle i|`,
@@ -254,7 +290,7 @@ class SeleneStimState:
     #        )
     #    return result
 
-    #def get_single_state(self, zero_threshold=1e-12) -> np.ndarray:
+    # def get_single_state(self, zero_threshold=1e-12) -> np.ndarray:
     #    """
     #    Assume that the state is a pure state and return it.
 
@@ -274,11 +310,11 @@ class SeleneStimState:
     #        zero_threshold=zero_threshold,
     #    )
 
-    #def _get_single(
+    # def _get_single(
     #    self,
     #    all_getter: Callable[[float], Iterable[TracedState[T]]],
     #    zero_threshold: float,
-    #) -> T:
+    # ) -> T:
     #    """
     #    Get the single state of the specified qubits, assuming that the state is a pure state.
     #    This is a helper method for get_single_state.
@@ -289,7 +325,7 @@ class SeleneStimState:
     #        raise ValueError("The state is not a pure state.")
     #    return all_states[0].state
 
-    #def get_dirac_notation(self, zero_threshold=1e-12) -> list[TracedState]:
+    # def get_dirac_notation(self, zero_threshold=1e-12) -> list[TracedState]:
     #    try:
     #        from sympy import nsimplify, Add
     #        from sympy.physics.quantum.state import Ket
@@ -340,7 +376,7 @@ class SeleneStimState:
     #    result = [simplify_state(tr_st) for tr_st in state_vector]
     #    return result
 
-    #def get_single_dirac_notation(self, zero_threshold=1e-12) -> TracedState:
+    # def get_single_dirac_notation(self, zero_threshold=1e-12) -> TracedState:
     #    """
     #    Get the single state of the specified qubits in Dirac notation,
     #    assuming that the state is a pure state.
