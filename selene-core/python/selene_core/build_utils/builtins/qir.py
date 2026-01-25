@@ -13,7 +13,6 @@ QIR_MATCHES = [
     "qir_major_version",
     "entry_point",
 ]
-qir_bin_matches = [s.encode("utf-8") for s in QIR_MATCHES]
 
 
 class QIRIRFileKind(ArtifactKind):
