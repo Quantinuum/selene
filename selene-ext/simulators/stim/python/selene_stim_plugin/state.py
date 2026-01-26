@@ -1,98 +1,232 @@
 from pathlib import Path
 import struct
 from typing import Generic, TypeVar
-from typing_extensions import Self
 
 import numpy as np
+from enum import Enum
 from dataclasses import dataclass
 
 
 T = TypeVar("T")
 
 
-@dataclass
-class Pauli:
-    x: bool
-    z: bool
+class Phase(Enum):
+    # Representation: quarter turns of the unit complex circle
+    REAL_POSITIVE = 0
+    IMAGINARY_POSITIVE = 1
+    REAL_NEGATIVE = 2
+    IMAGINARY_NEGATIVE = 3
+
+    def __init__(self, value: int) -> None:
+        self._value = value
+
+    def is_imaginary(self) -> bool:
+        return self._value % 2 == 1
+
+    def is_real(self) -> bool:
+        return self._value % 2 == 0
+
+    def get_complex(self) -> complex:
+        match self:
+            case Phase.REAL_POSITIVE:
+                return 1 + 0j
+            case Phase.REAL_NEGATIVE:
+                return -1 + 0j
+            case Phase.IMAGINARY_POSITIVE:
+                return 0 + 1j
+            case Phase.IMAGINARY_NEGATIVE:
+                return 0 - 1j
+
+    def __str__(self) -> str:
+        match self:
+            case Phase.REAL_POSITIVE:
+                return "+"
+            case Phase.REAL_NEGATIVE:
+                return "-"
+            case Phase.IMAGINARY_POSITIVE:
+                return "+i"
+            case Phase.IMAGINARY_NEGATIVE:
+                return "-i"
+
+    def __add__(self, other: object) -> "Phase":
+        assert isinstance(other, Phase), f"Can only add another Phase, got {other!r}"
+
+        return Phase((self._value + other._value) % 4)
+
+    def __sub__(self, other: object) -> "Phase":
+        assert isinstance(other, Phase), (
+            f"Can only subtract another Phase, got {other!r}"
+        )
+        return Phase((self._value - other._value) % 4)
+
+    def __neg__(self) -> "Phase":
+        return self + Phase.REAL_NEGATIVE
+
+
+class Pauli(Enum):
+    X = 1
+    Y = 2
+    Z = 3
+    I = 4  # noqa: E741
 
     @classmethod
-    def from_char(cls, c: str) -> Self:
+    def from_char(cls, c: str) -> "Pauli":
         match c:
             case "_":
-                return cls(False, False)
+                return cls.I
             case "X":
-                return cls(True, False)
+                return cls.X
             case "Y":
-                return cls(True, True)
+                return cls.Y
             case "Z":
-                return cls(False, True)
+                return cls.Z
             case _:
                 raise ValueError(f"Invalid Pauli character: {c}")
 
     def __repr__(self) -> str:
-        if not self.x and not self.z:
-            return "_"
-        elif self.x and not self.z:
-            return "X"
-        elif self.x and self.z:
-            return "Y"
-        elif not self.x and self.z:
-            return "Z"
-        else:
-            raise ValueError("Invalid Pauli operator")
+        match self:
+            case Pauli.I:
+                return "_"
+            case Pauli.X:
+                return "X"
+            case Pauli.Y:
+                return "Y"
+            case Pauli.Z:
+                return "Z"
 
-    def multiply(self, other: "Pauli") -> tuple["Pauli", bool]:
-        """Multiply two Pauli operators. If the result involves a sign flip, return True as the second element."""
-        new_x = self.x ^ other.x
-        new_z = self.z ^ other.z
-        sign_flip = (self.x and other.z and not other.x) or (
-            self.z and other.x and not other.z
+    def as_matrix(self) -> np.ndarray:
+        match self:
+            case Pauli.I:
+                return np.array([[1, 0], [0, 1]], dtype=complex)
+            case Pauli.X:
+                return np.array([[0, 1], [1, 0]], dtype=complex)
+            case Pauli.Y:
+                return np.array([[0, -1j], [1j, 0]], dtype=complex)
+            case Pauli.Z:
+                return np.array([[1, 0], [0, -1]], dtype=complex)
+
+    def multiply(self, other: "Pauli") -> tuple["Pauli", Phase]:
+        """Multiply two Pauli operators, returning the result and the phase change."""
+        assert isinstance(other, Pauli), (
+            f"Can only multiply with another Pauli, got {other!r}"
         )
-        return Pauli(new_x, new_z), sign_flip
+        match (self, other):
+            # Identity cases
+            case (Pauli.I, _):
+                return other, Phase.REAL_POSITIVE
+            case (_, Pauli.I):
+                return self, Phase.REAL_POSITIVE
+            # Equality cases
+            case (Pauli.X, Pauli.X):
+                return Pauli.I, Phase.REAL_POSITIVE
+            case (Pauli.Y, Pauli.Y):
+                return Pauli.I, Phase.REAL_POSITIVE
+            case (Pauli.Z, Pauli.Z):
+                return Pauli.I, Phase.REAL_POSITIVE
+            # Positive cycles
+            case (Pauli.X, Pauli.Y):
+                return Pauli.Z, Phase.IMAGINARY_POSITIVE
+            case (Pauli.Y, Pauli.Z):
+                return Pauli.X, Phase.IMAGINARY_POSITIVE
+            case (Pauli.Z, Pauli.X):
+                return Pauli.Y, Phase.IMAGINARY_POSITIVE
+            # Negative cycles
+            case (Pauli.Y, Pauli.X):
+                return Pauli.Z, Phase.IMAGINARY_NEGATIVE
+            case (Pauli.Z, Pauli.Y):
+                return Pauli.X, Phase.IMAGINARY_NEGATIVE
+            case (Pauli.X, Pauli.Z):
+                return Pauli.Y, Phase.IMAGINARY_NEGATIVE
+            case _:
+                raise ValueError(f"Unhandled Pauli multiplication: {self}, {other}")
 
 
-class Stabilizer:
-    sign: bool  # True for +1, False for -1
-    paulis: list[Pauli]  # len: total_qubits
+class StabilizerGenerator:
+    phase: Phase  # In intermediate calculations only, this may be imaginary.
+    paulis: tuple[Pauli, ...]  # len: total_qubits
 
     def __init__(self, stabilizer_string: str) -> None:
-        self.sign = stabilizer_string[0] == "+"
-        self.paulis = [Pauli.from_char(c) for c in stabilizer_string[1:]]
+        # We expect that the stabilizer string starts with +, -, +i, or -i.
+        # For raw inputs we should only accept real phases (+ or -), but as it
+        # may be useful to have imaginary phases in intermediate calculations,
+        # we support reading them.
+        if stabilizer_string.startswith("+i"):
+            self.phase = Phase.IMAGINARY_POSITIVE
+            pauli_string = stabilizer_string[2:]
+        elif stabilizer_string.startswith("-i"):
+            self.phase = Phase.IMAGINARY_NEGATIVE
+            pauli_string = stabilizer_string[2:]
+        elif stabilizer_string.startswith("+"):
+            self.phase = Phase.REAL_POSITIVE
+            pauli_string = stabilizer_string[1:]
+        elif stabilizer_string.startswith("-"):
+            self.phase = Phase.REAL_NEGATIVE
+            pauli_string = stabilizer_string[1:]
+        else:
+            raise ValueError(
+                f"Invalid stabilizer string prefix (expecting +, -, +i, or -i): {stabilizer_string}"
+            )
+
+        self.paulis = tuple(Pauli.from_char(c) for c in pauli_string)
+
+    def is_valid(self) -> bool:
+        return self.phase.is_real()
+
+    def remove_qubit(self, qubit_index: int) -> None:
+        """Remove the specified qubit from the stabilizer generator.
+
+        No checks are performed; the caller is responsible for ensuring that
+        the qubit can be removed."""
+        self.paulis = tuple(p for i, p in enumerate(self.paulis) if i != qubit_index)
+
+    def permute_qubits(self, permutation: list[int]) -> None:
+        """Permute the qubits of the stabilizer generator according to the given permutation.
+
+        No checks are performed; the caller is responsible for ensuring that
+        the permutation is valid."""
+        self.paulis = tuple(self.paulis[i] for i in permutation)
+
+    def as_matrix(self) -> np.ndarray:
+        result = self.phase.get_complex() * np.eye(1, dtype=complex)
+        for p in self.paulis:
+            result = np.kron(result, p.as_matrix())
+        return result
 
     def __repr__(self) -> str:
-        sign_char = "+" if self.sign else "-"
         pauli_str = "".join(repr(p) for p in self.paulis)
-        return f"{sign_char}{pauli_str}"
+        return f"{self.phase}{pauli_str}"
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Stabilizer):
+        if not isinstance(other, StabilizerGenerator):
             return NotImplemented
-        return self.sign == other.sign and self.paulis == other.paulis
+        return self.phase == other.phase and self.paulis == other.paulis
 
-    def __mul__(self, other: Self) -> "Stabilizer":
+    def __mul__(self, other: object) -> "StabilizerGenerator":
+        assert isinstance(other, StabilizerGenerator), (
+            f"Can only multiply with another StabilizerGenerator, got {other!r}"
+        )
         assert len(self.paulis) == len(other.paulis), (
             "Stabilizers must have the same number of qubits to multiply"
         )
-        new_sign = self.sign == other.sign
+        new_phase = self.phase + other.phase
         new_paulis = []
         for p1, p2 in zip(self.paulis, other.paulis):
-            new_p, sign_flip = p1.multiply(p2)
-            if sign_flip:
-                new_sign = not new_sign
-            new_paulis.append(new_p)
-        result = Stabilizer("+" + "_" * len(new_paulis))  # placeholder
-        result.sign = new_sign
-        result.paulis = new_paulis
+            new_pauli, phase_change = p1.multiply(p2)
+            new_paulis.append(new_pauli)
+            new_phase += phase_change
+        result = StabilizerGenerator("+" + "_" * len(new_paulis))  # placeholder
+        result.phase = new_phase
+        result.paulis = tuple(new_paulis)
         return result
 
 
-class Tableau:
-    entries: list[Stabilizer]  # len: specified_qubits
+class StabilizerList:
+    entries: list[StabilizerGenerator]  # le n: specified_qubits
 
     def __init__(self, stabilizer_strings: list[str]):
         n_qubits_known = len(stabilizer_strings)
         self.entries = [
-            Stabilizer(stabilizer_strings[i]) for i in range(n_qubits_known)
+            StabilizerGenerator(stabilizer_strings[i]) for i in range(n_qubits_known)
         ]
         assert all(
             len(stab.paulis) == len(self.entries[0].paulis) for stab in self.entries
@@ -100,72 +234,97 @@ class Tableau:
             str(len(stab.paulis)) for stab in self.entries
         )
 
+    def clone(self) -> "StabilizerList":
+        return StabilizerList([repr(stab) for stab in self.entries])
+
     def __repr__(self) -> str:
         return "\n".join(repr(stab) for stab in self.entries)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Tableau):
+        if not isinstance(other, StabilizerList):
             return NotImplemented
         return self.entries == other.entries
 
-    def reduced_to_specified(self, specified_qubits: list[int]) -> None:
-        # For each non-specified qubit, we permit:
-        # - zero or one X
-        # - zero or one Z
-        # - zero Y
-        # in the stabilizers corresponding to that qubit.
-        # Others must be eliminated by multiplication.
-        for i in range(len(self.entries[0].paulis)):
-            if i in specified_qubits:
-                continue
+    def trace_out_qubit(self, qubit_index: int) -> None:
+        """Eliminate the specified qubit from the tableau by tracing it out."""
 
-            x_stabs = [
-                j
-                for j, stab in enumerate(self.entries)
-                if stab.paulis[i].x and not stab.paulis[i].z
-            ]
-            y_stabs = [
-                j
-                for j, stab in enumerate(self.entries)
-                if stab.paulis[i].x and stab.paulis[i].z
-            ]
-            z_stabs = [
-                j
-                for j, stab in enumerate(self.entries)
-                if stab.paulis[i].z and not stab.paulis[i].x
-            ]
-
-            for idx in y_stabs:
-                # Eliminate Y by multiplying with an X or Z if available
-                if x_stabs:
-                    self.entries[idx] = self.entries[idx] * self.entries[x_stabs[0]]
-                    z_stabs.append(idx)  # now it's a Z
-                elif z_stabs:
-                    self.entries[idx] = self.entries[idx] * self.entries[z_stabs[0]]
-                    x_stabs.append(idx)  # now it's an X
-            y_stabs = []
-            if len(x_stabs) > 1:
-                # Eliminate extra Xs
-                for idx in x_stabs[1:]:
-                    self.entries[idx] = self.entries[idx] * self.entries[x_stabs[0]]
-            if len(z_stabs) > 1:
-                # Eliminate extra Zs
-                for idx in z_stabs[1:]:
-                    self.entries[idx] = self.entries[idx] * self.entries[z_stabs[0]]
-        # Now remove any row where a non-specified qubit has a non-identity pauli
-        rows_to_remove = set()
-        for i in range(len(self.entries[0].paulis)):
-            if i in specified_qubits:
+        # First we wish to establish a basis of at most two paulis on the qubit to be traced out.
+        # We iterate through each stabilizer string and check the Pauli operator at qubit_index.
+        # In the process, we aim to span the space of possible Pauli operators on that qubit with
+        # a basis of at most two stabilizers (e.g., X and Z, X and Y, or Y and Z). We do this
+        # iteratively.
+        rows_to_remove = []
+        multiply_rules: dict[Pauli, StabilizerGenerator] = {}
+        for i, stab in enumerate(self.entries):
+            if stab.paulis[qubit_index] == Pauli.I:
+                # Nothing to do here.
                 continue
-            for row_idx, stab in enumerate(self.entries):
-                if stab.paulis[i].x or stab.paulis[i].z:
-                    rows_to_remove.add(row_idx)
-        self.entries = [
-            stab for idx, stab in enumerate(self.entries) if idx not in rows_to_remove
-        ]
-        for i, entry in enumerate(self.entries):
-            # only keep specified qubits, and in the order provided
-            self.entries[i].paulis = [entry.paulis[q] for q in specified_qubits]
+            if stab.paulis[qubit_index] not in multiply_rules:
+                # We have found a new basis stabilizer for this qubit.
+                if len(multiply_rules) == 1:
+                    # We already have a different basis stabilizer; we can figure out the third.
+                    other_known_pauli: Pauli = next(iter(multiply_rules.keys()))
+                    new_pauli, _ = stab.paulis[qubit_index].multiply(other_known_pauli)
+                    multiply_rules[new_pauli] = stab * multiply_rules[other_known_pauli]
+                multiply_rules[stab.paulis[qubit_index]] = stab
+                # We know we have to remove this row later.
+                rows_to_remove.append(i)
+                continue
+            assert stab.paulis[qubit_index] in multiply_rules, (
+                "Should have found a basis stabilizer."
+            )
+            # We can eliminate this stabilizer's pauli on the qubit by multiplying
+            # with the known basis stabilizer.
+            self.entries[i] = stab * multiply_rules[stab.paulis[qubit_index]]
+            assert self.entries[i].paulis[qubit_index] == Pauli.I, (
+                "Failed to eliminate pauli on traced out qubit."
+            )
+
+        for row_to_remove in reversed(rows_to_remove):
+            del self.entries[row_to_remove]
+        for i in range(len(self.entries)):
+            # Delete the traced out qubit from each remaining stabilizer
+            self.entries[i].remove_qubit(qubit_index)
+
+    def reduced_to_qubits(self, wanted_qubits: list[int]) -> "StabilizerList":
+        # Trace out unspecified qubits from highest to lowest index
+        result = self.clone()
+        for qubit_index in reversed(range(len(self.entries[0].paulis))):
+            if qubit_index not in wanted_qubits:
+                result.trace_out_qubit(qubit_index)
+
+        wanted_sorted = sorted(wanted_qubits)
+        wanted_permutation = [wanted_sorted.index(q) for q in wanted_qubits]
+
+        for stab in result.entries:
+            assert stab.is_valid(), (
+                "Resulting stabilizer contains imaginary phase after reduction: "
+                + repr(stab)
+            )
+            assert len(stab.paulis) == len(wanted_qubits), (
+                "Resulting stabilizer has incorrect number of qubits after reduction: "
+                + f"expected {len(wanted_qubits)}, got {len(stab.paulis)}"
+            )
+            if wanted_permutation != list(range(len(wanted_qubits))):
+                stab.permute_qubits(wanted_permutation)
+
+        return result
+
+    def as_density_matrix(self) -> np.ndarray:
+        """Get the density matrix represented by the stabilizer list. Only to be used for small numbers of qubits."""
+        n_qubits = len(self.entries[0].paulis)
+        dim = 2**n_qubits
+        result = np.zeros((dim, dim), dtype=complex)
+        generator_matrices = [stab.as_matrix() for stab in self.entries]
+        # for every combination of stabilizer generators, add their product to the density matrix
+        for i in range(2 ** len(generator_matrices)):
+            stab_product = np.eye(dim, dtype=complex)
+            for j in range(len(generator_matrices)):
+                if (i >> j) & 1:
+                    stab_product = stab_product @ generator_matrices[j]
+            result += stab_product
+        result /= dim
+        return result
 
 
 @dataclass(frozen=True)
@@ -183,208 +342,155 @@ class TracedState(Generic[T]):
 class SeleneStimState:
     """A quantum state in the Selene Stim simulator, as reported by `state_result` calls."""
 
-    #: Complex vector of size 2^total_qubits
-    full_tableau: np.ndarray
-    #: Total number of qubits in the state, i.e. n_qubits param to run_shots
+    # Stabilizers of the entire register - not of just the specified qubits.
+    unreduced_stabilizer_list: StabilizerList
+    # Total number of qubits in the state, i.e. n_qubits param to run_shots
     total_qubits: int
-    #: User-specified qubits, in order of their specification
+    # User-specified qubits, in order of their specification
     specified_qubits: list[int]
 
-    # def get_density_matrix(self, zero_threshold: float = 1e-12) -> np.ndarray:
-    #    """
-    #    Get the reduced density matrix of the state, tracing out unspecified qubits.
+    def get_reduced_stabilizers(self) -> StabilizerList:
+        """Get the stabilizers reduced to the specified qubits."""
+        return self.unreduced_stabilizer_list.reduced_to_qubits(self.specified_qubits)
 
-    #    Parameters:
-    #    ----------
-    #    zero_threshold: float
-    #        The threshold for setting small values to zero. This is used to remove numerical noise.
-    #        Any component that is less than max_magnitude * zero_threshold will be reset to zero.
-    #        Default is 1e-12.
+    def get_density_matrix(self) -> np.ndarray:
+        """
+        Get the reduced density matrix of the state, tracing out unspecified qubits.
+        """
+        return self.get_reduced_stabilizers().as_density_matrix()
 
-    #    """
-    #    state_tensor = self.state.reshape([2] * self.total_qubits)
+    def get_state_vector_distribution(
+        self,
+        zero_threshold: float = 1e-12,
+    ) -> list[TracedState[np.ndarray]]:
+        """
+        The reduced density matrix may be written as
+        :math:`\\rho = \\sum_i p_i |i\\rangle \\langle i|`,
+        where |i\\rangle are state vectors in the Hilbert space of the specified qubits,
+        and p_i is the classical probability of the specified qubits being in the respective
+        state after others have been measured.
 
-    #    # move all specified qubits to the end, in the user-specified order
-    #    n_specified = len(self.specified_qubits)
-    #    n_unspecified = self.total_qubits - n_specified
-    #    permutation_lhs = []
-    #    permutation_rhs = [-1 for _ in range(n_specified)]
-    #    # Note: QuEST uses the convention that qubit 0 is the least significant bit.
-    #    # Thus to iterate over qubits and corresponding statevector indices, we need
-    #    # to iterate from left to right in one, right to left in the other.
-    #    for qubit_id, bit_index in enumerate(reversed(range(self.total_qubits))):
-    #        if qubit_id in self.specified_qubits:
-    #            specified_index = self.specified_qubits.index(qubit_id)
-    #            permutation_rhs[specified_index] = bit_index
-    #        else:
-    #            permutation_lhs.append(bit_index)
-    #    assert -1 not in permutation_rhs, "All specified qubits must be assigned"
-    #    permutation = permutation_lhs + permutation_rhs
-    #    permuted = np.transpose(state_tensor, permutation)
-    #    # state_tensor is now in the shape ([2]*n_unspecified + [2]*n_specified).
-    #    # reshape to a matrix
-    #    reshaped = permuted.reshape((2**n_unspecified, 2**n_specified))
-    #    # and trace out the unspecified qubits
-    #    result = np.einsum("ai,aj->ij", reshaped, np.conj(reshaped))
-    #    # the shape is now (2**n_specified, 2**n_specified)
-    #    assert result.shape == (2**n_specified, 2**n_specified)
+        This is not a unique representation (by the Schrodinger-HJW theorem), but we here use
+        a canonical decomposition.
+        """
+        density_matrix = self.get_density_matrix()
+        result = []
+        eigenvalues, eigenstates = np.linalg.eig(density_matrix)
 
-    #    if zero_threshold > 0:
-    #        # set small (relative) values to zero for a cleaner output
-    #        max_magnitude = np.max(np.abs(result))
-    #        zero_threshold = max_magnitude * zero_threshold
-    #        im = result.imag
-    #        re = result.real
-    #        im[np.abs(im) < zero_threshold] = 0
-    #        re[np.abs(re) < zero_threshold] = 0
-    #        result = re + 1j * im
-    #    return result
+        im = eigenstates.imag
+        re = eigenstates.real
+        eigenstates = re + 1j * im
+        # apply a global phase shift to make the first
+        # non-zero component real and positive
+        for state_idx in range(eigenstates.shape[1]):
+            # find phase of the first non-zero component
+            phase = 1
+            for component in eigenstates[:, state_idx]:
+                if np.abs(component) > 0:
+                    phase = component / np.abs(component)
+                    break
+            # shift the whole state by its conjugate to
+            # make the first component real and positive
+            eigenstates[:, state_idx] *= np.conj(phase)
 
-    # def get_state_vector_distribution(
-    #    self, zero_threshold=1e-12
-    # ) -> list[TracedState[np.ndarray]]:
-    #    """
-    #    The reduced density matrix may be written as
-    #    :math:`\\rho = \\sum_i p_i |i\\rangle \\langle i|`,
-    #    where |i\\rangle are state vectors in the Hilbert space of the specified qubits,
-    #    and p_i is the classical probability of the specified qubits being in the respective
-    #    state after others have been measured.
+        for i, eigenvalue in enumerate(eigenvalues):
+            if abs(eigenvalue) > zero_threshold:
+                result.append(
+                    TracedState(
+                        probability=abs(eigenvalue),
+                        state=eigenstates[:, i],
+                    )
+                )
+        return result
 
-    #    This is not a unique representation (by the Schrodinger-HJW theorem), but we here use
-    #    a canonical decomposition.
-    #    """
-    #    density_matrix = self.get_density_matrix()
-    #    result = []
-    #    eigenvalues, eigenstates = np.linalg.eig(density_matrix)
-    #    if zero_threshold > 0:
-    #        # set small (relative) values to zero for a cleaner output
-    #        max_magnitude = np.max(np.abs(eigenstates))
-    #        zero_threshold_mag = max_magnitude * zero_threshold
-    #        im = eigenstates.imag
-    #        re = eigenstates.real
-    #        im[np.abs(im) < zero_threshold_mag] = 0
-    #        re[np.abs(re) < zero_threshold_mag] = 0
-    #        eigenstates = re + 1j * im
-    #        # apply a global phase shift to make the first
-    #        # non-zero component real and positive
-    #        for state_idx in range(eigenstates.shape[1]):
-    #            # find phase of the first non-zero component
-    #            phase = 1
-    #            for component in eigenstates[:, state_idx]:
-    #                if np.abs(component) > 0:
-    #                    phase = component / np.abs(component)
-    #                    break
-    #            # shift the whole state by its conjugate to
-    #            # make the first component real and positive
-    #            eigenstates[:, state_idx] *= np.conj(phase)
+    def get_single_state(self) -> np.ndarray:
+        """
+        Assume that the state is a pure state and return it.
 
-    #    max_eigenvalue = np.max(np.abs(eigenvalues))
-    #    for i, eigenvalue in enumerate(eigenvalues):
-    #        if abs(eigenvalue) < max_eigenvalue * zero_threshold:
-    #            continue
-    #        result.append(
-    #            TracedState(
-    #                probability=abs(eigenvalue),
-    #                state=eigenstates[:, i],
-    #            )
-    #        )
-    #    return result
+        This is meant to be used when the user is requesting the state on all
+        qubits, or on a subset that is not entangled with the rest.
 
-    # def get_single_state(self, zero_threshold=1e-12) -> np.ndarray:
-    #    """
-    #    Assume that the state is a pure state and return it.
+        This function is a shorthand for ``get_state_vector_distribution`` that checks
+        that there is a single vector with non-zero probability in the distribution of
+        eigenvectors of the reduced density matrix, implying that it is a pure state.
 
-    #    This is meant to be used when the user is requesting the state on all
-    #    qubits, or on a subset that is not entangled with the rest.
+        Raises ValueError if the state is not a pure state.
 
-    #    This function is a shorthand for ``get_state_vector_distribution`` that checks
-    #    that there is a single vector with non-zero probability in the distribution of
-    #    eigenvectors of the reduced density matrix, implying that it is a pure state.
+        """
 
-    #    Raises ValueError if the state is not a pure state.
+        distribution = self.get_state_vector_distribution()
+        assert len(distribution) == 1, (
+            f"Expected a pure state with a single vector in the distribution. Got {len(distribution)} states: {distribution}"
+        )
+        return distribution[0].state
 
-    #    """
+    def get_dirac_notation(self) -> list[TracedState]:
+        try:
+            from sympy import nsimplify, Add
+            from sympy.physics.quantum.state import Ket
 
-    #    return self._get_single(
-    #        all_getter=self.get_state_vector_distribution,
-    #        zero_threshold=zero_threshold,
-    #    )
+            width = len(self.specified_qubits)
 
-    # def _get_single(
-    #    self,
-    #    all_getter: Callable[[float], Iterable[TracedState[T]]],
-    #    zero_threshold: float,
-    # ) -> T:
-    #    """
-    #    Get the single state of the specified qubits, assuming that the state is a pure state.
-    #    This is a helper method for get_single_state.
-    #    """
-    #    all_states = list(all_getter(zero_threshold))
+            def simplify_state(tr_st: TracedState[np.ndarray]) -> TracedState:
+                terms = []
+                probability = nsimplify(tr_st.probability)
+                for i, amplitude in enumerate(tr_st.state):
+                    coefficient = nsimplify(amplitude)
+                    basis_str = f"{i:0{width}b}"
+                    ket = Ket(basis_str)
+                    terms.append(coefficient * ket)
+                assert len(terms) > 0, (
+                    "At least one ket state must have non-zero amplitude"
+                )
+                return TracedState(probability=probability, state=Add(*terms))
+        except ImportError:
+            import sys
 
-    #    if len(all_states) != 1:
-    #        raise ValueError("The state is not a pure state.")
-    #    return all_states[0].state
+            print(
+                "Note: Install sympy to see prettier dirac notation output.",
+                file=sys.stderr,
+            )
 
-    # def get_dirac_notation(self, zero_threshold=1e-12) -> list[TracedState]:
-    #    try:
-    #        from sympy import nsimplify, Add
-    #        from sympy.physics.quantum.state import Ket
+            def simplify_state(
+                tr_st: TracedState[np.ndarray],
+            ) -> TracedState:
+                terms = []
+                for i, amplitude in enumerate(tr_st.state):
+                    ket = f"{amplitude}|{bin(i)[2:]}>"
+                    terms.append(ket)
+                assert len(terms) > 0, (
+                    "At least one ket state must have non-zero amplitude"
+                )
+                return TracedState(
+                    probability=tr_st.probability, state=" + ".join(terms)
+                )
 
-    #        width = len(self.specified_qubits)
+        state_vector = self.get_state_vector_distribution()
+        result = [simplify_state(tr_st) for tr_st in state_vector]
+        return result
 
-    #        def simplify_state(tr_st: TracedState[np.ndarray]) -> TracedState:
-    #            terms = []
-    #            probability = nsimplify(tr_st.probability)
-    #            max_amplitude = np.max(np.abs(tr_st.state))
-    #            for i, amplitude in enumerate(tr_st.state):
-    #                if abs(amplitude) < max_amplitude * zero_threshold:
-    #                    continue
-    #                coefficient = nsimplify(amplitude)
-    #                basis_str = f"{i:0{width}b}"
-    #                ket = Ket(basis_str)
-    #                terms.append(coefficient * ket)
-    #            assert len(terms) > 0, (
-    #                "At least one ket state must have non-zero amplitude"
-    #            )
-    #            return TracedState(probability=probability, state=Add(*terms))
-    #    except ImportError:
-    #        import sys
+    def get_single_dirac_notation(self) -> TracedState:
+        """
+        Get the single state of the specified qubits in Dirac notation,
+        assuming that the state is a pure state.
+        """
+        distribution = self.get_dirac_notation()
+        assert len(distribution) == 1, (
+            "Expected a pure state with a single vector in the distribution."
+        )
+        return distribution[0].state
 
-    #        print(
-    #            "Note: Install sympy to see prettier dirac notation output.",
-    #            file=sys.stderr,
-    #        )
-
-    #        def simplify_state(
-    #            tr_st: TracedState[np.ndarray],
-    #        ) -> TracedState:
-    #            terms = []
-    #            max_amplitude = np.max(np.abs(tr_st.state))
-    #            for i, amplitude in enumerate(tr_st.state):
-    #                if abs(amplitude) < max_amplitude * zero_threshold:
-    #                    continue
-    #                ket = f"{amplitude}|{bin(i)[2:]}>"
-    #                terms.append(ket)
-    #            assert len(terms) > 0, (
-    #                "At least one ket state must have non-zero amplitude"
-    #            )
-    #            return TracedState(
-    #                probability=tr_st.probability, state=" + ".join(terms)
-    #            )
-
-    #    state_vector = self.get_state_vector_distribution(zero_threshold=zero_threshold)
-    #    result = [simplify_state(tr_st) for tr_st in state_vector]
-    #    return result
-
-    # def get_single_dirac_notation(self, zero_threshold=1e-12) -> TracedState:
-    #    """
-    #    Get the single state of the specified qubits in Dirac notation,
-    #    assuming that the state is a pure state.
-    #    """
-    #    return self._get_single(
-    #        all_getter=self.get_dirac_notation,
-    #        zero_threshold=zero_threshold,
-    #    )
+    @staticmethod
+    def parse_from_stabilizer_strings(
+        stabilizer_strings: list[str],
+        specified_qubits: list[int],
+    ) -> "SeleneStimState":
+        total_qubits = len(stabilizer_strings[0]) - 1  # minus phase character
+        return SeleneStimState(
+            StabilizerList(stabilizer_strings),
+            total_qubits,
+            specified_qubits,
+        )
 
     @staticmethod
     def parse_from_file(filename: Path, cleanup: bool = True) -> "SeleneStimState":
@@ -393,11 +499,14 @@ class SeleneStimState:
             if magic != b"selene-stim":
                 raise ValueError("Invalid state file format")
             header_head = f.read(16)
-            total_qubits, n_specified_qubits = struct.unpack("<QQ", header_head)
+            _, n_specified_qubits = struct.unpack("<QQ", header_head)
             specified_qubits = []
             for i in range(n_specified_qubits):
                 specified_qubits.append(struct.unpack("<Q", f.read(8))[0])
-            full_tableau = f.read()
+            stabilizers = f.read()
         if cleanup:
             filename.unlink()
-        return SeleneStimState(full_tableau, total_qubits, specified_qubits)
+        return SeleneStimState.parse_from_stabilizer_strings(
+            stabilizer_strings=stabilizers.decode("utf-8").strip().split("\n"),
+            specified_qubits=specified_qubits,
+        )
