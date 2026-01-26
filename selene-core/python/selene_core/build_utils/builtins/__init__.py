@@ -39,6 +39,19 @@ from .helios import (
     HeliosObjectFileToSeleneExecutableStep_Darwin,
     register_helios_builtins,
 )
+from .qir import (
+    QIRIRFileKind,
+    QIRIRStringKind,
+    QIRBitcodeFileKind,
+    QIRBitcodeStringKind,
+    QIRIRStringToQIRIRFileStep,
+    QIRIRFileToQIRIRStringStep,
+    QIRBitcodeStringToQIRBitcodeFileStep,
+    QIRIRFileToQIRBitcodeFileStep,
+    QIRBitcodeFileToQIRBitcodeStringStep,
+    QIRBitcodeStringToHeliosBitcodeStringStep,
+    register_qir_builtins,
+)
 
 from ..planner import BuildPlanner
 
@@ -50,6 +63,7 @@ def register_builtins(planner: BuildPlanner):
     register_selene_builtins(planner)
     register_hugr_builtins(planner)
     register_helios_builtins(planner)
+    register_qir_builtins(planner)
 
 
 __all__ = [
@@ -77,5 +91,16 @@ __all__ = [
     "HeliosObjectFileToSeleneObjectFileStep_Linux",
     "HeliosObjectFileToSeleneExecutableStep_Windows",
     "HeliosObjectFileToSeleneExecutableStep_Darwin",
+    "QIRIRFileKind",
+    "QIRIRStringKind",
+    "QIRBitcodeFileKind",
+    "QIRBitcodeStringKind",
+    "QIRIRStringToQIRIRFileStep",
+    "QIRIRFileToQIRIRStringStep",
+    "QIRBitcodeStringToQIRBitcodeFileStep",
+    "QIRBitcodeFileToQIRBitcodeStringStep",
+    "QIRIRFileToQIRBitcodeFileStep",
+    "QIRBitcodeFileToQIRBitcodeStringStep",
+    "QIRBitcodeStringToHeliosBitcodeStringStep",
     "register_builtins",
 ]

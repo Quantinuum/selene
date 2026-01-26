@@ -39,7 +39,7 @@ We import Stim as a submodule in selene-ext/simulators/stim/upstream.
 As such, when cloning selene, ensure that you clone with submodules:
 
 ```bash
-git clone --recurse-submodules
+git clone --recurse-submodules <path to selene git repo>
 ```
 
 If you have already cloned the repository and need to fetch the submodule, you can do so
