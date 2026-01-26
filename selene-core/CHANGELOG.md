@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.2...selene-core-v0.2.3) (2026-01-26)
+
+
+### Features
+
+* QIR support using QIR-QIS ([#114](https://github.com/Quantinuum/selene/issues/114)) ([70ab294](https://github.com/Quantinuum/selene/commit/70ab294ffcabbb2cc81a29263bca60cd04f6579f))
+
 ## [0.2.2](https://github.com/quantinuum/selene/compare/selene-core-v0.2.1...selene-core-v0.2.2) (2025-11-07)
 
 
