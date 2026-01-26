@@ -80,7 +80,7 @@ extern "C" {
     void cstim_TableauSimulator64_get_stabilizers(void * rawptr, char** write) {
         stim::TableauSimulator<64>* obj = (stim::TableauSimulator<64>*) rawptr;
         std::stringstream ss;
-        for(auto const& pauli_string : obj->inv_state.stabilizers(true)){
+        for(auto const& pauli_string : obj->canonical_stabilizers()){
             ss << pauli_string << '\n';
         }
         auto str = ss.str();
