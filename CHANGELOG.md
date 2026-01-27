@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.8](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.7...selene-sim-v0.2.8) (2026-01-27)
+
+
+### Features
+
+* Bump selene-core dependency and relax guppylang testing dependency ([#120](https://github.com/Quantinuum/selene/issues/120)) ([6375791](https://github.com/Quantinuum/selene/commit/6375791d047a4de2293f624e810101a50ac6a5f8))
+* QIR support using QIR-QIS ([#114](https://github.com/Quantinuum/selene/issues/114)) ([70ab294](https://github.com/Quantinuum/selene/commit/70ab294ffcabbb2cc81a29263bca60cd04f6579f))
+
 ## [0.2.7](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.6...selene-sim-v0.2.7) (2026-01-08)
 
 
