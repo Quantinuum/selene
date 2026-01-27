@@ -116,6 +116,39 @@ impl SimulatorInterface for QuantumReplaySimulator {
         }
     }
 
+    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            self.wrapped.tk2(q0, q1, alpha, beta, gamma)
+        } else {
+            Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            self.wrapped.rpp(q0, q1, theta, phi)
+        } else {
+            Err(anyhow!(
+                "RPP(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn twin_rxy(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            self.wrapped.twin_rxy(q0, q1, theta, phi)
+        } else {
+            Err(anyhow!(
+                "TwinRXY(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
     fn measure(&mut self, q0: u64) -> Result<bool> {
         if q0 >= self.n_qubits {
             Err(anyhow!(

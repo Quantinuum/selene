@@ -543,6 +543,46 @@ pub unsafe extern "C" fn selene_rzz(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_rpp(
+    instance: *mut SeleneInstance,
+    qubit_id: u64,
+    qubit_id2: u64,
+    theta: f64,
+    phi: f64,
+) -> VoidResult {
+    with_instance_void(instance, |instance| {
+        instance.rpp(qubit_id, qubit_id2, theta, phi)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_twin_rxy(
+    instance: *mut SeleneInstance,
+    qubit_id: u64,
+    qubit_id2: u64,
+    theta: f64,
+    phi: f64,
+) -> VoidResult {
+    with_instance_void(instance, |instance| {
+        instance.twin_rxy(qubit_id, qubit_id2, theta, phi)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_tk2(
+    instance: *mut SeleneInstance,
+    qubit_id: u64,
+    qubit_id2: u64,
+    alpha: f64,
+    beta: f64,
+    gamma: f64,
+) -> VoidResult {
+    with_instance_void(instance, |instance| {
+        instance.tk2(qubit_id, qubit_id2, alpha, beta, gamma)
+    })
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_qubit_reset(instance: *mut SeleneInstance, q: u64) -> VoidResult {
     with_instance_void(instance, |instance| instance.emulator.user_issued_reset(q))
 }

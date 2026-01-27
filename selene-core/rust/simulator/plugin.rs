@@ -1,6 +1,6 @@
 use super::{SimulatorAPIVersion, SimulatorInterface, SimulatorInterfaceFactory};
 use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use libloading;
 use ouroboros::self_referencing;
 use std::ffi::OsStr;
@@ -138,26 +138,80 @@ pub struct SimulatorPluginInterface {
         libloading::Symbol<'this, unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
     #[borrows(lib)]
     #[covariant]
-    rxy_fn: libloading::Symbol<
-        'this,
-        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
+    rxy_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(
+                handle: SimulatorInstance,
+                qubit: u64,
+                theta: f64,
+                phi: f64,
+            ) -> Errno,
+        >,
     >,
     #[borrows(lib)]
     #[covariant]
-    rz_fn: libloading::Symbol<
-        'this,
-        unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno,
+    rz_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno,
+        >,
     >,
     #[borrows(lib)]
     #[covariant]
-    rzz_fn: libloading::Symbol<
-        'this,
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            theta: f64,
-        ) -> Errno,
+    rzz_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(
+                handle: SimulatorInstance,
+                qubit0: u64,
+                qubit1: u64,
+                theta: f64,
+            ) -> Errno,
+        >,
+    >,
+    #[borrows(lib)]
+    #[covariant]
+    tk2_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(
+                handle: SimulatorInstance,
+                qubit0: u64,
+                qubit1: u64,
+                alpha: f64,
+                beta: f64,
+                gamma: f64,
+            ) -> Errno,
+        >,
+    >,
+    #[borrows(lib)]
+    #[covariant]
+    twin_rxy_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(
+                handle: SimulatorInstance,
+                qubit0: u64,
+                qubit1: u64,
+                theta: f64,
+                phi: f64,
+            ) -> Errno,
+        >,
+    >,
+    #[borrows(lib)]
+    #[covariant]
+    rpp_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(
+                handle: SimulatorInstance,
+                qubit0: u64,
+                qubit1: u64,
+                theta: f64,
+                phi: f64,
+            ) -> Errno,
+        >,
     >,
     #[borrows(lib)]
     #[covariant]
@@ -224,10 +278,10 @@ impl SimulatorPluginInterface {
             {
                 func().into()
             } else {
-                return Err(anyhow!(
+                bail!(
                     "Failed to load version from simulator at '{}'. The plugin is not compatible with this version of selene.",
                     plugin_file.as_ref().to_string_lossy(),
-                ));
+                );
             }
         };
         version.validate()?;
@@ -255,9 +309,14 @@ impl SimulatorPluginInterface {
             exit_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_exit").ok()) },
             shot_start_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_shot_start") },
             shot_end_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_shot_end") },
-            rxy_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_operation_rxy") },
-            rz_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_operation_rz") },
-            rzz_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_operation_rzz") },
+            rxy_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rxy").ok()) },
+            rz_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rz").ok()) },
+            rzz_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rzz").ok()) },
+            tk2_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_tk2").ok()) },
+            twin_rxy_fn_builder: |lib| unsafe {
+                Ok(lib.get(b"selene_simulator_operation_twin_rxy").ok())
+            },
+            rpp_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rpp").ok()) },
             measure_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_operation_measure") },
             postselect_fn_builder: |lib| unsafe {
                 Ok(lib.get(b"selene_simulator_operation_postselect").ok())
@@ -332,33 +391,108 @@ impl SimulatorInterface for SimulatorPlugin {
         )
     }
     fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
-        check_errno(
-            unsafe { self.interface.borrow_rxy_fn()(self.instance, qubit, theta, phi) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): rxy failed",
-                    self.interface.borrow_name()
-                )
-            },
-        )
+        let Some(rxy_fn) = self.interface.borrow_rxy_fn() else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RXY gate",
+                self.interface.borrow_name()
+            );
+        };
+        check_errno(unsafe { rxy_fn(self.instance, qubit, theta, phi) }, || {
+            anyhow!(
+                "SimulatorPlugin({}): rxy failed",
+                self.interface.borrow_name()
+            )
+        })
     }
     fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe { self.interface.borrow_rz_fn()(self.instance, qubit, theta) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): rz failed",
-                    self.interface.borrow_name()
-                )
-            },
-        )
+        let Some(rz_fn) = self.interface.borrow_rz_fn() else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RZ gate",
+                self.interface.borrow_name()
+            );
+        };
+        check_errno(unsafe { rz_fn(self.instance, qubit, theta) }, || {
+            anyhow!(
+                "SimulatorPlugin({}): rz failed",
+                self.interface.borrow_name()
+            )
+        })
     }
     fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
+        let Some(rzz_fn) = self.interface.borrow_rzz_fn() else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RZZ gate",
+                self.interface.borrow_name()
+            );
+        };
         check_errno(
-            unsafe { (self.interface.borrow_rzz_fn())(self.instance, qubit1, qubit2, theta) },
+            unsafe { rzz_fn(self.instance, qubit1, qubit2, theta) },
             || {
                 anyhow!(
                     "SimulatorPlugin({}): rzz failed",
+                    self.interface.borrow_name()
+                )
+            },
+        )
+    }
+    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
+        let Some(rpp_fn) = self.interface.borrow_rpp_fn() else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RPP gate",
+                self.interface.borrow_name()
+            );
+        };
+        check_errno(
+            unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
+            || {
+                anyhow!(
+                    "SimulatorPlugin({}): rpp failed",
+                    self.interface.borrow_name()
+                )
+            },
+        )
+    }
+    fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
+        let Some(tk2_fn) = self.interface.borrow_tk2_fn() else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the TK2 gate",
+                self.interface.borrow_name()
+            );
+        };
+        check_errno(
+            unsafe { tk2_fn(self.instance, qubit1, qubit2, alpha, beta, gamma) },
+            || {
+                anyhow!(
+                    "SimulatorPlugin({}): tk2 failed",
+                    self.interface.borrow_name()
+                )
+            },
+        )
+    }
+    fn twin_rxy(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
+        let Some(twin_rxy_fn) = self.interface.borrow_twin_rxy_fn() else {
+            // Fall back to attempting two individual RXY gates if twin_rxy is not supported
+            if let Err(e) = self.rxy(qubit1, theta, phi) {
+                bail!(
+                    "SimulatorPlugin({}): The chosen simulator does not support the TwinRXY gate, and applying an independent RXY gates failed: {}",
+                    self.interface.borrow_name(),
+                    e
+                );
+            }
+            if let Err(e) = self.rxy(qubit2, theta, phi) {
+                bail!(
+                    "SimulatorPlugin({}): The chosen simulator does not support the TwinRXY gate, and applying the second independent RXY gates failed: {}",
+                    self.interface.borrow_name(),
+                    e
+                );
+            }
+            return Ok(());
+        };
+        check_errno(
+            unsafe { twin_rxy_fn(self.instance, qubit1, qubit2, theta, phi) },
+            || {
+                anyhow!(
+                    "SimulatorPlugin({}): twin_rxy failed",
                     self.interface.borrow_name()
                 )
             },
@@ -377,9 +511,7 @@ impl SimulatorInterface for SimulatorPlugin {
     }
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
         let Some(postselect_fn) = self.interface.borrow_postselect_fn() else {
-            return Err(anyhow!(
-                "The chosen simulator does not support postselection"
-            ));
+            bail!("The chosen simulator does not support postselection");
         };
         check_errno(
             unsafe { postselect_fn(self.instance, qubit, target_value) },

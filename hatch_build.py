@@ -111,6 +111,7 @@ class BundleBuildHook(BuildHookInterface):
         cargo_runner.run()
         self.build_selene_c_interface()
         self.build_helios_qis()
+        self.build_sol_qis()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():
@@ -227,6 +228,10 @@ class BundleBuildHook(BuildHookInterface):
             shutil.copy(lib, self.install_lib_dir)
             lib_paths.append(lib)
         for lib in self.find_release_files("helios_selene_interface"):
+            self.app.display_info(f"Copying {lib} to {self.install_lib_dir}")
+            shutil.copy(lib, self.install_lib_dir)
+            lib_paths.append(lib)
+        for lib in self.find_release_files("sol_selene_interface"):
             self.app.display_info(f"Copying {lib} to {self.install_lib_dir}")
             shutil.copy(lib, self.install_lib_dir)
             lib_paths.append(lib)
@@ -354,3 +359,67 @@ class BundleBuildHook(BuildHookInterface):
             sys.exit(1)
 
         self.app.display_success("Helios QIS build completed successfully")
+
+    def build_sol_qis(self):
+        self.app.display_mini_header("Building Sol QIS")
+        sol_qis_dir = Path(self.root) / "selene-ext/interfaces/sol_qis"
+        cmake_build_dir = sol_qis_dir / "c/build"
+        cmake_build_dir.mkdir(parents=True, exist_ok=True)
+        dist_dir = sol_qis_dir / "python/selene_sol_qis_plugin/_dist"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+
+        try:
+            subprocess.run(
+                [
+                    "cmake",
+                    f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
+                    "..",
+                ],
+                cwd=cmake_build_dir,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            if b"is different than the directory" not in e.stderr:
+                self.app.display_error(f"cmake failed: {e.stderr.decode()}")
+                sys.exit(1)
+            try:
+                # existing build dir is incompatible, delete and retry
+                shutil.rmtree(cmake_build_dir)
+                cmake_build_dir.mkdir()
+                subprocess.run(
+                    [
+                        "cmake",
+                        f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+                        f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
+                        "..",
+                    ],
+                    cwd=cmake_build_dir,
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                self.app.display_error(f"cmake failed: {e.stderr.decode()}")
+                sys.exit(1)
+
+        try:
+            subprocess.run(
+                [
+                    "cmake",
+                    "--build",
+                    ".",
+                    "--target",
+                    "install",
+                ],
+                check=True,
+                cwd=cmake_build_dir,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            self.app.display_error(f"cmake build failed: {e.stderr.decode()}")
+            sys.exit(1)
+
+        self.app.display_success("Sol QIS build completed successfully")

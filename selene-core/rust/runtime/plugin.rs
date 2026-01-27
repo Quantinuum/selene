@@ -141,6 +141,46 @@ pub struct RuntimePluginInterface {
 
     #[borrows(lib)]
     #[covariant]
+    twin_rxy_gate_fn: libloading::Symbol<
+        'this,
+        unsafe extern "C" fn(
+            handle: RuntimeInstance,
+            qubit0: u64,
+            qubit1: u64,
+            theta: f64,
+            phi: f64,
+        ) -> Errno,
+    >,
+
+    #[borrows(lib)]
+    #[covariant]
+    rpp_gate_fn: libloading::Symbol<
+        'this,
+        unsafe extern "C" fn(
+            handle: RuntimeInstance,
+            qubit0: u64,
+            qubit1: u64,
+            theta: f64,
+            phi: f64,
+        ) -> Errno,
+    >,
+
+    #[borrows(lib)]
+    #[covariant]
+    tk2_gate_fn: libloading::Symbol<
+        'this,
+        unsafe extern "C" fn(
+            handle: RuntimeInstance,
+            qubit0: u64,
+            qubit1: u64,
+            alpha: f64,
+            beta: f64,
+            gamma: f64,
+        ) -> Errno,
+    >,
+
+    #[borrows(lib)]
+    #[covariant]
     measure_fn: libloading::Symbol<
         'this,
         unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, result_id: *mut u64) -> Errno,
@@ -267,6 +307,9 @@ impl RuntimePluginInterface {
             rxy_gate_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_rxy_gate") },
             rzz_gate_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_rzz_gate") },
             rz_gate_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_rz_gate") },
+            tk2_gate_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_tk2_gate") },
+            twin_rxy_gate_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_twin_rxy_gate") },
+            rpp_gate_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_rpp_gate") },
             measure_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_measure") },
             measure_leaked_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_measure_leaked") },
             reset_fn_builder: |lib| unsafe { lib.get(b"selene_runtime_reset") },
@@ -427,6 +470,65 @@ impl RuntimeInterface for RuntimePlugin {
         check_errno(
             unsafe { self.interface.borrow_rz_gate_fn()(self.instance, qubit_id, theta) },
             || anyhow!("RuntimePlugin: rz_gate failed"),
+        )
+    }
+
+    fn twin_rxy_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+    ) -> Result<()> {
+        check_errno(
+            unsafe {
+                self.interface.borrow_twin_rxy_gate_fn()(
+                    self.instance,
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                )
+            },
+            || anyhow!("RuntimePlugin: twin_rxy_gate failed"),
+        )
+    }
+
+    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
+        check_errno(
+            unsafe {
+                self.interface.borrow_rpp_gate_fn()(
+                    self.instance,
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                )
+            },
+            || anyhow!("RuntimePlugin: rpp_gate failed"),
+        )
+    }
+
+    fn tk2_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    ) -> Result<()> {
+        check_errno(
+            unsafe {
+                self.interface.borrow_tk2_gate_fn()(
+                    self.instance,
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                )
+            },
+            || anyhow!("RuntimePlugin: tk2_gate failed"),
         )
     }
 
@@ -629,6 +731,62 @@ impl BatchBuilder {
         )
     }
 
+    unsafe extern "C" fn twin_rxy(
+        interface: RuntimeGetOperationInstance,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+    ) {
+        Self::push(
+            interface,
+            Operation::TwinRXYGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+                phi,
+            },
+        )
+    }
+
+    unsafe extern "C" fn rpp(
+        interface: RuntimeGetOperationInstance,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+    ) {
+        Self::push(
+            interface,
+            Operation::RPPGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+                phi,
+            },
+        )
+    }
+
+    unsafe extern "C" fn tk2(
+        interface: RuntimeGetOperationInstance,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    ) {
+        Self::push(
+            interface,
+            Operation::TK2Gate {
+                qubit_id_1,
+                qubit_id_2,
+                alpha,
+                beta,
+                gamma,
+            },
+        )
+    }
+
     unsafe extern "C" fn measure(
         interface: RuntimeGetOperationInstance,
         qubit_id: u64,
@@ -695,14 +853,17 @@ impl BatchBuilder {
     ) {
         let instance = &raw mut self.0 as RuntimeGetOperationInstance;
         let interface = RuntimeGetOperationInterface {
-            rzz_fn: Self::rzz,
-            rxy_fn: Self::rxy,
-            rz_fn: Self::rz,
             measure_fn: Self::measure,
             measure_leaked_fn: Self::measure_leaked,
             reset_fn: Self::reset,
             custom_fn: Self::custom,
             set_batch_time_fn: Self::set_batch_time,
+            rzz_fn: Self::rzz,
+            rxy_fn: Self::rxy,
+            rz_fn: Self::rz,
+            twin_rxy_gate: Self::twin_rxy,
+            rpp_gate: Self::rpp,
+            tk2_gate: Self::tk2,
             _marker: PhantomData,
         };
         (instance, interface)
@@ -731,15 +892,18 @@ pub type RuntimeGetOperationInstance = *mut ffi::c_void;
 /// within to populate a batch. All such calls must pass the instance as the
 /// first parameter.
 pub struct RuntimeGetOperationInterface<'a> {
-    pub rzz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64),
-    pub rxy_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64, f64),
-    pub rz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64),
     pub measure_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
     pub measure_leaked_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
     pub reset_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64),
     pub custom_fn:
         unsafe extern "C" fn(RuntimeGetOperationInstance, usize, *const ffi::c_void, usize),
     pub set_batch_time_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
+    pub rzz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64),
+    pub rxy_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64, f64),
+    pub rz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64),
+    pub twin_rxy_gate: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
+    pub rpp_gate: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
+    pub tk2_gate: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64, f64),
     _marker: PhantomData<&'a ()>,
 }
 
@@ -758,14 +922,17 @@ impl BatchExtractor {
         let batch_ptr = instance_in as *const BatchOperation;
         let batch: &BatchOperation = unsafe { &*batch_ptr };
         let RuntimeGetOperationInterface {
-            rzz_fn,
-            rxy_fn,
-            rz_fn,
             measure_fn,
             measure_leaked_fn,
             reset_fn,
             custom_fn,
             set_batch_time_fn,
+            rzz_fn,
+            rxy_fn,
+            rz_fn,
+            twin_rxy_gate,
+            rpp_gate,
+            tk2_gate,
             ..
         } = interface_out;
         unsafe { set_batch_time_fn(instance_out, batch.start().into(), batch.duration().into()) };
@@ -793,6 +960,34 @@ impl BatchExtractor {
                     qubit_id_2,
                     theta,
                 } => unsafe { rzz_fn(instance_out, *qubit_id_1, *qubit_id_2, *theta) },
+                Operation::TwinRXYGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => unsafe { twin_rxy_gate(instance_out, *qubit_id_1, *qubit_id_2, *theta, *phi) },
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => unsafe { rpp_gate(instance_out, *qubit_id_1, *qubit_id_2, *theta, *phi) },
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => unsafe {
+                    tk2_gate(
+                        instance_out,
+                        *qubit_id_1,
+                        *qubit_id_2,
+                        *alpha,
+                        *beta,
+                        *gamma,
+                    )
+                },
                 Operation::Custom { custom_tag, data } => {
                     let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                     unsafe { custom_fn(instance_out, *custom_tag, ptr, len) }

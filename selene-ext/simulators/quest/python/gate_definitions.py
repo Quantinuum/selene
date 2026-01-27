@@ -52,8 +52,30 @@ def rzz(angle):
     )
 
 
+def twin_rz(angle):
+    rz_q1 = sp.kronecker_product(rz(angle), identity())
+    rz_q2 = sp.kronecker_product(identity(), rz(angle))
+    return sp.trigsimp(rz_q1 * rz_q2)
+
+
 def rxy(theta, phi):
     return sp.trigsimp(rz(phi) * rx(theta) * rz(-phi))
+
+
+def rpp(theta, phi):
+    return sp.trigsimp(twin_rz(phi) * rxx(theta) * twin_rz(-phi))
+
+
+def tk2(alpha, beta, gamma):
+    # note: rxx * yy * zz and rzz * ryy * rxx are equal
+    return sp.trigsimp(rxx(alpha) * ryy(beta) * rzz(gamma))
+
+
+def twin_rxy(theta, phi):
+    rxy_gate = sp.trigsimp(rz(phi) * rx(theta) * rz(-phi))
+    rxy_q1 = sp.kronecker_product(rxy_gate, identity())
+    rxy_q2 = sp.kronecker_product(identity(), rxy_gate)
+    return sp.trigsimp(rxy_q1 * rxy_q2)
 
 
 def print_summary(name, gate, notes: str | None = None):
@@ -93,7 +115,20 @@ if __name__ == "__main__":
     rzz_gate = sp.simplify(
         rzz(theta) * exp(I * theta / 2)
     )  # Global phase adjustment for consistency with prior versions
+    twin_rxy_gate = twin_rxy(theta, phi)
+    rpp_gate = rpp(theta, phi)
+    tk2_gate = tk2(alpha, beta, gamma)
 
     print_summary(f"rz({theta})", rz_gate)
     print_summary(f"rxy({theta}, {phi})", rxy_gate)
     print_summary(f"rzz({theta})", rzz_gate)
+    print_summary(f"rz({theta})", rz_gate)
+    print_summary(f"rxy({theta}, {phi})", rxy_gate)
+    print_summary(
+        f"twin_rxy({theta}, {phi})",
+        twin_rxy_gate,
+        notes="Likely best to implement using two separate rxy gates on each qubit.",
+    )
+    print_summary(f"rzz({theta})", rzz_gate)
+    print_summary(f"rpp({theta}, {phi})", rpp_gate)
+    print_summary(f"tk2({alpha}, {beta}, {gamma})", tk2_gate)
