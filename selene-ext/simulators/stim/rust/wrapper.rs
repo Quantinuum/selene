@@ -59,9 +59,6 @@ impl TableauSimulatorMin {
     pub fn sqrt_zz_dag(&mut self, q0: u32, q1: u32) {
         unsafe { bindings::stim_tableausimulator_min_do_SQRT_ZZ_DAG(self.ptr, q0, q1) }
     }
-    pub fn h(&mut self, q: u32) {
-        unsafe { bindings::cstim_TableauSimulator64_do_H_XZ(self.ptr, q) }
-    }
     pub fn mz(&mut self, q: u32) -> bool {
         unsafe { bindings::stim_tableausimulator_min_do_MZ(self.ptr, q) }
     }
@@ -90,21 +87,6 @@ impl TableauSimulatorMin {
             }
         };
         unsafe { bindings::stim_tableausimulator_min_free_stabilizers(stringptr) };
-        result
-    }
-    pub fn get_stabilisers(&mut self) -> String {
-        let mut stringptr = std::ptr::null_mut();
-        unsafe { bindings::cstim_TableauSimulator64_get_stabilizers(self.ptr, &mut stringptr) };
-        let result: String = unsafe {
-            if stringptr.is_null() {
-                String::new()
-            } else {
-                std::ffi::CStr::from_ptr(stringptr)
-                    .to_string_lossy()
-                    .into_owned()
-            }
-        };
-        unsafe { bindings::cstim_TableauSimulator64_free_stabilizers(stringptr) };
         result
     }
 }

@@ -104,17 +104,6 @@ typedef void *SeleneRuntimeGetOperationInstance;
  * first parameter.
  */
 typedef struct SeleneRuntimeGetOperationInterface {
-  void (*rzz_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double);
-  void (*rxy_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 double,
-                 double);
-  void (*rz_fn)(SeleneRuntimeGetOperationInstance,
-                uint64_t,
-                double);
   void (*measure_fn)(SeleneRuntimeGetOperationInstance,
                      uint64_t,
                      uint64_t);
@@ -130,6 +119,28 @@ typedef struct SeleneRuntimeGetOperationInterface {
   void (*set_batch_time_fn)(SeleneRuntimeGetOperationInstance,
                             uint64_t,
                             uint64_t);
+  void (*rzz_fn)(SeleneRuntimeGetOperationInstance,
+                 uint64_t,
+                 uint64_t,
+                 double);
+  void (*rxy_fn)(SeleneRuntimeGetOperationInstance,
+                 uint64_t,
+                 double,
+                 double);
+  void (*rz_fn)(SeleneRuntimeGetOperationInstance,
+                uint64_t,
+                double);
+  void (*rpp_gate)(SeleneRuntimeGetOperationInstance,
+                   uint64_t,
+                   uint64_t,
+                   double,
+                   double);
+  void (*tk2_gate)(SeleneRuntimeGetOperationInstance,
+                   uint64_t,
+                   uint64_t,
+                   double,
+                   double,
+                   double);
 } SeleneRuntimeGetOperationInterface;
 
 typedef void *SeleneRuntimeExtractOperationInstance;

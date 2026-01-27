@@ -23,6 +23,7 @@ use delegate::delegate;
 /// the interface is currently limited to individual operations, but this
 /// may change in future if it is found to be beneficial for performance.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Operation {
     Measure {
         qubit_id: u64,
@@ -53,6 +54,19 @@ pub enum Operation {
         qubit_id: u64,
         result_id: u64,
     },
+    RPPGate {
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+    },
+    TK2Gate {
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    },
 }
 
 impl Operation {
@@ -67,11 +81,9 @@ impl Operation {
                 set.insert(*qubit_id);
                 set
             }
-            Operation::RZZGate {
-                qubit_id_1,
-                qubit_id_2,
-                ..
-            } => {
+            Operation::RZZGate { qubit_id_1,  qubit_id_2, .. }
+            | Operation::RPPGate { qubit_id_1, qubit_id_2, .. }
+            | Operation::TK2Gate { qubit_id_1, qubit_id_2, .. } => {
                 let mut set = HashSet::new();
                 set.insert(*qubit_id_1);
                 set.insert(*qubit_id_2);
@@ -196,6 +208,8 @@ impl RuntimeInterface for Runtime {
             fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()>;
             fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()>;
             fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()>;
+            fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()>;
+            fn tk2_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()>;
             fn measure(&mut self, qubit_id: u64) -> Result<u64>;
             fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64>;
             fn reset(&mut self, qubit_id: u64) -> Result<()>;

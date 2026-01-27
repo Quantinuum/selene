@@ -86,6 +86,21 @@ impl Instruction {
                 encoder.write(13u64)?;
                 encoder.write(*duration)?;
             }
+            Operation::RPP(qubit1, qubit2, theta, phi) => {
+                encoder.write(14u64)?;
+                encoder.write(*qubit1)?;
+                encoder.write(*qubit2)?;
+                encoder.write(*theta)?;
+                encoder.write(*phi)?;
+            }
+            Operation::TK2(qubit1, qubit2, alpha, beta, gamma) => {
+                encoder.write(15u64)?;
+                encoder.write(*qubit1)?;
+                encoder.write(*qubit2)?;
+                encoder.write(*alpha)?;
+                encoder.write(*beta)?;
+                encoder.write(*gamma)?;
+            }
         }
         Ok(())
     }
@@ -123,6 +138,19 @@ impl EventHook for InstructionLog {
                     qubit_id_2,
                     theta,
                 } => Operation::RZZ(*qubit_id_1, *qubit_id_2, *theta),
+                runtime::Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => Operation::RPP(*qubit_id_1, *qubit_id_2, *theta, *phi),
+                runtime::Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => Operation::TK2(*qubit_id_1, *qubit_id_2, *alpha, *beta, *gamma),
                 runtime::Operation::RZGate { qubit_id, theta } => Operation::RZ(*qubit_id, *theta),
                 runtime::Operation::Measure { qubit_id, .. } => Operation::FutureRead(*qubit_id),
                 runtime::Operation::MeasureLeaked { qubit_id, .. } => {
@@ -131,6 +159,7 @@ impl EventHook for InstructionLog {
                 runtime::Operation::Custom { custom_tag, data } => {
                     Operation::Custom(*custom_tag as u64, data.to_vec())
                 }
+                &_ => todo!(),
             };
             self.entries.push(Instruction {
                 source: Source::RuntimeOptimiser,
