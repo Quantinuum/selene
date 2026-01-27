@@ -135,6 +135,83 @@ impl RuntimeInterface for SimpleRuntime {
         self.push(Operation::RZGate { qubit_id, theta });
         Ok(())
     }
+    fn tk2_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    ) -> Result<()> {
+        if qubit_id_1 >= self.qubits.len() as u64 {
+            bail!("applying tk2 gate to out-of-bounds qubit1 {qubit_id_1}");
+        }
+        if qubit_id_2 >= self.qubits.len() as u64 {
+            bail!("applying tk2 gate to out-of-bounds qubit2 {qubit_id_2}");
+        }
+        let QubitStatus::Active = self.qubits[qubit_id_1 as usize] else {
+            bail!("Qubit {qubit_id_1} is not active");
+        };
+        let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
+            bail!("Qubit {qubit_id_2} is not active");
+        };
+        self.push(Operation::TK2Gate {
+            qubit_id_1,
+            qubit_id_2,
+            alpha,
+            beta,
+            gamma,
+        });
+        Ok(())
+    }
+    fn twin_rxy_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+    ) -> Result<()> {
+        if qubit_id_1 >= self.qubits.len() as u64 {
+            bail!("applying twin rxy gate to out-of-bounds qubit1 {qubit_id_1}");
+        }
+        if qubit_id_2 >= self.qubits.len() as u64 {
+            bail!("applying twin rxy gate to out-of-bounds qubit2 {qubit_id_2}");
+        }
+        let QubitStatus::Active = self.qubits[qubit_id_1 as usize] else {
+            bail!("Qubit {qubit_id_1} is not active");
+        };
+        let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
+            bail!("Qubit {qubit_id_2} is not active");
+        };
+        self.push(Operation::TwinRXYGate {
+            qubit_id_1,
+            qubit_id_2,
+            theta,
+            phi,
+        });
+        Ok(())
+    }
+    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
+        if qubit_id_1 >= self.qubits.len() as u64 {
+            bail!("applying rpp gate to out-of-bounds qubit1 {qubit_id_1}");
+        }
+        if qubit_id_2 >= self.qubits.len() as u64 {
+            bail!("applying rpp gate to out-of-bounds qubit2 {qubit_id_2}");
+        }
+        let QubitStatus::Active = self.qubits[qubit_id_1 as usize] else {
+            bail!("Qubit {qubit_id_1} is not active");
+        };
+        let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
+            bail!("Qubit {qubit_id_2} is not active");
+        };
+        self.push(Operation::RPPGate {
+            qubit_id_1,
+            qubit_id_2,
+            theta,
+            phi,
+        });
+        Ok(())
+    }
     // Lifetime ops
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {

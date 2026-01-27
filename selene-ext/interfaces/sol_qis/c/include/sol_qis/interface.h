@@ -1,14 +1,14 @@
-#ifndef HELIOS_QIS_INTERFACE_H
-#define HELIOS_QIS_INTERFACE_H
+#ifndef SOL_QIS_INTERFACE_H
+#define SOL_QIS_INTERFACE_H
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>
-#include <helios_qis/cl_types.h>
+#include <sol_qis/cl_types.h>
 
 // when building, we mark the functions as exported on windows,
 // and as used on other platforms.
-#ifdef BUILDING_HELIOS_QIS_INTERFACE
+#ifdef BUILDING_SOL_QIS_INTERFACE
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -31,9 +31,11 @@ EXPORT int main(int argc, char** argv);
 
 EXPORT uint64_t ___qalloc();
 EXPORT void ___qfree(uint64_t q);
-EXPORT void ___rxy(uint64_t q, double theta, double phi);
-EXPORT void ___rzz(uint64_t q1, uint64_t q2, double theta);
 EXPORT void ___rz(uint64_t q, double theta);
+EXPORT void ___rp(uint64_t q, double theta, double phi);
+EXPORT void ___rpg(uint64_t q1, uint64_t q2, double theta, double phi);
+EXPORT void ___rpp(uint64_t q1, uint64_t q2, double theta, double phi);
+EXPORT void ___rxxyyzz(uint64_t q1, uint64_t q2, double alpha, double beta, double gamma);
 EXPORT void ___reset(uint64_t q);
 EXPORT bool ___measure(uint64_t q);
 EXPORT uint64_t ___lazy_measure(uint64_t q);
@@ -65,4 +67,4 @@ EXPORT uint64_t teardown();
 EXPORT void* heap_alloc(size_t size);
 EXPORT void heap_free(void* ptr);
 
-#endif // HELIOS_QIS_INTERFACE_H
+#endif // SOL_QIS_INTERFACE_H

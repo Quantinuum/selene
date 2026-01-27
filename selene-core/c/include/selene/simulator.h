@@ -119,6 +119,38 @@ int32_t selene_simulator_operation_rz(SeleneSimulatorInstance instance,
                                       double theta);
 
 /**
+ * Apply a TK2 (aka SU(4)) gate to the qubits at the requested indices,
+ * with the provided angles. This gate performs the canonical two-qubit
+ * interaction characterized by the three angles alpha, beta, and gamma.
+ */
+int32_t selene_simulator_operation_tk2(SeleneSimulatorInstance instance,
+                                       uint64_t qubit1,
+                                       uint64_t qubit2,
+                                       double alpha,
+                                       double beta,
+                                       double gamma);
+
+/**
+ * Apply a Twin RXY gate to the qubits at the requested indices, with the
+ * provided angles. This gate performs simultaneous RXY rotations on both qubits.
+ */
+int32_t selene_simulator_operation_twin_rxy(SeleneSimulatorInstance instance,
+                                            uint64_t qubit1,
+                                            uint64_t qubit2,
+                                            double theta,
+                                            double phi);
+
+/**
+ * Apply an RPP gate to the qubits at the requested indices, with the
+ * provided angles.
+ */
+int32_t selene_simulator_operation_rpp(SeleneSimulatorInstance instance,
+                                       uint64_t qubit1,
+                                       uint64_t qubit2,
+                                       double theta,
+                                       double phi);
+
+/**
  * Measure the qubit at the requested index. This is a destructive
  * operation.
  */
