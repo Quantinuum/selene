@@ -13,7 +13,7 @@ dependencies = [
   "numpy>=2.1",
   "pydot>=4.0.0",
   "pyyaml>=6.0.2",
-  "selene-core~=0.2.1",
+  "selene-core~=0.2.3",
   "selene-hugr-qis-compiler~=0.2.6",
   "qir-qis~=0.1.1",
   "tqdm>=4.67.1",
@@ -134,7 +134,7 @@ environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-requires = [
   "pytest",
   "pytest-snapshot",
-  "guppylang==0.21.6", # temporary == due to an array comprehension bug in guppylang==0.21.7
+  "guppylang~=0.21.6,!=0.21.7",
   "pytket~=2.9.1",
 ]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
