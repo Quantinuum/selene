@@ -6,8 +6,9 @@ description = "The core interop library for Selene python interfaces"
 readme = "python/selene_core/README.md"
 dependencies = [
   "networkx>=2.6,<4",
-  "pyyaml~=6.0",
   "pydot>=4.0.0",
+  "pyyaml~=6.0",
+  "qir-qis>=0.1.1",
   "typing_extensions>=4",
 ]
 

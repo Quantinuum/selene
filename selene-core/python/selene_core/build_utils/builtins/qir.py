@@ -10,7 +10,6 @@ from qir_qis import qir_ll_to_bc, qir_to_qis, validate_qir
 QIR_MATCHES = [
     "__quantum__qis",
     "__quantum__rt",
-    "qir_major_version",
     "entry_point",
 ]
 
