@@ -13,7 +13,7 @@ Selene is built with flexibility in mind. This includes:
 
 Out of the box, Selene provides first-class support for:
 
-- The [HUGR](https://github.com/quantinuum/hugr) ecosystem, including execution of [Guppy](https://github.com/quantinuum/guppy) programs in an emulation environment, making use of our [open-source compiler](https://github.com/Quantinuum/tket2/tree/main/qis-compiler). You can find many examples of guppy usage in our [unit tests](selene-sim/python/tests/test_guppy.py).
+- The [HUGR](https://github.com/quantinuum/hugr) ecosystem, including execution of [Guppy](https://github.com/quantinuum/guppylang) programs in an emulation environment, making use of our [open-source compiler](https://github.com/Quantinuum/tket2/tree/main/qis-compiler). You can find many examples of guppy usage in our [unit tests](selene-sim/python/tests/test_guppy.py).
 - [QIR](https://www.qir-alliance.org/) (Quantum Intermediate Representation) programs, supporting both LLVM IR and bitcode formats, compiled using our [open-source QIR compiler](https://github.com/Quantinuum/qir-qis). You can find QIR examples in our [QIR tests](selene-sim/python/tests/test_qir.py).
 
 Selene provides a range of simulators, including:
