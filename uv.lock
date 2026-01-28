@@ -1439,21 +1439,27 @@ name = "selene-core"
 version = "0.2.3"
 source = { editable = "selene-core" }
 dependencies = [
+    { name = "hugr" },
+    { name = "lief" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pydot" },
     { name = "pyyaml" },
     { name = "qir-qis" },
     { name = "typing-extensions" },
+    { name = "ziglang" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "hugr", specifier = ">=0.13.0" },
+    { name = "lief", specifier = ">=0.16.5" },
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = "~=6.0" },
     { name = "qir-qis", specifier = ">=0.1.1" },
     { name = "typing-extensions", specifier = ">=4" },
+    { name = "ziglang", specifier = "~=0.13" },
 ]
 
 [[package]]
@@ -1474,16 +1480,11 @@ version = "0.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "hugr" },
-    { name = "lief" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pydot" },
     { name = "pyyaml" },
     { name = "qir-qis" },
     { name = "selene-core" },
     { name = "selene-hugr-qis-compiler" },
     { name = "tqdm" },
-    { name = "ziglang" },
 ]
 
 [package.dev-dependencies]
@@ -1504,15 +1505,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "hugr", specifier = ">=0.13.0" },
-    { name = "lief", specifier = ">=0.16.5" },
-    { name = "numpy", specifier = ">=2.1" },
-    { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "qir-qis", specifier = "~=0.1.1" },
     { name = "selene-core", editable = "selene-core" },
     { name = "selene-hugr-qis-compiler", specifier = "~=0.2.6" },
     { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "ziglang", specifier = "~=0.13" },
 ]
 
 [package.metadata.requires-dev]
