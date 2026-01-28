@@ -83,6 +83,14 @@ def test_strict_builds_guppy(build_config):
                 build(contents, strict=True)
 
 
+@pytest.mark.xfail(
+    platform.system() == "Windows",
+    reason=(
+        "As Lief doesn't support COFF formats yet, we can't "
+        "detect undefined symbols in Windows lib files, and "
+        "thus can't run a strict build on Windows."
+    ),
+)
 def test_strict_builds_qir():
     qir_file = Path(__file__).parent / "resources/qir/adaptive_cond_loop.ll"
     runner = build(qir_file, strict=True)
