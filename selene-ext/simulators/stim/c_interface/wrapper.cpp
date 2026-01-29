@@ -51,6 +51,11 @@ extern "C" {
         obj->inv_state.prepend_Z(q);
     }
 
+    void cstim_TableauSimulator64_do_H_XZ(void * rawptr,unsigned int q) {
+        stim::TableauSimulator<64>* obj = (stim::TableauSimulator<64>*) rawptr;
+        obj->inv_state.prepend_H_XZ(q);
+    }
+
     bool cstim_TableauSimulator64_do_MZ(void * rawptr,unsigned int q) {
         stim::TableauSimulator<64>* obj = (stim::TableauSimulator<64>*) rawptr;
         if (!obj->is_deterministic_z(q)) {
@@ -70,5 +75,22 @@ extern "C" {
             std::cerr << "Error: " << e.what() << std::endl;
             return false;
         }
+    }
+
+    void cstim_TableauSimulator64_get_stabilizers(void * rawptr, char** write) {
+        stim::TableauSimulator<64>* obj = (stim::TableauSimulator<64>*) rawptr;
+        std::stringstream ss;
+        for(auto const& pauli_string : obj->canonical_stabilizers()){
+            ss << pauli_string << '\n';
+        }
+        auto str = ss.str();
+        char* cstr = new char[str.size() + 1];
+        std::copy(str.begin(), str.end(), cstr);
+        cstr[str.size()] = '\0';
+        *write = cstr;
+    }
+
+    void cstim_TableauSimulator64_free_stabilizers(char* written) {
+        delete[] written;
     }
 }
