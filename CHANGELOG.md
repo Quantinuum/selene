@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.9](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.8...selene-sim-v0.2.9) (2026-01-29)
+
+
+### Bug Fixes
+
+* avoid using qir_major_version string for QIR detection ([#123](https://github.com/Quantinuum/selene/issues/123)) ([deaa0dc](https://github.com/Quantinuum/selene/commit/deaa0dcee72833a0695cb3cdd82cad3c2374343e))
+
+
+### Documentation
+
+* Correct URL to guppy repository ([#121](https://github.com/Quantinuum/selene/issues/121)) ([27ded00](https://github.com/Quantinuum/selene/commit/27ded0063caa71db2a851835a6a290db8bdd085a))
+
 ## [0.2.8](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.7...selene-sim-v0.2.8) (2026-01-27)
 
 
