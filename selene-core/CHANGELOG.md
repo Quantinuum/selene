@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.3...selene-core-v0.2.4) (2026-01-29)
+
+
+### Bug Fixes
+
+* avoid using qir_major_version string for QIR detection ([#123](https://github.com/Quantinuum/selene/issues/123)) ([deaa0dc](https://github.com/Quantinuum/selene/commit/deaa0dcee72833a0695cb3cdd82cad3c2374343e))
+
 ## [0.2.3](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.2...selene-core-v0.2.3) (2026-01-26)
 
 
