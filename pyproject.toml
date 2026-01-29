@@ -8,6 +8,7 @@ description = "Quantinuum's open source emulator for hybrid quantum computation"
 version = "0.2.9"
 requires-python = ">=3.10"
 dependencies = [
+  "numpy>=2.2.6",
   "pyyaml>=6.0.2",
   "selene-core~=0.2.4",
   "selene-hugr-qis-compiler~=0.2.6",
@@ -139,7 +140,10 @@ known_first_party = [
   "selene_quest_plugin",
   "selene_stim_plugin",
 ]
-extend_exclude = ["selene-ext/simulators", "selene-core/python/selene_core"]
+extend_exclude = [
+  "selene-ext/simulators/stim/upstream",
+  "selene-core/python/selene_core",
+]
 
 [tool.deptry.package_module_name_map]
 pyyaml = "yaml"
@@ -147,6 +151,7 @@ pyyaml = "yaml"
 [tool.deptry.per_rule_ignores]
 DEP001 = [
   "hatchling", # used in build system
+  "sympy",     # optional dependency
   # "selene_sim", # dynamic import
 ]
 DEP002 = [
