@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.10](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.9...selene-sim-v0.2.10) (2026-01-29)
+
+
+### Bug Fixes
+
+* Add numpy dependency back ([#127](https://github.com/Quantinuum/selene/issues/127)) ([c9a01eb](https://github.com/Quantinuum/selene/commit/c9a01ebbea8fe934119e12bc180e47b91cca6e12))
+
 ## [0.2.9](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.8...selene-sim-v0.2.9) (2026-01-29)
 
 
