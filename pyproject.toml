@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "packaging"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,16 +8,10 @@ description = "Quantinuum's open source emulator for hybrid quantum computation"
 version = "0.2.8"
 requires-python = ">=3.10"
 dependencies = [
-  "hugr>=0.13.0",
-  "lief>=0.16.5",
-  "numpy>=2.1",
-  "pydot>=4.0.0",
   "pyyaml>=6.0.2",
   "selene-core~=0.2.3",
   "selene-hugr-qis-compiler~=0.2.6",
-  "qir-qis~=0.1.1",
   "tqdm>=4.67.1",
-  "ziglang~=0.13",
 ]
 authors = [
   { name = "Jake Arkinstall", email = "jake.arkinstall@quantinuum.com" },
@@ -49,17 +43,19 @@ repository = "https://github.com/quantinuum/selene"
 
 [dependency-groups]
 dev = [
+  "auditwheel>=6.3.0",
   "cibuildwheel>=2.23.3",
   "guppylang~=0.21.6",
-  "pip>=24.2",
-  "pytest>=8.3.5",
-  "pytest-snapshot~=0.9.0",
-  "pytket>=2.0.1",
-  "auditwheel>=6.3.0",
+  "hugr>=0.13.0",
   "mypy>=1.14.1",
+  "pip>=24.2",
+  "pytest-snapshot~=0.9.0",
+  "pytest>=8.3.5",
+  "pytket>=2.0.1",
+  "pytket~=2.9.1",
+  "qir-qis~=0.1.1",
   "ruff>=0.8.0",
   "types-pyyaml>=6.0.12.20250402",
-  "pytket~=2.9.1",
 ]
 
 [tool.uv.sources]
@@ -119,10 +115,53 @@ extend-exclude = [
 ignore_missing_imports = true
 exclude = ["test_.*.py$", ".*upstream.*$", "^selene-core/.*$", "^scratch/.*$"]
 
-
 [tool.pytest.ini_options]
 # exclude external repos (e.g. stim)
 norecursedirs = ["upstream", '*.egg', '.*', 'build', 'target', 'dist', 'venv']
+
+
+[tool.deptry]
+known_first_party = [
+  "selene_sim",
+  # Error models
+  "selene_depolarizing_error_model_plugin",
+  "selene_ideal_error_model_plugin",
+  "selene_simple_leakage_error_model_plugin",
+  # Interfaces
+  "selene_helios_qis_plugin",
+  # Runtimes
+  "selene_simple_runtime_plugin",
+  "selene_soft_rz_runtime_plugin",
+  # Simulators
+  "selene_classical_replay_plugin",
+  "selene_coinflip_plugin",
+  "selene_quantum_replay_plugin",
+  "selene_quest_plugin",
+  "selene_stim_plugin",
+]
+extend_exclude = ["selene-ext/simulators", "selene-core/python/selene_core"]
+
+[tool.deptry.package_module_name_map]
+pyyaml = "yaml"
+
+[tool.deptry.per_rule_ignores]
+DEP001 = [
+  "hatchling", # used in build system
+  # "selene_sim", # dynamic import
+]
+DEP002 = [
+  # "pydot", # needed by networkx
+]
+DEP003 = [
+  "packaging", # used in build system
+]
+DEP004 = [
+  "guppylang", # used in tests
+  "hugr",      # used in tests
+  "pytest",    # used in tests
+  "qir_qis",   # used in tests
+]
+
 
 [tool.cibuildwheel]
 manylinux-x86_64-image = "quay.io/pypa/manylinux_2_28_x86_64"

@@ -1439,21 +1439,27 @@ name = "selene-core"
 version = "0.2.3"
 source = { editable = "selene-core" }
 dependencies = [
+    { name = "hugr" },
+    { name = "lief" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pydot" },
     { name = "pyyaml" },
     { name = "qir-qis" },
     { name = "typing-extensions" },
+    { name = "ziglang" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "hugr", specifier = ">=0.13.0" },
+    { name = "lief", specifier = ">=0.16.5" },
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = "~=6.0" },
     { name = "qir-qis", specifier = ">=0.1.1" },
     { name = "typing-extensions", specifier = ">=4" },
+    { name = "ziglang", specifier = "~=0.13" },
 ]
 
 [[package]]
@@ -1473,17 +1479,10 @@ name = "selene-sim"
 version = "0.2.8"
 source = { editable = "." }
 dependencies = [
-    { name = "hugr" },
-    { name = "lief" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pydot" },
     { name = "pyyaml" },
-    { name = "qir-qis" },
     { name = "selene-core" },
     { name = "selene-hugr-qis-compiler" },
     { name = "tqdm" },
-    { name = "ziglang" },
 ]
 
 [package.dev-dependencies]
@@ -1492,27 +1491,23 @@ dev = [
     { name = "cibuildwheel", version = "2.23.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "cibuildwheel", version = "3.3.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "guppylang" },
+    { name = "hugr" },
     { name = "mypy" },
     { name = "pip" },
     { name = "pytest" },
     { name = "pytest-snapshot" },
     { name = "pytket" },
+    { name = "qir-qis" },
     { name = "ruff" },
     { name = "types-pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "hugr", specifier = ">=0.13.0" },
-    { name = "lief", specifier = ">=0.16.5" },
-    { name = "numpy", specifier = ">=2.1" },
-    { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "qir-qis", specifier = "~=0.1.1" },
     { name = "selene-core", editable = "selene-core" },
     { name = "selene-hugr-qis-compiler", specifier = "~=0.2.6" },
     { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "ziglang", specifier = "~=0.13" },
 ]
 
 [package.metadata.requires-dev]
@@ -1520,12 +1515,14 @@ dev = [
     { name = "auditwheel", specifier = ">=6.3.0" },
     { name = "cibuildwheel", specifier = ">=2.23.3" },
     { name = "guppylang", specifier = "~=0.21.6" },
+    { name = "hugr", specifier = ">=0.13.0" },
     { name = "mypy", specifier = ">=1.14.1" },
     { name = "pip", specifier = ">=24.2" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-snapshot", specifier = "~=0.9.0" },
     { name = "pytket", specifier = "~=2.9.1" },
     { name = "pytket", specifier = ">=2.0.1" },
+    { name = "qir-qis", specifier = "~=0.1.1" },
     { name = "ruff", specifier = ">=0.8.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250402" },
 ]

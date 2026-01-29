@@ -5,11 +5,14 @@ requires-python = ">=3.10"
 description = "The core interop library for Selene python interfaces"
 readme = "python/selene_core/README.md"
 dependencies = [
+  "hugr>=0.13.0",
+  "lief>=0.16.5",
   "networkx>=2.6,<4",
   "pydot>=4.0.0",
   "pyyaml~=6.0",
   "qir-qis>=0.1.1",
   "typing_extensions>=4",
+  "ziglang~=0.13",
 ]
 
 [project.urls]
@@ -34,4 +37,21 @@ cache-keys = [
   { file = "examples/**/Cargo.toml" },
   { file = "c/include/selene/*.h" },
   { file = "Cargo.toml" },
+]
+
+
+[tool.deptry]
+known_first_party = ["selene_core"]
+
+[tool.deptry.package_module_name_map]
+pyyaml = "yaml"
+
+[tool.deptry.per_rule_ignores]
+DEP001 = [
+  "hatchling",  # used in build system
+  "selene_sim", # dynamic import
+]
+DEP002 = [
+  "pydot",   # needed by networkx
+  "ziglang", # used in build system
 ]
