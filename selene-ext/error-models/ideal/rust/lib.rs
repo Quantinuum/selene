@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
@@ -52,6 +52,33 @@ impl ErrorModelInterface for IdealErrorModel {
                     let measurement = self.simulator.measure(qubit_id)?;
                     results.set_bool_result(result_id, measurement);
                 }
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => {
+                    self.simulator
+                        .tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                }
+                Operation::TwinRXYGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    self.simulator
+                        .twin_rxy(qubit_id_1, qubit_id_2, theta, phi)?;
+                }
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                }
                 Operation::MeasureLeaked {
                     qubit_id,
                     result_id,
@@ -67,6 +94,9 @@ impl ErrorModelInterface for IdealErrorModel {
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
+                }
+                _ => {
+                    bail!("Ideal error model received unsupported operation: {:?}", op);
                 }
             }
         }
@@ -100,9 +130,7 @@ impl ErrorModelInterfaceFactory for IdealErrorModelFactory {
         simulator_args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
         if error_model_args.len() > 1 {
-            return Err(anyhow!(
-                "Invalid number of arguments to ideal error model plugin"
-            ));
+            bail!("Invalid number of arguments to ideal error model plugin");
         }
         let simulator_args: Vec<String> = simulator_args
             .iter()

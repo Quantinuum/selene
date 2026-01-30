@@ -78,6 +78,7 @@ packages = [
   "selene-ext/error-models/ideal/python/selene_ideal_error_model_plugin",
   "selene-ext/error-models/simple-leakage/python/selene_simple_leakage_error_model_plugin",
   "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin",
+  "selene-ext/interfaces/sol_qis/python/selene_sol_qis_plugin",
   "selene-ext/runtimes/simple/python/selene_simple_runtime_plugin",
   "selene-ext/runtimes/soft_rz/python/selene_soft_rz_runtime_plugin",
   "selene-ext/simulators/classical-replay/python/selene_classical_replay_plugin",

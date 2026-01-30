@@ -1,3 +1,14 @@
+/// Quest simulator plugin for Selene, implemented using the quest_sys crate.
+//
+// The version of quest_sys used here is only valid up until 0.17, after which
+// the crate removed support for almost everything we use. It is likely that we
+// will need to roll our own support later on, or move to using the QuEST C API
+// directly if we wish to continue using QuEST as a simulator backend.
+//
+// Definitions of the various gates implemented here can be found in the accompanying
+// gate_definitions.py file, which provides the matrices used for each gate, as well
+// as giving their real/imaginary parts for simplicity. The outputs are provided
+// in the comments within the implementation of each gate within this source file.
 use anyhow::{Result, anyhow, bail};
 use selene_core::export_simulator_plugin;
 use selene_core::simulator::SimulatorInterface;
@@ -62,6 +73,7 @@ impl SimulatorInterface for QuestSimulator {
                 self.n_qubits
             ))
         } else {
+            // Use the built-in from QuEST
             unsafe { quest_sys::rotateZ(self.qureg, q0 as c_int, theta) };
             Ok(())
         }
@@ -74,11 +86,40 @@ impl SimulatorInterface for QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            unsafe {
-                quest_sys::rotateZ(self.qureg, q0 as c_int, -phi);
-                quest_sys::rotateX(self.qureg, q0 as c_int, theta);
-                quest_sys::rotateZ(self.qureg, q0 as c_int, phi);
-            }
+            // As provided in the accompanying gate_definitions.py, here is the matrix for RXY:
+
+            // Real part:
+            //
+            // ⎡      ⎛θ⎞                 ⎛θ⎞⎤
+            // ⎢   cos⎜─⎟      -sin(φ)⋅sin⎜─⎟⎥
+            // ⎢      ⎝2⎠                 ⎝2⎠⎥
+            // ⎢                             ⎥
+            // ⎢          ⎛θ⎞         ⎛θ⎞    ⎥
+            // ⎢sin(φ)⋅sin⎜─⎟      cos⎜─⎟    ⎥
+            // ⎣          ⎝2⎠         ⎝2⎠    ⎦
+            //
+            // Imaginary part:
+            //
+            // ⎡                    ⎛θ⎞       ⎤
+            // ⎢      0         -sin⎜─⎟⋅cos(φ)⎥
+            // ⎢                    ⎝2⎠       ⎥
+            // ⎢                              ⎥
+            // ⎢    ⎛θ⎞                       ⎥
+            // ⎢-sin⎜─⎟⋅cos(φ)        0       ⎥
+            // ⎣    ⎝2⎠                       ⎦
+            //
+            let cos_theta_2 = (theta / 2.0).cos();
+            let sin_theta_2 = (theta / 2.0).sin();
+            let cos_phi = phi.cos();
+            let sin_phi = phi.sin();
+            let u = quest_sys::ComplexMatrix2 {
+                real: [
+                    [cos_theta_2, -sin_phi * sin_theta_2],
+                    [sin_phi * sin_theta_2, cos_theta_2],
+                ],
+                imag: [[0.0, -sin_theta_2 * cos_phi], [-sin_theta_2 * cos_phi, 0.0]],
+            };
+            unsafe { quest_sys::unitary(self.qureg, q0 as c_int, u) };
             Ok(())
         }
     }
@@ -90,23 +131,280 @@ impl SimulatorInterface for QuestSimulator {
                 self.n_qubits
             ))
         } else {
+            // As provided in the accompanying gate_definitions.py, here is the matrix for RZZ,
+            // after scaling out a global phase of exp(i*theta/2) for consistency with prior versions:
+            //
+            // Real part:
+            //
+            // ⎡1    0       0     0⎤
+            // ⎢                    ⎥
+            // ⎢0  cos(θ)    0     0⎥
+            // ⎢                    ⎥
+            // ⎢0    0     cos(θ)  0⎥
+            // ⎢                    ⎥
+            // ⎣0    0       0     1⎦
+            //
+            // Imaginary part:
+            //
+            // ⎡0    0       0     0⎤
+            // ⎢                    ⎥
+            // ⎢0  sin(θ)    0     0⎥
+            // ⎢                    ⎥
+            // ⎢0    0     sin(θ)  0⎥
+            // ⎢                    ⎥
+            // ⎣0    0       0     0⎦
+            //
+            // We implement this using a sub-diagonal operator in QuEST.
             let cos = theta.cos();
             let sin = theta.sin();
+            let mut targets: [c_int; 2] = [q0 as c_int, q1 as c_int];
+            let diag_real: [f64; 4] = [1.0, cos, cos, 1.0];
+            let diag_imag: [f64; 4] = [0.0, sin, sin, 0.0];
+            unsafe {
+                let op = quest_sys::createSubDiagonalOp(2);
+                std::ptr::copy_nonoverlapping(diag_real.as_ptr(), op.real, 4);
+                std::ptr::copy_nonoverlapping(diag_imag.as_ptr(), op.imag, 4);
+                quest_sys::applySubDiagonalOp(self.qureg, targets.as_mut_ptr(), 2, op);
+                quest_sys::destroySubDiagonalOp(op);
+            }
+            Ok(())
+        }
+    }
+
+    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
+        if q0 >= self.n_qubits || q1 >= self.n_qubits {
+            Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        } else {
+            // As provided in the accompanying gate_definitions.py, here is the matrix for TK2:
+            //
+            // Real part:
+            //
+            // ⎡   ⎛γ⎞    ⎛α - β⎞                                             ⎛γ⎞    ⎛α - β⎞⎤
+            // ⎢cos⎜─⎟⋅cos⎜─────⎟           0                  0          -sin⎜─⎟⋅sin⎜─────⎟⎥
+            // ⎢   ⎝2⎠    ⎝  2  ⎠                                             ⎝2⎠    ⎝  2  ⎠⎥
+            // ⎢                                                                            ⎥
+            // ⎢                       ⎛γ⎞    ⎛α + β⎞     ⎛γ⎞    ⎛α + β⎞                    ⎥
+            // ⎢        0           cos⎜─⎟⋅cos⎜─────⎟  sin⎜─⎟⋅sin⎜─────⎟          0         ⎥
+            // ⎢                       ⎝2⎠    ⎝  2  ⎠     ⎝2⎠    ⎝  2  ⎠                    ⎥
+            // ⎢                                                                            ⎥
+            // ⎢                       ⎛γ⎞    ⎛α + β⎞     ⎛γ⎞    ⎛α + β⎞                    ⎥
+            // ⎢        0           sin⎜─⎟⋅sin⎜─────⎟  cos⎜─⎟⋅cos⎜─────⎟          0         ⎥
+            // ⎢                       ⎝2⎠    ⎝  2  ⎠     ⎝2⎠    ⎝  2  ⎠                    ⎥
+            // ⎢                                                                            ⎥
+            // ⎢    ⎛γ⎞    ⎛α - β⎞                                           ⎛γ⎞    ⎛α - β⎞ ⎥
+            // ⎢-sin⎜─⎟⋅sin⎜─────⎟          0                  0          cos⎜─⎟⋅cos⎜─────⎟ ⎥
+            // ⎣    ⎝2⎠    ⎝  2  ⎠                                           ⎝2⎠    ⎝  2  ⎠ ⎦
+            //
+            // Imaginary part:
+            //
+            //
+            // ⎡    ⎛γ⎞    ⎛α - β⎞                                              ⎛α - β⎞    ⎛γ⎞⎤
+            // ⎢-sin⎜─⎟⋅cos⎜─────⎟          0                   0           -sin⎜─────⎟⋅cos⎜─⎟⎥
+            // ⎢    ⎝2⎠    ⎝  2  ⎠                                              ⎝  2  ⎠    ⎝2⎠⎥
+            // ⎢                                                                              ⎥
+            // ⎢                       ⎛γ⎞    ⎛α + β⎞       ⎛α + β⎞    ⎛γ⎞                    ⎥
+            // ⎢        0           sin⎜─⎟⋅cos⎜─────⎟   -sin⎜─────⎟⋅cos⎜─⎟          0         ⎥
+            // ⎢                       ⎝2⎠    ⎝  2  ⎠       ⎝  2  ⎠    ⎝2⎠                    ⎥
+            // ⎢                                                                              ⎥
+            // ⎢                        ⎛α + β⎞    ⎛γ⎞     ⎛γ⎞    ⎛α + β⎞                     ⎥
+            // ⎢        0           -sin⎜─────⎟⋅cos⎜─⎟  sin⎜─⎟⋅cos⎜─────⎟           0         ⎥
+            // ⎢                        ⎝  2  ⎠    ⎝2⎠     ⎝2⎠    ⎝  2  ⎠                     ⎥
+            // ⎢                                                                              ⎥
+            // ⎢    ⎛α - β⎞    ⎛γ⎞                                              ⎛γ⎞    ⎛α - β⎞⎥
+            // ⎢-sin⎜─────⎟⋅cos⎜─⎟          0                   0           -sin⎜─⎟⋅cos⎜─────⎟⎥
+            // ⎣    ⎝  2  ⎠    ⎝2⎠                                              ⎝2⎠    ⎝  2  ⎠⎦
+
+            let cos_g_2 = (gamma / 2.0).cos();
+            let sin_g_2 = (gamma / 2.0).sin();
+
+            let cos_a_2_minus_b_2 = (alpha / 2.0 - beta / 2.0).cos();
+            let sin_a_2_minus_b_2 = (alpha / 2.0 - beta / 2.0).sin();
+            let cos_a_2_plus_b_2 = (alpha / 2.0 + beta / 2.0).cos();
+            let sin_a_2_plus_b_2 = (alpha / 2.0 + beta / 2.0).sin();
+
             let u = quest_sys::ComplexMatrix4 {
                 real: [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, cos, 0.0, 0.0],
-                    [0.0, 0.0, cos, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
+                    [
+                        cos_g_2 * cos_a_2_minus_b_2,
+                        0.0,
+                        0.0,
+                        -sin_g_2 * sin_a_2_minus_b_2,
+                    ],
+                    [
+                        0.0,
+                        cos_g_2 * cos_a_2_plus_b_2,
+                        sin_g_2 * sin_a_2_plus_b_2,
+                        0.0,
+                    ],
+                    [
+                        0.0,
+                        sin_g_2 * sin_a_2_plus_b_2,
+                        cos_g_2 * cos_a_2_plus_b_2,
+                        0.0,
+                    ],
+                    [
+                        -sin_g_2 * sin_a_2_minus_b_2,
+                        0.0,
+                        0.0,
+                        cos_g_2 * cos_a_2_minus_b_2,
+                    ],
                 ],
                 imag: [
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, sin, 0.0, 0.0],
-                    [0.0, 0.0, sin, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
+                    [
+                        -sin_g_2 * cos_a_2_minus_b_2,
+                        0.0,
+                        0.0,
+                        -sin_a_2_minus_b_2 * cos_g_2,
+                    ],
+                    [
+                        0.0,
+                        sin_g_2 * cos_a_2_plus_b_2,
+                        -sin_a_2_plus_b_2 * cos_g_2,
+                        0.0,
+                    ],
+                    [
+                        0.0,
+                        -sin_a_2_plus_b_2 * cos_g_2,
+                        sin_g_2 * cos_a_2_plus_b_2,
+                        0.0,
+                    ],
+                    [
+                        -sin_a_2_minus_b_2 * cos_g_2,
+                        0.0,
+                        0.0,
+                        -sin_g_2 * cos_a_2_minus_b_2,
+                    ],
                 ],
             };
-            unsafe { quest_sys::applyMatrix4(self.qureg, q0 as c_int, q1 as c_int, u) };
+            unsafe { quest_sys::twoQubitUnitary(self.qureg, q0 as c_int, q1 as c_int, u) };
+            Ok(())
+        }
+    }
+
+    fn twin_rxy(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        if q0 >= self.n_qubits || q1 >= self.n_qubits {
+            Err(anyhow!(
+                "TwinRXY(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        } else {
+            // Assume that it's most efficient to decompose TwinRXY into two RXY gates.
+            self.rxy(q0, theta, phi)
+                .and_then(|_| self.rxy(q1, theta, phi))
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to apply TwinRXY on qubits {q0} and {q1}: {}",
+                        e.to_string()
+                    )
+                })
+
+            // As provided in the accompanying gate_definitions.py, here is the matrix for TwinRXY,
+            // if in the future we choose to implement it as a single 4x4 unitary:
+            //
+            // Real part:
+            //
+            // ⎡        2⎛θ⎞       -sin(φ)⋅sin(θ)   -sin(φ)⋅sin(θ)        2⎛θ⎞         ⎤
+            // ⎢     cos ⎜─⎟       ───────────────  ───────────────  -sin ⎜─⎟⋅cos(2⋅φ)⎥
+            // ⎢         ⎝2⎠              2                2              ⎝2⎠         ⎥
+            // ⎢                                                                      ⎥
+            // ⎢  sin(φ)⋅sin(θ)           2⎛θ⎞             2⎛θ⎞       -sin(φ)⋅sin(θ)  ⎥
+            // ⎢  ─────────────        cos ⎜─⎟         -sin ⎜─⎟       ─────────────── ⎥
+            // ⎢        2                  ⎝2⎠              ⎝2⎠              2        ⎥
+            // ⎢                                                                      ⎥
+            // ⎢  sin(φ)⋅sin(θ)           2⎛θ⎞             2⎛θ⎞       -sin(φ)⋅sin(θ)  ⎥
+            // ⎢  ─────────────       -sin ⎜─⎟          cos ⎜─⎟       ─────────────── ⎥
+            // ⎢        2                  ⎝2⎠              ⎝2⎠              2        ⎥
+            // ⎢                                                                      ⎥
+            // ⎢    2⎛θ⎞            sin(φ)⋅sin(θ)    sin(φ)⋅sin(θ)           2⎛θ⎞     ⎥
+            // ⎢-sin ⎜─⎟⋅cos(2⋅φ)   ─────────────    ─────────────        cos ⎜─⎟     ⎥
+            // ⎣     ⎝2⎠                  2                2                  ⎝2⎠     ⎦
+            //
+            // Imaginary part:
+            //
+            // ⎡                   -sin(θ)⋅cos(φ)   -sin(θ)⋅cos(φ)               2⎛θ⎞⎤
+            // ⎢        0          ───────────────  ───────────────  sin(2⋅φ)⋅sin ⎜─⎟⎥
+            // ⎢                          2                2                      ⎝2⎠⎥
+            // ⎢                                                                     ⎥
+            // ⎢ -sin(θ)⋅cos(φ)                                      -sin(θ)⋅cos(φ)  ⎥
+            // ⎢ ───────────────          0                0         ─────────────── ⎥
+            // ⎢        2                                                   2        ⎥
+            // ⎢                                                                     ⎥
+            // ⎢ -sin(θ)⋅cos(φ)                                      -sin(θ)⋅cos(φ)  ⎥
+            // ⎢ ───────────────          0                0         ─────────────── ⎥
+            // ⎢        2                                                   2        ⎥
+            // ⎢                                                                     ⎥
+            // ⎢             2⎛θ⎞  -sin(θ)⋅cos(φ)   -sin(θ)⋅cos(φ)                   ⎥
+            // ⎢-sin(2⋅φ)⋅sin ⎜─⎟  ───────────────  ───────────────         0        ⎥
+            // ⎣              ⎝2⎠         2                2                         ⎦
+        }
+    }
+
+    fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        if q0 >= self.n_qubits {
+            Err(anyhow!(
+                "RPP(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        } else {
+            // As provided in the accompanying gate_definitions.py, here is the matrix for RPP:
+            //
+            // Real part:
+            //
+            // ⎡       ⎛θ⎞                                    ⎛θ⎞⎤
+            // ⎢    cos⎜─⎟         0       0     -sin(2⋅φ)⋅sin⎜─⎟⎥
+            // ⎢       ⎝2⎠                                    ⎝2⎠⎥
+            // ⎢                                                 ⎥
+            // ⎢                    ⎛θ⎞                          ⎥
+            // ⎢       0         cos⎜─⎟    0            0        ⎥
+            // ⎢                    ⎝2⎠                          ⎥
+            // ⎢                                                 ⎥
+            // ⎢                            ⎛θ⎞                  ⎥
+            // ⎢       0           0     cos⎜─⎟         0        ⎥
+            // ⎢                            ⎝2⎠                  ⎥
+            // ⎢                                                 ⎥
+            // ⎢            ⎛θ⎞                          ⎛θ⎞     ⎥
+            // ⎢sin(2⋅φ)⋅sin⎜─⎟    0       0          cos⎜─⎟     ⎥
+            // ⎣            ⎝2⎠                          ⎝2⎠     ⎦
+            //
+            // Imaginary part:
+            //
+            // ⎡                                        ⎛θ⎞         ⎤
+            // ⎢       0             0        0     -sin⎜─⎟⋅cos(2⋅φ)⎥
+            // ⎢                                        ⎝2⎠         ⎥
+            // ⎢                                                    ⎥
+            // ⎢                               ⎛θ⎞                  ⎥
+            // ⎢       0             0     -sin⎜─⎟         0        ⎥
+            // ⎢                               ⎝2⎠                  ⎥
+            // ⎢                                                    ⎥
+            // ⎢                      ⎛θ⎞                           ⎥
+            // ⎢       0          -sin⎜─⎟     0            0        ⎥
+            // ⎢                      ⎝2⎠                           ⎥
+            // ⎢                                                    ⎥
+            // ⎢    ⎛θ⎞                                             ⎥
+            // ⎢-sin⎜─⎟⋅cos(2⋅φ)     0        0            0        ⎥
+            // ⎣    ⎝2⎠                                             ⎦
+            let cos_theta_2 = (theta / 2.0).cos();
+            let sin_theta_2 = (theta / 2.0).sin();
+            let cos_2phi = (2.0 * phi).cos();
+            let sin_2phi = (2.0 * phi).sin();
+            let u = quest_sys::ComplexMatrix4 {
+                real: [
+                    [cos_theta_2, 0.0, 0.0, -sin_2phi * sin_theta_2],
+                    [0.0, cos_theta_2, 0.0, 0.0],
+                    [0.0, 0.0, cos_theta_2, 0.0],
+                    [sin_2phi * sin_theta_2, 0.0, 0.0, cos_theta_2],
+                ],
+                imag: [
+                    [0.0, 0.0, 0.0, -sin_theta_2 * cos_2phi],
+                    [0.0, 0.0, -sin_theta_2, 0.0],
+                    [0.0, -sin_theta_2, 0.0, 0.0],
+                    [-sin_theta_2 * cos_2phi, 0.0, 0.0, 0.0],
+                ],
+            };
+            unsafe { quest_sys::twoQubitUnitary(self.qureg, q0 as c_int, q1 as c_int, u) };
             Ok(())
         }
     }

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use clap::Parser;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -88,10 +88,10 @@ impl DepolarizingErrorModel {
     fn maybe_apply_1q_error(&mut self, q0: u64) -> Result<()> {
         // validate arg
         if q0 >= self.n_qubits {
-            return Err(anyhow!(
+            bail!(
                 "Error: q0 must be less than the number of qubits ({}).",
                 self.n_qubits
-            ));
+            );
         }
         // generate error to apply
         let random_float = self.rng.random::<f64>();
@@ -120,10 +120,10 @@ impl DepolarizingErrorModel {
     fn maybe_apply_2q_error(&mut self, q0: u64, q1: u64) -> Result<()> {
         // validate arg
         if q0 >= self.n_qubits || q1 >= self.n_qubits {
-            return Err(anyhow!(
+            bail!(
                 "Error: q0 and q1 must be less than the number of qubits ({}).",
                 self.n_qubits
-            ));
+            );
         }
         // generate error to apply
         let random_float = self.rng.random::<f64>();
@@ -236,6 +236,36 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
                     self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
                 }
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => {
+                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
+                    self.simulator
+                        .tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                }
+                Operation::TwinRXYGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
+                    self.simulator
+                        .twin_rxy(qubit_id_1, qubit_id_2, theta, phi)?;
+                }
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
+                    self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                }
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -260,6 +290,9 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
+                }
+                _ => {
+                    bail!("DepolarizingErrorModel: Unsupported operation {:?}", op);
                 }
             }
         }

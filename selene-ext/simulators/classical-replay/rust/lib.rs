@@ -96,6 +96,39 @@ impl SimulatorInterface for ClassicalReplaySimulator {
         }
     }
 
+    fn twin_rxy(&mut self, q0: u64, q1: u64, _theta: f64, _phi: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "TwinRXY(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn rpp(&mut self, q0: u64, q1: u64, _theta: f64, _phi: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "RPP(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn tk2(&mut self, q0: u64, q1: u64, _alpha: f64, _beta: f64, _gamma: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
     fn measure(&mut self, q0: u64) -> Result<bool> {
         if q0 >= self.n_qubits {
             Err(anyhow!(

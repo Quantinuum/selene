@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::sync::Arc;
 
 use crate::utils::MetricValue;
@@ -17,15 +17,48 @@ pub trait SimulatorInterface {
     fn shot_end(&mut self) -> Result<()>;
 
     // Perform a Z rotation on the given qubit with the given angle.
-    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()>;
+    fn rz(&mut self, _qubit: u64, _theta: f64) -> Result<()> {
+        bail!("SimulatorInterface: The chosen simulator does not support the RZ gate");
+    }
 
     // Perform an Rxy gate on the given qubit with the given angles.
     // This gate is also known as phased_x and R1XY
-    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()>;
+    fn rxy(&mut self, _qubit: u64, _theta: f64, _phi: f64) -> Result<()> {
+        bail!("SimulatorInterface: The chosen simulator does not support the RXY gate");
+    }
 
     // Perform an Rzz gate between the given qubits with the given angle.
     // This gate is also known as zz_phase, phase_shift, and R2ZZ
-    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()>;
+    fn rzz(&mut self, _qubit1: u64, _qubit2: u64, _theta: f64) -> Result<()> {
+        bail!("SimulatorInterface: The chosen simulator does not support the RZZ gate");
+    }
+
+    // Perform a TK2 gate between the given qubits with the given angles.
+    // This gate is also known as the SU(4) gate.
+    fn tk2(
+        &mut self,
+        _qubit1: u64,
+        _qubit2: u64,
+        _alpha: f64,
+        _beta: f64,
+        _gamma: f64,
+    ) -> Result<()> {
+        bail!("SimulatorInterface: The chosen simulator does not support the TK2 gate");
+    }
+
+    // Perform a Twin Rxy gate between the given qubits with the given angles.
+    // This is an rxy applied to both qubits simultaneously. If not provided directly,
+    // Selene will decompose it into two independent Rxy gates.
+    fn twin_rxy(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
+        // Fall back to two RXY gates if Twin RXY is not supported.
+        self.rxy(qubit1, theta, phi)?;
+        self.rxy(qubit2, theta, phi)
+    }
+
+    // Perform an Rpp gate between the given qubits with the given angles.
+    fn rpp(&mut self, _qubit1: u64, _qubit2: u64, _theta: f64, _phi: f64) -> Result<()> {
+        bail!("SimulatorInterface: The chosen simulator does not support the RPP gate");
+    }
 
     // Perform a measurement on the given qubit.
     // The result of the measurement is returned as a boolean.
@@ -36,9 +69,7 @@ pub trait SimulatorInterface {
     // This is optional functionality, and the default is to raise an
     // error.
     fn postselect(&mut self, _qubit: u64, _target_value: bool) -> Result<()> {
-        Err(anyhow::anyhow!(
-            "Post-selection is not supported on the chosen simulator."
-        ))
+        bail!("Post-selection is not supported on the chosen simulator.");
     }
 
     // Reset the given qubit to the |0> state.
