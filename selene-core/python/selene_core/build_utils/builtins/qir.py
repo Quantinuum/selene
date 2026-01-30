@@ -12,6 +12,9 @@ QIR_MATCHES = [
     "__quantum__rt",
     "entry_point",
 ]
+QIR_UNSUPPORTED_CALLS = [
+    "qmain",
+]
 
 
 class QIRIRFileKind(ArtifactKind):
@@ -26,7 +29,11 @@ class QIRIRFileKind(ArtifactKind):
         if resource.suffix != ".ll":
             return False
         contents = resource.read_text()
-        return any(match in contents for match in QIR_MATCHES)
+        if not any(match in contents for match in QIR_MATCHES):
+            return False
+        if any(match in contents for match in QIR_UNSUPPORTED_CALLS):
+            return False
+        return True
 
 
 class QIRIRStringKind(ArtifactKind):
@@ -38,7 +45,11 @@ class QIRIRStringKind(ArtifactKind):
             resource = resource.ir
         if not isinstance(resource, str):
             return False
-        return any(match in resource for match in QIR_MATCHES)
+        if not any(match in resource for match in QIR_MATCHES):
+            return False
+        if any(match in resource for match in QIR_UNSUPPORTED_CALLS):
+            return False
+        return True
 
 
 class QIRBitcodeFileKind(ArtifactKind):
@@ -53,7 +64,11 @@ class QIRBitcodeFileKind(ArtifactKind):
         if resource.suffix != ".bc":
             return False
         contents = resource.read_bytes()
-        return any(match.encode("utf-8") in contents for match in QIR_MATCHES)
+        if not any(match.encode("utf-8") in contents for match in QIR_MATCHES):
+            return False
+        if any(match.encode("utf-8") in contents for match in QIR_UNSUPPORTED_CALLS):
+            return False
+        return True
 
 
 class QIRBitcodeStringKind(ArtifactKind):
@@ -71,7 +86,11 @@ class QIRBitcodeStringKind(ArtifactKind):
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
-        return any(match.encode("utf-8") in resource for match in QIR_MATCHES)
+        if not any(match.encode("utf-8") in resource for match in QIR_MATCHES):
+            return False
+        if any(match.encode("utf-8") in resource for match in QIR_UNSUPPORTED_CALLS):
+            return False
+        return True
 
 
 class QIRIRStringToQIRIRFileStep(Step):

@@ -17,34 +17,32 @@ from ..planner import BuildPlanner
 
 from .selene import SeleneObjectFileKind, SeleneExecutableKind
 
-HELIOS_REQUIRED_CALLS = [
+SOL_REQUIRED_CALLS = [
     "setup",
     "teardown",
 ]
-HELIOS_UNSUPPORTED_CALLS = [
-    "___rpp",
-    "___rp",
-    "___rpg",
-    "___rxxyyzz",
+SOL_UNSUPPORTED_CALLS = [
+    "___rxy",
+    "___rzz",
 ]
 
 # Artifact Kinds:
 
 
-class HeliosLLVMIRStringKind(ArtifactKind):
+class SolLLVMIRStringKind(ArtifactKind):
     @classmethod
     def matches(cls, resource: Any) -> bool:
         if not isinstance(resource, str):
             return False
         undefined_symbols = get_undefined_symbols_from_llvm_ir_string(resource)
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        if not all(f in undefined_symbols for f in SOL_REQUIRED_CALLS):
             return False
-        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
+        if any(f in undefined_symbols for f in SOL_UNSUPPORTED_CALLS):
             return False
         return True
 
 
-class HeliosLLVMIRFileKind(ArtifactKind):
+class SolLLVMIRFileKind(ArtifactKind):
     @classmethod
     def matches(cls, resource: Any) -> bool:
         if not isinstance(resource, Path):
@@ -54,14 +52,14 @@ class HeliosLLVMIRFileKind(ArtifactKind):
         if resource.suffix != ".ll":
             return False
         undefined_symbols = get_undefined_symbols_from_llvm_ir_file(resource)
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        if not all(f in undefined_symbols for f in SOL_REQUIRED_CALLS):
             return False
-        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
+        if any(f in undefined_symbols for f in SOL_UNSUPPORTED_CALLS):
             return False
         return True
 
 
-class HeliosLLVMBitcodeStringKind(ArtifactKind):
+class SolLLVMBitcodeStringKind(ArtifactKind):
     @classmethod
     def matches(cls, resource: Any) -> bool:
         # we accept normal bytes, and also a BitcodeWrapper type that has a bitcode attribute
@@ -75,14 +73,14 @@ class HeliosLLVMBitcodeStringKind(ArtifactKind):
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
-        if not all(f.encode("UTF-8") in resource for f in HELIOS_REQUIRED_CALLS):
+        if not all(f.encode("UTF-8") in resource for f in SOL_REQUIRED_CALLS):
             return False
-        if any(f.encode("UTF-8") in resource for f in HELIOS_UNSUPPORTED_CALLS):
+        if any(f.encode("UTF-8") in resource for f in SOL_UNSUPPORTED_CALLS):
             return False
         return True
 
 
-class HeliosLLVMBitcodeFileKind(ArtifactKind):
+class SolLLVMBitcodeFileKind(ArtifactKind):
     @classmethod
     def matches(cls, resource: Any) -> bool:
         if not isinstance(resource, Path):
@@ -92,14 +90,14 @@ class HeliosLLVMBitcodeFileKind(ArtifactKind):
         if resource.suffix != ".bc":
             return False
         content = resource.read_bytes()
-        if not all(f.encode("UTF-8") in content for f in HELIOS_REQUIRED_CALLS):
+        if not all(f.encode("UTF-8") in content for f in SOL_REQUIRED_CALLS):
             return False
-        if any(f.encode("UTF-8") in content for f in HELIOS_UNSUPPORTED_CALLS):
+        if any(f.encode("UTF-8") in content for f in SOL_UNSUPPORTED_CALLS):
             return False
         return True
 
 
-class HeliosObjectFileKind(ArtifactKind):
+class SolObjectFileKind(ArtifactKind):
     @classmethod
     def matches(cls, resource: Any) -> bool:
         if not isinstance(resource, Path):
@@ -111,14 +109,14 @@ class HeliosObjectFileKind(ArtifactKind):
         except Exception:
             # unable to parse object file
             return False
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        if not all(f in undefined_symbols for f in SOL_REQUIRED_CALLS):
             return False
-        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
+        if any(f in undefined_symbols for f in SOL_UNSUPPORTED_CALLS):
             return False
         return True
 
 
-class HeliosObjectStringKind(ArtifactKind):
+class SolObjectStringKind(ArtifactKind):
     @classmethod
     def matches(cls, resource: Any) -> bool:
         if not isinstance(resource, bytes):
@@ -135,9 +133,9 @@ class HeliosObjectStringKind(ArtifactKind):
         except RuntimeError:
             # unable to parse object file
             return False
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        if not all(f in undefined_symbols for f in SOL_REQUIRED_CALLS):
             return False
-        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
+        if any(f in undefined_symbols for f in SOL_UNSUPPORTED_CALLS):
             return False
         return True
 
@@ -145,13 +143,13 @@ class HeliosObjectStringKind(ArtifactKind):
 # Steps
 
 
-class LLVMBitcodeStringToLLVMBitcodeFileStep(Step):
+class SolLLVMBitcodeStringToSolLLVMBitcodeFileStep(Step):
     """
     Convert a bitcode string to a file (by writing the bytes)
     """
 
-    input_kind = HeliosLLVMBitcodeStringKind
-    output_kind = HeliosLLVMBitcodeFileKind
+    input_kind = SolLLVMBitcodeStringKind
+    output_kind = SolLLVMBitcodeFileKind
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
@@ -159,7 +157,7 @@ class LLVMBitcodeStringToLLVMBitcodeFileStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.helios.bc"
+        out_path = build_ctx.artifact_dir / "program.sol.bc"
         if build_ctx.verbose:
             print(f"Writing LLVM bitcode file: {out_path}")
         bitcode = input_artifact.resource
@@ -169,13 +167,13 @@ class LLVMBitcodeStringToLLVMBitcodeFileStep(Step):
         return cls._make_artifact(out_path)
 
 
-class LLVMIRStringToLLVMIRFileStep(Step):
+class SolLLVMIRStringToSolLLVMIRFileStep(Step):
     """
     Convert a LLVM IR string to a file (by writing the text)
     """
 
-    input_kind = HeliosLLVMIRStringKind
-    output_kind = HeliosLLVMIRFileKind
+    input_kind = SolLLVMIRStringKind
+    output_kind = SolLLVMIRFileKind
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
@@ -183,26 +181,26 @@ class LLVMIRStringToLLVMIRFileStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.helios.ll"
+        out_path = build_ctx.artifact_dir / "program.sol.ll"
         if build_ctx.verbose:
             print(f"Writing LLVM IR file: {out_path}")
         out_path.write_text(input_artifact.resource)
         return cls._make_artifact(out_path)
 
 
-class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
+class SolLLVMIRFileToSolObjectFileStep(Step):
     """
-    Convert LLVM IR text (.ll) to a Helios object file (.o)
+    Convert LLVM IR text (.ll) to a Sol object file (.o)
     """
 
-    input_kind = HeliosLLVMIRFileKind
-    output_kind = HeliosObjectFileKind
+    input_kind = SolLLVMIRFileKind
+    output_kind = SolObjectFileKind
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.helios.o"
+        out_path = build_ctx.artifact_dir / "program.sol.o"
         if build_ctx.verbose:
-            print(f"Compiling LLVM IR to Helios-QIS object: {out_path}")
+            print(f"Compiling LLVM IR to Sol-QIS object: {out_path}")
         invoke_zig(
             "cc",
             "-c",
@@ -214,63 +212,63 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
         return cls._make_artifact(out_path)
 
 
-class HeliosLLVMBitcodeFileToHeliosObjectFileStep(Step):
+class SolLLVMBitcodeFileToSolObjectFileStep(Step):
     """
-    Convert LLVM Bitcode (.bc) to a Helios object file (.o)
+    Convert LLVM Bitcode (.bc) to a Sol object file (.o)
     """
 
-    input_kind = HeliosLLVMBitcodeFileKind
-    output_kind = HeliosObjectFileKind
+    input_kind = SolLLVMBitcodeFileKind
+    output_kind = SolObjectFileKind
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.helios.o"
+        out_path = build_ctx.artifact_dir / "program.sol.o"
         if build_ctx.verbose:
-            print(f"Compiling LLVM Bitcode to Helios-QIS object: {out_path}")
+            print(f"Compiling LLVM Bitcode to Sol-QIS object: {out_path}")
         invoke_zig("cc", "-c", input_artifact.resource, "-o", out_path)
         return cls._make_artifact(out_path)
 
 
-class HeliosObjectStringToHeliosObjectFileStep(Step):
+class SolObjectStringToSolObjectFileStep(Step):
     """
-    Convert Helios object bytes to a Helios object file (.o)
+    Convert Sol object bytes to a Sol object file (.o)
     """
 
-    input_kind = HeliosObjectStringKind
-    output_kind = HeliosObjectFileKind
+    input_kind = SolObjectStringKind
+    output_kind = SolObjectFileKind
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.helios.o"
+        out_path = build_ctx.artifact_dir / "program.sol.o"
         if build_ctx.verbose:
-            print(f"Writing Helios object file: {out_path}")
+            print(f"Writing Sol object file: {out_path}")
         out_path.write_bytes(input_artifact.resource)
         return cls._make_artifact(out_path)
 
 
-class HeliosObjectFileToHeliosObjectStringStep(Step):
+class SolObjectFileToSolObjectStringStep(Step):
     """
-    Convert Helios object file (.o) to Helios object bytes
+    Convert Sol object file (.o) to Sol object bytes
     """
 
-    input_kind = HeliosObjectFileKind
-    output_kind = HeliosObjectStringKind
+    input_kind = SolObjectFileKind
+    output_kind = SolObjectStringKind
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         if build_ctx.verbose:
-            print(f"Reading Helios object file: {input_artifact.resource}")
+            print(f"Reading Sol object file: {input_artifact.resource}")
         content = input_artifact.resource.read_bytes()
         return cls._make_artifact(content)
 
 
-class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
+class SolObjectFileToSeleneObjectFileStep_Linux(Step):
     """
-    Link helios object with interface + utility shared libs to rebind
+    Link sol object with interface + utility shared libs to rebind
     to the selene interface and fill in any missing libraries.
     """
 
-    input_kind = HeliosObjectFileKind
+    input_kind = SolObjectFileKind
     output_kind = SeleneObjectFileKind
 
     @classmethod
@@ -288,7 +286,7 @@ class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
         out_path = build_ctx.artifact_dir / "program.selene.o"
         lib_paths = [d.path for d in build_ctx.deps]
         if build_ctx.verbose:
-            print("Linking helios object file with dependencies")
+            print("Linking sol object file with dependencies")
         invoke_zig(
             "cc",
             "-r",
@@ -301,12 +299,12 @@ class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
         return cls._make_artifact(out_path)
 
 
-class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
+class SolObjectFileToSeleneExecutableStep_Windows(Step):
     """
-    Link helios object with the interface shim, utilities, and selene core library to create the final executable.
+    Link sol object with the interface shim, utilities, and selene core library to create the final executable.
     """
 
-    input_kind = HeliosObjectFileKind
+    input_kind = SolObjectFileKind
     output_kind = SeleneExecutableKind
 
     @classmethod
@@ -323,7 +321,7 @@ class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         out_path = build_ctx.artifact_dir / "program.selene.exe"
         if build_ctx.verbose:
-            print("Linking helios object file with dependencies")
+            print("Linking sol object file with dependencies")
 
         try:
             from selene_sim import dist_dir as selene_dist
@@ -357,12 +355,12 @@ class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
         )
 
 
-class HeliosObjectFileToSeleneExecutableStep_Darwin(Step):
+class SolObjectFileToSeleneExecutableStep_Darwin(Step):
     """
-    Link helios object with the interface shim, utilities, and selene core library to create the final executable.
+    Link sol object with the interface shim, utilities, and selene core library to create the final executable.
     """
 
-    input_kind = HeliosObjectFileKind
+    input_kind = SolObjectFileKind
     output_kind = SeleneExecutableKind
 
     @classmethod
@@ -379,7 +377,7 @@ class HeliosObjectFileToSeleneExecutableStep_Darwin(Step):
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         out_path = build_ctx.artifact_dir / "program.selene.x"
         if build_ctx.verbose:
-            print("Linking helios object file with dependencies")
+            print("Linking sol object file with dependencies")
         try:
             from selene_sim import dist_dir as selene_dist
         except ImportError:
@@ -411,19 +409,19 @@ class HeliosObjectFileToSeleneExecutableStep_Darwin(Step):
         )
 
 
-def register_helios_builtins(planner: BuildPlanner) -> None:
-    planner.add_kind(HeliosLLVMIRStringKind)
-    planner.add_kind(HeliosLLVMIRFileKind)
-    planner.add_kind(HeliosLLVMBitcodeStringKind)
-    planner.add_kind(HeliosLLVMBitcodeFileKind)
-    planner.add_kind(HeliosObjectFileKind)
-    planner.add_kind(HeliosObjectStringKind)
-    planner.add_step(LLVMBitcodeStringToLLVMBitcodeFileStep)
-    planner.add_step(LLVMIRStringToLLVMIRFileStep)
-    planner.add_step(HeliosLLVMIRFileToHeliosObjectFileStep)
-    planner.add_step(HeliosLLVMBitcodeFileToHeliosObjectFileStep)
-    planner.add_step(HeliosObjectStringToHeliosObjectFileStep)
-    planner.add_step(HeliosObjectFileToHeliosObjectStringStep)
-    planner.add_step(HeliosObjectFileToSeleneObjectFileStep_Linux)
-    planner.add_step(HeliosObjectFileToSeleneExecutableStep_Windows)
-    planner.add_step(HeliosObjectFileToSeleneExecutableStep_Darwin)
+def register_sol_builtins(planner: BuildPlanner) -> None:
+    planner.add_kind(SolLLVMIRStringKind)
+    planner.add_kind(SolLLVMIRFileKind)
+    planner.add_kind(SolLLVMBitcodeStringKind)
+    planner.add_kind(SolLLVMBitcodeFileKind)
+    planner.add_kind(SolObjectFileKind)
+    planner.add_kind(SolObjectStringKind)
+    planner.add_step(SolLLVMBitcodeStringToSolLLVMBitcodeFileStep)
+    planner.add_step(SolLLVMIRStringToSolLLVMIRFileStep)
+    planner.add_step(SolLLVMIRFileToSolObjectFileStep)
+    planner.add_step(SolLLVMBitcodeFileToSolObjectFileStep)
+    planner.add_step(SolObjectStringToSolObjectFileStep)
+    planner.add_step(SolObjectFileToSolObjectStringStep)
+    planner.add_step(SolObjectFileToSeleneObjectFileStep_Linux)
+    planner.add_step(SolObjectFileToSeleneExecutableStep_Windows)
+    planner.add_step(SolObjectFileToSeleneExecutableStep_Darwin)
