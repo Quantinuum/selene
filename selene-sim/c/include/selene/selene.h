@@ -201,6 +201,12 @@ struct selene_void_result_t selene_refcount_decrement(struct SeleneInstance *ins
  */
 struct selene_void_result_t selene_refcount_increment(struct SeleneInstance *instance, uint64_t r);
 
+struct selene_void_result_t selene_rpp(struct SeleneInstance *instance,
+                                       uint64_t qubit_id,
+                                       uint64_t qubit_id2,
+                                       double theta,
+                                       double phi);
+
 struct selene_void_result_t selene_rxy(struct SeleneInstance *instance,
                                        uint64_t qubit_id,
                                        double theta,
@@ -218,3 +224,16 @@ struct selene_void_result_t selene_rzz(struct SeleneInstance *instance,
 struct selene_void_result_t selene_set_tc(struct SeleneInstance *instance, uint64_t tc);
 
 struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
+
+struct selene_void_result_t selene_tk2(struct SeleneInstance *instance,
+                                       uint64_t qubit_id,
+                                       uint64_t qubit_id2,
+                                       double alpha,
+                                       double beta,
+                                       double gamma);
+
+struct selene_void_result_t selene_twin_rxy(struct SeleneInstance *instance,
+                                            uint64_t qubit_id,
+                                            uint64_t qubit_id2,
+                                            double theta,
+                                            double phi);

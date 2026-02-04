@@ -39,6 +39,22 @@ from .helios import (
     HeliosObjectFileToSeleneExecutableStep_Darwin,
     register_helios_builtins,
 )
+from .sol import (
+    SolLLVMIRStringKind,
+    SolLLVMIRFileKind,
+    SolLLVMBitcodeStringKind,
+    SolLLVMBitcodeFileKind,
+    SolObjectFileKind,
+    SolLLVMBitcodeStringToSolLLVMBitcodeFileStep,
+    SolLLVMIRStringToSolLLVMIRFileStep,
+    SolLLVMIRFileToSolObjectFileStep,
+    SolLLVMBitcodeFileToSolObjectFileStep,
+    SolObjectFileToSeleneObjectFileStep_Linux,
+    SolObjectFileToSeleneExecutableStep_Windows,
+    SolObjectFileToSeleneExecutableStep_Darwin,
+    register_sol_builtins,
+)
+
 from .qir import (
     QIRIRFileKind,
     QIRIRStringKind,
@@ -63,6 +79,7 @@ def register_builtins(planner: BuildPlanner):
     register_selene_builtins(planner)
     register_hugr_builtins(planner)
     register_helios_builtins(planner)
+    register_sol_builtins(planner)
     register_qir_builtins(planner)
 
 
@@ -102,5 +119,17 @@ __all__ = [
     "QIRIRFileToQIRBitcodeFileStep",
     "QIRBitcodeFileToQIRBitcodeStringStep",
     "QIRBitcodeStringToHeliosBitcodeStringStep",
+    "SolLLVMIRStringKind",
+    "SolLLVMIRFileKind",
+    "SolLLVMBitcodeStringKind",
+    "SolLLVMBitcodeFileKind",
+    "SolObjectFileKind",
+    "SolLLVMBitcodeStringToSolLLVMBitcodeFileStep",
+    "SolLLVMIRStringToSolLLVMIRFileStep",
+    "SolLLVMIRFileToSolObjectFileStep",
+    "SolLLVMBitcodeFileToSolObjectFileStep",
+    "SolObjectFileToSeleneObjectFileStep_Linux",
+    "SolObjectFileToSeleneExecutableStep_Windows",
+    "SolObjectFileToSeleneExecutableStep_Darwin",
     "register_builtins",
 ]

@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Optional
 import math
 
 from .event_hook import EventHook
@@ -300,6 +300,133 @@ class FutureRead(Operation):
         return FutureRead(qubit=next(it))
 
 
+RPP_PYTKET_DEFINITION: Optional["pytket.circuit.CustomGateDef"] = None
+
+
+@dataclass
+class RPP(Operation):
+    qubit0: int
+    qubit1: int
+    theta: float
+    phi: float
+
+    @staticmethod
+    def get_gate_definition() -> "pytket.circuit.CustomGateDef":
+        assert PYTKET_AVAILABLE, "pytket is not available"
+        import sympy
+
+        global RPP_PYTKET_DEFINITION
+        if RPP_PYTKET_DEFINITION is not None:
+            return RPP_PYTKET_DEFINITION
+        theta, phi = sympy.symbols("theta phi")
+        subcircuit = pytket.Circuit(2)
+        subcircuit.Rz(angle=-phi, qubit=0)
+        subcircuit.Rz(angle=-phi, qubit=1)
+        subcircuit.XXPhase(angle=theta, qubit0=0, qubit1=1)
+        subcircuit.Rz(angle=phi, qubit=0)
+        subcircuit.Rz(angle=phi, qubit=1)
+        RPP_PYTKET_DEFINITION = pytket.circuit.CustomGateDef.define(
+            name="PhasedXX", circ=subcircuit, args=[theta, phi]
+        )
+        return RPP_PYTKET_DEFINITION
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        assert PYTKET_AVAILABLE, "pytket is not available"
+        circuit.add_custom_gate(
+            definition=self.get_gate_definition(),
+            params=[self.theta / math.pi, self.phi / math.pi],
+            qubits=[self.qubit0, self.qubit1],
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "op": "RPP",
+            "qubit0": self.qubit0,
+            "qubit1": self.qubit1,
+            "theta": self.theta,
+            "phi": self.phi,
+        }
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        qubit0 = next(it)
+        qubit1 = next(it)
+        theta = next(it)
+        phi = next(it)
+        return RPP(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi)
+
+
+@dataclass
+class TK2(Operation):
+    qubit0: int
+    qubit1: int
+    alpha: float
+    beta: float
+    gamma: float
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        assert PYTKET_AVAILABLE, "pytket is not available"
+        circuit.tk2(
+            angle0=self.alpha / math.pi,
+            angle1=self.beta / math.pi,
+            angle2=self.gamma / math.pi,
+            qubit0=self.qubit0,
+            qubit1=self.qubit1,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "op": "TK2",
+            "qubit0": self.qubit0,
+            "qubit1": self.qubit1,
+            "alpha": self.alpha,
+            "beta": self.beta,
+            "gamma": self.gamma,
+        }
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        qubit0 = next(it)
+        qubit1 = next(it)
+        alpha = next(it)
+        beta = next(it)
+        gamma = next(it)
+        return TK2(qubit0=qubit0, qubit1=qubit1, alpha=alpha, beta=beta, gamma=gamma)
+
+
+@dataclass
+class TwinRXY(Operation):
+    qubit0: int
+    qubit1: int
+    theta: float
+    phi: float
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        assert PYTKET_AVAILABLE, "pytket is not available"
+        circuit.add_gate(
+            pytket.OpType.NPhasedX,
+            angles=[self.theta / math.pi, self.phi / math.pi],
+            qubits=[self.qubit0, self.qubit1],
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "op": "TwinRXY",
+            "qubit0": self.qubit0,
+            "qubit1": self.qubit1,
+            "theta": self.theta,
+            "phi": self.phi,
+        }
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        qubit0 = next(it)
+        qubit1 = next(it)
+        theta = next(it)
+        phi = next(it)
+        return TwinRXY(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi)
+
+
 class Source(Enum):
     """
     Selene provides the source of each instruction as an
@@ -370,6 +497,12 @@ class Instruction:
                 operation = GlobalBarrier.from_iterator(it)
             case 12:
                 operation = MeasureLeakedRequest.from_iterator(it)
+            case 13:
+                operation = RPP.from_iterator(it)
+            case 14:
+                operation = TK2.from_iterator(it)
+            case 15:
+                operation = TwinRXY.from_iterator(it)
         if operation is None:
             raise ValueError(f"Unknown instruction operation index {operation_idx}")
         return Instruction(source=source, operation=operation)

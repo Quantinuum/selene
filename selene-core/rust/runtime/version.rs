@@ -34,7 +34,7 @@ impl From<RuntimeAPIVersion> for u64 {
 pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     reserved: 0,
     major: 0,
-    minor: 2,
+    minor: 3,
     patch: 0,
 };
 

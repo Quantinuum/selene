@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use std::sync::Arc;
 
 use crate::utils::MetricValue;
@@ -63,13 +63,53 @@ pub trait RuntimeInterface {
     fn qfree(&mut self, qubit_id: u64) -> Result<()>;
 
     /// Schedule an RXY gate to allocated qubit `qubit_id` with the given angles.
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()>;
+    fn rxy_gate(&mut self, _qubit_id: u64, _theta: f64, _phi: f64) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support the RXY gate");
+    }
 
     /// Schedule an RZZ gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angle.
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()>;
+    fn rzz_gate(&mut self, _qubit_id_1: u64, _qubit_id_2: u64, _theta: f64) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support the RZZ gate");
+    }
 
     /// Schedule an RZ gate to allocated qubit `qubit_id` with the given angle.
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()>;
+    fn rz_gate(&mut self, _qubit_id: u64, _theta: f64) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support the RZ gate");
+    }
+
+    /// Schedule a twin RXY gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
+    fn twin_rxy_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _theta: f64,
+        _phi: f64,
+    ) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support the Twin RXY gate");
+    }
+
+    /// Schedule an RPP gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
+    fn rpp_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _theta: f64,
+        _phi: f64,
+    ) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support the RPP gate");
+    }
+
+    /// Schedule a TK2 gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
+    fn tk2_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _alpha: f64,
+        _beta: f64,
+        _gamma: f64,
+    ) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support the TK2 gate");
+    }
 
     /// Schedule a measurement of allocated qubit `qubit_id`. The plugin should return a
     /// new result index. That result index must have a reference count of 1.

@@ -143,6 +143,49 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
             }),
         )
     }
+    pub unsafe fn tk2(
+        instance: SimulatorInstance,
+        qubit1: u64,
+        qubit2: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    ) -> Errno {
+        result_to_errno(
+            "Failed to apply TK2 gate",
+            Self::with_simulator_instance(instance, |simulator| {
+                simulator.tk2(qubit1, qubit2, alpha, beta, gamma)
+            }),
+        )
+    }
+    pub unsafe fn twin_rxy(
+        instance: SimulatorInstance,
+        qubit1: u64,
+        qubit2: u64,
+        theta: f64,
+        phi: f64,
+    ) -> Errno {
+        result_to_errno(
+            "Failed to apply Twin RXY gate",
+            Self::with_simulator_instance(instance, |simulator| {
+                simulator.twin_rxy(qubit1, qubit2, theta, phi)
+            }),
+        )
+    }
+    pub unsafe fn rpp(
+        instance: SimulatorInstance,
+        qubit1: u64,
+        qubit2: u64,
+        theta: f64,
+        phi: f64,
+    ) -> Errno {
+        result_to_errno(
+            "Failed to apply RPP gate",
+            Self::with_simulator_instance(instance, |simulator| {
+                simulator.rpp(qubit1, qubit2, theta, phi)
+            }),
+        )
+    }
     pub unsafe fn measure(instance: SimulatorInstance, qubit: u64) -> Errno {
         let result = Self::with_simulator_instance(instance, |simulator| simulator.measure(qubit));
         match result {
@@ -182,6 +225,9 @@ macro_rules! crate_to_inline_simulator {
             rxy_fn: crate::selene_simulator_operation_rxy,
             rzz_fn: crate::selene_simulator_operation_rzz,
             rx_fn: crate::selene_simulator_operation_rz,
+            tk2_fn: crate::selene_simulator_operation_tk2,
+            twin_rxy_fn: crate::selene_simulator_operation_twin_rxy,
+            rpp_fn: crate::selene_simulator_operation_rpp,
             measure_fn: crate::selene_simulator_operation_measure,
             reset_fn: crate::selene_simulator_operation_reset,
             postselect_fn: Some(crate::selene_simulator_operation_postselect),
@@ -360,6 +406,47 @@ macro_rules! export_simulator_plugin {
                 theta: f64,
             ) -> i32 {
                 Helper::rz(instance, qubit, theta)
+            }
+
+            /// Apply a TK2 (aka SU(4)) gate to the qubits at the requested indices,
+            /// with the provided angles. This gate performs the canonical two-qubit
+            /// interaction characterized by the three angles alpha, beta, and gamma.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_simulator_operation_tk2(
+                instance: SimulatorInstance,
+                qubit1: u64,
+                qubit2: u64,
+                alpha: f64,
+                beta: f64,
+                gamma: f64,
+            ) -> i32 {
+                Helper::tk2(instance, qubit1, qubit2, alpha, beta, gamma)
+            }
+
+            /// Apply a Twin RXY gate to the qubits at the requested indices, with the
+            /// provided angles. This gate performs simultaneous RXY rotations on both qubits.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_simulator_operation_twin_rxy(
+                instance: SimulatorInstance,
+                qubit1: u64,
+                qubit2: u64,
+                theta: f64,
+                phi: f64,
+            ) -> i32 {
+                Helper::twin_rxy(instance, qubit1, qubit2, theta, phi)
+            }
+
+            /// Apply an RPP gate to the qubits at the requested indices, with the
+            /// provided angles.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_simulator_operation_rpp(
+                instance: SimulatorInstance,
+                qubit1: u64,
+                qubit2: u64,
+                theta: f64,
+                phi: f64,
+            ) -> i32 {
+                Helper::rpp(instance, qubit1, qubit2, theta, phi)
             }
 
             /// Measure the qubit at the requested index. This is a destructive
