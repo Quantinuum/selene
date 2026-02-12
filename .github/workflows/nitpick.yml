@@ -3,7 +3,7 @@ name: Nitpicks
 on:
   pull_request:
     branches:
-      - '*'
+      - "*"
   merge_group:
     types:
       - checks_requested
@@ -20,7 +20,7 @@ env:
 
 jobs:
   format-and-lint-checks:
-    name: 
+    name:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -43,8 +43,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-            enable-cache: true
-            version: "0.6.6"
+          enable-cache: true
+          version: "0.6.6"
       - name: Rust format check
         run: cargo fmt --all -- --check
       - name: Rust lint
@@ -61,7 +61,7 @@ jobs:
           uv run --no-sync mypy .
       - name: Type check selene with mypy
         run: |
-          uv run --no-sync mypy .
+          uv run --no-sync mypy selene-sim selene-ext
       - name: Ruff check with ruff
         run: uv run --no-sync ruff format --check --config=pyproject.toml
       - name: Lint with ruff

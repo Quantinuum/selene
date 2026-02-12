@@ -4,7 +4,7 @@ from pytket import Circuit
 from pytket.passes import GreedyPauliSimp, SynthesiseTket
 
 
-def simplify(circuit: Circuit) -> Circuit:
+def simplify(circuit: Circuit) -> Circuit | None:
     """Simplify a circuit by applying the GreedyPauliSimp pass."""
     pass1_ = SynthesiseTket()
     pass2_ = GreedyPauliSimp(allow_zzphase=True, trials=10)
