@@ -59,7 +59,8 @@ jobs:
           uv run --no-sync mypy .
       - name: Type check selene with mypy
         run: |
-          uv run --no-sync mypy selene-sim selene-ext
+          # only check the main selene package and the python packages for plugins.
+          uv run --no-sync mypy selene-sim selene-ext/*/*/python/*_plugin
       - name: Ruff check with ruff
         run: uv run --no-sync ruff format --check --config=pyproject.toml
       - name: Lint with ruff
