@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "selene-error-model-depolarizing"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "clap",
@@ -671,7 +671,7 @@ dependencies = [
 
 [[package]]
 name = "selene-error-model-ideal"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "selene-core",
@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "selene-error-model-simple-leakage"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "clap",
@@ -690,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "selene-sim"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "rand",
@@ -703,7 +703,7 @@ dependencies = [
 
 [[package]]
 name = "selene-simple-runtime"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "selene-core",
@@ -711,7 +711,7 @@ dependencies = [
 
 [[package]]
 name = "selene-simulator-classical-replay"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "base64",
@@ -721,7 +721,7 @@ dependencies = [
 
 [[package]]
 name = "selene-simulator-coinflip"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "approx",
@@ -733,7 +733,7 @@ dependencies = [
 
 [[package]]
 name = "selene-simulator-quantum-replay"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "base64",
@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "selene-simulator-quest"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "bytesize",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "selene-simulator-stim"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "clap",
@@ -766,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "selene-soft-rz-runtime"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "anyhow",
  "selene-core",
