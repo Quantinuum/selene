@@ -104,21 +104,19 @@ cache-keys = [
 ]
 
 [tool.ruff]
-# exclude upstream code
+# exclude any external code (e.g. stim) fetched in the build process
 extend-exclude = [
-  "selene-ext/simulators/stim/upstream",
-  #    "selene-ext/*/*/python/tests"
+  "target",
 ]
 [tool.ruff.lint.per-file-ignores]
 "**/python/tests/*.py" = ["F821", "F841"] #  ^
 
 [tool.mypy]
 ignore_missing_imports = true
-exclude = ["test_.*.py$", ".*upstream.*$", "^selene-core/.*$", "^scratch/.*$"]
+exclude = ["test_.*.py$", "^target/.*$", "^selene-core/.*$", "^scratch/.*$"]
 
 [tool.pytest.ini_options]
-# exclude external repos (e.g. stim)
-norecursedirs = ["upstream", '*.egg', '.*', 'build', 'target', 'dist', 'venv']
+norecursedirs = ['*.egg', '.*', 'build', 'target', 'dist', 'venv']
 
 
 [tool.deptry]
@@ -141,7 +139,7 @@ known_first_party = [
   "selene_stim_plugin",
 ]
 extend_exclude = [
-  "selene-ext/simulators/stim/upstream",
+  "target",
   "selene-core/python/selene_core",
 ]
 

@@ -311,10 +311,10 @@ impl TestFramework {
     }
 
     pub fn cnot(&mut self, control: u64, target: u64) -> &mut Self {
-        self.rxy(target, HALF_PI, HALF_PI);
+        self.rxy(target, -HALF_PI, HALF_PI);
         self.rzz(control, target, HALF_PI);
-        self.rz(control, HALF_PI);
-        self.rxy(target, HALF_PI, 0.0);
+        self.rz(control, -HALF_PI);
+        self.rxy(target, HALF_PI, PI);
         self.rz(target, -HALF_PI);
         self
     }
