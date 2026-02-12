@@ -1,3 +1,14 @@
+/// Quest simulator plugin for Selene, implemented using the quest_sys crate.
+//
+// The version of quest_sys used here is only valid up until 0.17, after which
+// the crate removed support for almost everything we use. It is likely that we
+// will need to roll our own support later on, or move to using the QuEST C API
+// directly if we wish to continue using QuEST as a simulator backend.
+//
+// Definitions of the various gates implemented here can be found in the accompanying
+// gate_definitions.py file, which provides the matrices used for each gate, as well
+// as giving their real/imaginary parts for simplicity. The outputs are provided
+// in the comments within the implementation of each gate within this source file.
 use anyhow::{Result, anyhow, bail};
 use selene_core::export_simulator_plugin;
 use selene_core::simulator::SimulatorInterface;
@@ -62,6 +73,7 @@ impl SimulatorInterface for QuestSimulator {
                 self.n_qubits
             ))
         } else {
+            // Use the built-in from QuEST
             unsafe { quest_sys::rotateZ(self.qureg, q0 as c_int, theta) };
             Ok(())
         }
@@ -74,11 +86,40 @@ impl SimulatorInterface for QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            unsafe {
-                quest_sys::rotateZ(self.qureg, q0 as c_int, -phi);
-                quest_sys::rotateX(self.qureg, q0 as c_int, theta);
-                quest_sys::rotateZ(self.qureg, q0 as c_int, phi);
-            }
+            // As provided in the accompanying gate_definitions.py, here is the matrix for RXY:
+
+            // Real part:
+            //
+            // ⎡      ⎛θ⎞                 ⎛θ⎞⎤
+            // ⎢   cos⎜─⎟      -sin(φ)⋅sin⎜─⎟⎥
+            // ⎢      ⎝2⎠                 ⎝2⎠⎥
+            // ⎢                             ⎥
+            // ⎢          ⎛θ⎞         ⎛θ⎞    ⎥
+            // ⎢sin(φ)⋅sin⎜─⎟      cos⎜─⎟    ⎥
+            // ⎣          ⎝2⎠         ⎝2⎠    ⎦
+            //
+            // Imaginary part:
+            //
+            // ⎡                    ⎛θ⎞       ⎤
+            // ⎢      0         -sin⎜─⎟⋅cos(φ)⎥
+            // ⎢                    ⎝2⎠       ⎥
+            // ⎢                              ⎥
+            // ⎢    ⎛θ⎞                       ⎥
+            // ⎢-sin⎜─⎟⋅cos(φ)        0       ⎥
+            // ⎣    ⎝2⎠                       ⎦
+            //
+            let cos_theta_2 = (theta / 2.0).cos();
+            let sin_theta_2 = (theta / 2.0).sin();
+            let cos_phi = phi.cos();
+            let sin_phi = phi.sin();
+            let u = quest_sys::ComplexMatrix2 {
+                real: [
+                    [cos_theta_2, -sin_phi * sin_theta_2],
+                    [sin_phi * sin_theta_2, cos_theta_2],
+                ],
+                imag: [[0.0, -sin_theta_2 * cos_phi], [-sin_theta_2 * cos_phi, 0.0]],
+            };
+            unsafe { quest_sys::unitary(self.qureg, q0 as c_int, u) };
             Ok(())
         }
     }
@@ -90,23 +131,42 @@ impl SimulatorInterface for QuestSimulator {
                 self.n_qubits
             ))
         } else {
+            // As provided in the accompanying gate_definitions.py, here is the matrix for RZZ,
+            // after scaling out a global phase of exp(i*theta/2) for consistency with prior versions:
+            //
+            // Real part:
+            //
+            // ⎡1    0       0     0⎤
+            // ⎢                    ⎥
+            // ⎢0  cos(θ)    0     0⎥
+            // ⎢                    ⎥
+            // ⎢0    0     cos(θ)  0⎥
+            // ⎢                    ⎥
+            // ⎣0    0       0     1⎦
+            //
+            // Imaginary part:
+            //
+            // ⎡0    0       0     0⎤
+            // ⎢                    ⎥
+            // ⎢0  sin(θ)    0     0⎥
+            // ⎢                    ⎥
+            // ⎢0    0     sin(θ)  0⎥
+            // ⎢                    ⎥
+            // ⎣0    0       0     0⎦
+            //
+            // We implement this using a sub-diagonal operator in QuEST.
             let cos = theta.cos();
             let sin = theta.sin();
-            let u = quest_sys::ComplexMatrix4 {
-                real: [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, cos, 0.0, 0.0],
-                    [0.0, 0.0, cos, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ],
-                imag: [
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, sin, 0.0, 0.0],
-                    [0.0, 0.0, sin, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                ],
-            };
-            unsafe { quest_sys::applyMatrix4(self.qureg, q0 as c_int, q1 as c_int, u) };
+            let mut targets: [c_int; 2] = [q0 as c_int, q1 as c_int];
+            let diag_real: [f64; 4] = [1.0, cos, cos, 1.0];
+            let diag_imag: [f64; 4] = [0.0, sin, sin, 0.0];
+            unsafe {
+                let op = quest_sys::createSubDiagonalOp(2);
+                std::ptr::copy_nonoverlapping(diag_real.as_ptr(), op.real, 4);
+                std::ptr::copy_nonoverlapping(diag_imag.as_ptr(), op.imag, 4);
+                quest_sys::applySubDiagonalOp(self.qureg, targets.as_mut_ptr(), 2, op);
+                quest_sys::destroySubDiagonalOp(op);
+            }
             Ok(())
         }
     }
