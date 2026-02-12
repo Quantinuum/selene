@@ -68,14 +68,12 @@ impl Emulator {
     }
     pub fn user_issued_qalloc(&mut self) -> Result<u64> {
         let address = self.runtime.qalloc()?;
-        //self.user_program_metrics.increment_qalloc();
         self.event_hooks.on_user_call(&Operation::QAlloc(address));
         self.process_runtime()?;
         Ok(address)
     }
     pub fn user_issued_qfree(&mut self, address: u64) -> Result<()> {
         self.runtime.qfree(address)?;
-        //self.user_program_metrics.increment_qfree();
         self.event_hooks.on_user_call(&Operation::QFree(address));
         self.process_runtime()
     }
