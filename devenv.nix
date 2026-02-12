@@ -66,7 +66,11 @@
         extraPackages = with pkgs.python3Packages; [
           types-pyyaml
         ];
-        excludes = ["selene-sim/python/tests"];
+        excludes = [
+          "selene-sim/python/tests"
+          "selene-ext/simulators/quest/python/gate_definitions.py"
+          "selene-ext/simulators/stim/python/gate_definitions.py"
+        ];
       };
     };
   };

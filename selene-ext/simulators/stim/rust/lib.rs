@@ -304,6 +304,319 @@ impl SimulatorInterface for StimSimulator {
         Ok(())
     }
 
+    fn twin_rxy(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        // This is simply two rxy gates applied together on q0 and q1 with the same angles. We
+        // reuse the rxy implementation for this.
+        self.rxy(q0, theta, phi)?;
+        self.rxy(q1, theta, phi)
+    }
+
+    fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        // We can represent the rpp gate as a sequence of clifford
+        // operations for certain combinations of theta and phi:
+        //
+        // +==========================================================+
+        // | Theta | Phi   |           Operation                      | notes
+        // +-------+-------+------------------------------------------+
+        // |   0   | [any] |                                          | identity regardless of phi
+        // +-------+-------+------------------------------------------+
+        // | pi/2  |   0   | H(1);CX(1,0);V(0);H(1);V(1)              | pi/2 theta section
+        // | pi/2  | pi/2  | V(1);CY(1,0);H(0);Vdg(1);Z(0);H(1);Z(1)  |
+        // | pi/2  | pi    | H(1);CX(1,0);V(0);H(1);V(1)              |
+        // | pi/2  | 3pi/2 | V(1);CY(1,0);H(0);Vdg(1);Z(0);H(1);Z(1)  |
+        // +-------+-------+------------------------------------------+
+        // | pi    |   0   | X(0);X(1)                                | pi theta, quadrant phi section
+        // | pi    | pi/2  | X(0);X(1);Z(0);Z(1)                      |
+        // | pi    | pi    | X(0);X(1)                                |
+        // | pi    | 3pi/2 | X(0);X(1);Z(0);Z(1)                      |
+        // |-------+-------+------------------------------------------+
+        // | pi    | pi/4  | Sdg(0);Sdg(1);X(0);X(1);Z(0);Z(1)        | pi theta, non-quadrant phi section
+        // | pi    | 3pi/4 | Sdg(0);Sdg(1);X(0);X(1);                 |
+        // | pi    | 5pi/4 | Sdg(0);Sdg(1);X(0);X(1);Z(0);Z(1)        |
+        // | pi    | 7pi/4 | Sdg(0);Sdg(1);X(0);X(1);                 |
+        // +-------+-------+------------------------------------------+
+        // | 3pi/2 |   0   | [H(1);CX(1,0);V(0);H(1);X(0);V(1);X(1)   | 3pi/2 theta section
+        // | 3pi/2 | pi/2  | [V(1);CY(1,0);H(0);Vdg(1);Z(0);H(1);Z(1) |
+        // | 3pi/2 |   0   | [H(1);CX(1,0);V(0);H(1);X(0);V(1);X(1);  |
+        // | 3pi/2 | pi/2  | [V(1);CY(1,0);H(0);Vdg(1);Z(0);H(1);Z(1) |
+        // +==========================================================+
+        //
+
+        if q0 >= self.n_qubits || q1 >= self.n_qubits {
+            return Err(anyhow!(
+                "RPP(q0={q0}, q1={q1}, theta={theta}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ));
+        }
+
+        let q0_u32: u32 = q0.try_into().unwrap();
+        let q1_u32: u32 = q1.try_into().unwrap();
+
+        let Some(approx_theta) = self.get_approximate_quadrant(theta) else {
+            return Err(anyhow!(
+                "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
+            ));
+        };
+        let Some(approx_phi) = self.get_approximate_octant(phi) else {
+            return Err(anyhow!(
+                "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is nonzero, phi must be an (approximate) multiple of pi/4 for Clifford operations."
+            ));
+        };
+
+        match (approx_theta, approx_phi) {
+            (Quadrant::Zero, _) => {
+                // If theta is zero, the operation is just the identity, regardless of phi.
+                // Return early to avoid validation on phi.
+                return Ok(());
+            }
+            // pi/2 theta section
+            (Quadrant::FracPi2, Octant::Zero | Octant::Pi) => {
+                self.simulator.h(q1_u32);
+                self.simulator.cx(q1_u32, q0_u32);
+                self.simulator.sqrt_x(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.sqrt_x(q1_u32);
+            }
+            (Quadrant::FracPi2, Octant::FracPi2 | Octant::Frac3Pi2) => {
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.cy(q1_u32, q0_u32);
+                self.simulator.h(q0_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+                self.simulator.x(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.x(q1_u32);
+            }
+            (Quadrant::FracPi2, _) => {
+                return Err(anyhow!(
+                    "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is pi/2, phi must be an (approximate) multiple of pi/2."
+                ));
+            }
+            // pi theta, quadrant phi section
+            (Quadrant::Pi, Octant::Zero | Octant::Pi) => {
+                self.simulator.x(q0_u32);
+                self.simulator.x(q1_u32);
+            }
+            (Quadrant::Pi, Octant::FracPi2 | Octant::Frac3Pi2) => {
+                self.simulator.x(q0_u32);
+                self.simulator.x(q1_u32);
+                self.simulator.z(q0_u32);
+                self.simulator.z(q1_u32);
+            }
+            // pi theta, non-quadrant phi section
+            (Quadrant::Pi, Octant::FracPi4 | Octant::Frac5Pi4) => {
+                self.simulator.sqrt_z_dag(q0_u32);
+                self.simulator.sqrt_z_dag(q1_u32);
+                self.simulator.x(q0_u32);
+                self.simulator.x(q1_u32);
+                self.simulator.z(q0_u32);
+                self.simulator.z(q1_u32);
+            }
+            (Quadrant::Pi, Octant::Frac3Pi4 | Octant::Frac7Pi4) => {
+                self.simulator.sqrt_z_dag(q0_u32);
+                self.simulator.sqrt_z_dag(q1_u32);
+                self.simulator.x(q0_u32);
+                self.simulator.x(q1_u32);
+            }
+            // 3pi/2 theta section
+            (Quadrant::Frac3Pi2, Octant::Zero | Octant::Pi) => {
+                self.simulator.h(q1_u32);
+                self.simulator.cx(q1_u32, q0_u32);
+                self.simulator.sqrt_x(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.x(q0_u32);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.x(q1_u32);
+            }
+            (Quadrant::Frac3Pi2, Octant::FracPi2 | Octant::Frac3Pi2) => {
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.cy(q1_u32, q0_u32);
+                self.simulator.h(q0_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+                self.simulator.z(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.z(q1_u32);
+            }
+            (Quadrant::Frac3Pi2, _) => {
+                return Err(anyhow!(
+                    "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is 3pi/2, phi must be an (approximate) multiple of pi/2."
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
+        if q0 >= self.n_qubits || q1 >= self.n_qubits {
+            return Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ));
+        }
+        let q0_u32: u32 = q0.try_into().unwrap();
+        let q1_u32: u32 = q1.try_into().unwrap();
+        let Some(approx_alpha) = self.get_approximate_quadrant(alpha) else {
+            return Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is not representable in stabiliser form. Alpha must be an (approximate) multiple of pi/2 for Clifford operations."
+            ));
+        };
+        let Some(approx_beta) = self.get_approximate_quadrant(beta) else {
+            return Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is not representable in stabiliser form. Beta must be an (approximate) multiple of pi/2 for Clifford operations."
+            ));
+        };
+        let Some(approx_gamma) = self.get_approximate_quadrant(gamma) else {
+            return Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is not representable in stabiliser form. Gamma must be an (approximate) multiple of pi/2 for Clifford operations."
+            ));
+        };
+
+        // We can represent the tk2 gate as a sequence of clifford operations for certain combinations of alpha, beta, and gamma,
+        // all being in quadrants (multiples of pi/2). The operation depends on the relative quadrants of alpha, beta, and gamma as follows:
+        // +====================================================================+
+        // | Alpha | Beta  | Gamma  |           Operation                       | notes
+        // +-------+-------+--------+-------------------------------------------+
+        // |   a   |   a   |   a    |                                           |
+        // |   a   |   a   | a+pi/2 | CZ(1,0);S(0);S(1);                        |
+        // |   a   |   a   | a+pi   | Z(0);Z(1)                                 |
+        // |   a   |   a   | a+3pi/2| CZ(1,0);Sdg(0);Sdg(1)                     |
+        // |   a   | a+pi/2|   a    | V(1);CY(1,0);H(0);X(0);Vdg(1);H(1);X(1);  |
+        // |   a   | a+pi/2| a+pi/2 | H(1);CX(1,0);Vdg(0);H(1);Vdg(1);          |
+        // |   a   | a+pi/2| a+pi   | V(1);CY(1,0);H(0);Y(0);Vdg(1);H(1);Y(1);  |
+        // |   a   | a+pi/2| a+3pi/2| H(1);CX(1,0);V(0);Y(0);H(1);V(1);Y(1);    |
+        // |   a   | a+pi  |   a    | Y(0);Y(1);                                |
+        // |   a   | a+pi  | a+pi/2 | CZ(1,0);S(0);S(1);                        |
+        // |   a   | a+pi  | a+pi   | X(0);X(1);                                |
+        // |   a   | a+pi  | a+3pi/2| CZ(1,0);S(0);S(1);Z(0);Z(1);              |
+        // |   a   |a+3pi/2|   a    | V(1);CY(1,0);H(0);Z(0);Vdg(1);H(1);Z(1);  |
+        // |   a   |a+3pi/2| a+pi/2 | H(1);CX(1,0);V(0);Z(0);H(1);V(1);Z(1);    |
+        // |   a   |a+3pi/2| a+pi   | V(1);CY(1,0);H(0);Vdg(1);H(1);            |
+        // |   a   |a+3pi/2| a+3pi/2| H(1);CX(1,0);V(0);H(1);V(1);              |
+        // +====================================================================+
+        // Note that as the operation depends only on the relative angle, we can shift them all
+        // to make alpha the reference (subtract alpha from all angles) without changing the operation:
+        match (approx_beta - approx_alpha, approx_gamma - approx_alpha) {
+            (Quadrant::Zero, Quadrant::Zero) => {
+                // Identity operation, do nothing.
+            }
+            (Quadrant::Zero, Quadrant::FracPi2) => {
+                // CZ(1,0);S(0);S(1);
+                self.simulator.cz(q1_u32, q0_u32);
+                self.simulator.sqrt_z(q0_u32);
+                self.simulator.sqrt_z(q1_u32);
+            }
+            (Quadrant::Zero, Quadrant::Pi) => {
+                // Z(0);Z(1)
+                self.simulator.z(q0_u32);
+                self.simulator.z(q1_u32);
+            }
+            (Quadrant::Zero, Quadrant::Frac3Pi2) => {
+                // CZ(1,0);Sdg(0);Sdg(1)
+                self.simulator.cz(q1_u32, q0_u32);
+                self.simulator.sqrt_z_dag(q0_u32);
+                self.simulator.sqrt_z_dag(q1_u32);
+            }
+            (Quadrant::FracPi2, Quadrant::Zero) => {
+                // V(1);CY(1,0);H(0);X(0);Vdg(1);H(1);X(1);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.cy(q1_u32, q0_u32);
+                self.simulator.h(q0_u32);
+                self.simulator.x(q0_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.x(q1_u32);
+            }
+            (Quadrant::FracPi2, Quadrant::FracPi2) => {
+                // H(1);CX(1,0);Vdg(0);H(1);Vdg(1);
+                self.simulator.h(q1_u32);
+                self.simulator.cx(q1_u32, q0_u32);
+                self.simulator.sqrt_x_dag(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+            }
+            (Quadrant::FracPi2, Quadrant::Pi) => {
+                // V(1);CY(1,0);H(0);Y(0);Vdg(1);H(1);Y(1);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.cy(q1_u32, q0_u32);
+                self.simulator.h(q0_u32);
+                self.simulator.y(q0_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.y(q1_u32);
+            }
+            (Quadrant::FracPi2, Quadrant::Frac3Pi2) => {
+                // H(1);CX(1,0);V(0);Y(0);H(1);V(1);Y(1);
+                self.simulator.h(q1_u32);
+                self.simulator.cx(q1_u32, q0_u32);
+                self.simulator.sqrt_x(q0_u32);
+                self.simulator.y(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.y(q1_u32);
+            }
+            (Quadrant::Pi, Quadrant::Zero) => {
+                // Y(0);Y(1);
+                self.simulator.y(q0_u32);
+                self.simulator.y(q1_u32);
+            }
+            (Quadrant::Pi, Quadrant::FracPi2) => {
+                // CZ(1,0);S(0);S(1);
+                self.simulator.cz(q1_u32, q0_u32);
+                self.simulator.sqrt_x(q0_u32);
+                self.simulator.sqrt_x(q1_u32);
+            }
+            (Quadrant::Pi, Quadrant::Pi) => {
+                // X(0);X(1);
+                self.simulator.x(q0_u32);
+                self.simulator.x(q1_u32);
+            }
+            (Quadrant::Pi, Quadrant::Frac3Pi2) => {
+                // CZ(1,0);S(0);S(1);Z(0);Z(1);
+                self.simulator.cz(q1_u32, q0_u32);
+                self.simulator.sqrt_z_dag(q0_u32);
+                self.simulator.sqrt_z_dag(q1_u32);
+                self.simulator.y(q0_u32);
+                self.simulator.y(q1_u32);
+            }
+            (Quadrant::Frac3Pi2, Quadrant::Zero) => {
+                // V(1);CY(1,0);H(0);Z(0);Vdg(1);H(1);Z(1);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.cy(q1_u32, q0_u32);
+                self.simulator.h(q0_u32);
+                self.simulator.z(q0_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.z(q1_u32);
+            }
+            (Quadrant::Frac3Pi2, Quadrant::FracPi2) => {
+                // H(1);CX(1,0);V(0);Z(0);H(1);V(1);Z(1);
+                self.simulator.h(q1_u32);
+                self.simulator.cx(q1_u32, q0_u32);
+                self.simulator.sqrt_x(q0_u32);
+                self.simulator.z(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.z(q1_u32);
+            }
+            (Quadrant::Frac3Pi2, Quadrant::Pi) => {
+                // V(1);CY(1,0);H(0);Vdg(1);H(1);
+                self.simulator.sqrt_x(q1_u32);
+                self.simulator.cy(q1_u32, q0_u32);
+                self.simulator.h(q0_u32);
+                self.simulator.sqrt_x_dag(q1_u32);
+                self.simulator.h(q1_u32);
+            }
+            (Quadrant::Frac3Pi2, Quadrant::Frac3Pi2) => {
+                // H(1);CX(1,0);V(0);H(1);V(1);
+                self.simulator.h(q1_u32);
+                self.simulator.cx(q1_u32, q0_u32);
+                self.simulator.sqrt_x(q0_u32);
+                self.simulator.h(q1_u32);
+                self.simulator.sqrt_x(q1_u32);
+            }
+        }
+        Ok(())
+    }
+
     fn measure(&mut self, qubit: u64) -> Result<bool> {
         if qubit >= self.n_qubits {
             Err(anyhow!(

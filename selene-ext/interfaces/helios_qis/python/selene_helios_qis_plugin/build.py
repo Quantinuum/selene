@@ -27,6 +27,9 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
+        if "platform" in build_ctx.cfg and build_ctx.cfg["platform"] != "helios":
+            return float("inf")
+
         if (
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-ir"
@@ -52,6 +55,9 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
+        if "platform" in build_ctx.cfg and build_ctx.cfg["platform"] != "helios":
+            return float("inf")
+
         if (
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-bitcode"

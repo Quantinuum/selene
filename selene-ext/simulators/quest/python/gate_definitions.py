@@ -121,9 +121,6 @@ if __name__ == "__main__":
 
     print_summary(f"rz({theta})", rz_gate)
     print_summary(f"rxy({theta}, {phi})", rxy_gate)
-    print_summary(f"rzz({theta})", rzz_gate)
-    print_summary(f"rz({theta})", rz_gate)
-    print_summary(f"rxy({theta}, {phi})", rxy_gate)
     print_summary(
         f"twin_rxy({theta}, {phi})",
         twin_rxy_gate,

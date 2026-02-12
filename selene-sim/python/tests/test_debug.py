@@ -170,8 +170,9 @@ def test_quantum_replay_state(simulator_plugin, first_measurement):
     np.testing.assert_allclose(post_measurement, expected)
 
 
+@pytest.mark.parametrize("platform", ["helios", "sol"])
 @pytest.mark.parametrize("gate_name", ["rx", "ry", "rz"])
-def test_stim_gate_implementations_single_qubit(gate_name):
+def test_stim_gate_implementations_single_qubit(platform, gate_name):
     import random
 
     random.seed(1234)
@@ -189,7 +190,7 @@ def test_stim_gate_implementations_single_qubit(gate_name):
         state_result("entangled_state", q0)
         discard(q0)
 
-    runner = build(main.compile())
+    runner = build(main.compile(), platform=platform)
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(
@@ -221,7 +222,8 @@ def test_stim_gate_implementations_single_qubit(gate_name):
         np.testing.assert_allclose(stim_statevector, quest_statevector)
 
 
-def test_stim_gate_implementations_single_qubit_triples():
+@pytest.mark.parametrize("platform", ["helios", "sol"])
+def test_stim_gate_implementations_single_qubit_triples(platform):
     import random
 
     random.seed(1234)
@@ -240,7 +242,7 @@ def test_stim_gate_implementations_single_qubit_triples():
         state_result("entangled_state", q0)
         discard(q0)
 
-    runner = build(main.compile())
+    runner = build(main.compile(), platform=platform)
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(

@@ -62,6 +62,7 @@ dev = [
 [tool.uv.sources]
 selene-sim = { workspace = true }
 selene-core = { workspace = true }
+selene-hugr-qis-compiler = { path = "../tket2/dist/selene_hugr_qis_compiler-0.2.10-cp310-abi3-linux_x86_64.whl" }
 
 [tool.uv.workspace]
 members = ["selene-core"]
@@ -106,9 +107,7 @@ cache-keys = [
 
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process
-extend-exclude = [
-  "target",
-]
+extend-exclude = ["target"]
 [tool.ruff.lint.per-file-ignores]
 "**/python/tests/*.py" = ["F821", "F841"] #  ^
 
@@ -139,10 +138,7 @@ known_first_party = [
   "selene_quest_plugin",
   "selene_stim_plugin",
 ]
-extend_exclude = [
-  "target",
-  "selene-core/python/selene_core",
-]
+extend_exclude = ["target", "selene-core/python/selene_core"]
 
 [tool.deptry.package_module_name_map]
 pyyaml = "yaml"

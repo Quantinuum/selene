@@ -27,12 +27,15 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
+        if "platform" in build_ctx.cfg and build_ctx.cfg["platform"] != "sol":
+            return float("inf")
+
         if (
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-ir"
         ):
-            return 98
-        return 100
+            return 101
+        return 103
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
@@ -52,12 +55,15 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
+        if "platform" in build_ctx.cfg and build_ctx.cfg["platform"] != "sol":
+            return float("inf")
+
         if (
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-bitcode"
         ):
-            return 98
-        return 99  # weakly preferred over IR string
+            return 101
+        return 102  # weakly preferred over IR string
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
