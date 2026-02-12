@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.4...selene-core-v0.2.5) (2026-02-12)
+
+
+### Features
+
+* Stim improvements (more ops + state printing) ([#115](https://github.com/Quantinuum/selene/issues/115)) ([867d5e5](https://github.com/Quantinuum/selene/commit/867d5e5eba308eda3087e61690181b2030cbb56f))
+
 ## [0.2.4](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.3...selene-core-v0.2.4) (2026-01-29)
 
 
