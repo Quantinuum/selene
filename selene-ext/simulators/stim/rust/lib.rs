@@ -91,7 +91,10 @@ impl SimulatorInterface for StimSimulator {
 
     fn rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
         // We can represent the rxy gate as a sequence of clifford
-        // operations for certain combinations of theta and phi:
+        // operations for certain combinations of theta and phi. These
+        // are written in application order (e.g. H X means apply H then X),
+        // not multiplication order.
+        //
         //
         // +===========================+
         // | Theta | Phi   | Operation | notes
@@ -231,6 +234,19 @@ impl SimulatorInterface for StimSimulator {
     }
 
     fn rz(&mut self, q0: u64, theta: f64) -> Result<()> {
+        // We can represent the rz gate as a clifford operation
+        // for theta equal to a multiple of pi/2:
+        //
+        // +===================+
+        // | Theta | Operation | notes
+        // +-------+-----------+
+        // |   0   |           | identity
+        // | pi/2  | S         |
+        // | pi    | Z         |
+        // | 3pi/2 | Sdg       |
+        // +===================+
+        //
+
         if q0 >= self.n_qubits {
             return Err(anyhow!(
                 "RZ(q0={q0}, theta={theta}) is out of bounds. q0 must be less than the number of qubits ({}).",
@@ -256,6 +272,11 @@ impl SimulatorInterface for StimSimulator {
     }
 
     fn rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
+        // Stim provides SQRT_ZZ and SQRT_ZZ_DAG gates which are
+        // invoked for theta values pi/2 and 3pi/2 respectively.
+        // For theta=pi, we can simply apply a Z gate to both qubits.
+        // For theta=0, this gate is the identity and we do nothing.
+
         if q0 >= self.n_qubits || q1 >= self.n_qubits {
             return Err(anyhow!(
                 "RZZ(q0={q0}, q1={q1}, theta={theta}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
