@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.11](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.10...selene-sim-v0.2.11) (2026-02-12)
+
+
+### Features
+
+* Quest performance improvements ([#133](https://github.com/Quantinuum/selene/issues/133)) ([af640e9](https://github.com/Quantinuum/selene/commit/af640e9999169cca3096708b76ea9fde1389b89e))
+* Stim improvements (more ops + state printing) ([#115](https://github.com/Quantinuum/selene/issues/115)) ([867d5e5](https://github.com/Quantinuum/selene/commit/867d5e5eba308eda3087e61690181b2030cbb56f))
+* Test on QIS snapshots ([#134](https://github.com/Quantinuum/selene/issues/134)) ([c4d58ab](https://github.com/Quantinuum/selene/commit/c4d58ab2828fe6fdc221c90022200921690d8563))
+
 ## [0.2.10](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.9...selene-sim-v0.2.10) (2026-01-29)
 
 
