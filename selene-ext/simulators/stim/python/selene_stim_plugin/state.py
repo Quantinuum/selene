@@ -59,9 +59,6 @@ class Phase(Enum):
         )
         return Phase((self._value - other._value) % 4)
 
-    def __neg__(self) -> "Phase":
-        return self + Phase.REAL_NEGATIVE
-
 
 class Pauli(Enum):
     X = 1
@@ -141,7 +138,7 @@ class Pauli(Enum):
                 raise ValueError(f"Unhandled Pauli multiplication: {self}, {other}")
 
 
-class StabilizerGenerator:
+class Stabilizer:
     phase: Phase  # In intermediate calculations only, this may be imaginary.
     paulis: tuple[Pauli, ...]  # len: total_qubits
 
@@ -197,13 +194,13 @@ class StabilizerGenerator:
         return f"{self.phase}{pauli_str}"
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, StabilizerGenerator):
+        if not isinstance(other, Stabilizer):
             return NotImplemented
         return self.phase == other.phase and self.paulis == other.paulis
 
-    def __mul__(self, other: object) -> "StabilizerGenerator":
-        assert isinstance(other, StabilizerGenerator), (
-            f"Can only multiply with another StabilizerGenerator, got {other!r}"
+    def __mul__(self, other: object) -> "Stabilizer":
+        assert isinstance(other, Stabilizer), (
+            f"Can only multiply with another Stabilizer, got {other!r}"
         )
         assert len(self.paulis) == len(other.paulis), (
             "Stabilizers must have the same number of qubits to multiply"
@@ -214,36 +211,36 @@ class StabilizerGenerator:
             new_pauli, phase_change = p1.multiply(p2)
             new_paulis.append(new_pauli)
             new_phase += phase_change
-        result = StabilizerGenerator("+" + "_" * len(new_paulis))  # placeholder
+        result = Stabilizer("+" + "_" * len(new_paulis))  # placeholder
         result.phase = new_phase
         result.paulis = tuple(new_paulis)
         return result
 
 
 class StabilizerList:
-    entries: list[StabilizerGenerator]  # le n: specified_qubits
+    generators: list[Stabilizer]  # len: specified_qubits
 
     def __init__(self, stabilizer_strings: list[str]):
-        n_qubits_known = len(stabilizer_strings)
-        self.entries = [
-            StabilizerGenerator(stabilizer_strings[i]) for i in range(n_qubits_known)
+        self.generators = [
+            Stabilizer(stabilizer_strings[i]) for i in range(len(stabilizer_strings))
         ]
         assert all(
-            len(stab.paulis) == len(self.entries[0].paulis) for stab in self.entries
+            len(stab.paulis) == len(self.generators[0].paulis)
+            for stab in self.generators
         ), "All stabilizers must have the same number of qubits, but got: " + ", ".join(
-            str(len(stab.paulis)) for stab in self.entries
+            str(len(stab.paulis)) for stab in self.generators
         )
 
     def clone(self) -> "StabilizerList":
-        return StabilizerList([repr(stab) for stab in self.entries])
+        return StabilizerList([repr(stab) for stab in self.generators])
 
     def __repr__(self) -> str:
-        return "\n".join(repr(stab) for stab in self.entries)
+        return "\n".join(repr(stab) for stab in self.generators)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, StabilizerList):
             return NotImplemented
-        return self.entries == other.entries
+        return self.generators == other.generators
 
     def trace_out_qubit(self, qubit_index: int) -> None:
         """Eliminate the specified qubit from the tableau by tracing it out."""
@@ -254,8 +251,8 @@ class StabilizerList:
         # a basis of at most two stabilizers (e.g., X and Z, X and Y, or Y and Z). We do this
         # iteratively.
         rows_to_remove = []
-        multiply_rules: dict[Pauli, StabilizerGenerator] = {}
-        for i, stab in enumerate(self.entries):
+        multiply_rules: dict[Pauli, Stabilizer] = {}
+        for i, stab in enumerate(self.generators):
             if stab.paulis[qubit_index] == Pauli.I:
                 # Nothing to do here.
                 continue
@@ -275,28 +272,28 @@ class StabilizerList:
             )
             # We can eliminate this stabilizer's pauli on the qubit by multiplying
             # with the known basis stabilizer.
-            self.entries[i] = stab * multiply_rules[stab.paulis[qubit_index]]
-            assert self.entries[i].paulis[qubit_index] == Pauli.I, (
+            self.generators[i] = stab * multiply_rules[stab.paulis[qubit_index]]
+            assert self.generators[i].paulis[qubit_index] == Pauli.I, (
                 "Failed to eliminate pauli on traced out qubit."
             )
 
         for row_to_remove in reversed(rows_to_remove):
-            del self.entries[row_to_remove]
-        for i in range(len(self.entries)):
+            del self.generators[row_to_remove]
+        for i in range(len(self.generators)):
             # Delete the traced out qubit from each remaining stabilizer
-            self.entries[i].remove_qubit(qubit_index)
+            self.generators[i].remove_qubit(qubit_index)
 
     def reduced_to_qubits(self, wanted_qubits: list[int]) -> "StabilizerList":
         # Trace out unspecified qubits from highest to lowest index
         result = self.clone()
-        for qubit_index in reversed(range(len(self.entries[0].paulis))):
+        for qubit_index in reversed(range(len(self.generators[0].paulis))):
             if qubit_index not in wanted_qubits:
                 result.trace_out_qubit(qubit_index)
 
         wanted_sorted = sorted(wanted_qubits)
         wanted_permutation = [wanted_sorted.index(q) for q in wanted_qubits]
 
-        for stab in result.entries:
+        for stab in result.generators:
             assert stab.is_valid(), (
                 "Resulting stabilizer contains imaginary phase after reduction: "
                 + repr(stab)
@@ -312,10 +309,10 @@ class StabilizerList:
 
     def as_density_matrix(self) -> np.ndarray:
         """Get the density matrix represented by the stabilizer list. Only to be used for small numbers of qubits."""
-        n_qubits = len(self.entries[0].paulis)
+        n_qubits = len(self.generators[0].paulis)
         dim = 2**n_qubits
         result = np.zeros((dim, dim), dtype=complex)
-        generator_matrices = [stab.as_matrix() for stab in self.entries]
+        generator_matrices = [stab.as_matrix() for stab in self.generators]
         # for every combination of stabilizer generators, add their product to the density matrix
         for i in range(2 ** len(generator_matrices)):
             stab_product = np.eye(dim, dtype=complex)
@@ -403,7 +400,7 @@ class SeleneStimState:
                 )
         return result
 
-    def get_single_state(self) -> np.ndarray:
+    def get_single_state(self, zero_threshold: float = 1e-12) -> np.ndarray:
         """
         Assume that the state is a pure state and return it.
 
@@ -418,13 +415,13 @@ class SeleneStimState:
 
         """
 
-        distribution = self.get_state_vector_distribution()
+        distribution = self.get_state_vector_distribution(zero_threshold)
         assert len(distribution) == 1, (
             f"Expected a pure state with a single vector in the distribution. Got {len(distribution)} states: {distribution}"
         )
         return distribution[0].state
 
-    def get_dirac_notation(self) -> list[TracedState]:
+    def get_dirac_notation(self, zero_threshold: float = 1e-12) -> list[TracedState]:
         try:
             from sympy import nsimplify, Add
             from sympy.physics.quantum.state import Ket
@@ -465,16 +462,16 @@ class SeleneStimState:
                     probability=tr_st.probability, state=" + ".join(terms)
                 )
 
-        state_vector = self.get_state_vector_distribution()
+        state_vector = self.get_state_vector_distribution(zero_threshold)
         result = [simplify_state(tr_st) for tr_st in state_vector]
         return result
 
-    def get_single_dirac_notation(self) -> TracedState:
+    def get_single_dirac_notation(self, zero_threshold: float = 1e-12) -> TracedState:
         """
         Get the single state of the specified qubits in Dirac notation,
         assuming that the state is a pure state.
         """
-        distribution = self.get_dirac_notation()
+        distribution = self.get_dirac_notation(zero_threshold)
         assert len(distribution) == 1, (
             "Expected a pure state with a single vector in the distribution."
         )

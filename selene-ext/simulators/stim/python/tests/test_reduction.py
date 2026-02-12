@@ -148,7 +148,7 @@ EXAMPLES = [
         ],
     ),
     ReductionExample(
-        # |+++++.....+++> (N_QUBITS_LARGE_EXAMPLE qubits)
+        # (|00...00> + |11....11>)/sqrt(2) (N_QUBITS_LARGE_EXAMPLE qubits)
         input_stabilizer_strings=(
             ["+" + "X" * N_QUBITS_LARGE_EXAMPLE]
             + [
