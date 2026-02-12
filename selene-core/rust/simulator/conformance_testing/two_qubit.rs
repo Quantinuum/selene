@@ -19,7 +19,10 @@ fn basic_entanglement(interface: Arc<impl SimulatorInterfaceFactory + 'static>, 
     */
     TestFramework::new(2)
         .test(100, vec![0, 1], |populations| {
-            populations.test_measurements[0b00] == 100
+            populations.test_measurements[0b00] > 0
+                && populations.test_measurements[0b01] == 0
+                && populations.test_measurements[0b10] == 0
+                && populations.test_measurements[0b11] == 0
         })
         .h(0)
         .cnot(0, 1)

@@ -12,7 +12,8 @@ use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
 use std::io::Write;
-use wrapper::TableauSimulator64;
+use std::ops::Sub;
+use wrapper::TableauSimulatorMin;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
@@ -21,6 +22,14 @@ enum Quadrant {
     FracPi2 = 1,
     Pi = 2,
     Frac3Pi2 = 3,
+}
+impl Sub for Quadrant {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let result = (self as i64 - rhs as i64).rem_euclid(4) as u8;
+        Self::try_from(result).unwrap()
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
@@ -42,7 +51,7 @@ struct Params {
 }
 
 pub struct StimSimulator {
-    simulator: TableauSimulator64,
+    simulator: TableauSimulatorMin,
     n_qubits: u64,
     angle_threshold_quad: f64,
 }
@@ -73,7 +82,7 @@ impl SimulatorInterface for StimSimulator {
     }
 
     fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
-        self.simulator = TableauSimulator64::new(self.n_qubits.try_into().unwrap(), seed);
+        self.simulator = TableauSimulatorMin::new(self.n_qubits.try_into().unwrap(), seed);
         Ok(())
     }
     fn shot_end(&mut self) -> Result<()> {
@@ -99,10 +108,10 @@ impl SimulatorInterface for StimSimulator {
         // | pi    | pi    | X         |
         // | pi    | 3pi/2 | X Z       |
         // |-------+-------+-----------+
-        // | pi    | pi/4  | X S       | pi theta, non-quadrant phi section
-        // | pi    | 3pi/4 | X Sdg     |
-        // | pi    | 5pi/4 | X S       |
-        // | pi    | 7pi/4 | X Sdg     |
+        // | pi    | pi/4  | Sdg X     | pi theta, non-quadrant phi section
+        // | pi    | 3pi/4 | Sdg X Z   |
+        // | pi    | 5pi/4 | Sdg X     |
+        // | pi    | 7pi/4 | Sdg X Z   |
         // +-------+-------+-----------+
         // | 3pi/2 |   0   | Vdg       | 3pi/2 theta section
         // | 3pi/2 | pi/2  | H Z       |
@@ -183,15 +192,14 @@ impl SimulatorInterface for StimSimulator {
             // pi theta, non-quadrant phi section //
             ////////////////////////////////////////
             (Quadrant::Pi, Octant::FracPi4 | Octant::Frac5Pi4) => {
-                // phi - pi/4 = 0 mod pi, phi = pi/4 mod pi
+                self.simulator.sqrt_z_dag(q0_u32);
                 self.simulator.x(q0_u32);
-                self.simulator.sqrt_z(q0_u32);
                 Ok(())
             }
             (Quadrant::Pi, Octant::Frac3Pi4 | Octant::Frac7Pi4) => {
-                // phi - pi/4 = pi/2 mod pi, phi = 3pi/4 mod pi
-                self.simulator.x(q0_u32);
                 self.simulator.sqrt_z_dag(q0_u32);
+                self.simulator.x(q0_u32);
+                self.simulator.z(q0_u32);
                 Ok(())
             }
 
@@ -357,7 +365,7 @@ impl SimulatorInterfaceFactory for StimSimulatorFactory {
                 let n_u32: u32 = n_qubits.try_into()?;
                 let angle_threshold_quad = params.angle_threshold / std::f64::consts::FRAC_PI_2;
                 Ok(Box::new(StimSimulator {
-                    simulator: TableauSimulator64::new(n_u32, 0),
+                    simulator: TableauSimulatorMin::new(n_u32, 0),
                     n_qubits,
                     angle_threshold_quad,
                 }))

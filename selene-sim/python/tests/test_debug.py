@@ -3,7 +3,20 @@ import pytest
 from guppylang import guppy
 from guppylang.std.builtins import array
 from guppylang.std.debug import state_result
-from guppylang.std.quantum import discard, qubit, discard_array, x, h, cx, measure
+from guppylang.std.angles import pi
+from guppylang.std.quantum import (
+    discard,
+    qubit,
+    discard_array,
+    x,
+    h,
+    cx,
+    measure,
+    ry,
+    rz,
+    rx,
+)
+from guppylang.std.qsystem.utils import get_current_shot
 from hugr.qsystem.result import QsysResult
 import numpy as np
 
@@ -155,6 +168,110 @@ def test_quantum_replay_state(simulator_plugin, first_measurement):
     # first shot measured 0 on q0, so q1 should be |0>
     expected = np.array([1, 0]) if first_measurement == 0 else np.array([0, 1])
     np.testing.assert_allclose(post_measurement, expected)
+
+
+@pytest.mark.parametrize("gate_name", ["rx", "ry", "rz"])
+def test_stim_gate_implementations_single_qubit(gate_name):
+    import random
+
+    random.seed(1234)
+    all_quarter_turns = [
+        i / 2 for i in range(-8, 9)
+    ]  # from -4pi to 4pi in pi/2 increments
+    params = [random.choice(all_quarter_turns) for _ in range(1000)]
+    gate = {"rx": rx, "ry": ry, "rz": rz}[gate_name]
+
+    @guppy
+    def main() -> None:
+        q0: qubit = qubit()
+        angle = comptime(params)[get_current_shot()]
+        gate(q0, pi * angle)
+        state_result("entangled_state", q0)
+        discard(q0)
+
+    runner = build(main.compile())
+    stim_shots = QsysResult(
+        runner.run_shots(
+            simulator=Stim(
+                angle_threshold=1e-2,  # reduce threshold to catch more errors
+            ),
+            n_qubits=2,
+            n_shots=len(params),
+        )
+    )
+    quest_shots = QsysResult(
+        runner.run_shots(
+            simulator=Quest(),
+            n_qubits=2,
+            n_shots=len(params),
+        )
+    )
+    for shot, (stim_shot, quest_shot) in enumerate(
+        zip(stim_shots.results, quest_shots.results)
+    ):
+        stim_state = Stim.extract_states_dict(stim_shot.entries)["entangled_state"]
+        stim_statevector = stim_state.get_single_state()
+        quest_state = Quest.extract_states_dict(quest_shot.entries)["entangled_state"]
+        quest_statevector = quest_state.get_single_state()
+        print(f"Shot {shot}:")
+        print(f"   gate: {gate_name}(pi * {params[shot]})")
+        print("   Stim state:", stim_statevector)
+        print("   Quest state:", quest_statevector)
+        print("   Stabilizers", stim_state.get_reduced_stabilizers())
+        np.testing.assert_allclose(stim_statevector, quest_statevector)
+
+
+def test_stim_gate_implementations_single_qubit_triples():
+    import random
+
+    random.seed(1234)
+    all_quarter_turns = [
+        i / 2 for i in range(-8, 9)
+    ]  # from -4pi to 4pi in pi/2 increments
+    params = [[random.choice(all_quarter_turns) for _ in range(3)] for _ in range(1000)]
+
+    @guppy
+    def main() -> None:
+        q0: qubit = qubit()
+        angles = comptime(params)[get_current_shot()]
+        rx(q0, pi * angles[0])
+        ry(q0, pi * angles[1])
+        rz(q0, pi * angles[2])
+        state_result("entangled_state", q0)
+        discard(q0)
+
+    runner = build(main.compile())
+    stim_shots = QsysResult(
+        runner.run_shots(
+            simulator=Stim(
+                angle_threshold=1e-2,  # reduce threshold to catch more errors
+            ),
+            n_qubits=2,
+            n_shots=len(params),
+        )
+    )
+    quest_shots = QsysResult(
+        runner.run_shots(
+            simulator=Quest(),
+            n_qubits=2,
+            n_shots=len(params),
+        )
+    )
+    for shot, (stim_shot, quest_shot) in enumerate(
+        zip(stim_shots.results, quest_shots.results)
+    ):
+        stim_state = Stim.extract_states_dict(stim_shot.entries)["entangled_state"]
+        stim_statevector = stim_state.get_single_state()
+        quest_state = Quest.extract_states_dict(quest_shot.entries)["entangled_state"]
+        quest_statevector = quest_state.get_single_state()
+        print(f"Shot {shot}:")
+        print(
+            f"   gate: rx(pi * {params[shot][0]}); ry(pi * {params[shot][1]}); rz(pi * {params[shot][2]})"
+        )
+        print("   Stim state:", stim_statevector)
+        print("   Quest state:", quest_statevector)
+        print("   Stabilizers", stim_state.get_reduced_stabilizers())
+        np.testing.assert_allclose(stim_statevector, quest_statevector)
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])

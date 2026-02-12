@@ -10,7 +10,7 @@ doctest = false
 crate-type = ["cdylib"]
 
 [build-dependencies]
-cc = { version="1.0" , features = ["parallel"]}
+cmake = "0.1"
 
 [dependencies]
 clap = { workspace = true }
