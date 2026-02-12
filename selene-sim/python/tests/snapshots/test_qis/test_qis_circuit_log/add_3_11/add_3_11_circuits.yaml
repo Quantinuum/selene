@@ -1,0 +1,90 @@
+helios: '[Reset q[0]; Reset q[1]; Reset q[2]; Reset q[3]; Reset q[4]; Reset q[5];
+  Reset q[6]; Reset q[7]; Reset q[8]; Reset q[9]; PhasedX(1, 0) q[0]; PhasedX(1, 0)
+  q[1]; PhasedX(1, 0) q[4]; PhasedX(1, 0) q[5]; PhasedX(3.5, 0.5) q[6]; PhasedX(1,
+  0) q[7]; PhasedX(3.5, 0.5) q[8]; PhasedX(3.5, 0.5) q[9]; ZZPhase(0.5) q[2], q[6];
+  PhasedX(3.5, 0.5) q[5]; PhasedX(3.5, 0.5) q[7]; ZZPhase(0.5) q[1], q[5]; Rz(3.5)
+  q[2]; ZZPhase(0.5) q[3], q[7]; PhasedX(0.5, 1) q[6]; Rz(3.5) q[1]; Rz(3.5) q[3];
+  PhasedX(0.5, 1) q[5]; Rz(3.5) q[6]; PhasedX(0.5, 1) q[7]; ZZPhase(0.5) q[1], q[9];
+  Rz(3.5) q[5]; Rz(3.5) q[7]; Rz(3.5) q[1]; PhasedX(0.5, 1) q[9]; PhasedX(3.5, 0.5)
+  q[1]; Rz(3.5) q[9]; ZZPhase(0.5) q[2], q[1]; PhasedX(0.5, 1.5) q[9]; PhasedX(0.5,
+  1) q[1]; Rz(3.5) q[2]; Rz(1) q[9]; Rz(3.5) q[1]; PhasedX(3.5, 0.5) q[2]; PhasedX(3.5,
+  0.5) q[9]; ZZPhase(0.5) q[0], q[9]; PhasedX(0.5, 1.5) q[1]; ZZPhase(0.5) q[3], q[2];
+  Rz(3.5) q[0]; Rz(1) q[1]; PhasedX(0.5, 1) q[2]; Rz(3.5) q[3]; PhasedX(0.5, 1) q[9];
+  PhasedX(3.5, 0.5) q[1]; Rz(3.5) q[2]; ZZPhase(0.5) q[3], q[8]; Rz(3.5) q[9]; ZZPhase(0.5)
+  q[5], q[1]; PhasedX(0.5, 1.5) q[2]; Rz(3.5) q[3]; PhasedX(0.5, 1) q[8]; Rz(3.75)
+  q[9]; PhasedX(0.5, 1) q[1]; Rz(1) q[2]; Rz(3.5) q[5]; Rz(3.5) q[8]; PhasedX(3.5,
+  0.5) q[9]; Rz(3.5) q[1]; PhasedX(3.5, 0.5) q[2]; ZZPhase(0.5) q[4], q[9]; PhasedX(0.5,
+  1.5) q[8]; Rz(3.75) q[1]; ZZPhase(0.5) q[6], q[2]; Rz(3.5) q[4]; Rz(1) q[8]; PhasedX(0.5,
+  1) q[9]; PhasedX(3.5, 0.5) q[1]; PhasedX(0.5, 1) q[2]; Rz(3.5) q[6]; PhasedX(3.5,
+  0.5) q[8]; Rz(3.5) q[9]; Rz(3.5) q[2]; ZZPhase(0.5) q[7], q[8]; Rz(0.25) q[9]; Rz(3.75)
+  q[2]; Rz(3.5) q[7]; PhasedX(0.5, 1) q[8]; PhasedX(3.5, 0.5) q[9]; ZZPhase(0.5) q[0],
+  q[9]; PhasedX(3.5, 0.5) q[2]; Rz(3.5) q[8]; Rz(3.5) q[0]; Rz(3.75) q[8]; PhasedX(0.5,
+  1) q[9]; Rz(0.25) q[0]; PhasedX(3.5, 0.5) q[8]; Rz(3.5) q[9]; PhasedX(3.5, 0.5)
+  q[0]; Rz(3.75) q[9]; PhasedX(3.5, 0.5) q[9]; ZZPhase(0.5) q[4], q[9]; Rz(3.5) q[4];
+  PhasedX(0.5, 1) q[9]; ZZPhase(0.5) q[4], q[0]; Rz(3.5) q[9]; PhasedX(0.5, 1) q[0];
+  Rz(3.5) q[4]; Rz(0.25) q[9]; Rz(3.5) q[0]; Rz(0.25) q[4]; PhasedX(0.5, 1.5) q[9];
+  Rz(3.75) q[0]; Rz(1) q[9]; PhasedX(3.5, 0.5) q[0]; ZZPhase(0.5) q[9], q[1]; ZZPhase(0.5)
+  q[4], q[0]; PhasedX(0.5, 1) q[1]; Rz(3.5) q[9]; PhasedX(0.5, 1) q[0]; Rz(3.5) q[1];
+  Rz(3.5) q[4]; Rz(3.5) q[0]; Rz(0.25) q[1]; PhasedX(3.5, 0.5) q[1]; ZZPhase(0.5)
+  q[5], q[1]; PhasedX(0.5, 1) q[1]; Rz(3.5) q[5]; Rz(3.5) q[1]; Rz(0.25) q[5]; Rz(3.75)
+  q[1]; PhasedX(3.5, 0.5) q[5]; PhasedX(3.5, 0.5) q[1]; ZZPhase(0.5) q[9], q[1]; PhasedX(0.5,
+  1) q[1]; Rz(3.5) q[9]; Rz(3.5) q[1]; ZZPhase(0.5) q[9], q[5]; Rz(0.25) q[1]; PhasedX(0.5,
+  1) q[5]; Rz(3.5) q[9]; PhasedX(0.5, 1.5) q[1]; Rz(3.5) q[5]; Rz(0.25) q[9]; Rz(1)
+  q[1]; Rz(3.75) q[5]; ZZPhase(0.5) q[1], q[2]; PhasedX(3.5, 0.5) q[5]; Rz(3.5) q[1];
+  PhasedX(0.5, 1) q[2]; ZZPhase(0.5) q[9], q[5]; Rz(3.5) q[2]; PhasedX(0.5, 1) q[5];
+  Rz(3.5) q[9]; Rz(0.25) q[2]; Rz(3.5) q[5]; PhasedX(3.5, 0.5) q[2]; PhasedX(1, 0)
+  q[5]; ZZPhase(0.5) q[6], q[2]; PhasedX(3.5, 0.5) q[5]; PhasedX(0.5, 1) q[2]; ZZPhase(0.5)
+  q[9], q[5]; Rz(3.5) q[6]; Rz(3.5) q[2]; PhasedX(0.5, 1) q[5]; Rz(0.25) q[6]; Rz(3.5)
+  q[9]; Rz(3.75) q[2]; Rz(3.5) q[5]; PhasedX(3.5, 0.5) q[6]; PhasedX(3.5, 0.5) q[2];
+  ZZPhase(0.5) q[1], q[2]; Rz(3.5) q[1]; PhasedX(0.5, 1) q[2]; ZZPhase(0.5) q[1],
+  q[6]; Rz(3.5) q[2]; Rz(3.5) q[1]; Rz(0.25) q[2]; PhasedX(0.5, 1) q[6]; Rz(0.25)
+  q[1]; PhasedX(0.5, 1.5) q[2]; Rz(3.5) q[6]; Rz(1) q[2]; Rz(3.75) q[6]; ZZPhase(0.5)
+  q[2], q[8]; PhasedX(3.5, 0.5) q[6]; ZZPhase(0.5) q[1], q[6]; Rz(3.5) q[2]; PhasedX(0.5,
+  1) q[8]; Rz(3.5) q[1]; PhasedX(0.5, 1) q[6]; Rz(3.5) q[8]; Rz(3.5) q[6]; Rz(0.25)
+  q[8]; PhasedX(1, 0) q[6]; PhasedX(3.5, 0.5) q[8]; PhasedX(3.5, 0.5) q[6]; ZZPhase(0.5)
+  q[7], q[8]; ZZPhase(0.5) q[1], q[6]; Rz(3.5) q[7]; PhasedX(0.5, 1) q[8]; Rz(3.5)
+  q[1]; PhasedX(0.5, 1) q[6]; Rz(0.25) q[7]; Rz(3.5) q[8]; Rz(3.5) q[6]; PhasedX(3.5,
+  0.5) q[7]; Rz(3.75) q[8]; PhasedX(3.5, 0.5) q[8]; ZZPhase(0.5) q[2], q[8]; Rz(3.5)
+  q[2]; PhasedX(0.5, 1) q[8]; ZZPhase(0.5) q[2], q[7]; Rz(3.5) q[8]; Rz(3.5) q[2];
+  PhasedX(0.5, 1) q[7]; Rz(0.25) q[8]; Rz(0.25) q[2]; Rz(3.5) q[7]; PhasedX(0.5, 1.5)
+  q[8]; Rz(3.75) q[7]; Rz(1) q[8]; Measure q[8] --> c[8]; PhasedX(3.5, 0.5) q[7];
+  ZZPhase(0.5) q[2], q[7]; Rz(3.5) q[2]; PhasedX(0.5, 1) q[7]; Rz(3.5) q[7]; PhasedX(3.5,
+  0.5) q[7]; ZZPhase(0.5) q[2], q[7]; Rz(3.5) q[2]; PhasedX(0.5, 1) q[7]; PhasedX(0.5,
+  1.5) q[2]; Rz(3.5) q[7]; Rz(1) q[2]; PhasedX(3.5, 0.5) q[7]; PhasedX(3.5, 0.5) q[2];
+  ZZPhase(0.5) q[6], q[2]; PhasedX(0.5, 1) q[2]; Rz(3.5) q[6]; Rz(3.5) q[2]; Rz(3.75)
+  q[2]; PhasedX(3.5, 0.5) q[2]; ZZPhase(0.5) q[1], q[2]; Rz(3.5) q[1]; PhasedX(0.5,
+  1) q[2]; Rz(3.5) q[2]; Rz(0.25) q[2]; PhasedX(3.5, 0.5) q[2]; ZZPhase(0.5) q[6],
+  q[2]; PhasedX(0.5, 1) q[2]; Rz(3.5) q[6]; Rz(3.5) q[2]; Rz(0.25) q[6]; Rz(3.75)
+  q[2]; PhasedX(3.5, 0.5) q[6]; PhasedX(3.5, 0.5) q[2]; ZZPhase(0.5) q[1], q[2]; Rz(3.5)
+  q[1]; PhasedX(0.5, 1) q[2]; ZZPhase(0.5) q[1], q[6]; Rz(3.5) q[2]; Rz(3.5) q[1];
+  Rz(0.25) q[2]; PhasedX(0.5, 1) q[6]; Rz(0.25) q[1]; PhasedX(0.5, 1.5) q[2]; Rz(3.5)
+  q[6]; Rz(1) q[2]; Rz(3.75) q[6]; PhasedX(3.5, 0.5) q[2]; PhasedX(3.5, 0.5) q[6];
+  ZZPhase(0.5) q[1], q[6]; ZZPhase(0.5) q[3], q[2]; Rz(3.5) q[1]; PhasedX(0.5, 1)
+  q[2]; Rz(3.5) q[3]; PhasedX(0.5, 1) q[6]; PhasedX(0.5, 1.5) q[1]; Rz(3.5) q[2];
+  ZZPhase(0.5) q[3], q[7]; Rz(3.5) q[6]; Rz(1) q[1]; Rz(3.5) q[3]; PhasedX(1, 0) q[6];
+  PhasedX(0.5, 1) q[7]; PhasedX(3.5, 0.5) q[1]; PhasedX(3.5, 0.5) q[6]; Rz(3.5) q[7];
+  Measure q[7] --> c[7]; ZZPhase(0.5) q[5], q[1]; PhasedX(0.5, 1) q[1]; Rz(3.5) q[5];
+  Rz(3.5) q[1]; Rz(3.75) q[1]; PhasedX(3.5, 0.5) q[1]; ZZPhase(0.5) q[9], q[1]; PhasedX(0.5,
+  1) q[1]; Rz(3.5) q[9]; Rz(3.5) q[1]; Rz(0.25) q[1]; PhasedX(3.5, 0.5) q[1]; ZZPhase(0.5)
+  q[5], q[1]; PhasedX(0.5, 1) q[1]; Rz(3.5) q[5]; Rz(3.5) q[1]; Rz(0.25) q[5]; Rz(3.75)
+  q[1]; PhasedX(3.5, 0.5) q[5]; PhasedX(3.5, 0.5) q[1]; ZZPhase(0.5) q[9], q[1]; PhasedX(0.5,
+  1) q[1]; Rz(3.5) q[9]; Rz(3.5) q[1]; ZZPhase(0.5) q[9], q[5]; Rz(0.25) q[1]; PhasedX(0.5,
+  1) q[5]; Rz(3.5) q[9]; PhasedX(0.5, 1.5) q[1]; Rz(3.5) q[5]; Rz(0.25) q[9]; Rz(1)
+  q[1]; Rz(3.75) q[5]; PhasedX(3.5, 0.5) q[1]; PhasedX(3.5, 0.5) q[5]; ZZPhase(0.5)
+  q[2], q[1]; ZZPhase(0.5) q[9], q[5]; PhasedX(0.5, 1) q[1]; Rz(3.5) q[2]; PhasedX(0.5,
+  1) q[5]; Rz(3.5) q[9]; Rz(3.5) q[1]; ZZPhase(0.5) q[2], q[6]; Rz(3.5) q[5]; PhasedX(0.5,
+  1.5) q[9]; Rz(3.5) q[2]; PhasedX(1, 0) q[5]; PhasedX(0.5, 1) q[6]; Rz(1) q[9]; PhasedX(3.5,
+  0.5) q[5]; Rz(3.5) q[6]; PhasedX(3.5, 0.5) q[9]; Measure q[6] --> c[6]; ZZPhase(0.5)
+  q[0], q[9]; Rz(3.5) q[0]; PhasedX(0.5, 1) q[9]; Rz(3.5) q[9]; Rz(3.75) q[9]; PhasedX(3.5,
+  0.5) q[9]; ZZPhase(0.5) q[4], q[9]; Rz(3.5) q[4]; PhasedX(0.5, 1) q[9]; Rz(3.5)
+  q[9]; Rz(0.25) q[9]; PhasedX(3.5, 0.5) q[9]; ZZPhase(0.5) q[0], q[9]; Rz(3.5) q[0];
+  PhasedX(0.5, 1) q[9]; Rz(0.25) q[0]; Rz(3.5) q[9]; PhasedX(3.5, 0.5) q[0]; Rz(3.75)
+  q[9]; PhasedX(3.5, 0.5) q[9]; ZZPhase(0.5) q[4], q[9]; Rz(3.5) q[4]; PhasedX(0.5,
+  1) q[9]; ZZPhase(0.5) q[4], q[0]; Rz(3.5) q[9]; PhasedX(0.5, 1) q[0]; Rz(3.5) q[4];
+  Rz(0.25) q[9]; Rz(3.5) q[0]; Rz(0.25) q[4]; PhasedX(0.5, 1.5) q[9]; Rz(3.75) q[0];
+  Rz(1) q[9]; PhasedX(3.5, 0.5) q[0]; PhasedX(3.5, 0.5) q[9]; ZZPhase(0.5) q[4], q[0];
+  ZZPhase(0.5) q[1], q[9]; PhasedX(0.5, 1) q[0]; Rz(3.5) q[1]; Rz(3.5) q[4]; PhasedX(0.5,
+  1) q[9]; Rz(3.5) q[0]; ZZPhase(0.5) q[1], q[5]; PhasedX(3.5, 0.5) q[4]; Rz(3.5)
+  q[9]; ZZPhase(0.5) q[0], q[4]; Rz(3.5) q[1]; PhasedX(0.5, 1) q[5]; Rz(3.5) q[0];
+  PhasedX(0.5, 1) q[4]; Rz(3.5) q[5]; Measure q[5] --> c[5]; Rz(3.5) q[4]; Measure
+  q[4] --> c[4]; ]'
