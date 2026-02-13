@@ -58,10 +58,6 @@ def test_qis(snapshot, program_name: str):
         Quest(), n_qubits=10, n_shots=1000, random_seed=1024
     )
 
-    results = {
-        "helios": list(list(shot) for shot in helios_results),
-    }
-
     sol_results = sol_build.run_shots(
         Quest(), n_qubits=10, n_shots=1000, random_seed=1024
     )
@@ -82,7 +78,7 @@ def test_qis(snapshot, program_name: str):
         "add_3_11",
     ],
 )
-def test_multiplatform_circuit_log(snapshot, program_name: str):
+def test_qis_circuit_log(snapshot, program_name: str):
     filename = f"{program_name}-{get_platform_suffix()}.ll"
     helios_file = QIS_RESOURCE_DIR / "helios" / filename
     sol_file = QIS_RESOURCE_DIR / "sol" / filename
@@ -111,10 +107,10 @@ def test_multiplatform_circuit_log(snapshot, program_name: str):
         event_hook=sol_circuit_extractor,
     )
 
-    results = {
-        "helios": list(list(shot) for shot in helios_results),
-        "sol": list(list(shot) for shot in sol_results),
-    }
+    # trigger shot consumption
+    list(list(shot) for shot in helios_results)
+    list(list(shot) for shot in sol_results)
+
     circuits = {
         "helios": repr(helios_circuit_extractor.shots[0].get_user_circuit()),
         "sol": repr(sol_circuit_extractor.shots[0].get_user_circuit()),
