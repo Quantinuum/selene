@@ -176,6 +176,10 @@ int32_t selene_runtime_global_barrier(RuntimeInstance instance,
 
 /**
  * Instruct the runtime to apply an RXY gate to the qubit with the given ID.
+ * It might not be supported by all runtimes, and an error will be returned
+ * if it is used on a runtime that does not support it, or if the runtime
+ * is unable to apply it for any reason.
+ *
  * Note that it is up to the runtime whether or not this gate is applied immediately:
  * The runtime might act lazily and apply the gate at a later time when an observable
  * outcome is requested.
@@ -187,6 +191,10 @@ int32_t selene_runtime_rxy_gate(RuntimeInstance instance,
 
 /**
  * Instruct the runtime to apply an RZZ gate to the qubits with the given IDs.
+ * It might not be supported by all runtimes, and an error will be returned
+ * if it is used on a runtime that does not support it, or if the runtime
+ * is unable to apply it for any reason.
+ *
  * Note that it is up to the runtime whether or not this gate is applied
  * immediately: The runtime might act lazily and apply the gate at a later time.
  */
@@ -197,6 +205,10 @@ int32_t selene_runtime_rzz_gate(RuntimeInstance instance,
 
 /**
  * Instruct the runtime to apply an RZ gate to the qubit with the given ID.
+ * It might not be supported by all runtimes, and an error will be returned
+ * if it is used on a runtime that does not support it, or if the runtime
+ * is unable to apply it for any reason.
+ *
  * Note that it is up to the runtime whether or not this gate is applied
  * immediately: The runtime might act lazily and apply the gate at a later time.
  * It might not apply it at all, as RZ may be elided in code.
@@ -204,6 +216,52 @@ int32_t selene_runtime_rzz_gate(RuntimeInstance instance,
 int32_t selene_runtime_rz_gate(RuntimeInstance instance,
                                uint64_t qubit_id,
                                double theta);
+
+/**
+ * Instruct the runtime to apply a TwinRXY gate to the qubits with the given IDs.
+ * It might not be supported by all runtimes, and an error will be returned
+ * if it is used on a runtime that does not support it, or if the runtime
+ * is unable to apply it for any reason.
+ *
+ * Note that it is up to the runtime whether or not this gate is applied
+ * immediately: The runtime might act lazily and apply the gate at a later time.
+ */
+int32_t selene_runtime_twin_rxy_gate(RuntimeInstance instance,
+                                     uint64_t qubit_id_1,
+                                     uint64_t qubit_id_2,
+                                     double theta,
+                                     double phi);
+
+/**
+ * Instruct the runtime to apply an RPP gate to the qubits with the given IDs.
+ * It might not be supported by all runtimes, and an error will be returned
+ * if it is used on a runtime that does not support it, or if the runtime
+ * is unable to apply it for any reason.
+ *
+ * Note that it is up to the runtime whether or not this gate is applied
+ * immediately: The runtime might act lazily and apply the gate at a later time.
+ */
+int32_t selene_runtime_rpp_gate(RuntimeInstance instance,
+                                uint64_t qubit_id_1,
+                                uint64_t qubit_id_2,
+                                double theta,
+                                double phi);
+
+/**
+ * Instruct the runtime to apply a TK2 gate to the qubits with the given IDs.
+ * It might not be supported by all runtimes, and an error will be returned
+ * if it is used on a runtime that does not support it, or if the runtime
+ * is unable to apply it for any reason.
+ *
+ * Note that it is up to the runtime whether or not this gate is applied
+ * immediately: The runtime might act lazily and apply the gate at a later time.
+ */
+int32_t selene_runtime_tk2_gate(RuntimeInstance instance,
+                                uint64_t qubit_id_1,
+                                uint64_t qubit_id_2,
+                                double alpha,
+                                double beta,
+                                double gamma);
 
 /**
  * Instruct the runtime that a measurement is to be requested and to write

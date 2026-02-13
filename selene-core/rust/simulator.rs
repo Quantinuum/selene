@@ -65,6 +65,9 @@ impl SimulatorInterface for Simulator {
             fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()>;
             fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()>;
             fn rz(&mut self, qubit: u64, theta: f64) -> Result<()>;
+            fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()>;
+            fn twin_rxy(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()>;
+            fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()>;
             fn measure(&mut self, qubit: u64) -> Result<bool>;
             fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()>;
             fn reset(&mut self, qubit: u64) -> Result<()>;

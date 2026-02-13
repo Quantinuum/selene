@@ -19,25 +19,41 @@ def simplify(circuit: Circuit) -> Circuit | None:
     return newcirc
 
 
-def rz_gate(theta):
+def rz_gate(theta) -> Circuit:
     circ = Circuit(1)
     circ.Rz(theta, 0)
     return circ
 
 
-def rxy_gate(theta, phi):
+def rxy_gate(theta, phi) -> Circuit:
     circ = Circuit(1)
     circ.PhasedX(theta, phi, 0)
     return circ
 
 
-def rzz_gate(theta):
+def rzz_gate(theta) -> Circuit:
     circ = Circuit(2)
     circ.ZZPhase(theta, 0, 1)
     return circ
 
 
-def analyse_span(name, gate, start_angle, end_angle, num_points, dim=1):
+def rpp_gate(theta, phi) -> Circuit:
+    circ = Circuit(2)
+    circ.Rz(phi, 0)
+    circ.Rz(phi, 1)
+    circ.XXPhase(theta, 0, 1)
+    circ.Rz(-phi, 0)
+    circ.Rz(-phi, 1)
+    return circ
+
+
+def tk2_gate(alpha, beta, gamma) -> Circuit:
+    circ = Circuit(2)
+    circ.TK2(alpha, beta, gamma, 0, 1)
+    return circ
+
+
+def analyse_span(name, gate, start_angle, end_angle, num_points, dim=1) -> None:
     """Return a list of gates for a range of angles where a clifford sequence is found."""
     print(f"-------------- {name} --------------")
 
@@ -68,3 +84,5 @@ if __name__ == "__main__":
     analyse_span("rz", rz_gate, 0, 2, 16)
     analyse_span("rxy", rxy_gate, 0, 2, 16, dim=2)
     analyse_span("rzz", rzz_gate, 0, 2, 16, dim=1)
+    analyse_span("rpp", rpp_gate, 0, 2, 16, dim=2)
+    analyse_span("tk2", tk2_gate, 0, 2, 16, dim=3)

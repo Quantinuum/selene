@@ -91,27 +91,48 @@ impl Emulator {
     }
     pub fn user_issued_rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
         self.runtime.rxy_gate(q0, theta, phi)?;
-        //self.user_program_metrics.increment_rxy();
         self.event_hooks
             .on_user_call(&Operation::RXY(q0, theta, phi));
         self.process_runtime()
     }
     pub fn user_issued_rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
         self.runtime.rzz_gate(q0, q1, theta)?;
-        //self.user_program_metrics.increment_rzz();
         self.event_hooks
             .on_user_call(&Operation::RZZ(q0, q1, theta));
         self.process_runtime()
     }
+    pub fn user_issued_twin_rxy(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        self.runtime.twin_rxy_gate(q0, q1, theta, phi)?;
+        self.event_hooks
+            .on_user_call(&Operation::TwinRXY(q0, q1, theta, phi));
+        self.process_runtime()
+    }
+    pub fn user_issued_rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        self.runtime.rpp_gate(q0, q1, theta, phi)?;
+        self.event_hooks
+            .on_user_call(&Operation::RPP(q0, q1, theta, phi));
+        self.process_runtime()
+    }
+    pub fn user_issued_tk2(
+        &mut self,
+        q0: u64,
+        q1: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    ) -> Result<()> {
+        self.runtime.tk2_gate(q0, q1, alpha, beta, gamma)?;
+        self.event_hooks
+            .on_user_call(&Operation::TK2(q0, q1, alpha, beta, gamma));
+        self.process_runtime()
+    }
     pub fn user_issued_rz(&mut self, q0: u64, theta: f64) -> Result<()> {
         self.runtime.rz_gate(q0, theta)?;
-        //self.user_program_metrics.increment_rz();
         self.event_hooks.on_user_call(&Operation::RZ(q0, theta));
         self.process_runtime()
     }
     pub fn user_issued_reset(&mut self, q0: u64) -> Result<()> {
         self.runtime.reset(q0)?;
-        //self.user_program_metrics.increment_reset();
         self.event_hooks.on_user_call(&Operation::Reset(q0));
         self.process_runtime()
     }

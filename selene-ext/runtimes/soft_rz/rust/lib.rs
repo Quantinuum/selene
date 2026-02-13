@@ -129,6 +129,9 @@ impl RuntimeInterface for SoftRZRuntime {
                         }
                     }
                     Operation::Custom { .. } => {}
+                    _ => {
+                        bail!("Unsupported operation {op:?} in local_barrier");
+                    }
                 }
             }
         }
@@ -195,6 +198,40 @@ impl RuntimeInterface for SoftRZRuntime {
             phase: phase + theta,
         };
         Ok(())
+    }
+    fn tk2_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _alpha: f64,
+        _beta: f64,
+        _gamma: f64,
+    ) -> Result<()> {
+        bail!(
+            "The TK2 gate is not compatible with the SoftRZRuntime, as it relies on the properties of the properties of rz's interaction with (rxy, rzz)."
+        );
+    }
+    fn twin_rxy_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _theta: f64,
+        _phi: f64,
+    ) -> Result<()> {
+        bail!(
+            "The TwinRXY gate is not compatible with the SoftRZRuntime, as it relies on the properties of the properties of rz's interaction with (rxy, rzz). As the phase accumulation is per-qubit, we cannot correctly adjust the phi parameter on a twin RXY gate."
+        );
+    }
+    fn rpp_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _theta: f64,
+        _phi: f64,
+    ) -> Result<()> {
+        bail!(
+            "The RPP gate is not compatible with the SoftRZRuntime, as it relies on the properties of the properties of rz's interaction with (rxy, rzz)."
+        );
     }
     // Lifetime ops
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {

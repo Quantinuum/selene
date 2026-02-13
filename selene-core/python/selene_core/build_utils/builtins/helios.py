@@ -21,6 +21,12 @@ HELIOS_REQUIRED_CALLS = [
     "setup",
     "teardown",
 ]
+HELIOS_UNSUPPORTED_CALLS = [
+    "___rpp",
+    "___rp",
+    "___rpg",
+    "___rxxyyzz",
+]
 
 # Artifact Kinds:
 
@@ -32,6 +38,8 @@ class HeliosLLVMIRStringKind(ArtifactKind):
             return False
         undefined_symbols = get_undefined_symbols_from_llvm_ir_string(resource)
         if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+            return False
+        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
             return False
         return True
 
@@ -47,6 +55,8 @@ class HeliosLLVMIRFileKind(ArtifactKind):
             return False
         undefined_symbols = get_undefined_symbols_from_llvm_ir_file(resource)
         if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+            return False
+        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
             return False
         return True
 
@@ -67,6 +77,8 @@ class HeliosLLVMBitcodeStringKind(ArtifactKind):
             return False
         if not all(f.encode("UTF-8") in resource for f in HELIOS_REQUIRED_CALLS):
             return False
+        if any(f.encode("UTF-8") in resource for f in HELIOS_UNSUPPORTED_CALLS):
+            return False
         return True
 
 
@@ -81,6 +93,8 @@ class HeliosLLVMBitcodeFileKind(ArtifactKind):
             return False
         content = resource.read_bytes()
         if not all(f.encode("UTF-8") in content for f in HELIOS_REQUIRED_CALLS):
+            return False
+        if any(f.encode("UTF-8") in content for f in HELIOS_UNSUPPORTED_CALLS):
             return False
         return True
 
@@ -98,6 +112,8 @@ class HeliosObjectFileKind(ArtifactKind):
             # unable to parse object file
             return False
         if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+            return False
+        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
             return False
         return True
 
@@ -120,6 +136,8 @@ class HeliosObjectStringKind(ArtifactKind):
             # unable to parse object file
             return False
         if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+            return False
+        if any(f in undefined_symbols for f in HELIOS_UNSUPPORTED_CALLS):
             return False
         return True
 
