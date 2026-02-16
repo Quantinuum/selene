@@ -218,3 +218,10 @@ struct selene_void_result_t selene_rzz(struct SeleneInstance *instance,
 struct selene_void_result_t selene_set_tc(struct SeleneInstance *instance, uint64_t tc);
 
 struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
+
+/**
+ * Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
+ * This happens upon shot end automatically, but can be triggered manually mid-shot if desired
+ * by calling this function.
+ */
+struct selene_void_result_t selene_write_metadata(struct SeleneInstance *instance);

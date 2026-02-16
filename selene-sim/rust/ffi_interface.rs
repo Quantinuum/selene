@@ -650,3 +650,11 @@ pub unsafe extern "C" fn selene_custom_runtime_call(
     let data = unsafe { std::slice::from_raw_parts(data, data_length as usize) };
     with_instance_u64(instance, |instance| instance.custom_runtime_call(tag, data))
 }
+
+/// Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
+/// This happens upon shot end automatically, but can be triggered manually mid-shot if desired
+/// by calling this function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_write_metadata(instance: *mut SeleneInstance) -> VoidResult {
+    with_instance_void(instance, |instance| instance.write_metadata())
+}
