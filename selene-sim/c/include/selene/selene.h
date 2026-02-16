@@ -55,6 +55,12 @@ struct selene_void_result_t selene_dump_state(struct SeleneInstance *instance,
 struct selene_void_result_t selene_exit(struct SeleneInstance *instance);
 
 /**
+ * Flushes the output stream, which is useful in interactive mode to ensure that all outputs are
+ * immediately available for processing.
+ */
+struct selene_void_result_t selene_flush_output(struct SeleneInstance *instance);
+
+/**
  * Reads a bool future
  */
 struct selene_bool_result_t selene_future_read_bool(struct SeleneInstance *instance, uint64_t r);
@@ -222,6 +228,6 @@ struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
 /**
  * Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
  * This happens upon shot end automatically, but can be triggered manually mid-shot if desired
- * by calling this function.
+ * by calling this function (e.g. in interactive mode)
  */
 struct selene_void_result_t selene_write_metadata(struct SeleneInstance *instance);
