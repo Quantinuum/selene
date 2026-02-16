@@ -653,8 +653,15 @@ pub unsafe extern "C" fn selene_custom_runtime_call(
 
 /// Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
 /// This happens upon shot end automatically, but can be triggered manually mid-shot if desired
-/// by calling this function.
+/// by calling this function (e.g. in interactive mode)
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_write_metadata(instance: *mut SeleneInstance) -> VoidResult {
     with_instance_void(instance, |instance| instance.write_metadata())
+}
+
+/// Flushes the output stream, which is useful in interactive mode to ensure that all outputs are
+/// immediately available for processing.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_flush_output(instance: *mut SeleneInstance) -> VoidResult {
+    with_instance_void(instance, |instance| instance.flush_output())
 }

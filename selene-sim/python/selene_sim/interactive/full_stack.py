@@ -200,7 +200,7 @@ class SeleneSimLib(ctypes.CDLL):
             case "Linux":
                 lib_path /= "libselene.so"
             case "Windows":
-                lib_path /= "selene.lib"
+                lib_path /= "selene.dll"
             case _:
                 raise RuntimeError(f"Unsupported OS {sys.platform}")
         assert lib_path.is_file(), f"Selene library not found at {lib_path}"
@@ -296,6 +296,8 @@ class SeleneSimLib(ctypes.CDLL):
             ctypes.c_uint64,
         ]
         self.selene_dump_state.restype = selene_void_result_t
+        self.selene_flush_output.argtypes = [SeleneInstancePtr]
+        self.selene_flush_output.restype = selene_void_result_t
 
 
 class Qubit:
@@ -407,9 +409,7 @@ class InteractiveFullStack:
             self._tempdir = None
 
     def next_shot(self):
-        self._poll_results()
         self._on_shot_end()
-        self._poll_results()
         self._shot_index += self._shot_spec.increment
         self._tcp_stream.next_shot()
         self._on_shot_start(self._shot_index)
@@ -428,8 +428,7 @@ class InteractiveFullStack:
         return entries
 
     def _poll_results(self):
-        if not hasattr(self, "_result_stream") or self._result_stream is None:
-            return
+        self._lib.selene_flush_output(self._instance).unwrap()
         while True:
             entry = self._result_stream.try_next_entry()
             if entry is None:
@@ -466,7 +465,10 @@ class InteractiveFullStack:
         return self._event_hook
 
     def __del__(self):
-        self._call_void("selene_exit")
+        self._on_shot_end()
+        # Here we invoke selene_exit directly, as the call helpers request metadata to be pushed,
+        # which isn't valid after the instance has been destroyed
+        self._lib.selene_exit(self._instance).unwrap()
 
     def _invoke(self, func_name: str, *args):
         result = getattr(self._lib, func_name)(self._instance, *args)

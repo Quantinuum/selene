@@ -66,7 +66,7 @@ impl SeleneInstance {
     /// that we are closing out gracefully, and flush all remaining data.
     pub fn exit(&mut self) -> Result<()> {
         self.out_encoder.end_of_stream()?;
-        self.out_encoder.flush()?;
+        self.flush_output()?;
         Ok(())
     }
 
