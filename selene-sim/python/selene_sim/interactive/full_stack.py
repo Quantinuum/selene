@@ -14,46 +14,13 @@ from selene_sim import dist_dir as selene_dist
 from selene_sim.backends import IdealErrorModel, SimpleRuntime
 from selene_sim.event_hooks import EventHook, NoEventHook
 from selene_sim.instance import ShotSpec
-from selene_sim.result_handling import DataStream, ResultStream, TCPStream
+from selene_sim.result_handling import DataStream, ResultStream
 from selene_sim.result_handling.result_stream import StreamEntry
-from selene_sim.timeout import Timeout
 
 
 PathLike = str | os.PathLike | bytes | bytearray
 
 DEFAULT_SHOT_SPEC = ShotSpec(count=1000, offset=0, increment=1)
-
-
-class _NonBlockingStreamAdapter(DataStream):
-    def __init__(self, tcp_stream: TCPStream):
-        self._tcp_stream = tcp_stream
-
-    def read_chunk(self, length: int) -> bytes:
-        if self._tcp_stream.done:
-            return b""
-        client = self._ensure_client()
-        if client is None:
-            raise BlockingIOError
-        if not client.has_bytes(length):
-            self._pump()
-            client = self._ensure_client()
-            if client is None or not client.has_bytes(length):
-                raise BlockingIOError
-        return client.take(length)
-
-    def next_shot(self):
-        self._tcp_stream.next_shot()
-
-    def _ensure_client(self):
-        if self._tcp_stream.current_shot_client is None:
-            self._tcp_stream._update_current_shot_client()
-            if self._tcp_stream.current_shot_client is None:
-                self._pump()
-                self._tcp_stream._update_current_shot_client()
-        return self._tcp_stream.current_shot_client
-
-    def _pump(self):
-        self._tcp_stream._sync(timeout=0.0)
 
 
 def _component_config(component: SeleneComponent, default_seed: int | None) -> dict:
@@ -296,8 +263,35 @@ class SeleneSimLib(ctypes.CDLL):
             ctypes.c_uint64,
         ]
         self.selene_dump_state.restype = selene_void_result_t
-        self.selene_flush_output.argtypes = [SeleneInstancePtr]
-        self.selene_flush_output.restype = selene_void_result_t
+        self.selene_fetch_output.argtypes = [
+            SeleneInstancePtr,
+            BytePtr,
+            ctypes.c_uint64,
+        ]
+        self.selene_fetch_output.restype = selene_u64_result_t
+
+
+class InternalOutputStream(DataStream):
+    def __init__(self, full_stack: "InteractiveFullStack"):
+        self._buffer = bytearray()
+        self._full_stack = full_stack
+
+    def read_chunk(self, length: int) -> bytes:
+        if len(self._buffer) < length:
+            # make a new buffer to read into
+            chunk_size = max(length - len(self._buffer), 4096)
+            chunk_buffer = (ctypes.c_uint8 * chunk_size)()
+            bytes_read = self._full_stack._lib.selene_fetch_output(
+                self._full_stack._instance, chunk_buffer, chunk_size
+            ).unwrap()
+            if bytes_read == 0:
+                raise BlockingIOError
+            self._buffer.extend(chunk_buffer[:bytes_read])
+        result, self._buffer = self._buffer[:length], self._buffer[length:]
+        return bytes(result)
+
+    def next_shot(self):
+        pass
 
 
 class Qubit:
@@ -342,15 +336,6 @@ class InteractiveFullStack:
         self.runtime = runtime or SimpleRuntime()
         self.error_model = error_model or IdealErrorModel()
 
-        self._tcp_stream_ctx = TCPStream(
-            timeout=Timeout(),
-            shot_offset=self._shot_spec.offset,
-            shot_increment=self._shot_spec.increment,
-        )
-        self._tcp_stream = self._tcp_stream_ctx.__enter__()
-        self._data_stream = _NonBlockingStreamAdapter(self._tcp_stream)
-        self._result_stream = ResultStream(self._data_stream)
-
         try:
             config_data = self._build_configuration(
                 n_qubits=n_qubits,
@@ -362,7 +347,7 @@ class InteractiveFullStack:
                 "increment": self._shot_spec.increment,
             }
             config_data["artifact_dir"] = str(self._artifact_dir)
-            config_data["output_stream"] = self._tcp_stream.get_uri()
+            config_data["output_stream"] = "internal"
             existing_flags = config_data.get("event_hooks", {})
             if existing_flags and not isinstance(existing_flags, dict):
                 raise TypeError("event_hooks configuration must be a mapping")
@@ -375,6 +360,7 @@ class InteractiveFullStack:
             self._config_path.write_text(yaml.safe_dump(config_data))
 
             instance_ptr = SeleneInstancePtr()
+            print(type(instance_ptr))
             config_bytes = _encode_text(self._config_path)
             self._lib.selene_load_config(
                 ctypes.byref(instance_ptr), ctypes.c_char_p(config_bytes)
@@ -383,6 +369,8 @@ class InteractiveFullStack:
         except Exception:
             self._teardown_environment()
             raise
+        self._data_stream = InternalOutputStream(self)
+        self._result_stream = ResultStream(self._data_stream)
 
         self._on_shot_start(self._shot_index)
 
@@ -399,11 +387,6 @@ class InteractiveFullStack:
         }
 
     def _teardown_environment(self):
-        if hasattr(self, "_tcp_stream_ctx") and self._tcp_stream_ctx is not None:
-            self._tcp_stream_ctx.__exit__(None, None, None)
-            self._tcp_stream_ctx = None
-            self._tcp_stream = None
-            self._result_stream = None
         if hasattr(self, "_tempdir") and self._tempdir is not None:
             self._tempdir.cleanup()
             self._tempdir = None
@@ -411,7 +394,7 @@ class InteractiveFullStack:
     def next_shot(self):
         self._on_shot_end()
         self._shot_index += self._shot_spec.increment
-        self._tcp_stream.next_shot()
+        self._data_stream.next_shot()
         self._on_shot_start(self._shot_index)
         self._poll_results()
 
@@ -428,7 +411,6 @@ class InteractiveFullStack:
         return entries
 
     def _poll_results(self):
-        self._lib.selene_flush_output(self._instance).unwrap()
         while True:
             entry = self._result_stream.try_next_entry()
             if entry is None:

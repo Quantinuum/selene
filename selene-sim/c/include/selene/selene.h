@@ -55,10 +55,17 @@ struct selene_void_result_t selene_dump_state(struct SeleneInstance *instance,
 struct selene_void_result_t selene_exit(struct SeleneInstance *instance);
 
 /**
- * Flushes the output stream, which is useful in interactive mode to ensure that all outputs are
- * immediately available for processing.
+ * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
+ * Returns the number of bytes read. This is only for use with the "internal" output stream configuration, which stores outputs
+ * in an internal buffer rather than writing them directly to stdout/stderr/file/tcp, and attempted use of this function with any
+ * other mode will produce an error.
+ *
+ * This is intended primarily for interactive use cases, where the frontend requires on-demand, unbuffered access to the output
+ * stream data.
  */
-struct selene_void_result_t selene_flush_output(struct SeleneInstance *instance);
+struct selene_u64_result_t selene_fetch_output(struct SeleneInstance *instance,
+                                               uint8_t *out_ptr,
+                                               uint64_t out_max_len);
 
 /**
  * Reads a bool future

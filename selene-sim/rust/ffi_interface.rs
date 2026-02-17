@@ -659,9 +659,25 @@ pub unsafe extern "C" fn selene_write_metadata(instance: *mut SeleneInstance) ->
     with_instance_void(instance, |instance| instance.write_metadata())
 }
 
-/// Flushes the output stream, which is useful in interactive mode to ensure that all outputs are
-/// immediately available for processing.
+/// Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
+/// Returns the number of bytes read. This is only for use with the "internal" output stream configuration, which stores outputs
+/// in an internal buffer rather than writing them directly to stdout/stderr/file/tcp, and attempted use of this function with any
+/// other mode will produce an error.
+///
+/// This is intended primarily for interactive use cases, where the frontend requires on-demand, unbuffered access to the output
+/// stream data.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn selene_flush_output(instance: *mut SeleneInstance) -> VoidResult {
-    with_instance_void(instance, |instance| instance.flush_output())
+pub unsafe extern "C" fn selene_fetch_output(
+    instance: *mut SeleneInstance,
+    out_ptr: *mut u8,
+    out_max_len: u64,
+) -> U64Result {
+    with_instance_u64(instance, |instance| {
+        let data = instance.out_encoder.try_read(out_max_len as usize)?;
+        let len = data.len() as u64;
+        unsafe {
+            std::ptr::copy_nonoverlapping(data.as_ptr(), out_ptr, data.len());
+        }
+        Ok(len)
+    })
 }
