@@ -151,7 +151,7 @@ def test_interactive_simulator():
     sim.rz(3, -pi / 2)
 
     # get a temp file
-    with tempfile.NamedTemporaryFile() as f:
+    with tempfile.NamedTemporaryFile(delete=False) as f:
         dump_file = Path(f.name)
         sim.dump_state(dump_file, [1, 2, 3])
         from selene_quest_plugin import SeleneQuestState
