@@ -310,10 +310,7 @@ macro_rules! export_simulator_plugin {
             /// `selene_simulator_shot_start` to prepare for the following shot, or by
             /// a call to `selene_simulator_exit` to shut down the instance.
             #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_shot_end(
-                instance: SimulatorInstance,
-                seed: u64,
-            ) -> i32 {
+            pub unsafe extern "C" fn selene_simulator_shot_end(instance: SimulatorInstance) -> i32 {
                 Helper::shot_end(instance)
             }
 
