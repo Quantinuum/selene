@@ -151,12 +151,14 @@ def test_interactive_simulator():
     sim.rz(3, -pi / 2)
 
     # get a temp file
-    with tempfile.NamedTemporaryFile(delete=False) as f:
+    with tempfile.NamedTemporaryFile() as f:
         dump_file = Path(f.name)
         sim.dump_state(dump_file, [1, 2, 3])
         from selene_quest_plugin import SeleneQuestState
 
-        state = SeleneQuestState.parse_from_file(dump_file).get_single_state()
+        state = SeleneQuestState.parse_from_file(
+            dump_file, cleanup=False
+        ).get_single_state()
 
         np.testing.assert_almost_equal(
             state, [1 / np.sqrt(2), 0, 0, 0, 0, 0, 0, 1 / np.sqrt(2)]
