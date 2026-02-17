@@ -1,6 +1,7 @@
 from math import pi
 from pathlib import Path
 import pytest
+import tempfile
 
 import numpy as np
 
@@ -149,14 +150,17 @@ def test_interactive_simulator():
     sim.rxy(3, pi / 2, pi)
     sim.rz(3, -pi / 2)
 
-    dump_file = Path("/tmp/thing.bin")
-    sim.dump_state(dump_file, [1, 2, 3])
-    from selene_quest_plugin import SeleneQuestState
+    # get a temp file
+    with tempfile.NamedTemporaryFile() as f:
+        dump_file = Path(f.name)
+        sim.dump_state(dump_file, [1, 2, 3])
+        from selene_quest_plugin import SeleneQuestState
 
-    state = SeleneQuestState.parse_from_file(dump_file).get_single_state()
-    np.testing.assert_almost_equal(
-        state, [1 / np.sqrt(2), 0, 0, 0, 0, 0, 0, 1 / np.sqrt(2)]
-    )
+        state = SeleneQuestState.parse_from_file(dump_file).get_single_state()
+
+        np.testing.assert_almost_equal(
+            state, [1 / np.sqrt(2), 0, 0, 0, 0, 0, 0, 1 / np.sqrt(2)]
+        )
 
     sim.postselect(2, True)
     assert sim.measure(1)
