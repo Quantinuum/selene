@@ -5,8 +5,12 @@ import tempfile
 
 import numpy as np
 
-from selene_sim import Quest
-from selene_sim.interactive import InteractiveFullStack, InteractiveSimulator
+from selene_sim import Quest, SoftRZRuntime, SimpleRuntime
+from selene_sim.interactive import (
+    InteractiveFullStack,
+    InteractiveSimulator,
+    InteractiveRuntime,
+)
 
 
 def test_interactive_full_stack_event_hooks():
@@ -167,3 +171,53 @@ def test_interactive_simulator():
     assert sim.measure(1)
     assert sim.measure(2)
     assert sim.measure(3)
+
+
+def test_interactive_runtime_simple():
+    r = InteractiveRuntime(runtime=SimpleRuntime(), n_qubits=10)
+    qubits = [r.qalloc() for _ in range(10)]
+    # The simple runtime flushes on each quantum operation.
+    operations = r.get_operations()
+    assert len(operations) == 0  # An alloc doesn't correspond to a physical operation
+    future_refs = []
+    for qubit in qubits:
+        r.reset(qubit)
+        r.rxy(qubit, pi, 0)
+        future_refs.append(r.measure(qubit))
+        assert (
+            len(r.get_operations()) == 3
+        )  # Each of reset, rxy and measure should have caused a flush of operations
+
+    r.force_result(
+        future_refs[0]
+    )  # does nothing - we've already flushed all operations
+    assert len(r.get_operations()) == 0
+
+    r.force_result(
+        future_refs[-1]
+    )  # does nothing - we've already flushed all operations
+    assert len(r.get_operations()) == 0
+
+
+def test_interactive_runtime_softrz():
+    r = InteractiveRuntime(runtime=SoftRZRuntime(), n_qubits=10)
+    qubits = [r.qalloc() for _ in range(10)]
+    # the soft RZ runtime waits until futures are forced before flushing
+    # operations.
+    assert len(r.get_operations()) == 0
+
+    future_refs = []
+    for qubit in qubits:
+        r.reset(qubit)
+        r.rxy(qubit, pi, 0)
+        future_refs.append(r.measure(qubit))
+        assert len(r.get_operations()) == 0
+
+    # Forcing the first future should cause just the reset, rxy, and measure for the first qubit to be emitted,
+    # in one batch each.
+    r.force_result(future_refs[0])
+    assert len(r.get_operations()) == 3
+
+    # Forcing the final future should cause the reset, rxy and measure of all remaining qubits to be emitted.
+    r.force_result(future_refs[-1])
+    assert len(r.get_operations()) == 27

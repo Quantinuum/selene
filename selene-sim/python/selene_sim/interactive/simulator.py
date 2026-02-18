@@ -166,7 +166,7 @@ class InteractiveSimulator:
             )
 
     def get_metrics(self) -> dict[str, int | float | bool]:
-        # for i in 0...255, call selene_simulator_get_metrics with:
+        # for i in 0...255, calls selene_simulator_get_metrics with:
         # - that index
         # - a pointer to a 256-byte buffer for the name
         # - a pointer to a byte for the type (0 = bool, 1 == i64, 2 == u64, 3 == f64)

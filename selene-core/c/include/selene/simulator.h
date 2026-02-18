@@ -79,7 +79,8 @@ int32_t selene_simulator_shot_start(SeleneSimulatorInstance instance,
  * `selene_simulator_shot_start` to prepare for the following shot, or by
  * a call to `selene_simulator_exit` to shut down the instance.
  */
-int32_t selene_simulator_shot_end(SeleneSimulatorInstance instance);
+int32_t selene_simulator_shot_end(SeleneSimulatorInstance instance,
+                                  uint64_t seed);
 
 /**
  * Apply an RXY gate to the qubit at the requested index, with the provided
