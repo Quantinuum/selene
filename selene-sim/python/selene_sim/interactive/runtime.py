@@ -304,11 +304,13 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
         self.selene_runtime_measure.argtypes = [
             SeleneRuntimeInstancePtr,
             ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint64),
         ]
         self.selene_runtime_measure.restype = ctypes.c_int32
         self.selene_runtime_measure_leaked.argtypes = [
             SeleneRuntimeInstancePtr,
             ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint64),
         ]
         self.selene_runtime_measure_leaked.restype = ctypes.c_int32
         self.selene_runtime_reset.argtypes = [
@@ -452,7 +454,17 @@ class InteractiveRuntime:
         if 0 != self._lib.selene_runtime_measure(
             self._instance, qubit, ctypes.byref(future_ref)
         ):
-            raise RuntimeError("Failed to apply MEASURE operation on Selene runtime")
+            raise RuntimeError("Failed to apply measure operation on Selene runtime")
+        return future_ref.value
+
+    def measure_leaked(self, qubit: int) -> int:
+        future_ref = ctypes.c_uint64()
+        if 0 != self._lib.selene_runtime_measure_leaked(
+            self._instance, qubit, ctypes.byref(future_ref)
+        ):
+            raise RuntimeError(
+                "Failed to apply measure_leaked operation on Selene runtime"
+            )
         return future_ref.value
 
     def reset(self, qubit: int):
