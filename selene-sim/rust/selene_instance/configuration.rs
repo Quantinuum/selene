@@ -1,3 +1,4 @@
+use selene_core::encoder::{InternalBuffer, OutputWriter};
 use serde::Deserialize;
 use std::io::Write;
 use std::path::PathBuf;
@@ -53,10 +54,11 @@ pub struct Configuration {
 impl Configuration {
     /// Get writer based on output arg (can be a file or a tcp address
     /// at the moment)
-    pub fn get_output_writer(&self) -> Box<dyn std::io::Write> {
+    pub fn get_output_writer(&self) -> OutputWriter {
         match self.output_stream.as_str() {
-            "stdout" => Box::new(std::io::stdout()),
-            "stderr" => Box::new(std::io::stderr()),
+            "stdout" => OutputWriter::Stdout(std::io::stdout()),
+            "stderr" => OutputWriter::Stderr(std::io::stderr()),
+            "internal" => OutputWriter::Internal(InternalBuffer::default()),
             uri => {
                 let url = Url::parse(uri).unwrap();
                 match url.scheme() {
@@ -68,7 +70,7 @@ impl Configuration {
                             .truncate(true)
                             .open(path)
                             .unwrap();
-                        Box::new(file)
+                        OutputWriter::File(file)
                     }
                     "tcp" => {
                         let host = url.host_str().unwrap();
@@ -84,7 +86,7 @@ impl Configuration {
                         stream
                             .write_all(self.shots.count.to_le_bytes().as_slice())
                             .unwrap();
-                        Box::new(stream)
+                        OutputWriter::Tcp(stream)
                     }
                     _ => panic!("Unsupported output scheme: {}", url.scheme()),
                 }

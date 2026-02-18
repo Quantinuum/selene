@@ -119,13 +119,19 @@ impl EventHook for MeasurementLog {
         );
     }
 
-    fn write(&self, time_cursor: u64, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
+    fn write(
+        &mut self,
+        time_cursor: u64,
+        encoder: &mut OutputStream,
+    ) -> Result<(), OutputStreamError> {
         encoder.begin_message(time_cursor)?;
         encoder.write("MEASUREMENTLOG")?;
         for entry in self.entries.iter() {
             entry.write(encoder)?;
         }
-        encoder.end_message()
+        encoder.end_message()?;
+        self.entries.clear();
+        Ok(())
     }
 
     fn on_shot_start(&mut self, _shot_id: u64) {

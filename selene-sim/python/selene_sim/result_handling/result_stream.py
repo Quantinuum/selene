@@ -65,13 +65,31 @@ class ResultStream:
         it not containing this data is considered an error. For example, when in the
         middle of parsing a record, missing data implies a crash or parsing error.
         """
-        result = self.stream.read_chunk(length)
+        try:
+            result = self.stream.read_chunk(length)
+        except BlockingIOError:
+            raise
         if len(result) < length:
             raise SeleneRuntimeError("Parsing error: Unexpected end of stream")
         return result
 
     def next_shot(self) -> None:
         self.stream.next_shot()
+
+    def try_next_entry(self) -> StreamEntry | None:
+        """Attempt to extract the next entry without blocking.
+
+        Returns the entry if one is available, or None if the underlying
+        stream cannot currently provide enough data to parse a full entry.
+        """
+        if self.tainted:
+            raise SeleneRuntimeError("Result stream has been tainted by a prior error")
+        if self.done:
+            return None
+        try:
+            return self._extract_entry()
+        except BlockingIOError:
+            return None
 
     def _extract_tag(self) -> str:
         datatype, size = unpack("HH", self.get_chunk(4))

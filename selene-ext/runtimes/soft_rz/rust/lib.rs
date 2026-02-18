@@ -253,7 +253,7 @@ impl RuntimeInterface for SoftRZRuntime {
                 }
             }
         }
-        bail!("No measurement operation with result {result_id} found")
+        Ok(()) // If the measurement isn't in the queue, it has already been forced.
     }
     fn get_bool_result(&mut self, result_id: u64) -> Result<Option<bool>> {
         if result_id >= self.future_results.len() as u64 {

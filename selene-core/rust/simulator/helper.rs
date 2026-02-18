@@ -312,7 +312,7 @@ macro_rules! export_simulator_plugin {
             #[unsafe(no_mangle)]
             pub unsafe extern "C" fn selene_simulator_shot_end(
                 instance: SimulatorInstance,
-                seed: u64,
+                seed: u64, // TODO: this is unused and will be removed in the next API release
             ) -> i32 {
                 Helper::shot_end(instance)
             }
