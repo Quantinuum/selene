@@ -54,7 +54,7 @@ dev = [
   "pytest>=8.3.5",
   "pytket>=2.0.1",
   "pytket~=2.9.1",
-  "qir-qis~=0.1.1",
+  "qir-qis~=0.1.2",
   "ruff>=0.8.0",
   "types-pyyaml>=6.0.12.20250402",
 ]
