@@ -381,6 +381,14 @@ void print_state_result(cl_string tag, uint64_t _unused, struct cl_array* qubits
     unwrap(selene_dump_state(selene_instance, parse_cl_string(tag), qubits_ptr, qubits_length));
     DIAGNOSTIC("   [done]\n");
 }
+void ___barrier(uint64_t* qubits, uint64_t qubits_len) {
+    DIAGNOSTIC("___barrier(%p, %" PRIu64 ")\n", qubits, qubits_len);
+    for (uint64_t i = 0; i < qubits_len; ++i) {
+        DIAGNOSTIC("   %" PRIu64 ": %" PRIu64 "\n", i, qubits[i]);
+    }
+    unwrap(selene_local_barrier(selene_instance, qubits, qubits_len, 0));
+    DIAGNOSTIC("   [done]\n");
+}
 void ___sleep(uint64_t* qubits, uint64_t qubits_len, uint64_t sleep_time) {
     DIAGNOSTIC("___sleep(%p, %" PRIu64 ", %" PRIu64 ")\n", qubits, qubits_len, sleep_time);
     for (uint64_t i = 0; i < qubits_len; ++i) {
