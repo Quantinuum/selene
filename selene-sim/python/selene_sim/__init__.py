@@ -17,3 +17,7 @@ dist_dir = pathlib.Path(__file__).parent / "_dist"
 __all__ = (
     ["BuildMethod", "BitcodeString", "build", "SeleneInstance"] + backends + event_hooks
 )
+
+# This is updated by our release-please workflow, triggered by this
+# annotation: x-release-please-version
+__version__ = "0.2.10"
