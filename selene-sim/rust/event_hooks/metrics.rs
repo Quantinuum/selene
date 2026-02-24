@@ -44,7 +44,7 @@ impl UserProgramMetrics {
         }
     }
     pub fn write(
-        &self,
+        &mut self,
         time_cursor: u64,
         encoder: &mut OutputStream,
     ) -> Result<(), OutputStreamError> {
@@ -270,7 +270,11 @@ impl EventHook for HighLevelMetrics {
     fn on_runtime_batch(&mut self, batch: &BatchOperation) {
         self.post_runtime_metrics.update(batch);
     }
-    fn write(&self, time_cursor: u64, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
+    fn write(
+        &mut self,
+        time_cursor: u64,
+        encoder: &mut OutputStream,
+    ) -> Result<(), OutputStreamError> {
         self.user_program_metrics.write(time_cursor, encoder)?;
         self.post_runtime_metrics.write(time_cursor, encoder)?;
         Ok(())

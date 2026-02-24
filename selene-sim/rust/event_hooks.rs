@@ -28,7 +28,7 @@ pub trait EventHook {
     fn on_runtime_batch(&mut self, _: &BatchOperation) {}
     fn on_runtime_results(&mut self, _: &BatchResult) {}
     fn write(
-        &self,
+        &mut self,
         _time_cursor: u64,
         _encoder: &mut OutputStream,
     ) -> Result<(), OutputStreamError> {
@@ -64,8 +64,12 @@ impl EventHook for MultiEventHook {
             hook.on_runtime_results(results);
         }
     }
-    fn write(&self, time_cursor: u64, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
-        for hook in self.hooks.iter() {
+    fn write(
+        &mut self,
+        time_cursor: u64,
+        encoder: &mut OutputStream,
+    ) -> Result<(), OutputStreamError> {
+        for hook in self.hooks.iter_mut() {
             hook.write(time_cursor, encoder)?;
         }
         Ok(())

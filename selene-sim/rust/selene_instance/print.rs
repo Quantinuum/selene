@@ -53,4 +53,9 @@ impl SeleneInstance {
     pub fn print_shot_end(&mut self) -> Result<()> {
         self.print("SELENE:SHOT_END", self.shot_number)
     }
+    pub fn flush_output(&mut self) -> Result<()> {
+        self.out_encoder
+            .flush()
+            .map_err(|e| anyhow::anyhow!("Failed to flush output stream: {:?}", e))
+    }
 }

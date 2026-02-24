@@ -650,3 +650,34 @@ pub unsafe extern "C" fn selene_custom_runtime_call(
     let data = unsafe { std::slice::from_raw_parts(data, data_length as usize) };
     with_instance_u64(instance, |instance| instance.custom_runtime_call(tag, data))
 }
+
+/// Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
+/// This happens upon shot end automatically, but can be triggered manually mid-shot if desired
+/// by calling this function (e.g. in interactive mode)
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_write_metadata(instance: *mut SeleneInstance) -> VoidResult {
+    with_instance_void(instance, |instance| instance.write_metadata())
+}
+
+/// Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
+/// Returns the number of bytes read. This is only for use with the "internal" output stream configuration, which stores outputs
+/// in an internal buffer rather than writing them directly to stdout/stderr/file/tcp, and attempted use of this function with any
+/// other mode will produce an error.
+///
+/// This is intended primarily for interactive use cases, where the frontend requires on-demand, unbuffered access to the output
+/// stream data.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_fetch_output(
+    instance: *mut SeleneInstance,
+    out_ptr: *mut u8,
+    out_max_len: u64,
+) -> U64Result {
+    with_instance_u64(instance, |instance| {
+        let data = instance.out_encoder.try_read(out_max_len as usize)?;
+        let len = data.len() as u64;
+        unsafe {
+            std::ptr::copy_nonoverlapping(data.as_ptr(), out_ptr, data.len());
+        }
+        Ok(len)
+    })
+}

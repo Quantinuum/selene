@@ -513,7 +513,7 @@ macro_rules! export_runtime_plugin {
             pub unsafe extern "C" fn selene_runtime_shot_end(
                 instance: RuntimeInstance,
                 shot_id: u64,
-                seed: u64,
+                seed: u64, // TODO: this is unused and will be removed in the next API release
             ) -> i32 {
                 Helper::shot_end(instance)
             }

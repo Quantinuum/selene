@@ -134,12 +134,17 @@ impl EventHook for InstructionLog {
             });
         }
     }
-    fn write(&self, time_cursor: u64, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
+    fn write(
+        &mut self,
+        time_cursor: u64,
+        encoder: &mut OutputStream,
+    ) -> Result<(), OutputStreamError> {
         encoder.begin_message(time_cursor)?;
         encoder.write("INSTRUCTIONLOG")?;
         for instruction in self.entries.iter() {
             instruction.write(encoder)?;
         }
+        self.entries.clear();
         encoder.end_message()?;
         Ok(())
     }
