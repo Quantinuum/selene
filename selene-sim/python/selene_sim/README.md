@@ -26,6 +26,19 @@ And we offer two example quantum runtimes, including:
 - Simple, which executes the program as-is, without any modifications
 - SoftRZ, which elides Z rotations through RXY gates, providing the same observable behaviour with fewer quantum operations
 
+## Notebook tutorials
+
+For a pedagogical walkthrough (rather than test-first examples), see:
+
+- [Notebook index](../notebooks/README.md)
+- [01_basics_build_and_results.ipynb](../notebooks/01_basics_build_and_results.ipynb)
+- [02_determinism_noise_and_replay.ipynb](../notebooks/02_determinism_noise_and_replay.ipynb)
+- [03_runtimes_hooks_and_state_debug.ipynb](../notebooks/03_runtimes_hooks_and_state_debug.ipynb)
+- [04_qir_and_interactive_workflows.ipynb](../notebooks/04_qir_and_interactive_workflows.ipynb)
+- [05_reliability_timeouts_and_errors.ipynb](../notebooks/05_reliability_timeouts_and_errors.ipynb)
+- [06_selene_core_plugin_in_c.ipynb](../notebooks/06_selene_core_plugin_in_c.ipynb)
+- [07_selene_core_build_planner_extension.ipynb](../notebooks/07_selene_core_build_planner_extension.ipynb)
+
 ## Usage example
 
 Although examples are provided in our [tests](https://github.com/quantinuum/selene/tree/main/selene-sim/python/tests) folder, here is a quick walkthrough to get you started with Selene, HUGR and Guppy.

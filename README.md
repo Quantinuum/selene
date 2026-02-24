@@ -34,6 +34,18 @@ And we offer two example quantum runtimes, including:
 - Simple, which executes the program as-is, without any modifications
 - SoftRZ, which elides Z rotations through RXY gates, providing the same observable behaviour with fewer quantum operations
 
+## Notebook tutorials
+
+If you prefer a pedagogical walkthrough over reading tests, see the notebook series in [selene-sim/python/notebooks](selene-sim/python/notebooks/README.md):
+
+- [01_basics_build_and_results.ipynb](selene-sim/python/notebooks/01_basics_build_and_results.ipynb)
+- [02_determinism_noise_and_replay.ipynb](selene-sim/python/notebooks/02_determinism_noise_and_replay.ipynb)
+- [03_runtimes_hooks_and_state_debug.ipynb](selene-sim/python/notebooks/03_runtimes_hooks_and_state_debug.ipynb)
+- [04_qir_and_interactive_workflows.ipynb](selene-sim/python/notebooks/04_qir_and_interactive_workflows.ipynb)
+- [05_reliability_timeouts_and_errors.ipynb](selene-sim/python/notebooks/05_reliability_timeouts_and_errors.ipynb)
+- [06_selene_core_plugin_in_c.ipynb](selene-sim/python/notebooks/06_selene_core_plugin_in_c.ipynb)
+- [07_selene_core_build_planner_extension.ipynb](selene-sim/python/notebooks/07_selene_core_build_planner_extension.ipynb)
+
 ## Installation
 
 To install selene, `pip install selene-sim`.
