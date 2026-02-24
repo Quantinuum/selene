@@ -10,14 +10,14 @@ doctest = false
 crate-type = ["cdylib"]
 
 [build-dependencies]
-cc = { version="1.0" }
+cc = { version="1.2" }
 
 [dependencies]
 anyhow = { workspace = true }
 quest-sys = {version = "0.16"}
 selene-core = { path = "../../../selene-core" }
 sysinfo = { version = "0.35" }
-bytesize = { version = "2.0" }
+bytesize = { version = "2.3" }
 
 [lints]
 workspace = true

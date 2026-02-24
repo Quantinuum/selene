@@ -16,7 +16,7 @@ cmake = "0.1"
 clap = { workspace = true }
 selene-core = { path = "../../../selene-core" }
 anyhow = { workspace = true }
-num_enum = "0.7.4"
+num_enum = "0.7"
 
 [lints]
 workspace = true
