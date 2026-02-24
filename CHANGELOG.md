@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.11](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.10...selene-sim-v0.2.11) (2026-02-24)
+
+
+### Features
+
+* Add __version__ attributes ([#137](https://github.com/Quantinuum/selene/issues/137)) ([379ae01](https://github.com/Quantinuum/selene/commit/379ae0151f18c7410a5f02457a79cc86b5df9d30))
+* Interactive use of Selene from python ([#135](https://github.com/Quantinuum/selene/issues/135)) ([db3028d](https://github.com/Quantinuum/selene/commit/db3028d250746b00e4f4cb671a780b9cb888d95f))
+* Quest performance improvements ([#133](https://github.com/Quantinuum/selene/issues/133)) ([af640e9](https://github.com/Quantinuum/selene/commit/af640e9999169cca3096708b76ea9fde1389b89e))
+* Stim improvements (more ops + state printing) ([#115](https://github.com/Quantinuum/selene/issues/115)) ([867d5e5](https://github.com/Quantinuum/selene/commit/867d5e5eba308eda3087e61690181b2030cbb56f))
+* Test on QIS snapshots ([#134](https://github.com/Quantinuum/selene/issues/134)) ([c4d58ab](https://github.com/Quantinuum/selene/commit/c4d58ab2828fe6fdc221c90022200921690d8563))
+
+
+### Bug Fixes
+
+* add `___barrier` to Helios QIS for QIR emulation ([#136](https://github.com/Quantinuum/selene/issues/136)) ([dfbc4c3](https://github.com/Quantinuum/selene/commit/dfbc4c37e3533b23ae843d4a5b232786afb8b6b7))
+
 ## [0.2.10](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.9...selene-sim-v0.2.10) (2026-01-29)
 
 
