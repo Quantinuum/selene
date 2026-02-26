@@ -251,6 +251,7 @@ struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instanc
 
 /**
  * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
+ *
  * Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
  * This happens upon shot end automatically, but can be triggered manually mid-shot if desired
  * by calling this function (e.g. in interactive mode)
