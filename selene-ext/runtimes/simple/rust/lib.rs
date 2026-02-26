@@ -230,6 +230,10 @@ impl RuntimeInterface for SimpleRuntime {
     fn get_metric(&mut self, _nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         Ok(None)
     }
+    fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
+        self.start += selene_core::time::Duration::from(delay_ns);
+        Ok(())
+    }
 }
 
 #[derive(Default)]

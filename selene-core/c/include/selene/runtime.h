@@ -108,6 +108,16 @@ SeleneErrno selene_runtime_custom_call(RuntimeInstance instance,
                                        uint64_t *result);
 
 /**
+ * This function is called to simulate a delay by notifying the runtime of a period
+ * of inactivity. This may be used by utility plugins to emulate a classical process
+ * taking some period of time, allowing the runtime to acknowledge the time spent
+ * when providing timing information for subsequent batches, which in turn allows
+ * time-based noise modelling to account for additional idling.
+ */
+SeleneErrno selene_runtime_simulate_delay(RuntimeInstance instance,
+                                          uint64_t delay_ns);
+
+/**
  * This function is called to get the next operations from the runtime. The
  * runtime should use the [RuntimeGetOperationInterface] callbacks along with
  * the [RuntimeGetOperationInstance] to provide a list of operations to Selene

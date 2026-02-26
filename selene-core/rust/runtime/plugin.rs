@@ -221,6 +221,15 @@ pub struct RuntimePluginInterface {
             ) -> Errno,
         >,
     >,
+
+    #[borrows(lib)]
+    #[covariant]
+    simulate_delay_fn: Option<
+        libloading::Symbol<
+            'this,
+            unsafe extern "C" fn(handle: RuntimeInstance, delay_ns: u64) -> Errno,
+        >,
+    >,
 }
 
 impl RuntimePluginInterface {
@@ -283,6 +292,9 @@ impl RuntimePluginInterface {
             },
             custom_call_fn_builder: |lib| unsafe {
                 Ok(lib.get(b"selene_runtime_custom_call").ok())
+            },
+            simulate_delay_fn_builder: |lib| unsafe {
+                Ok(lib.get(b"selene_runtime_simulate_delay").ok())
             },
         }
         .try_build()?;
@@ -565,6 +577,19 @@ impl RuntimeInterface for RuntimePlugin {
         } else {
             Err(anyhow!(
                 "RuntimePlugin: custom_call not supported by plugin"
+            ))
+        }
+    }
+
+    fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
+        if let Some(simulate_delay_fn) = self.interface.borrow_simulate_delay_fn() {
+            check_errno(
+                unsafe { simulate_delay_fn(self.instance, delay_ns) },
+                || anyhow!("RuntimePlugin: simulate_delay failed"),
+            )
+        } else {
+            Err(anyhow!(
+                "RuntimePlugin: simulate_delay not supported by plugin"
             ))
         }
     }

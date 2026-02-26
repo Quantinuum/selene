@@ -62,4 +62,7 @@ impl SeleneInstance {
     pub fn custom_runtime_call(&mut self, custom_tag: u64, data: &[u8]) -> Result<u64> {
         self.emulator.custom_runtime_call(custom_tag, data)
     }
+    pub fn simulate_delay(&mut self, delay: u64) -> Result<()> {
+        self.emulator.simulate_delay(delay)
+    }
 }

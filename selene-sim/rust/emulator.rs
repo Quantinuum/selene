@@ -181,6 +181,11 @@ impl Emulator {
         self.process_runtime()?;
         Ok(result)
     }
+
+    pub fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
+        self.runtime.simulate_delay(delay_ns)?;
+        self.process_runtime()
+    }
 }
 
 // Handling of runtime-issued instructions

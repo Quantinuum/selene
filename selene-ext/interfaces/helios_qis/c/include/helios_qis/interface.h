@@ -64,5 +64,6 @@ EXPORT void setup(uint64_t time_cursor);
 EXPORT uint64_t teardown();
 EXPORT void* heap_alloc(size_t size);
 EXPORT void heap_free(void* ptr);
+EXPORT void simulate_delay(uint64_t delay_ns);
 
 #endif // HELIOS_QIS_INTERFACE_H

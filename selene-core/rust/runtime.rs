@@ -166,6 +166,7 @@ impl RuntimeInterface for Runtime {
             fn increment_future_refcount(&mut self, future: u64) -> Result<()>;
             fn decrement_future_refcount(&mut self, future: u64) -> Result<()>;
             fn custom_call(&mut self, custom_tag: u64, data: &[u8]) -> Result<u64>;
+            fn simulate_delay(&mut self, delay_ns: u64) -> Result<()>;
         }
     }
 }

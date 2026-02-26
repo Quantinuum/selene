@@ -42,6 +42,15 @@ typedef struct selene_u32_result_t {
   uint32_t value;
 } selene_u32_result_t;
 
+/**
+ * Some runtimes have additional capabilities outside of the core API. These can be triggered
+ * by a frontend by passing in opaque data blobs with an identification tag. The runtime determines
+ * how it handles each tag, forming a narrow contract with the frontend about how to trigger custom
+ * behaviour.
+ *
+ * An example of custom runtime behaviour might include configuring settings on-the-fly, or issuing
+ * custom instructions pertaining to that runtime (e.g. synchronization points).
+ */
 struct selene_u64_result_t selene_custom_runtime_call(struct SeleneInstance *instance,
                                                       uint64_t tag,
                                                       const uint8_t *data,
@@ -55,7 +64,6 @@ struct selene_void_result_t selene_dump_state(struct SeleneInstance *instance,
 struct selene_void_result_t selene_exit(struct SeleneInstance *instance);
 
 /**
- * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
  * Returns the number of bytes read. This is only for use with the "internal" output stream configuration, which stores outputs
  * in an internal buffer rather than writing them directly to stdout/stderr/file/tcp, and attempted use of this function with any
  * other mode will produce an error.
@@ -233,6 +241,16 @@ struct selene_void_result_t selene_set_tc(struct SeleneInstance *instance, uint6
 struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
 
 /**
+ * Simulates a delay by notifying the runtime of a period of inactivity. This may be used by utility plugins to
+ * emulate a classical process taking some period of time, allowing the runtime to acknowledge the time spent
+ * when providing timing information for subsequent batches, which in turn allows time-based noise modelling to
+ * account for additional idling.
+ */
+struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instance,
+                                                  uint64_t delay);
+
+/**
+ * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
  * Writes metadata to the result stream, such as event hooks (metrics, instruction logs, etc).
  * This happens upon shot end automatically, but can be triggered manually mid-shot if desired
  * by calling this function (e.g. in interactive mode)
