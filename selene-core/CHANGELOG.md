@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.5...selene-core-v0.2.6) (2026-03-02)
+
+
+### Features
+
+* Add simulate_delay functionality ([#139](https://github.com/Quantinuum/selene/issues/139)) ([cca97fa](https://github.com/Quantinuum/selene/commit/cca97fa0c4cbc22185351be33508fe09713c792c))
+
 ## [0.2.5](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.4...selene-core-v0.2.5) (2026-02-24)
 
 
