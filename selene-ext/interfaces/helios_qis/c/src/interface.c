@@ -420,3 +420,8 @@ uint64_t custom_runtime_call(uint64_t tag, void* data, uint64_t data_len) {
     }
     unwrap(selene_custom_runtime_call(selene_instance, tag, data, data_len));
 }
+void simulate_delay(uint64_t delay_ns) {
+    DIAGNOSTIC("simulate_delay(%" PRIu64 ")\n", delay_ns);
+    unwrap(selene_simulate_delay(selene_instance, delay_ns));
+    DIAGNOSTIC("   [done]\n");
+}

@@ -50,6 +50,13 @@ pub trait RuntimeInterface {
         ))
     }
 
+    /// Simulate a delay by notifying the runtime of a period of inactivity.
+    fn simulate_delay(&mut self, _delay_ns: u64) -> Result<()> {
+        Err(anyhow!(
+            "A request to simulate a delay has been issued to a runtime that does not support this feature."
+        ))
+    }
+
     /// Provide a metric to the output stream.
     ///
     /// Will be called with incrementing `nth_metric` until `None` is returned.

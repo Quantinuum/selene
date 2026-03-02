@@ -35,7 +35,7 @@ pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     reserved: 0,
     major: 0,
     minor: 2,
-    patch: 0,
+    patch: 1,
 };
 
 // CHANGELOG:

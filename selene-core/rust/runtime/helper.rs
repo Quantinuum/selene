@@ -175,6 +175,13 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         )
     }
 
+    pub unsafe fn simulate_delay(instance: RuntimeInstance, delay_ns: u64) -> Errno {
+        result_to_errno(
+            "Failed in simulate_delay",
+            Self::with_runtime_instance(instance, |runtime| runtime.simulate_delay(delay_ns)),
+        )
+    }
+
     pub unsafe fn get_metric(
         instance: RuntimeInstance,
         nth_metric: u8,
@@ -542,6 +549,19 @@ macro_rules! export_runtime_plugin {
                 result: *mut u64,
             ) -> Errno {
                 Helper::custom_call(instance, tag, data, data_len, result)
+            }
+
+            /// This function is called to simulate a delay by notifying the runtime of a period
+            /// of inactivity. This may be used by utility plugins to emulate a classical process
+            /// taking some period of time, allowing the runtime to acknowledge the time spent
+            /// when providing timing information for subsequent batches, which in turn allows
+            /// time-based noise modelling to account for additional idling.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_simulate_delay(
+                instance: RuntimeInstance,
+                delay_ns: u64,
+            ) -> Errno {
+                Helper::simulate_delay(instance, delay_ns)
             }
 
             /// This function is called to get the next operations from the runtime. The

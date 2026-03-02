@@ -46,7 +46,7 @@ repository = "https://github.com/quantinuum/selene"
 dev = [
   "auditwheel>=6.3.0",
   "cibuildwheel>=2.23.3",
-  "guppylang~=0.21.6",
+  "guppylang~=0.21.6,!=0.21.7,!=0.21.9", # temporary workaround for libtket.so compatibility issues
   "hugr>=0.13.0",
   "mypy>=1.14.1",
   "pip>=24.2",
