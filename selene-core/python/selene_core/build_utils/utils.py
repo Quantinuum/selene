@@ -2,6 +2,8 @@
 
 import platform
 import sys
+from pathlib import Path
+import os
 
 
 def get_target_triple(arch: str | None = None, system: str | None = None) -> str | None:
@@ -45,7 +47,7 @@ def get_target_triple(arch: str | None = None, system: str | None = None) -> str
     return f"{target_arch}-{target_system}"
 
 
-def invoke_zig(*args, handle_triple=True, verbose=False) -> str:
+def invoke_zig(*args, handle_triple=True, verbose=False, cache_dir=None) -> str:
     """
     Invoke zig with the given arguments, after conversion to strings.
     """
@@ -59,9 +61,16 @@ def invoke_zig(*args, handle_triple=True, verbose=False) -> str:
     argv = [sys.executable, "-m", "ziglang"] + args_str
     if verbose:
         print(f"zig command: {' '.join(argv)}")
-    handle = subprocess.run(argv, stdout=None, stderr=subprocess.PIPE, text=True)
+    env = os.environ.copy()
+    if cache_dir is not None:
+        env["ZIG_LOCAL_CACHE_DIR"] = str(cache_dir)
+    handle = subprocess.Popen(
+        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+    )
+    stdout, stderr = handle.communicate()
     if handle.returncode != 0:
         raise RuntimeError(
-            f"zig command failed:\n  Command: {' '.join(argv)}\n  Error: {handle.stderr}"
+            f"zig command failed:\n  Command: {' '.join(argv)}\n  Error: {stderr.decode()}"
         )
+
     return handle.stdout

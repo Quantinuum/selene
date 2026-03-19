@@ -82,6 +82,7 @@ def build(
     progress_bar: bool = False,
     strict: bool = False,
     save_planner: bool = False,
+    complete_manifest: bool = False,
     **kwargs,
 ) -> SeleneInstance:
     """
@@ -250,7 +251,7 @@ def build(
             "created_by": "selene-build 0.1",
             "deps": [d.__dict__ for d in deps],
             "steps": steps,
-            "artifacts": artifacts,
+            "artifacts": artifacts if complete_manifest else [artifacts[-1]],
             "library_search_dirs": library_search_dirs,
         }
     )

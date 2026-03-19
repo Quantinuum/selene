@@ -131,10 +131,18 @@ class SeleneObjectToSeleneExecutable(Step):
             link_flags.extend(dep.link_flags)
             library_search_dirs.extend(dep.library_search_dirs)
 
+        # cache_option = f"--cache-dir=" + str(build_ctx.cache_dir)]
+
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
         invoke_zig(
-            "cc", "-o", out_path, input_artifact.resource, selene_lib, *link_flags
+            "cc",
+            "-o",
+            out_path,
+            input_artifact.resource,
+            selene_lib,
+            *link_flags,
+            cache_dir=build_ctx.artifact_dir,
         )
         return cls._make_artifact(
             out_path,

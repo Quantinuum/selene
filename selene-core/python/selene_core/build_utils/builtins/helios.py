@@ -208,6 +208,7 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
             "-o",
             out_path,
             verbose=build_ctx.verbose,
+            cache_dir=build_ctx.artifact_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -225,7 +226,14 @@ class HeliosLLVMBitcodeFileToHeliosObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.helios.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM Bitcode to Helios-QIS object: {out_path}")
-        invoke_zig("cc", "-c", input_artifact.resource, "-o", out_path)
+        invoke_zig(
+            "cc",
+            "-c",
+            input_artifact.resource,
+            "-o",
+            out_path,
+            cache_dir=build_ctx.artifact_dir,
+        )
         return cls._make_artifact(out_path)
 
 
@@ -295,6 +303,7 @@ class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
             "-o",
             out_path,
             verbose=build_ctx.verbose,
+            cache_dir=build_ctx.artifact_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -348,6 +357,7 @@ class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
             input_artifact.resource,
             *libraries,
             *link_flags,
+            cache_dir=build_ctx.artifact_dir,
         )
         return cls._make_artifact(
             out_path,
@@ -402,6 +412,7 @@ class HeliosObjectFileToSeleneExecutableStep_Darwin(Step):
             input_artifact.resource,
             *libraries,
             *link_flags,
+            cache_dir=build_ctx.artifact_dir,
         )
         return cls._make_artifact(
             out_path,
