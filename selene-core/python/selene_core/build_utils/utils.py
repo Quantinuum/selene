@@ -72,5 +72,4 @@ def invoke_zig(*args, handle_triple=True, verbose=False, cache_dir=None) -> str:
         raise RuntimeError(
             f"zig command failed:\n  Command: {' '.join(argv)}\n  Error: {stderr.decode()}"
         )
-
-    return handle.stdout
+    return stdout.decode()
