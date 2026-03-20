@@ -106,10 +106,14 @@ class CargoWorkspaceBuild:
                         shutil.copy(lib_path, destination)
                 if sys.platform == "win32" and lib_name == "selene_stim_plugin":
                     self.bundle_mingw_runtime_dll(
-                        destination=destination, dll_name="libstdc++-6.dll"
+                        destination=destination,
+                        dll_name="libstdc++-6.dll",
+                        required=False,
                     )
 
-    def bundle_mingw_runtime_dll(self, destination: Path, dll_name: str):
+    def bundle_mingw_runtime_dll(
+        self, destination: Path, dll_name: str, required: bool = True
+    ):
         for compiler in ("gcc", "x86_64-w64-mingw32-gcc"):
             compiler_path = shutil.which(compiler)
             if compiler_path is None:
@@ -129,9 +133,11 @@ class CargoWorkspaceBuild:
             self.hook.app.display_info(f"Copying {dll_path} to {destination}")
             shutil.copy(dll_path, destination / dll_name)
             return
-        self.hook.app.display_info(
-            f"Unable to resolve {dll_name} via gcc; skipping runtime dll bundling"
-        )
+        message = f"Unable to resolve {dll_name} via gcc"
+        if required:
+            self.hook.app.display_error(message)
+            sys.exit(1)
+        self.hook.app.display_info(f"{message}; skipping runtime dll bundling")
 
 
 class BundleBuildHook(BuildHookInterface):

@@ -17,7 +17,7 @@ fn main() {
     if target_triple.contains("linux-gnu") {
         println!("cargo:rustc-link-lib=stdc++");
     } else if target_triple.contains("windows-gnu") {
-        println!("cargo:rustc-link-lib=stdc++");
+        println!("cargo:rustc-link-lib=static=stdc++");
         println!("cargo:rustc-link-lib=static=winpthread");
         println!("cargo:rustc-link-arg=-static-libstdc++");
         println!("cargo:rustc-link-arg=-static-libgcc");
