@@ -37,6 +37,18 @@ def get_platform_suffix():
     return f"{target_arch}-{target_system}"
 
 
+def get_helios_resource(program_name: str) -> Path:
+    filename = f"{program_name}-{get_platform_suffix()}.ll"
+    helios_file = QIS_RESOURCE_DIR / "helios" / filename
+    if helios_file.exists():
+        return helios_file
+    if platform.system().lower() == "windows":
+        fallback = QIS_RESOURCE_DIR / "helios" / f"{program_name}-x86_64-windows-msvc.ll"
+        if fallback.exists():
+            return fallback
+    return helios_file
+
+
 @pytest.mark.parametrize(
     "program_name",
     [
@@ -44,8 +56,7 @@ def get_platform_suffix():
     ],
 )
 def test_qis(snapshot, program_name: str):
-    filename = f"{program_name}-{get_platform_suffix()}.ll"
-    helios_file = QIS_RESOURCE_DIR / "helios" / filename
+    helios_file = get_helios_resource(program_name)
     assert helios_file.exists()
 
     helios_build = build(helios_file, interface=HeliosInterface())
@@ -68,8 +79,7 @@ def test_qis(snapshot, program_name: str):
     ],
 )
 def test_qis_circuit_log(snapshot, program_name: str):
-    filename = f"{program_name}-{get_platform_suffix()}.ll"
-    helios_file = QIS_RESOURCE_DIR / "helios" / filename
+    helios_file = get_helios_resource(program_name)
     assert helios_file.exists()
 
     helios_build = build(helios_file, interface=HeliosInterface())
