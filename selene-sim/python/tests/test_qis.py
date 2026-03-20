@@ -48,7 +48,9 @@ def get_helios_resource(program_name: str) -> Path:
     if helios_file.exists():
         return helios_file
     if platform.system().lower() == "windows":
-        fallback = QIS_RESOURCE_DIR / "helios" / f"{program_name}-x86_64-windows-msvc.ll"
+        fallback = (
+            QIS_RESOURCE_DIR / "helios" / f"{program_name}-x86_64-windows-msvc.ll"
+        )
         if fallback.exists():
             return fallback
     return helios_file
