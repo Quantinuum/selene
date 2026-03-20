@@ -71,7 +71,7 @@ class CargoWorkspaceBuild:
                 lib_filenames = {
                     "darwin": [f"lib{lib_name}.dylib"],
                     "linux": [f"lib{lib_name}.so"],
-                    "win32": [f"{lib_name}.dll", f"{lib_name}.dll.lib"],
+                    "win32": [f"{lib_name}.dll", f"lib{lib_name}.dll.a"],
                 }[sys.platform]
                 assert all((release_dir / file).exists() for file in lib_filenames), (
                     f"Compiled library for {lib_name} not found in {release_dir}. "
@@ -196,7 +196,7 @@ class BundleBuildHook(BuildHookInterface):
         elif sys.platform == "win32":
             return [
                 release_dir / f"{cdylib_name}.dll",
-                release_dir / f"{cdylib_name}.dll.lib",
+                release_dir / f"lib{cdylib_name}.dll.a",
             ]
 
     def build_cargo_workspace(self):
