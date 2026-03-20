@@ -47,7 +47,7 @@ pub unsafe extern "C" fn invalidQuESTInputError(err_msg: *const c_char, err_func
     eprintln!("!!!");
     eprintln!("QuEST Error in function {err_func}: {err_msg}");
     eprintln!("!!!");
-    eprintln!("exiting..");
+    eprintln!("Exiting...");
     std::process::exit(1);
 }
 
