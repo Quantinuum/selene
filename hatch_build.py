@@ -122,8 +122,9 @@ class CargoWorkspaceBuild:
             )
             if call.returncode != 0:
                 continue
-            dll_path = Path(call.stdout.strip())
-            if call.stdout.strip() == dll_name or not dll_path.exists():
+            resolved_path = call.stdout.strip()
+            dll_path = Path(resolved_path)
+            if resolved_path == dll_name or not dll_path.exists():
                 continue
             self.hook.app.display_info(f"Copying {dll_path} to {destination}")
             shutil.copy(dll_path, destination / dll_name)
