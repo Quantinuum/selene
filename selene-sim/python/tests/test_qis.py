@@ -22,6 +22,15 @@ def test_helios_interface_windows_prefers_mingw_static_lib():
     assert library_file.name == "libhelios_selene_interface.a"
 
 
+def test_helios_interface_windows_falls_back_to_msvc_lib():
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("pathlib.Path.exists", return_value=False),
+    ):
+        library_file = HeliosInterface().library_file
+    assert library_file.name == "helios_selene_interface.lib"
+
+
 def get_platform_suffix():
     arch = platform.machine()
     system = platform.system()

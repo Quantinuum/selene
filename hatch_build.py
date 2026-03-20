@@ -316,7 +316,12 @@ class BundleBuildHook(BuildHookInterface):
             "..",
         ]
         if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
-            cmake_configure_cmd[1:1] = ["-G", "MinGW Makefiles"]
+            cmake_configure_cmd = [
+                cmake_configure_cmd[0],
+                "-G",
+                "MinGW Makefiles",
+                *cmake_configure_cmd[1:],
+            ]
 
         try:
             subprocess.run(
