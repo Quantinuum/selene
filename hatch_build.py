@@ -104,6 +104,33 @@ class CargoWorkspaceBuild:
                             f"Copying {lib_path} to {destination}"
                         )
                         shutil.copy(lib_path, destination)
+                if sys.platform == "win32" and lib_name == "selene_stim_plugin":
+                    self.bundle_mingw_runtime_dll(
+                        destination=destination, dll_name="libstdc++-6.dll"
+                    )
+
+    def bundle_mingw_runtime_dll(self, destination: Path, dll_name: str):
+        for compiler in ("gcc", "x86_64-w64-mingw32-gcc"):
+            compiler_path = shutil.which(compiler)
+            if compiler_path is None:
+                continue
+            call = subprocess.run(
+                [compiler_path, f"-print-file-name={dll_name}"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if call.returncode != 0:
+                continue
+            dll_path = Path(call.stdout.strip())
+            if call.stdout.strip() == dll_name or not dll_path.exists():
+                continue
+            self.hook.app.display_info(f"Copying {dll_path} to {destination}")
+            shutil.copy(dll_path, destination / dll_name)
+            return
+        self.hook.app.display_info(
+            f"Unable to resolve {dll_name} via gcc; skipping runtime dll bundling"
+        )
 
 
 class BundleBuildHook(BuildHookInterface):

@@ -8,6 +8,7 @@ from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
 from selene_sim import Quest
 from selene_sim.build import build
 from selene_helios_qis_plugin import HeliosInterface
+from selene_stim_plugin import StimPlugin
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 QIS_RESOURCE_DIR = RESOURCE_DIR / "qis"
@@ -29,6 +30,12 @@ def test_helios_interface_windows_falls_back_to_msvc_lib():
     ):
         library_file = HeliosInterface().library_file
     assert library_file.name == "helios_selene_interface.lib"
+
+
+def test_stim_plugin_windows_library_search_dirs():
+    with patch("platform.system", return_value="Windows"):
+        search_dirs = StimPlugin().library_search_dirs
+    assert search_dirs and search_dirs[0].name == "lib"
 
 
 def get_platform_suffix():
