@@ -38,6 +38,11 @@ def get_platform_suffix():
 
 
 def get_helios_resource(program_name: str) -> Path:
+    """Return the platform-specific Helios IR fixture for a program.
+
+    On Windows we prefer the GNU-target fixture name, but fall back to the
+    existing MSVC fixture when a GNU fixture file is not present.
+    """
     filename = f"{program_name}-{get_platform_suffix()}.ll"
     helios_file = QIS_RESOURCE_DIR / "helios" / filename
     if helios_file.exists():

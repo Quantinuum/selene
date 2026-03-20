@@ -32,7 +32,7 @@ pub unsafe extern "C" fn invalidQuESTInputError(err_msg: *const c_char, err_func
         "Unknown QuEST error"
     } else {
         // SAFETY: `err_msg` is expected to be a valid null-terminated C string from QuEST.
-        unsafe { CStr::from_ptr(err_msg) }
+        CStr::from_ptr(err_msg)
             .to_str()
             .unwrap_or("Invalid UTF-8 in QuEST error message")
     };
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn invalidQuESTInputError(err_msg: *const c_char, err_func
         "unknown"
     } else {
         // SAFETY: `err_func` is expected to be a valid null-terminated C string from QuEST.
-        unsafe { CStr::from_ptr(err_func) }
+        CStr::from_ptr(err_func)
             .to_str()
             .unwrap_or("Invalid UTF-8 in QuEST function name")
     };
