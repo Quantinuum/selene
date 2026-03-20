@@ -1,8 +1,6 @@
 import datetime
-import platform
 from pathlib import Path
 
-import pytest
 import yaml
 from qir_qis import qir_ll_to_bc, get_entry_attributes
 from selene_sim import Stim
@@ -12,10 +10,6 @@ RESOURCE_DIR = Path(__file__).parent / "resources"
 QIR_RESOURCE_DIR = RESOURCE_DIR / "qir"
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="QIR -> QIS conversion currently crashes with access violation on Windows CI.",
-)
 def test_adaptive_cond_loop(snapshot):
     ll_file = QIR_RESOURCE_DIR / "adaptive_cond_loop.ll"
     ll_text = ll_file.read_text()

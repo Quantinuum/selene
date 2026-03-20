@@ -1354,7 +1354,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = "~=6.0" },
-    { name = "qir-qis", specifier = ">=0.1.1" },
+    { name = "qir-qis", specifier = ">=0.1.2,<0.1.4" },
     { name = "typing-extensions", specifier = ">=4" },
     { name = "ziglang", specifier = "~=0.13" },
 ]
