@@ -1,6 +1,7 @@
 import subprocess
 import shutil
 import sys
+import os
 from packaging.tags import sys_tags
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
@@ -60,7 +61,7 @@ class CargoWorkspaceBuild:
         self.hook.app.display_success("Cargo build completed successfully")
 
     def extract_libs(self):
-        release_dir = Path(self.hook.root) / "target/release"
+        release_dir = self.hook.get_cargo_release_dir()
         assert release_dir.exists()
         for package in self.metadata["packages"]:
             for target in package["targets"]:
@@ -106,6 +107,14 @@ class CargoWorkspaceBuild:
 
 
 class BundleBuildHook(BuildHookInterface):
+    def get_cargo_release_dir(self) -> Path:
+        target = os.environ.get("CARGO_BUILD_TARGET")
+        if target:
+            candidate = Path(self.root) / "target" / target / "release"
+            if candidate.exists():
+                return candidate
+        return Path(self.root) / "target/release"
+
     def initialize(self, version: str, build_data: dict) -> None:
         cargo_runner = CargoWorkspaceBuild(self)
         cargo_runner.run()
@@ -188,7 +197,7 @@ class BundleBuildHook(BuildHookInterface):
         build_data["tag"] = f"py3-none-{target_platform}"
 
     def find_release_files(self, cdylib_name):
-        release_dir = Path(self.root) / "target/release"
+        release_dir = self.get_cargo_release_dir()
         if sys.platform == "darwin":
             return [release_dir / f"lib{cdylib_name}.dylib"]
         elif sys.platform == "linux":
