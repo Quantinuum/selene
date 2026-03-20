@@ -308,16 +308,19 @@ class BundleBuildHook(BuildHookInterface):
         dist_dir = helios_qis_dir / "python/selene_helios_qis_plugin/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
         selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+        cmake_configure_cmd = [
+            "cmake",
+            f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
+            "..",
+        ]
+        if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
+            cmake_configure_cmd[1:1] = ["-G", "MinGW Makefiles"]
 
         try:
             subprocess.run(
-                [
-                    "cmake",
-                    f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
-                    "..",
-                ],
+                cmake_configure_cmd,
                 cwd=cmake_build_dir,
                 check=True,
                 capture_output=True,
@@ -331,13 +334,7 @@ class BundleBuildHook(BuildHookInterface):
                 shutil.rmtree(cmake_build_dir)
                 cmake_build_dir.mkdir()
                 subprocess.run(
-                    [
-                        "cmake",
-                        f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
-                        "-DCMAKE_BUILD_TYPE=Release",
-                        f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
-                        "..",
-                    ],
+                    cmake_configure_cmd,
                     cwd=cmake_build_dir,
                     check=True,
                     capture_output=True,
