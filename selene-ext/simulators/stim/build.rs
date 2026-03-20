@@ -14,9 +14,7 @@ fn main() {
     println!("cargo:rustc-link-lib=static=selene_stim_c_interface");
 
     let target_triple = std::env::var("TARGET").unwrap();
-    if target_triple.contains("linux-gnu") {
-        println!("cargo:rustc-link-lib=stdc++");
-    } else if target_triple.contains("windows-gnu") {
+    if target_triple.contains("linux-gnu") || target_triple.contains("windows-gnu") {
         println!("cargo:rustc-link-lib=stdc++");
     } else if target_triple.contains("apple-darwin") {
         println!("cargo:rustc-link-lib=c++");
