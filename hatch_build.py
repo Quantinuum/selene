@@ -334,6 +334,7 @@ class BundleBuildHook(BuildHookInterface):
                     [
                         "cmake",
                         f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+                        "-DCMAKE_BUILD_TYPE=Release",
                         f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
                         "..",
                     ],
@@ -353,6 +354,8 @@ class BundleBuildHook(BuildHookInterface):
                     ".",
                     "--target",
                     "install",
+                    "--config",
+                    "Release",
                 ],
                 check=True,
                 cwd=cmake_build_dir,
