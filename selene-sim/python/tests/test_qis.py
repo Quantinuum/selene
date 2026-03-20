@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 import platform
+from unittest.mock import patch
 
 import yaml
 from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
@@ -10,6 +11,15 @@ from selene_helios_qis_plugin import HeliosInterface
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 QIS_RESOURCE_DIR = RESOURCE_DIR / "qis"
+
+
+def test_helios_interface_windows_prefers_mingw_static_lib():
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("pathlib.Path.exists", return_value=True),
+    ):
+        library_file = HeliosInterface().library_file
+    assert library_file.name == "libhelios_selene_interface.a"
 
 
 def get_platform_suffix():
