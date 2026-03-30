@@ -42,7 +42,18 @@ This will automatically install our core interfaces, the hugr compiler, bundled 
 
 ## Citation
 
-If you use this software, please cite it using [CITATION.cff](CITATION.cff) or the "Cite this repository" option in the GitHub repository's About section.
+If you use this software, please cite it using [CITATION.cff](CITATION.cff), the "Cite this repository" option in the GitHub repository's About section, or the following BibTeX entry:
+
+```bibtex
+@software{selene,
+  title = {Selene},
+  author = {Arkinstall, Jake and {TKET development team}},
+  year = {2025},
+  organization = {Quantinuum},
+  url = {https://github.com/Quantinuum/selene},
+  license = {Apache-2.0},
+}
+```
 
 ## Usage examples
 
