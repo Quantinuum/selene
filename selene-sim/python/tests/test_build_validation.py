@@ -2,8 +2,7 @@ import pytest
 import platform
 from pathlib import Path
 
-from guppylang import guppy
-from guppylang.std.quantum import discard, qubit
+from conftest import hugr_file
 
 from selene_sim.build import build
 from selene_sim import Quest
@@ -25,7 +24,7 @@ from selene_sim import Quest
         {"name": "llvm_bc", "kwargs": {"build_method": "via-llvm-bitcode"}},
     ],
 )
-def test_strict_builds_guppy(build_config):
+def test_strict_builds_hugr(build_config):
     """
     Selene sim builds are multi-step processes that
     are described by a build graph, with artifacts
@@ -54,14 +53,13 @@ def test_strict_builds_guppy(build_config):
     and all of their intermediate artifacts conform to
     expectations - and, importantly, to ensure that the
     checks are working as intended.
+
+    The input is a pre-compiled HUGR envelope file (platform-independent),
+    which exercises the full HUGR-to-QIS compilation pipeline with each
+    build method.
     """
 
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        discard(q0)
-
-    runner = build(main.compile(), strict=True, **build_config["kwargs"])
+    runner = build(hugr_file("simple_discard"), strict=True, **build_config["kwargs"])
     got = list(runner.run(Quest(), n_qubits=1))
     assert len(got) == 0
 

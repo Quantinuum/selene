@@ -46,7 +46,6 @@ repository = "https://github.com/quantinuum/selene"
 dev = [
   "auditwheel>=6.3.0",
   "cibuildwheel>=2.23.3",
-  "guppylang~=0.21.6,!=0.21.7,!=0.21.9", # temporary workaround for libtket.so compatibility issues
   "hugr>=0.13.0",
   "mypy>=1.14.1",
   "pip>=24.2",
@@ -159,7 +158,6 @@ DEP003 = [
   "packaging", # used in build system
 ]
 DEP004 = [
-  "guppylang", # used in tests
   "hugr",      # used in tests
   "pytest",    # used in tests
   "qir_qis",   # used in tests
@@ -176,7 +174,6 @@ environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-requires = [
   "pytest",
   "pytest-snapshot",
-  "guppylang~=0.21.6,!=0.21.7,!=0.21.9",
   "pytket~=2.9.1",
 ]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"

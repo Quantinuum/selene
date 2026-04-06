@@ -1,19 +1,13 @@
 import pytest
 
-from guppylang import guppy
-from guppylang.std.quantum import discard, qubit
+from conftest import hugr_file
 
 from selene_sim.build import build
 from selene_sim import Quest
 
 
 def test_delete_files():
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        discard(q0)
-
-    runner = build(main.compile())
+    runner = build(hugr_file("simple_discard"))
     got = list(runner.run(Quest(), n_qubits=1))
     runner.delete_files()
     with pytest.raises(FileNotFoundError):
@@ -31,12 +25,7 @@ def test_delete_files():
 
 
 def test_delete_run_directories():
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        discard(q0)
-
-    runner = build(main.compile())
+    runner = build(hugr_file("simple_discard"))
     got = list(runner.run(Quest(), n_qubits=1))
     assert len(list(runner.runs.iterdir())) == 1
 

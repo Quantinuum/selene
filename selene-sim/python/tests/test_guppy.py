@@ -4,29 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from guppylang.decorator import guppy
-from guppylang.std.builtins import array, exit, panic, result
-from guppylang.std.qsystem.random import RNG
-from guppylang.std.qsystem.utils import get_current_shot
-from guppylang.std.qsystem import measure_leaked
-from guppylang.std.angles import angle
-from guppylang.std.quantum import (
-    cx,
-    cy,
-    cz,
-    discard,
-    h,
-    ry,
-    measure,
-    measure_array,
-    qubit,
-    t,
-    tdg,
-    toffoli,
-    x,
-    y,
-    z,
-)
+from conftest import qis_file
 from hugr.qsystem.result import QsysResult
 from selene_sim import ClassicalReplay, Coinflip, Quest, Stim, SimpleLeakageErrorModel
 from selene_sim.build import build
@@ -35,13 +13,7 @@ from selene_sim.exceptions import SelenePanicError, SeleneRuntimeError
 
 
 def test_no_results():
-    @guppy
-    def bar() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        m = measure(q0)
-
-    runner = build(bar.compile(), "no_results")
+    runner = build(qis_file("no_results"))
     # time limits aren't necessary in general, but they are helpful in testing
     got = list(
         runner.run(Coinflip(), n_qubits=1, timeout=datetime.timedelta(seconds=1))
@@ -50,21 +22,7 @@ def test_no_results():
 
 
 def test_flip_some():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
-
-    runner = build(main.compile(), "flip_n4")
+    runner = build(qis_file("flip_n4"))
     expected = {"c0": 1, "c1": 0, "c2": 1, "c3": 1}
     # run the simulation on Quest and Stim
     for simulator in [Quest(), Stim()]:
@@ -97,19 +55,7 @@ def test_flip_some():
 
 
 def test_print_array():
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(10))
-        x(qs[0])
-        x(qs[2])
-        x(qs[3])
-        x(qs[9])
-        cs = measure_array(qs)
-        result("cs", cs)
-        result("is", array(i for i in range(100)))
-        result("fs", array(i * 0.0625 for i in range(100)))
-
-    runner = build(main.compile(), "flip_n4_arr")
+    runner = build(qis_file("flip_n4_arr"))
     expected = {
         "cs": [1, 0, 1, 1, 0, 0, 0, 0, 0, 1],
         "is": list(range(100)),
@@ -129,16 +75,7 @@ def test_exit():
     further shots.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            exit("Postselection failed", 42)
-        result("c", outcome)
-
-    runner = build(main.compile(), "exit")
+    runner = build(qis_file("exit"))
     # some should have measurements of 0, some should have no measurements.
     n_1 = 0
     n_0 = 0
@@ -175,16 +112,7 @@ def test_panic():
     into the results.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            panic("Postselection failed")
-        result("c", outcome)
-
-    runner = build(main.compile(), "panic")
+    runner = build(qis_file("panic"))
     with pytest.raises(
         SelenePanicError, match="Postselection failed"
     ) as exception_info:
@@ -199,43 +127,12 @@ def test_panic():
 
 
 def test_measure_leaked(snapshot):
-    @guppy
-    def cx_from_head() -> None:
-        head = qubit()
-        tail = array(qubit() for _ in range(20))
-        h(head)
-        for i in range(20):
-            cx(head, tail[i])
-        hl = measure_leaked(head)
-        if hl.is_leaked():
-            hl.discard()
-            result("head_leaked", 1)
-        else:
-            result("head", hl.to_result().unwrap())
-        result("tail", measure_array(tail))
-
-    @guppy
-    def cx_within_tail() -> None:
-        head = qubit()
-        tail = array(qubit() for _ in range(20))
-        h(head)
-        cx(head, tail[0])
-        for i in range(19):
-            cx(tail[i], tail[i + 1])
-        hl = measure_leaked(head)
-        if hl.is_leaked():
-            hl.discard()
-            result("head_leaked", 1)
-        else:
-            result("head", hl.to_result().unwrap())
-        result("tail", measure_array(tail))
-
     simulator = Stim(random_seed=0)
     error_model = SimpleLeakageErrorModel(
         p_leak=0.01, leak_measurement_bias=0.8, random_seed=0
     )
 
-    runner = build(cx_from_head.compile(), "leak_from_head")
+    runner = build(qis_file("leak_from_head"))
     shots = [
         list(shot)
         for shot in runner.run_shots(
@@ -249,7 +146,7 @@ def test_measure_leaked(snapshot):
         yaml.dump(shots),
         "measure_leaked_from_head",
     )
-    runner = build(cx_within_tail.compile(), "leak_within_tail")
+    runner = build(qis_file("leak_within_tail"))
     shots = [
         list(shot)
         for shot in runner.run_shots(
@@ -266,40 +163,7 @@ def test_measure_leaked(snapshot):
 
 
 def test_rus():
-    @guppy
-    def rus(q: qubit) -> None:
-        while True:
-            # Prepare ancillary qubits
-            a, b = qubit(), qubit()
-            h(a)
-            h(b)
-
-            tdg(a)
-            cx(b, a)
-            t(a)
-            if not measure(a):
-                # First part failed; try again
-                discard(b)
-                continue
-
-            t(q)
-            z(q)
-            cx(q, b)
-            t(b)
-            if measure(b):
-                # Success, we are done
-                break
-
-            # Otherwise, apply correction
-            x(q)
-
-    @guppy
-    def main() -> None:
-        q = qubit()
-        rus(q)
-        result("result", measure(q))
-
-    runner = build(main.compile(), "repeat_until_success")
+    runner = build(qis_file("repeat_until_success"))
     shots = QsysResult(
         runner.run_shots(
             Quest(random_seed=0),
@@ -320,11 +184,7 @@ def test_rus():
 
 
 def test_get_current_shot():
-    @guppy
-    def main() -> None:
-        result("shot", get_current_shot())
-
-    runner = build(main.compile(), "current_shot")
+    runner = build(qis_file("current_shot"))
     n_shots = 100
     shots = list(dict(shot) for shot in runner.run_shots(Quest(), 1, n_shots=n_shots))
     shot_ids = [shot["shot"] for shot in shots]
@@ -332,28 +192,7 @@ def test_get_current_shot():
 
 
 def test_rng(snapshot):
-    @guppy
-    def main() -> None:
-        rng = RNG(42)
-        rint = rng.random_int()
-        rint1 = rng.random_int()
-        rfloat = rng.random_float()
-        rint_bnd = rng.random_int_bounded(100)
-        rng.discard()
-        result("rint", rint)
-        result("rint1", rint1)
-        result("rfloat", rfloat)
-        result("rint_bnd", rint_bnd)
-        rng = RNG(84)
-        rint = rng.random_int()
-        rfloat = rng.random_float()
-        rint_bnd = rng.random_int_bounded(200)
-        rng.discard()
-        result("rint2", rint)
-        result("rfloat2", rfloat)
-        result("rint_bnd2", rint_bnd)
-
-    runner = build(main.compile(), "rng")
+    runner = build(qis_file("rng"))
     shots = list(
         dict(shot) for shot in runner.run_shots(Quest(), 1, n_shots=10, verbose=True)
     )
@@ -366,25 +205,8 @@ def test_rng(snapshot):
     snapshot.assert_match(yaml.dump(shots[0]), "rng")
 
 
-@pytest.mark.skipif(
-    not hasattr(RNG, "random_advance"),
-    reason="RNG advance is not implemented in guppy yet",
-)
 def test_rng_advance(snapshot):
-    @guppy
-    def main() -> None:
-        rng = RNG(get_current_shot() + 42)
-        rint = rng.random_int()
-        rfloat = rng.random_float()
-        rng.advance(-2)
-        rint2 = rng.random_int()
-        rfloat2 = rng.random_float()
-        result("rint", rint)
-        result("rint2", rint2)
-        result("rfloat", rfloat)
-        result("rfloat2", rfloat2)
-
-    runner = build(main.compile(), "rng_advance")
+    runner = build(qis_file("rng_advance"))
     shots = list(
         dict(shot) for shot in runner.run_shots(Quest(), 1, n_shots=10, verbose=True)
     )
@@ -408,18 +230,7 @@ def test_sim_restriction():
     caught and re-raised as an SelenePanicError.
     """
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        toffoli(q0, q1, q2)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-
-    runner = build(main.compile(), "nonclifford")
+    runner = build(qis_file("nonclifford"))
     with pytest.raises(SelenePanicError, match="not representable") as exception_info:
         shots = QsysResult(
             runner.run_shots(
@@ -457,13 +268,7 @@ def test_corrupted_plugin():
         def __del__(self):
             self.path.unlink(missing_ok=True)
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        result("c0", measure(q0))
-
-    runner = build(main.compile(), "broken_plugin")
+    runner = build(qis_file("broken_plugin"))
     with pytest.raises(
         SeleneRuntimeError, match=r"Failed to load runtime plugin"
     ) as exception_info:
@@ -479,18 +284,7 @@ def test_corrupted_plugin():
 
 
 def test_metrics(snapshot):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        toffoli(q0, q1, q2)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-
-    runner = build(main.compile(), "metrics")
+    runner = build(qis_file("metrics"))
     metric_store = MetricStore()
     shots = QsysResult(
         runner.run_shots(
@@ -517,19 +311,7 @@ def test_metrics(snapshot):
 
 
 def test_metrics_on_exit(snapshot):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        toffoli(q0, q1, q2)
-        result("c0", measure(q0))
-        exit("Testing exit with metrics", 0)
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-
-    runner = build(main.compile())
+    runner = build(qis_file("metrics_on_exit"))
     metric_store = MetricStore()
     shots = QsysResult(
         runner.run_shots(
@@ -562,24 +344,7 @@ def test_circuit_output():
         pytest.skip("pytket not available")
         return
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        c0 = measure(q0)
-        result("c0", c0)
-        if c0:
-            q1: qubit = qubit()
-            h(q1)
-            c1 = measure(q1)
-            result("c1", c1)
-            if c1:
-                q2: qubit = qubit()
-                h(q2)
-                c2 = measure(q2)
-                result("c2", c2)
-
-    runner = build(main.compile(), "circuit")
+    runner = build(qis_file("circuit"))
     circuits = CircuitExtractor()
     # ok, so let's construct some classical replay data
     # to run through all classical branches
@@ -635,33 +400,7 @@ def test_circuit_output():
 
 
 def test_measurement_output():
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        q1 = qubit()
-        q2 = qubit()
-        q3 = qubit()
-
-        x(q0)
-        if measure(q0):
-            x(q1)
-            cx(q1, q2)
-            z(q3)
-        else:
-            y(q1)
-            cz(q1, q2)
-            x(q3)
-
-        if measure(q1):
-            result("q2", measure(q2))
-            q3r = measure_leaked(q3).to_result()
-            result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
-        else:
-            q2r = measure_leaked(q2).to_result()
-            result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
-            result("q3", measure(q3))
-
-    runner = build(main.compile())
+    runner = build(qis_file("measurement_output"))
     measlog = MeasurementExtractor()
     got = list(runner.run(Quest(), verbose=True, n_qubits=4, event_hook=measlog))
 
@@ -677,34 +416,8 @@ def test_measurement_output():
 
 
 def test_measurement_output_multishot():
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        q1 = qubit()
-        q2 = qubit()
-        q3 = qubit()
-
-        x(q0)
-        if measure(q0):
-            x(q1)
-            cx(q1, q2)
-            z(q3)
-        else:
-            y(q1)
-            cz(q1, q2)
-            x(q3)
-
-        if measure(q1):
-            result("q2", measure(q2))
-            q3r = measure_leaked(q3).to_result()
-            result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
-        else:
-            q2r = measure_leaked(q2).to_result()
-            result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
-            result("q3", measure(q3))
-
     n_shots = 10
-    runner = build(main.compile())
+    runner = build(qis_file("measurement_output"))
     measlog = MeasurementExtractor()
     shots = runner.run_shots(
         Quest(), verbose=True, n_qubits=4, n_shots=10, event_hook=measlog
@@ -728,24 +441,8 @@ def test_cy():
     n_shots = 10
     two_qb_bases = ["00", "01", "10", "11"]
 
-    @guppy.comptime
-    def foo() -> None:
-        # test every basis state
-        for basis in two_qb_bases:
-            a, b = qubit(), qubit()
-            if basis[0] == "1":
-                x(a)
-            if basis[1] == "1":
-                x(b)
-
-            # if a is |1> the y gate will undo the cy
-            cy(a, b)
-            y(b)
-            ar = array(measure(a), measure(b))
-            result(basis, ar)
-
     res = QsysResult(
-        build(foo.compile()).run_shots(
+        build(qis_file("cy_test")).run_shots(
             Quest(),
             n_qubits=2,
             n_shots=n_shots,
@@ -768,22 +465,8 @@ def test_cz():
     """Test CZ is implemented correctly."""
     n_shots = 10
 
-    @guppy
-    def subc(a: qubit, b: qubit) -> None:
-        ry(a, angle(5.535942))
-
-        cz(a, b)
-
-    @guppy
-    def foo() -> None:
-        a, b = qubit(), qubit()
-        subc(a, b)
-        subc(a, b)
-        ar = array(measure(a), measure(b))
-        result("c", ar)
-
     res = QsysResult(
-        build(foo.compile()).run_shots(
+        build(qis_file("cz_test")).run_shots(
             Quest(),
             n_qubits=2,
             n_shots=n_shots,
