@@ -1,13 +1,10 @@
 import datetime
 import pytest
 
-from guppylang.decorator import guppy
-from guppylang.std.quantum import qubit, measure, h, cx, x
-from guppylang.std.builtins import result
-
 from selene_sim.build import build
 from selene_sim import Quest, Stim, ClassicalReplay, QuantumReplay
 from selene_sim.exceptions import SelenePanicError
+from conftest import qis_file
 
 
 def test_recursive_condition_successful_cases_single_process():
@@ -22,20 +19,7 @@ def test_recursive_condition_successful_cases_single_process():
     output), and an arbitrary number of True measurements beforehand.
     """
 
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
+    runner = build(qis_file("recursive_condition"))
 
     valid_measurements = [
         [False],
@@ -56,20 +40,7 @@ def test_recursive_condition_successful_cases_single_process():
 
 
 def test_recursive_condition_successful_cases_multi_process():
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
+    runner = build(qis_file("recursive_condition"))
 
     valid_measurements = [
         [False],
@@ -92,20 +63,7 @@ def test_recursive_condition_successful_cases_multi_process():
 
 
 def test_recursive_condition_invalid_cases_single_process():
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
+    runner = build(qis_file("recursive_condition"))
 
     invalid_measurements = [
         [],  # no outputs at all
@@ -130,20 +88,7 @@ def test_recursive_condition_invalid_cases_single_process():
 
 
 def test_recursive_condition_invalid_cases_multi_process():
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
+    runner = build(qis_file("recursive_condition"))
 
     invalid_measurements = [
         [],  # no outputs at all
@@ -170,27 +115,7 @@ def test_recursive_condition_invalid_cases_multi_process():
 
 @pytest.mark.parametrize("underlying_simulator_class", [Quest, Stim])
 def test_quantum_replay(underlying_simulator_class):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        h(q0)
-        cx(q0, q1)
-        cx(q1, q2)
-        x(q2)
-        cx(q2, q3)
-        # at this stage, the state should be a superposition
-        # of |0011> and |1100>
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
-        # this the results should either be (0,0,1,1) or (1,1,0,0)
-        # we can use quantum replay to verify this.
-
-    runner = build(main.compile(), "quantum_replay_quest")
+    runner = build(qis_file("quantum_replay"))
     underlying_simulator = underlying_simulator_class(random_seed=0)
     # run full replay - no measurements allowed, just postselection.
     # if the user program requires more measurements, this is an error.

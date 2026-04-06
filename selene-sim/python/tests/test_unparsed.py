@@ -2,10 +2,6 @@ import yaml
 import datetime
 from pathlib import Path
 
-from guppylang import guppy
-from guppylang.std.quantum import qubit, x, h, measure, measure_array
-from guppylang.std.builtins import exit
-
 from selene_sim.build import build
 from selene_sim import Quest, Stim
 from selene_sim.event_hooks import MetricStore
@@ -16,24 +12,11 @@ from selene_sim.exceptions import (
     SeleneTimeoutError,
 )
 from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
+from conftest import qis_file
 
 
 def test_flip_some_unparsed():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
-
-    runner = build(main.compile(), "flip_n4")
+    runner = build(qis_file("flip_n4"))
     got = list(runner.run(Quest(), verbose=True, n_qubits=4, parse_results=False))
     expected = [
         ("USER:BOOL:c0", 1),
@@ -45,21 +28,7 @@ def test_flip_some_unparsed():
 
 
 def test_flip_some_multishot_unparsed():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
-
-    runner = build(main.compile(), "flip_n4")
+    runner = build(qis_file("flip_n4"))
     shots = runner.run_shots(
         Quest(), verbose=True, n_qubits=4, n_shots=10, parse_results=False
     )
@@ -75,21 +44,7 @@ def test_flip_some_multishot_unparsed():
 
 
 def test_flip_some_with_metrics_unparsed(snapshot):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
-
-    runner = build(main.compile(), "flip_n4")
+    runner = build(qis_file("flip_n4"))
     store = MetricStore()
     got = list(
         runner.run(
@@ -100,17 +55,7 @@ def test_flip_some_with_metrics_unparsed(snapshot):
 
 
 def test_array_results_unparsed():
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(10))
-        for i in range(len(qs)):
-            x(qs[i])
-        bs = measure_array(qs)
-        result("bools", bs)
-        result("floats", array(1.0 / 2**i for i in range(10)))
-        result("ints", array(i for i in range(100)))
-
-    runner = build(main.compile(), "array_results")
+    runner = build(qis_file("array_results"))
     shots = list(
         list(shot)
         for shot in runner.run_shots(
@@ -148,16 +93,7 @@ def test_exit_unparsed():
     further shots.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            exit("Postselection failed", 42)
-        result("c", outcome)
-
-    runner = build(main.compile(), "exit")
+    runner = build(qis_file("exit"))
 
     # some should have measurements of 0, some should have no measurements.
     n_1 = 0
@@ -203,16 +139,7 @@ def test_panic_unparsed():
     and the panic should not result in an exception.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            panic("Postselection failed")
-        result("c", outcome)
-
-    runner = build(main.compile(), "panic")
+    runner = build(qis_file("panic"))
     shots, error = postprocess_unparsed_stream(
         runner.run_shots(
             Stim(),
@@ -234,14 +161,7 @@ def test_panic_unparsed():
 
 
 def test_infinite_loop_unparsed():
-    @guppy
-    def infinite_loop() -> None:
-        while True:
-            q0: qubit = qubit()
-            h(q0)
-            result("r", measure(q0))
-
-    runner = build(infinite_loop.compile(), "infinite_loop")
+    runner = build(qis_file("infinite_loop"))
 
     # give it no time to connect
     shots, error = postprocess_unparsed_stream(
@@ -285,16 +205,7 @@ def test_memory_allocation_unparsed():
     the failure is reported correctly.
     """
 
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(70))
-        for i in range(len(qs)):
-            if i % 2 == 0:
-                x(qs[i])
-        bs = measure_array(qs)
-        result("bools", bs)
-
-    runner = build(main.compile(), "memory_allocation")
+    runner = build(qis_file("memory_allocation"))
 
     shots, error = postprocess_unparsed_stream(
         runner.run_shots(
@@ -341,13 +252,7 @@ def test_corrupted_plugin_unparsed():
         def __del__(self):
             self.path.unlink(missing_ok=True)
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        result("c0", measure(q0))
-
-    runner = build(main.compile(), "broken_plugin")
+    runner = build(qis_file("broken_plugin"))
     shots, error = postprocess_unparsed_stream(
         runner.run_shots(
             Quest(),

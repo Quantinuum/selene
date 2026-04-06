@@ -1,26 +1,11 @@
-from guppylang.decorator import guppy
-from guppylang.std.quantum import qubit, measure, h, cx
-from guppylang.std.builtins import result
-
 from selene_sim.build import build
 from selene_sim import Quest, SimpleRuntime, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore
+from conftest import qis_file
 
 
 def test_simple_vs_softrz():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        cx(q0, q1)
-        cx(q1, q2)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-
-    runner = build(main.compile(), "runtime_diff")
+    runner = build(qis_file("runtime_diff"))
     simulator = Quest(random_seed=561278)
 
     simple_metric_store = MetricStore()

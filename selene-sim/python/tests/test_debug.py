@@ -1,38 +1,16 @@
 import pytest
 
-from guppylang import guppy
-from guppylang.std.builtins import array
-from guppylang.std.debug import state_result
-from guppylang.std.angles import pi
-from guppylang.std.quantum import (
-    discard,
-    qubit,
-    discard_array,
-    x,
-    h,
-    cx,
-    measure,
-    ry,
-    rz,
-    rx,
-)
-from guppylang.std.qsystem.utils import get_current_shot
 from hugr.qsystem.result import QsysResult
 import numpy as np
 
 from selene_sim.build import build
 from selene_sim import Quest, Stim, QuantumReplay
+from conftest import qis_file
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 def test_initial_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        state_result("initial_state", q0)
-        discard(q0)
-
-    runner = build(main.compile(), "initial_state")
+    runner = build(qis_file("debug_initial_state"))
     got = runner.run(simulator_plugin(), n_qubits=1)
     state = simulator_plugin.extract_states_dict(got)["initial_state"]
     assert state.get_dirac_notation()[0].probability == 1
@@ -40,15 +18,7 @@ def test_initial_state(simulator_plugin):
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 def test_array_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        for i in range(2):
-            x(qs[i])
-        state_result("array_state", qs)
-        discard_array(qs)
-
-    runner = build(main.compile(), "array_state")
+    runner = build(qis_file("debug_array_state_full"))
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(
@@ -65,15 +35,7 @@ def test_array_state(simulator_plugin):
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 def test_array_subscript_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        for i in range(2):
-            x(qs[i])
-        state_result("array_state", qs[0])
-        discard_array(qs)
-
-    runner = build(main.compile(), "array_state")
+    runner = build(qis_file("debug_array_state_single"))
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(
@@ -90,17 +52,7 @@ def test_array_subscript_state(simulator_plugin):
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 def test_qubit_ordering_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        x(qs[0])
-        # expected state is |10> so that qs[0] is the MSB
-        state_result("default", qs[0], qs[1])
-        # reversed order, expected state is |01>
-        state_result("reversed", qs[1], qs[0])
-        discard_array(qs)
-
-    runner = build(main.compile())
+    runner = build(qis_file("debug_qubit_ordering"))
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(
@@ -120,18 +72,7 @@ def test_qubit_ordering_state(simulator_plugin):
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 @pytest.mark.parametrize("first_measurement", [0, 1])
 def test_quantum_replay_state(simulator_plugin, first_measurement):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        h(q0)
-        cx(q0, q1)
-        state_result("entangled_state", q0, q1)
-        result("c0", measure(q0))
-        state_result("post_measurement_state", q1)
-        result("c1", measure(q1))
-
-    runner = build(main.compile(), "quantum_replay_state")
+    runner = build(qis_file("debug_quantum_replay"))
     underlying_simulator = simulator_plugin(random_seed=1234)
     replay_simulator = QuantumReplay(
         simulator=underlying_simulator,
@@ -172,38 +113,21 @@ def test_quantum_replay_state(simulator_plugin, first_measurement):
 
 @pytest.mark.parametrize("gate_name", ["rx", "ry", "rz"])
 def test_stim_gate_implementations_single_qubit(gate_name):
-    import random
-
-    random.seed(1234)
-    all_quarter_turns = [
-        i / 2 for i in range(-8, 9)
-    ]  # from -4pi to 4pi in pi/2 increments
-    params = [random.choice(all_quarter_turns) for _ in range(1000)]
-    gate = {"rx": rx, "ry": ry, "rz": rz}[gate_name]
-
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        angle = comptime(params)[get_current_shot()]
-        gate(q0, pi * angle)
-        state_result("entangled_state", q0)
-        discard(q0)
-
-    runner = build(main.compile())
+    runner = build(qis_file(f"debug_gate_impl_{gate_name}"))
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(
                 angle_threshold=1e-2,  # reduce threshold to catch more errors
             ),
             n_qubits=2,
-            n_shots=len(params),
+            n_shots=1000,
         )
     )
     quest_shots = QsysResult(
         runner.run_shots(
             simulator=Quest(),
             n_qubits=2,
-            n_shots=len(params),
+            n_shots=1000,
         )
     )
     for shot, (stim_shot, quest_shot) in enumerate(
@@ -214,7 +138,6 @@ def test_stim_gate_implementations_single_qubit(gate_name):
         quest_state = Quest.extract_states_dict(quest_shot.entries)["entangled_state"]
         quest_statevector = quest_state.get_single_state()
         print(f"Shot {shot}:")
-        print(f"   gate: {gate_name}(pi * {params[shot]})")
         print("   Stim state:", stim_statevector)
         print("   Quest state:", quest_statevector)
         print("   Stabilizers", stim_state.get_reduced_stabilizers())
@@ -222,39 +145,21 @@ def test_stim_gate_implementations_single_qubit(gate_name):
 
 
 def test_stim_gate_implementations_single_qubit_triples():
-    import random
-
-    random.seed(1234)
-    all_quarter_turns = [
-        i / 2 for i in range(-8, 9)
-    ]  # from -4pi to 4pi in pi/2 increments
-    params = [[random.choice(all_quarter_turns) for _ in range(3)] for _ in range(1000)]
-
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        angles = comptime(params)[get_current_shot()]
-        rx(q0, pi * angles[0])
-        ry(q0, pi * angles[1])
-        rz(q0, pi * angles[2])
-        state_result("entangled_state", q0)
-        discard(q0)
-
-    runner = build(main.compile())
+    runner = build(qis_file("debug_gate_impl_triples"))
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(
                 angle_threshold=1e-2,  # reduce threshold to catch more errors
             ),
             n_qubits=2,
-            n_shots=len(params),
+            n_shots=1000,
         )
     )
     quest_shots = QsysResult(
         runner.run_shots(
             simulator=Quest(),
             n_qubits=2,
-            n_shots=len(params),
+            n_shots=1000,
         )
     )
     for shot, (stim_shot, quest_shot) in enumerate(
@@ -265,9 +170,6 @@ def test_stim_gate_implementations_single_qubit_triples():
         quest_state = Quest.extract_states_dict(quest_shot.entries)["entangled_state"]
         quest_statevector = quest_state.get_single_state()
         print(f"Shot {shot}:")
-        print(
-            f"   gate: rx(pi * {params[shot][0]}); ry(pi * {params[shot][1]}); rz(pi * {params[shot][2]})"
-        )
         print("   Stim state:", stim_statevector)
         print("   Quest state:", quest_statevector)
         print("   Stabilizers", stim_state.get_reduced_stabilizers())
@@ -277,15 +179,7 @@ def test_stim_gate_implementations_single_qubit_triples():
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 @pytest.mark.parametrize("cleanup_param", [True, False, None])
 def test_state_cleanup(simulator_plugin, cleanup_param):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        for i in range(2):
-            x(qs[i])
-        state_result("array_state", qs[0])
-        discard_array(qs)
-
-    runner = build(main.compile(), "array_state")
+    runner = build(qis_file("debug_array_state_single"))
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(

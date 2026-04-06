@@ -2,44 +2,22 @@ import datetime
 import time
 
 import pytest
-from guppylang.decorator import guppy
-from guppylang.std.builtins import result
-from guppylang.std.quantum import (
-    h,
-    measure,
-    qubit,
-)
 from hugr.qsystem.result import QsysResult
 from selene_sim import Quest
 from selene_sim.build import build
 from selene_sim.exceptions import SeleneTimeoutError, SeleneStartupError
 from selene_sim.timeout import Timeout
+from conftest import qis_file
 
 
 @pytest.fixture(scope="module")
 def non_terminating_with_results():
-    @guppy
-    def prog() -> None:
-        while True:
-            q0: qubit = qubit()
-            h(q0)
-            result("r", measure(q0))
-
-    return build(prog.compile())
+    return build(qis_file("non_terminating_with_results"))
 
 
 @pytest.fixture(scope="module")
 def non_terminating_without_results():
-    @guppy
-    def recurse(i: int) -> int:
-        # oops, infinite recursion!
-        return recurse(i + 1)
-
-    @guppy
-    def prog() -> None:
-        result("i", recurse(0))
-
-    return build(prog.compile())
+    return build(qis_file("non_terminating_without_results"))
 
 
 def test_timeout_zero(non_terminating_with_results):
