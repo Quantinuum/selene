@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Selene in your work, please cite it using the metadata from this file."
+title: "Selene"
+type: software
+abstract: "Quantinuum's open source emulator for quantum computation."
+authors:
+  - given-names: Jake
+    family-names: Arkinstall
+    email: jake.arkinstall@quantinuum.com
+    affiliation: Quantinuum
+  - name: TKET development team
+    email: tket-support@quantinuum.com
+    affiliation: Quantinuum
+repository-code: "https://github.com/Quantinuum/selene"
+url: "https://github.com/Quantinuum/selene"
+license: "Apache-2.0"
+year: 2025

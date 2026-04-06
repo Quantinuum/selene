@@ -40,6 +40,21 @@ To install selene, `pip install selene-sim`.
 
 This will automatically install our core interfaces, the hugr compiler, bundled components, and the Selene python frontend.
 
+## Citation
+
+If you use this software, please cite it using [CITATION.cff](CITATION.cff), the "Cite this repository" option in the GitHub repository's About section, or the following BibTeX entry:
+
+```bibtex
+@software{selene,
+  title = {Selene},
+  author = {Arkinstall, Jake and {TKET development team}},
+  year = {2025},
+  organization = {Quantinuum},
+  url = {https://github.com/Quantinuum/selene},
+  license = {Apache-2.0},
+}
+```
+
 ## Usage examples
 
 Although examples are provided in the [python tests](selene-sim/python/tests) folder, here are examples of using Selene with different input formats.
