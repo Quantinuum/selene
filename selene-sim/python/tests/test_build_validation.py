@@ -8,6 +8,15 @@ from selene_sim.build import build
 from selene_sim import Quest
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "simple_discard": """@guppy
+def main() -> None:
+    q0 = qubit()
+    discard(q0)
+""",
+}
+
+
 @pytest.mark.xfail(
     platform.system() == "Windows",
     reason=(

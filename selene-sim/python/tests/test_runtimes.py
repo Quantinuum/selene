@@ -4,6 +4,22 @@ from selene_sim.event_hooks import MetricStore
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "runtime_diff": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    h(q0)
+    cx(q0, q1)
+    cx(q1, q2)
+    result("c0", measure(q0))
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+}
+
+
 def test_simple_vs_softrz():
     runner = build(qis_file("runtime_diff"))
     simulator = Quest(random_seed=561278)

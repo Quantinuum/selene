@@ -7,6 +7,36 @@ from selene_sim.exceptions import SelenePanicError
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "recursive_condition": """@guppy
+def recursive_condition() -> None:
+    q = qubit()
+    h(q)
+    outcome = measure(q)
+    result("c", outcome)
+    if outcome:
+        recursive_condition()
+
+@guppy
+def main() -> None:
+    recursive_condition()
+""",
+    "quantum_replay": """@guppy
+def main() -> None:
+    q0, q1, q2, q3 = qubit(), qubit(), qubit(), qubit()
+    h(q0)
+    cx(q0, q1)
+    cx(q1, q2)
+    x(q2)
+    cx(q2, q3)
+    result("c0", measure(q0))
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+    result("c3", measure(q3))
+""",
+}
+
+
 def test_recursive_condition_successful_cases_single_process():
     """
     This test checks that the simulator can handle a recursive function, and

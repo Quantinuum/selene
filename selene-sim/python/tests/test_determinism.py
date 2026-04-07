@@ -5,6 +5,24 @@ from selene_sim import Stim, DepolarizingErrorModel
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "determinism": """@guppy
+def main() -> None:
+    qubits = array(qubit() for _ in range(5))
+    for i in range(len(qubits)):
+        h(qubits[i])
+    bits = measure_array(qubits)
+    result("a", bits[0]); result("b", bits[1]); result("c", bits[2])
+    result("d", bits[3]); result("e", bits[4])
+    result("shot", get_current_shot())
+    rng = RNG(get_current_shot())
+    result("random_int", rng.random_int())
+    result("random_float", rng.random_float())
+    rng.discard()
+""",
+}
+
+
 def test_repetition(snapshot):
     runner = build(qis_file("determinism"))
 

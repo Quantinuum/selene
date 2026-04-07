@@ -15,6 +15,72 @@ from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "flip_n4": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    q3: qubit = qubit()
+    x(q0); x(q2); x(q3)
+    result("c0", measure(q0))
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+    result("c3", measure(q3))
+""",
+    "array_results": """@guppy
+def main() -> None:
+    qs = array(qubit() for _ in range(10))
+    for i in range(len(qs)):
+        x(qs[i])
+    bs = measure_array(qs)
+    result("bools", bs)
+    result("floats", array(1.0 / 2**i for i in range(10)))
+    result("ints", array(i for i in range(100)))
+""",
+    "exit": """@guppy
+def main() -> None:
+    q = qubit()
+    h(q)
+    outcome = measure(q)
+    if outcome:
+        exit("Postselection failed", 42)
+    result("c", outcome)
+""",
+    "panic": """@guppy
+def main() -> None:
+    q = qubit()
+    h(q)
+    outcome = measure(q)
+    if outcome:
+        panic("Postselection failed")
+    result("c", outcome)
+""",
+    "infinite_loop": """@guppy
+def infinite_loop() -> None:
+    while True:
+        q0: qubit = qubit()
+        h(q0)
+        result("r", measure(q0))
+""",
+    "memory_allocation": """@guppy
+def main() -> None:
+    qs = array(qubit() for _ in range(70))
+    for i in range(len(qs)):
+        if i % 2 == 0:
+            x(qs[i])
+    bs = measure_array(qs)
+    result("bools", bs)
+""",
+    "broken_plugin": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    h(q0)
+    result("c0", measure(q0))
+""",
+}
+
+
 def test_flip_some_unparsed():
     runner = build(qis_file("flip_n4"))
     got = list(runner.run(Quest(), verbose=True, n_qubits=4, parse_results=False))

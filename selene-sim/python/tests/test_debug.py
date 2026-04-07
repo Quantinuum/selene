@@ -8,6 +8,67 @@ from selene_sim import Quest, Stim, QuantumReplay
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "debug_initial_state": """@guppy
+def main() -> None:
+    q0 = qubit()
+    state_result("initial_state", q0)
+    discard(q0)
+""",
+    "debug_array_state_full": """@guppy
+def main() -> None:
+    qs = array(qubit() for _ in range(2))
+    for i in range(2):
+        x(qs[i])
+    state_result("array_state", qs)
+    discard_array(qs)
+""",
+    "debug_array_state_single": """@guppy
+def main() -> None:
+    qs = array(qubit() for _ in range(2))
+    for i in range(2):
+        x(qs[i])
+    state_result("array_state", qs[0])
+    discard_array(qs)
+""",
+    "debug_qubit_ordering": """@guppy
+def main() -> None:
+    qs = array(qubit() for _ in range(2))
+    x(qs[0])
+    state_result("default", qs[0], qs[1])
+    state_result("reversed", qs[1], qs[0])
+    discard_array(qs)
+""",
+    "debug_quantum_replay": """@guppy
+def main() -> None:
+    q0, q1 = qubit(), qubit()
+    h(q0); cx(q0, q1)
+    state_result("entangled_state", q0, q1)
+    result("c0", measure(q0))
+    state_result("post_measurement_state", q1)
+    result("c1", measure(q1))
+""",
+    "debug_gate_impl_rx|ry|rz": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    angle = comptime(params)[get_current_shot()]
+    gate(q0, pi * angle)  # gate is rx/ry/rz
+    state_result("entangled_state", q0)
+    discard(q0)
+""",
+    "debug_gate_impl_triples": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    angles = comptime(params)[get_current_shot()]
+    rx(q0, pi * angles[0])
+    ry(q0, pi * angles[1])
+    rz(q0, pi * angles[2])
+    state_result("entangled_state", q0)
+    discard(q0)
+""",
+}
+
+
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 def test_initial_state(simulator_plugin):
     runner = build(qis_file("debug_initial_state"))

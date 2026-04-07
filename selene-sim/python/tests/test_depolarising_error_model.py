@@ -8,6 +8,36 @@ from selene_sim.backends import DepolarizingErrorModel
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "depolarising_2q_measure": """@guppy
+def main() -> None:
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    h(q1)
+    h(q2)
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+    "depolarising_2q_init": """@guppy
+def main() -> None:
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+    "depolarising_gates": """@guppy
+def main() -> None:
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    x(q1)
+    y(q2); y(q2)
+    cx(q1, q2); cx(q1, q2)
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+}
+
+
 # given some shot results, we want a nice dict from
 # (c1 value, c2 value) => count
 # requires 2 qubit runs, results output as c1, c2

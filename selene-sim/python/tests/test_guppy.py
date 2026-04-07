@@ -12,6 +12,212 @@ from selene_sim.event_hooks import CircuitExtractor, MetricStore, MeasurementExt
 from selene_sim.exceptions import SelenePanicError, SeleneRuntimeError
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "no_results": """@guppy
+def bar() -> None:
+    q0: qubit = qubit()
+    h(q0)
+    m = measure(q0)
+""",
+    "flip_n4": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    q3: qubit = qubit()
+    x(q0); x(q2); x(q3)
+    result("c0", measure(q0))
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+    result("c3", measure(q3))
+""",
+    "flip_n4_arr": """@guppy
+def main() -> None:
+    qs = array(qubit() for _ in range(10))
+    x(qs[0]); x(qs[2]); x(qs[3]); x(qs[9])
+    cs = measure_array(qs)
+    result("cs", cs)
+    result("is", array(i for i in range(100)))
+    result("fs", array(i * 0.0625 for i in range(100)))
+""",
+    "exit": """@guppy
+def main() -> None:
+    q = qubit()
+    h(q)
+    outcome = measure(q)
+    if outcome:
+        exit("Postselection failed", 42)
+    result("c", outcome)
+""",
+    "panic": """@guppy
+def main() -> None:
+    q = qubit()
+    h(q)
+    outcome = measure(q)
+    if outcome:
+        panic("Postselection failed")
+    result("c", outcome)
+""",
+    "leak_from_head": """@guppy
+def cx_from_head() -> None:
+    head = qubit()
+    tail = array(qubit() for _ in range(20))
+    h(head)
+    for i in range(20):
+        cx(head, tail[i])
+    hl = measure_leaked(head)
+    if hl.is_leaked():
+        hl.discard()
+        result("head_leaked", 1)
+    else:
+        result("head", hl.to_result().unwrap())
+    result("tail", measure_array(tail))
+""",
+    "leak_within_tail": """@guppy
+def cx_within_tail() -> None:
+    head = qubit()
+    tail = array(qubit() for _ in range(20))
+    h(head)
+    cx(head, tail[0])
+    for i in range(19):
+        cx(tail[i], tail[i + 1])
+    hl = measure_leaked(head)
+    if hl.is_leaked():
+        hl.discard()
+        result("head_leaked", 1)
+    else:
+        result("head", hl.to_result().unwrap())
+    result("tail", measure_array(tail))
+""",
+    "repeat_until_success": """@guppy
+def rus(q: qubit) -> None:
+    while True:
+        a, b = qubit(), qubit()
+        h(a); h(b)
+        tdg(a); cx(b, a); t(a)
+        if not measure(a):
+            discard(b)
+            continue
+        t(q); z(q); cx(q, b); t(b)
+        if measure(b):
+            break
+        x(q)
+
+@guppy
+def main() -> None:
+    q = qubit()
+    rus(q)
+    result("result", measure(q))
+""",
+    "current_shot": """@guppy
+def main() -> None:
+    result("shot", get_current_shot())
+""",
+    "rng": """@guppy
+def main() -> None:
+    rng = RNG(42)
+    result("rint", rng.random_int())
+    result("rint1", rng.random_int())
+    result("rfloat", rng.random_float())
+    result("rint_bnd", rng.random_int_bounded(100))
+    rng.discard()
+    rng = RNG(84)
+    result("rint2", rng.random_int())
+    result("rfloat2", rng.random_float())
+    result("rint_bnd2", rng.random_int_bounded(200))
+    rng.discard()
+""",
+    "nonclifford": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    h(q0)
+    toffoli(q0, q1, q2)
+    result("c0", measure(q0))
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+    "metrics": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    h(q0)
+    toffoli(q0, q1, q2)
+    result("c0", measure(q0))
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+    "metrics_on_exit": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    q1: qubit = qubit()
+    q2: qubit = qubit()
+    h(q0)
+    toffoli(q0, q1, q2)
+    result("c0", measure(q0))
+    exit("Testing exit with metrics", 0)
+    result("c1", measure(q1))
+    result("c2", measure(q2))
+""",
+    "circuit": """@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    h(q0)
+    c0 = measure(q0)
+    result("c0", c0)
+    if c0:
+        q1: qubit = qubit()
+        h(q1)
+        c1 = measure(q1)
+        result("c1", c1)
+        if c1:
+            q2: qubit = qubit()
+            h(q2)
+            c2 = measure(q2)
+            result("c2", c2)
+""",
+    "measurement_output": """@guppy
+def main() -> None:
+    q0, q1, q2, q3 = qubit(), qubit(), qubit(), qubit()
+    x(q0)
+    if measure(q0):
+        x(q1); cx(q1, q2); z(q3)
+    else:
+        y(q1); cz(q1, q2); x(q3)
+    if measure(q1):
+        result("q2", measure(q2))
+        q3r = measure_leaked(q3).to_result()
+        result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
+    else:
+        q2r = measure_leaked(q2).to_result()
+        result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
+        result("q3", measure(q3))
+""",
+    "cy_test": """@guppy.comptime
+def foo() -> None:
+    for basis in ["00", "01", "10", "11"]:
+        a, b = qubit(), qubit()
+        if basis[0] == "1": x(a)
+        if basis[1] == "1": x(b)
+        cy(a, b); y(b)
+        result(basis, array(measure(a), measure(b)))
+""",
+    "cz_test": """@guppy
+def subc(a: qubit, b: qubit) -> None:
+    ry(a, angle(5.535942))
+    cz(a, b)
+
+@guppy
+def foo() -> None:
+    a, b = qubit(), qubit()
+    subc(a, b); subc(a, b)
+    result("c", array(measure(a), measure(b)))
+""",
+}
+
+
 def test_no_results():
     runner = build(qis_file("no_results"))
     # time limits aren't necessary in general, but they are helpful in testing

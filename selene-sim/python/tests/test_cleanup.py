@@ -6,6 +6,15 @@ from selene_sim.build import build
 from selene_sim import Quest
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "simple_discard": """@guppy
+def main() -> None:
+    q0 = qubit()
+    discard(q0)
+""",
+}
+
+
 def test_delete_files():
     runner = build(hugr_file("simple_discard"))
     got = list(runner.run(Quest(), n_qubits=1))

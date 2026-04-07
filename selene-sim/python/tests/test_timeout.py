@@ -10,6 +10,25 @@ from selene_sim.timeout import Timeout
 from conftest import qis_file
 
 
+INLINE_GUPPY_PROGRAMS = {
+    "non_terminating_with_results": """@guppy
+def prog() -> None:
+    while True:
+        q0: qubit = qubit()
+        h(q0)
+        result("r", measure(q0))
+""",
+    "non_terminating_without_results": """@guppy
+def recurse(i: int) -> int:
+    return recurse(i + 1)
+
+@guppy
+def prog() -> None:
+    result("i", recurse(0))
+""",
+}
+
+
 @pytest.fixture(scope="module")
 def non_terminating_with_results():
     return build(qis_file("non_terminating_with_results"))
