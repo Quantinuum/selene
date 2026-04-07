@@ -7,6 +7,7 @@ readme = "python/selene_core/README.md"
 dependencies = [
   "hugr>=0.13.0",
   "lief>=0.16.5",
+  "llvmlite>=0.47.0",
   "networkx>=2.6,<4",
   "pydot>=4.0.0",
   "pyyaml~=6.0",

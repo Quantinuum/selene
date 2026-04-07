@@ -549,6 +549,9 @@ class InteractiveFullStack:
         self._call_void("selene_rzz", qubit_a.id, qubit_b.id, theta)
 
     def get_state(self, qubits: list[Qubit]):
+        assert hasattr(self.simulator, "extract_states"), (
+            "Simulator must implement extract_states to use get_state"
+        )
         qubit_ids_t = ctypes.c_uint64 * len(qubits)
         qubit_ids = qubit_ids_t(*[q.id for q in qubits])
         num_qubits = ctypes.c_uint64(len(qubits))

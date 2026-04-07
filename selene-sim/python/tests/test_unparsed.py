@@ -1,10 +1,7 @@
 import yaml
 import datetime
 from pathlib import Path
-
-from guppylang import guppy
-from guppylang.std.quantum import qubit, x, h, measure, measure_array
-from guppylang.std.builtins import exit
+from textwrap import dedent
 
 from selene_sim.build import build
 from selene_sim import Quest, Stim
@@ -18,22 +15,35 @@ from selene_sim.exceptions import (
 from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
 
 
-def test_flip_some_unparsed():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
+def test_flip_some_unparsed(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, measure
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "flip_n4")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            q3: qubit = qubit()
+            x(q0)
+            x(q2)
+            x(q3)
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+            result("c3", measure(q3))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="unparsed_flip_n4",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     got = list(runner.run(Quest(), verbose=True, n_qubits=4, parse_results=False))
     expected = [
         ("USER:BOOL:c0", 1),
@@ -44,22 +54,35 @@ def test_flip_some_unparsed():
     assert got == expected, f"expected {expected}, got {got}"
 
 
-def test_flip_some_multishot_unparsed():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
+def test_flip_some_multishot_unparsed(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, measure
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "flip_n4")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            q3: qubit = qubit()
+            x(q0)
+            x(q2)
+            x(q3)
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+            result("c3", measure(q3))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="unparsed_flip_n4",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     shots = runner.run_shots(
         Quest(), verbose=True, n_qubits=4, n_shots=10, parse_results=False
     )
@@ -74,22 +97,34 @@ def test_flip_some_multishot_unparsed():
         assert got == expected, f"expected {expected}, got {got}"
 
 
-def test_flip_some_with_metrics_unparsed(snapshot):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
+def test_flip_some_with_metrics_unparsed(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, measure
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "flip_n4")
+
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            q3: qubit = qubit()
+            x(q0)
+            x(q2)
+            x(q3)
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+            result("c3", measure(q3))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="unparsed_flip_n4",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     store = MetricStore()
     got = list(
         runner.run(
@@ -99,24 +134,39 @@ def test_flip_some_with_metrics_unparsed(snapshot):
     snapshot.assert_match(yaml.dump(got), "unparsed_metrics")
 
 
-def test_array_results_unparsed():
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(10))
-        for i in range(len(qs)):
-            x(qs[i])
-        bs = measure_array(qs)
-        result("bools", bs)
-        result("floats", array(1.0 / 2**i for i in range(10)))
-        result("ints", array(i for i in range(100)))
+def test_array_results_unparsed(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, measure_array
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "array_results")
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(10))
+            for i in range(len(qs)):
+                x(qs[i])
+            bs = measure_array(qs)
+            result("bools", bs)
+            result("floats", array(1.0 / 2**i for i in range(10)))
+            result("ints", array(i for i in range(100)))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="array_results",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
+
     shots = list(
         list(shot)
         for shot in runner.run_shots(
             Stim(), n_qubits=10, n_shots=20, parse_results=False, verbose=True
         )
     )
+
     expected = [
         ("USER:BOOLARR:bools", [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
         (
@@ -136,28 +186,42 @@ def test_array_results_unparsed():
         ),
         ("USER:INTARR:ints", list(range(100))),
     ]
+
     assert len(shots) == 20
     for shot in shots:
         assert shot == expected
 
 
-def test_exit_unparsed():
+def test_exit_unparsed(compiled_guppy):
     """
     This test verifies the behaviour of exit(), which should stop the shot
     and add the error message to the result stream, but should then resume
     further shots.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            exit("Postselection failed", 42)
-        result("c", outcome)
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, h, measure
+        from guppylang.std.builtins import result, exit
 
-    runner = build(main.compile(), "exit")
+        @guppy
+        def main() -> None:
+            q = qubit()
+            h(q)
+            outcome = measure(q)
+            if outcome:
+                exit("Postselection failed", 42)
+            result("c", outcome)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="exit_unparsed",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
 
     # some should have measurements of 0, some should have no measurements.
     n_1 = 0
@@ -195,7 +259,7 @@ def test_exit_unparsed():
     assert n_0 + n_exit == 100
 
 
-def test_panic_unparsed():
+def test_panic_unparsed(compiled_guppy):
     """
     This test verifies the behaviour of panic(), which should stop the shot
     and should not allow any further shots to be performed. Unlike with
@@ -203,16 +267,29 @@ def test_panic_unparsed():
     and the panic should not result in an exception.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            panic("Postselection failed")
-        result("c", outcome)
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, h, measure
+        from guppylang.std.builtins import result, panic
 
-    runner = build(main.compile(), "panic")
+        @guppy
+        def main() -> None:
+            q = qubit()
+            h(q)
+            outcome = measure(q)
+            if outcome:
+                panic("Postselection failed")
+            result("c", outcome)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="panic_unparsed",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     shots, error = postprocess_unparsed_stream(
         runner.run_shots(
             Stim(),
@@ -233,15 +310,28 @@ def test_panic_unparsed():
     assert shots[2] == [("EXIT:INT:Postselection failed", 1001)]
 
 
-def test_infinite_loop_unparsed():
-    @guppy
-    def infinite_loop() -> None:
-        while True:
-            q0: qubit = qubit()
-            h(q0)
-            result("r", measure(q0))
+def test_infinite_loop_unparsed(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, h, measure
+        from guppylang.std.builtins import result
 
-    runner = build(infinite_loop.compile(), "infinite_loop")
+        @guppy
+        def main() -> None:
+            while True:
+                q0: qubit = qubit()
+                h(q0)
+                result("r", measure(q0))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="infinite_loop",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
 
     # give it no time to connect
     shots, error = postprocess_unparsed_stream(
@@ -278,23 +368,36 @@ def test_infinite_loop_unparsed():
     assert "Expired timers: 'overall'" in error.message
 
 
-def test_memory_allocation_unparsed():
+def test_memory_allocation_unparsed(compiled_guppy):
     """
     Quest cannot physically allocate more qubits than can be addressed in memory,
     regardless of RAM available. This test verifies that the process fails and that
     the failure is reported correctly.
     """
 
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(70))
-        for i in range(len(qs)):
-            if i % 2 == 0:
-                x(qs[i])
-        bs = measure_array(qs)
-        result("bools", bs)
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, measure_array
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "memory_allocation")
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(70))
+            for i in range(len(qs)):
+                if i % 2 == 0:
+                    x(qs[i])
+            bs = measure_array(qs)
+            result("bools", bs)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="memory_allocation",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
 
     shots, error = postprocess_unparsed_stream(
         runner.run_shots(
@@ -312,7 +415,7 @@ def test_memory_allocation_unparsed():
     assert len(shots) == 0
 
 
-def test_corrupted_plugin_unparsed():
+def test_corrupted_plugin_unparsed(compiled_guppy):
     """
     On the python side, we only check that plugin files exist.
     They can still fail when we invoke the selene binary, so demand
@@ -341,13 +444,27 @@ def test_corrupted_plugin_unparsed():
         def __del__(self):
             self.path.unlink(missing_ok=True)
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        result("c0", measure(q0))
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, h, measure
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "broken_plugin")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            h(q0)
+            result("c0", measure(q0))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="corrupted_plugin",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
+
     shots, error = postprocess_unparsed_stream(
         runner.run_shots(
             Quest(),

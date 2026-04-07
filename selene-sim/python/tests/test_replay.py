@@ -1,16 +1,13 @@
 import datetime
 import pytest
-
-from guppylang.decorator import guppy
-from guppylang.std.quantum import qubit, measure, h, cx, x
-from guppylang.std.builtins import result
+from textwrap import dedent
 
 from selene_sim.build import build
 from selene_sim import Quest, Stim, ClassicalReplay, QuantumReplay
 from selene_sim.exceptions import SelenePanicError
 
 
-def test_recursive_condition_successful_cases_single_process():
+def test_recursive_condition(compiled_guppy):
     """
     This test checks that the simulator can handle a recursive function, and
     that the ClassicalReplay is capable of validating expectations about control
@@ -22,21 +19,35 @@ def test_recursive_condition_successful_cases_single_process():
     output), and an arbitrary number of True measurements beforehand.
     """
 
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure, h
+        from guppylang.std.builtins import result
+
+        @guppy
+        def recursive_condition() -> None:
+            q = qubit()
+            h(q)
+            outcome = measure(q)
+            result("c", outcome)
+            if outcome:
+                recursive_condition()
+
+        @guppy
+        def main() -> None:
             recursive_condition()
+        """
+    )
 
-    @guppy
-    def main() -> None:
-        recursive_condition()
+    llvm_file = compiled_guppy(
+        program_name="recursive_condition",
+        guppy_source=guppy_source,
+    )
 
-    runner = build(main.compile(), "recursive_condition")
+    runner = build(llvm_file)
 
+    # valid programs, as dictated by program structure
     valid_measurements = [
         [False],
         [True] * 1 + [False],
@@ -44,7 +55,17 @@ def test_recursive_condition_successful_cases_single_process():
         [True] * 100 + [False],
         [True] * 1000 + [False],
     ]
+    # invalid programs - these are programs that do not follow the expected structure of
+    # the program, which requires [True]*N + [False]
+    invalid_measurements = [
+        [],  # no outputs at all
+        [True],  # no terminating False.
+        [True] * 100,  # no terminating False.
+        [False, True],  # extra measurement.
+        [True] * 10 + [False, True],  # extra measurement.
+    ]
 
+    # check using a single process
     shots = runner.run_shots(
         ClassicalReplay(measurements=valid_measurements),
         1,
@@ -53,31 +74,6 @@ def test_recursive_condition_successful_cases_single_process():
     for expected, got in zip(valid_measurements, shots):
         got = map(lambda x: x[1] == 1, got)
         assert list(got) == expected
-
-
-def test_recursive_condition_successful_cases_multi_process():
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
-
-    valid_measurements = [
-        [False],
-        [True] * 1 + [False],
-        [True] * 10 + [False],
-        [True] * 100 + [False],
-        [True] * 1000 + [False],
-    ]
 
     # check multiprocessing works with ClassicalReplay
     shots = runner.run_shots(
@@ -90,107 +86,55 @@ def test_recursive_condition_successful_cases_multi_process():
         got = map(lambda x: x[1] == 1, got)
         assert list(got) == expected
 
-
-def test_recursive_condition_invalid_cases_single_process():
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
-
-    invalid_measurements = [
-        [],  # no outputs at all
-        [True],  # no terminating False.
-        [True] * 100,  # no terminating False.
-        [False, True],  # extra measurement.
-        [True] * 10 + [False, True],  # extra measurement.
-    ]
-
+    # each invalid program panics, so we run them one by one.
     for invalid in invalid_measurements:
-        try:
+        # run with a single process - should panic due to invalid measurements.
+        with pytest.raises(SelenePanicError):
             list(
                 runner.run(
-                    ClassicalReplay(measurements=invalid),
+                    ClassicalReplay(measurements=[invalid]),
                     1,
                     timeout=datetime.timedelta(seconds=1),
                 )
             )
-            assert False, "ClassicalReplay should have thrown an exception"
-        except Exception:
-            pass
-
-
-def test_recursive_condition_invalid_cases_multi_process():
-    @guppy
-    def recursive_condition() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        result("c", outcome)
-        if outcome:
-            recursive_condition()
-
-    @guppy
-    def main() -> None:
-        recursive_condition()
-
-    runner = build(main.compile(), "recursive_condition")
-
-    invalid_measurements = [
-        [],  # no outputs at all
-        [True],  # no terminating False.
-        [True] * 100,  # no terminating False.
-        [False, True],  # extra measurement.
-        [True] * 10 + [False, True],  # extra measurement.
-    ]
-
-    for invalid in invalid_measurements:
-        try:
-            list(
-                runner.run(
-                    ClassicalReplay(measurements=invalid),
-                    1,
-                    processes=3,
-                    timeout=datetime.timedelta(seconds=1),
-                )
-            )
-            assert False, "ClassicalReplay should have thrown an exception"
-        except Exception:
-            pass
 
 
 @pytest.mark.parametrize("underlying_simulator_class", [Quest, Stim])
-def test_quantum_replay(underlying_simulator_class):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        h(q0)
-        cx(q0, q1)
-        cx(q1, q2)
-        x(q2)
-        cx(q2, q3)
-        # at this stage, the state should be a superposition
-        # of |0011> and |1100>
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
-        # this the results should either be (0,0,1,1) or (1,1,0,0)
-        # we can use quantum replay to verify this.
+def test_quantum_replay(underlying_simulator_class, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure, h, cx, x
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "quantum_replay_quest")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            q3: qubit = qubit()
+            h(q0)
+            cx(q0, q1)
+            cx(q1, q2)
+            x(q2)
+            cx(q2, q3)
+            # at this stage, the state should be a superposition
+            # of |0011> and |1100>
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+            result("c3", measure(q3))
+            # this the results should either be (0,0,1,1) or (1,1,0,0)
+            # we can use quantum replay to verify this.
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="quantum_replay_quest",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     underlying_simulator = underlying_simulator_class(random_seed=0)
     # run full replay - no measurements allowed, just postselection.
     # if the user program requires more measurements, this is an error.
