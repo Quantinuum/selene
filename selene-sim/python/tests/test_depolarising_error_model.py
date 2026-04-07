@@ -5,7 +5,7 @@ import yaml
 from selene_sim import Quest, ClassicalReplay
 from selene_sim.build import build
 from selene_sim.backends import DepolarizingErrorModel
-from conftest import qis_file
+from conftest import guppy_python_file, qis_file, register_inline_guppy_programs
 
 
 INLINE_GUPPY_PROGRAMS = {
@@ -36,6 +36,11 @@ def main() -> None:
     result("c2", measure(q2))
 """,
 }
+
+INLINE_GUPPY_PROGRAMS = {
+    name: guppy_python_file(source) for name, source in INLINE_GUPPY_PROGRAMS.items()
+}
+register_inline_guppy_programs(INLINE_GUPPY_PROGRAMS, artifact_kind="qis")
 
 
 # given some shot results, we want a nice dict from

@@ -14,9 +14,9 @@ test-py *TEST_ARGS: develop
 test-rs *TEST_ARGS:
     uv run cargo test {{TEST_ARGS}}
 
-# Compile guppy programs to QIS LLVM IR snapshots used in selene-sim tests.
-# Run this after updating guppy programs or upgrading guppylang/selene-hugr-qis-compiler.
-# The generated .ll files are committed to the repository.
+# Regenerate guppy snapshots from inline program text declared in selene-sim tests.
+# Run this after updating inline guppy programs or compiler dependencies.
+# Generated QIS/HUGR snapshots are committed to the repository.
 generate-qis:
     uv run selene-sim/python/tests/scripts/compile_guppy_programs.py
 

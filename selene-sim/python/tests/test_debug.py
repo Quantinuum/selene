@@ -5,7 +5,7 @@ import numpy as np
 
 from selene_sim.build import build
 from selene_sim import Quest, Stim, QuantumReplay
-from conftest import qis_file
+from conftest import guppy_python_file, qis_file, register_inline_guppy_programs
 
 
 INLINE_GUPPY_PROGRAMS = {
@@ -48,11 +48,45 @@ def main() -> None:
     state_result("post_measurement_state", q1)
     result("c1", measure(q1))
 """,
-    "debug_gate_impl_rx|ry|rz": """@guppy
+    "debug_gate_impl_rx": """import random
+
+random.seed(1234)
+all_quarter_turns = [i / 2 for i in range(-8, 9)]
+_gate_params = [random.choice(all_quarter_turns) for _ in range(1000)]
+
+@guppy
 def main() -> None:
     q0: qubit = qubit()
-    angle = comptime(params)[get_current_shot()]
-    gate(q0, pi * angle)  # gate is rx/ry/rz
+    angle_val = comptime(_gate_params)[get_current_shot()]
+    rx(q0, pi * angle_val)
+    state_result("entangled_state", q0)
+    discard(q0)
+""",
+    "debug_gate_impl_ry": """import random
+
+random.seed(1234)
+all_quarter_turns = [i / 2 for i in range(-8, 9)]
+_gate_params = [random.choice(all_quarter_turns) for _ in range(1000)]
+
+@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    angle_val = comptime(_gate_params)[get_current_shot()]
+    ry(q0, pi * angle_val)
+    state_result("entangled_state", q0)
+    discard(q0)
+""",
+    "debug_gate_impl_rz": """import random
+
+random.seed(1234)
+all_quarter_turns = [i / 2 for i in range(-8, 9)]
+_gate_params = [random.choice(all_quarter_turns) for _ in range(1000)]
+
+@guppy
+def main() -> None:
+    q0: qubit = qubit()
+    angle_val = comptime(_gate_params)[get_current_shot()]
+    rz(q0, pi * angle_val)
     state_result("entangled_state", q0)
     discard(q0)
 """,
@@ -67,6 +101,11 @@ def main() -> None:
     discard(q0)
 """,
 }
+
+INLINE_GUPPY_PROGRAMS = {
+    name: guppy_python_file(source) for name, source in INLINE_GUPPY_PROGRAMS.items()
+}
+register_inline_guppy_programs(INLINE_GUPPY_PROGRAMS, artifact_kind="qis")
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])

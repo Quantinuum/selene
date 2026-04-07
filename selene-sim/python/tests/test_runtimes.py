@@ -1,7 +1,7 @@
 from selene_sim.build import build
 from selene_sim import Quest, SimpleRuntime, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore
-from conftest import qis_file
+from conftest import guppy_python_file, qis_file, register_inline_guppy_programs
 
 
 INLINE_GUPPY_PROGRAMS = {
@@ -18,6 +18,11 @@ def main() -> None:
     result("c2", measure(q2))
 """,
 }
+
+INLINE_GUPPY_PROGRAMS = {
+    name: guppy_python_file(source) for name, source in INLINE_GUPPY_PROGRAMS.items()
+}
+register_inline_guppy_programs(INLINE_GUPPY_PROGRAMS, artifact_kind="qis")
 
 
 def test_simple_vs_softrz():

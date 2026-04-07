@@ -1,6 +1,10 @@
 import pytest
 
-from conftest import hugr_file
+from conftest import (
+    guppy_python_file,
+    hugr_file,
+    register_inline_guppy_programs,
+)
 
 from selene_sim.build import build
 from selene_sim import Quest
@@ -13,6 +17,11 @@ def main() -> None:
     discard(q0)
 """,
 }
+
+INLINE_GUPPY_PROGRAMS = {
+    name: guppy_python_file(source) for name, source in INLINE_GUPPY_PROGRAMS.items()
+}
+register_inline_guppy_programs(INLINE_GUPPY_PROGRAMS, artifact_kind="hugr")
 
 
 def test_delete_files():

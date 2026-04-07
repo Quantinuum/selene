@@ -4,7 +4,7 @@ import pytest
 from selene_sim.build import build
 from selene_sim import Quest, Stim, ClassicalReplay, QuantumReplay
 from selene_sim.exceptions import SelenePanicError
-from conftest import qis_file
+from conftest import guppy_python_file, qis_file, register_inline_guppy_programs
 
 
 INLINE_GUPPY_PROGRAMS = {
@@ -35,6 +35,11 @@ def main() -> None:
     result("c3", measure(q3))
 """,
 }
+
+INLINE_GUPPY_PROGRAMS = {
+    name: guppy_python_file(source) for name, source in INLINE_GUPPY_PROGRAMS.items()
+}
+register_inline_guppy_programs(INLINE_GUPPY_PROGRAMS, artifact_kind="qis")
 
 
 def test_recursive_condition_successful_cases_single_process():
