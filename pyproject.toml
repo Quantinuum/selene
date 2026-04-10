@@ -198,7 +198,7 @@ before-all = '''
         cp -r /host/tmp/ci-cache/selene/target {project};
     fi;
     # grab rust
-    curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y
+    curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.94-$(uname -m)-unknown-linux-gnu -y
 '''
 before-test = '''
     # if we have caching enabled and it exists, copy caches to the
@@ -224,7 +224,7 @@ before-test = '''
 [tool.cibuildwheel.macos]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "11.0" }
 before-all = [
-    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y'
+    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.94-$(uname -m)-apple-darwin -y'
 ]
 before-test = [
     'uv pip install ./selene-core'
@@ -232,7 +232,7 @@ before-test = [
 [tool.cibuildwheel.windows]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu" }
 before-all = [
-    'curl -sSf https://sh.rustup.rs | sh -s -- -y',
+    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.94-x86_64-pc-windows-gnu -y',
     'rustup target add x86_64-pc-windows-gnu'
 ]
 before-test = [
