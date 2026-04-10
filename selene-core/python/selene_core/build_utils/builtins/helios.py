@@ -93,8 +93,6 @@ class HeliosLLVMBitcodeFileKind(ArtifactKind):
             b"\xde\xc0\x17\x0b",  # legacy bitcode wrapper, observed on macOS runs
         ]
         if not any(content.startswith(magic) for magic in magic_numbers):
-            print("File does not start with expected LLVM bitcode magic numbers")
-            print("Starting bytes:", content[:4])
             return False
         symbols = get_symbols_from_llvm(content)
         if not _match_helios_qis(symbols):
