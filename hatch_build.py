@@ -278,7 +278,7 @@ class BundleBuildHook(BuildHookInterface):
                         "cmake",
                         f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
                         "-DCMAKE_BUILD_TYPE=Release",
-                        "{cmake_source_dir}",
+                        f"{cmake_source_dir}",
                     ],
                     cwd=cmake_build_dir,
                     check=True,
