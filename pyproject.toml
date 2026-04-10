@@ -218,9 +218,18 @@ before-test = '''
 '''
 [tool.cibuildwheel.macos]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "11.0" }
-before-all = ['curl -sSf https://sh.rustup.rs | sh -s -- -y']
-before-test = ['uv pip install ./selene-core']
+before-all = [
+    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y'
+]
+before-test = [
+    'uv pip install ./selene-core'
+]
 [tool.cibuildwheel.windows]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu" }
-before-all = ['curl -sSf https://sh.rustup.rs | sh -s -- -y', 'rustup target add x86_64-pc-windows-gnu']
-before-test = ['uv pip install ./selene-core']
+before-all = [
+    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y',
+    'rustup target add x86_64-pc-windows-gnu'
+]
+before-test = [
+    'uv pip install ./selene-core'
+]
