@@ -1,4 +1,5 @@
 import warnings
+import pathlib
 
 from .types import ArtifactKind, Artifact, Step, LibDep, BuildCtx  # noqa: F401
 from .planner import BuildPlanner
@@ -11,22 +12,31 @@ from .symbols import (
 )
 
 
-def get_undefined_symbols_from_object(obj):
+def get_undefined_symbols_from_object(obj: pathlib.Path | bytes) -> list[str]:
     warnings.warn(
-        "get_undefined_symbols_from_object is deprecated; use get_symbols_from_object(...).undefined_functions instead.",
+        "get_undefined_symbols_from_object is deprecated; use get_symbols_from_object instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return get_symbols_from_object(obj).undefined_functions
+    return list(get_symbols_from_object(obj).undefined_functions)
 
 
-def get_undefined_symbols_from_llvm(contents):
+def get_undefined_symbols_from_llvm_ir_file(contents: pathlib.Path) -> list[str]:
     warnings.warn(
-        "get_undefined_symbols_from_llvm is deprecated; use get_symbols_from_llvm(...).undefined_functions instead.",
+        "get_undefined_symbols_from_llvm_ir_file is deprecated; use get_symbols_from_llvm instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return get_symbols_from_llvm(contents).undefined_functions
+    return list(get_symbols_from_llvm(contents).undefined_functions)
+
+
+def get_undefined_symbols_from_llvm_ir_string(contents: str) -> list[str]:
+    warnings.warn(
+        "get_undefined_symbols_from_llvm_ir_string is deprecated; use get_symbols_from_llvm instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return list(get_symbols_from_llvm(contents).undefined_functions)
 
 
 # The default planner, which is globally accessible and can be

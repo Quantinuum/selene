@@ -230,7 +230,7 @@ before-test = [
 [tool.cibuildwheel.windows]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu" }
 before-all = [
-    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y',
+    'curl -sSf https://sh.rustup.rs | sh -s -- -y',
     'rustup target add x86_64-pc-windows-gnu'
 ]
 before-test = [
