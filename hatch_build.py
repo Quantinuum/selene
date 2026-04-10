@@ -104,6 +104,8 @@ class CargoWorkspaceBuild:
                             f"Copying {lib_path} to {destination}"
                         )
                         shutil.copy(lib_path, destination)
+
+
 class BundleBuildHook(BuildHookInterface):
     def get_cargo_release_dir(self) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")

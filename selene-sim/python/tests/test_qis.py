@@ -6,10 +6,10 @@ from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
 from selene_sim import Quest
 from selene_sim.build import build
 from selene_helios_qis_plugin import HeliosInterface
-from selene_stim_plugin import StimPlugin
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 QIS_RESOURCE_DIR = RESOURCE_DIR / "qis"
+
 
 @pytest.mark.parametrize(
     "program_name",

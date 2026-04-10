@@ -62,7 +62,12 @@ def get_symbols_from_object(object: Path | bytes) -> SymbolTable:
         symbol_table = SymbolTable()
         for s in binary.symbols:
             # PE: undefined symbols have value == 0 and section number == 0
-            is_defined = not (s.value == 0 and s.section_number == 0)
+            if not hasattr(s, "section_number"):
+                raise RuntimeError(
+                    "Lief PE symbols are expected to have a section_number attribute, but it is missing. This may be due to an unsupported binary format or a version mismatch in the lief library."
+                )
+            section_number = getattr(s, "section_number")
+            is_defined = not (s.value == 0 and section_number == 0)
             symbol_table.add_function(str(s.name), is_defined)
         return symbol_table
 
@@ -70,7 +75,12 @@ def get_symbols_from_object(object: Path | bytes) -> SymbolTable:
         symbol_table = SymbolTable()
         for s in binary.symbols:
             # COFF: undefined symbols have value == 0 and section number == 0
-            is_defined = not (s.value == 0 and s.section_number == 0)
+            if not hasattr(s, "section_number"):
+                raise RuntimeError(
+                    "Lief COFF symbols are expected to have a section_number attribute, but it is missing. This may be due to an unsupported binary format or a version mismatch in the lief library."
+                )
+            section_number = getattr(s, "section_number")
+            is_defined = not (s.value == 0 and section_number == 0)
             symbol_table.add_function(str(s.name), is_defined)
         return symbol_table
 
