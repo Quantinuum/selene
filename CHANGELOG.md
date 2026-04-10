@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.13](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.12...selene-sim-v0.2.13) (2026-04-10)
+
+
+### Features
+
+* Build improvements ([#142](https://github.com/Quantinuum/selene/issues/142)) ([12f399b](https://github.com/Quantinuum/selene/commit/12f399bc1005b2bf041e9e4cbe15dc7ed1737417))
+* test on QIS instead of relying on the upper stack ([#150](https://github.com/Quantinuum/selene/issues/150)) ([b80a9c4](https://github.com/Quantinuum/selene/commit/b80a9c411e58ef4987e90fd8511088f9b617f889))
+* Use mingw instead of msvc for windows wheels ([#143](https://github.com/Quantinuum/selene/issues/143)) ([3d91514](https://github.com/Quantinuum/selene/commit/3d91514ad96d43924c9444190aa8a4af73554722))
+
+
+### Documentation
+
+* add repository citation guidance and metadata ([#146](https://github.com/Quantinuum/selene/issues/146)) ([880a58b](https://github.com/Quantinuum/selene/commit/880a58b0fb3c6227356e8bd9c5a6ea709213c312)), closes [#145](https://github.com/Quantinuum/selene/issues/145)
+
 ## [0.2.12](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.11...selene-sim-v0.2.12) (2026-03-02)
 
 
