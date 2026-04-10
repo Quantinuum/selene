@@ -40,7 +40,7 @@ impl SimulatorInterface for ClassicalReplaySimulator {
         // Ensure the shot ID corresponds to a set of provided measurements.
         if shot_id >= self.all_shot_measurements.len() as u64 {
             return Err(anyhow!(
-                "Shot ID {shot_id} is out of bounds. The maximum shot ID is {}.",
+                "Shot ID {shot_id} is out of bounds. The number of shots is {}.",
                 self.all_shot_measurements.len()
             ));
         }
