@@ -128,6 +128,7 @@ class HeliosObjectStringKind(ArtifactKind):
             b"\x7fELF",  # ELF
             b"MZ",  # PE
             b"\xcf\xfa\xed\xfe",  # Mach-O Little Endian 64-bit
+            b"\x64\x86",  # COFF for AMD64
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
