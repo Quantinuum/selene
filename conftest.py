@@ -36,7 +36,7 @@ def get_platform_suffix() -> str:
         case "darwin" | "macos":
             target_system = "apple-darwin"
         case "windows":
-            target_system = "windows-msvc"
+            target_system = "windows-gnu"
         case _:
             raise RuntimeError(f"Unsupported OS: {system}")
     return f"{target_arch}-{target_system}"
@@ -47,7 +47,7 @@ SUPPORTED_TARGETS = [
     "aarch64-unknown-linux-gnu",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
-    "x86_64-windows-msvc",
+    "x86_64-windows-gnu",
 ]
 
 
