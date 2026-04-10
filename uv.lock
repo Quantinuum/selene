@@ -1395,7 +1395,7 @@ wheels = [
 
 [[package]]
 name = "selene-core"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "selene-core" }
 dependencies = [
     { name = "hugr" },
