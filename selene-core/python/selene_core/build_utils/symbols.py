@@ -53,8 +53,9 @@ def get_symbols_from_object(object: Path | bytes) -> SymbolTable:
 
         symbol_table = SymbolTable()
         for macho_symbol in binary.symbols:
-            # MachO: undefined symbols are marked as external, and defined symbols are not.
-            is_defined = not macho_symbol.is_external
+            # Mach-O: external visibility is distinct from whether a symbol is
+            # defined. Use LIEF's undefined indicator to classify symbols.
+            is_defined = not macho_symbol.is_undefined
             symbol_table.add_function(demangle(str(macho_symbol.name)), is_defined)
         return symbol_table
 
