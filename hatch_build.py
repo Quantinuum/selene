@@ -18,17 +18,25 @@ class CargoWorkspaceBuild:
         self.extract_libs()
 
     def _get_metadata(self):
-        call = subprocess.run(
+        p = subprocess.Popen(
             [
                 "cargo",
                 "metadata",
                 "--no-deps",
             ],
             cwd=self.hook.root,
-            check=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-        return json.loads(call.stdout)
+        p.wait()
+        if p.returncode != 0:
+            self.hook.app.display_error(
+                f"Cargo metadata command failed with return code {p.returncode}"
+            )
+            stderr = p.stderr.read().decode("utf-8")
+            self.hook.app.display_error(stderr)
+            sys.exit(1)
+        return json.loads(p.stdout.read())
 
     def build_all(self):
         self.hook.app.display_mini_header("Building cargo workspace")
