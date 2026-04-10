@@ -28,15 +28,14 @@ class CargoWorkspaceBuild:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        p.wait()
+        stdout, stderr = p.communicate()
         if p.returncode != 0:
             self.hook.app.display_error(
                 f"Cargo metadata command failed with return code {p.returncode}"
             )
-            stderr = p.stderr.read().decode("utf-8")
-            self.hook.app.display_error(stderr)
+            self.hook.app.display_error(stderr.decode("utf-8"))
             sys.exit(1)
-        return json.loads(p.stdout.read())
+        return json.loads(stdout)
 
     def build_all(self):
         self.hook.app.display_mini_header("Building cargo workspace")

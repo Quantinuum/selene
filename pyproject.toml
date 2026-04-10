@@ -91,6 +91,7 @@ packages = [
 cache-keys = [
   { file = "Cargo.lock" },
   { file = "Cargo.toml" },
+  { file = "hatch_build.py" },
   { file = "selene-sim/c/**/*.c" },
   { file = "selene-sim/c/**/*.h" },
   { file = "selene-sim/c/**/CMakeLists.txt" },
