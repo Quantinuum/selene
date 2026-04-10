@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-rust-version = "1.85"
+rust-version = "1.94"
 authors = ["Jake Arkinstall <jake.arkinstall@quantinuum.com>"]
 edition = "2024"
 version = "0.2.12"
