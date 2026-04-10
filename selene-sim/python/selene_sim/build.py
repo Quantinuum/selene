@@ -118,6 +118,11 @@ def build(
         strict: If True, intermediate artifacts will be validated against their kinds
                 on each step. This is more expensive, and is only recommended when
                 debugging or developing new artifact kinds and build steps.
+        complete_manifest: If True, the written manifest will include all intermediate
+                           artifacts produced during the build, providing a complete
+                           picture of all build stages. If False (default), only the
+                           final binary artifact is recorded in the manifest, which
+                           reduces manifest size and the time taken to write it.
     Returns:
         An SeleneInstance object representing the built selene runner
     """
