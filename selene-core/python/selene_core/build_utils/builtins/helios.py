@@ -315,7 +315,7 @@ class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
             )
 
         selene_lib_dir = selene_dist / "lib"
-        selene_lib = selene_lib_dir / "selene.dll.lib"
+        selene_lib = selene_lib_dir / "libselene.dll.a"
         link_flags = ["-lc"]
         libraries = [selene_lib]
         library_search_dirs = [selene_lib_dir]

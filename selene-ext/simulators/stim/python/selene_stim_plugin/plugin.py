@@ -49,6 +49,12 @@ class StimPlugin(Simulator):
             case _:
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
+    @property
+    def library_search_dirs(self) -> list[Path]:
+        if platform.system() == "Windows":
+            return [Path(__file__).parent / "_dist/lib/"]
+        return []
+
     @staticmethod
     def extract_states_dict(
         results: Iterable[TaggedResult],

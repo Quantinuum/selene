@@ -1,15 +1,41 @@
 import pytest
 from pathlib import Path
 import platform
+from unittest.mock import patch
 
 import yaml
 from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
 from selene_sim import Quest
 from selene_sim.build import build
 from selene_helios_qis_plugin import HeliosInterface
+from selene_stim_plugin import StimPlugin
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 QIS_RESOURCE_DIR = RESOURCE_DIR / "qis"
+
+
+def test_helios_interface_windows_prefers_mingw_static_lib():
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("pathlib.Path.exists", return_value=True),
+    ):
+        library_file = HeliosInterface().library_file
+    assert library_file.name == "libhelios_selene_interface.a"
+
+
+def test_helios_interface_windows_falls_back_to_msvc_lib():
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("pathlib.Path.exists", return_value=False),
+    ):
+        library_file = HeliosInterface().library_file
+    assert library_file.name == "helios_selene_interface.lib"
+
+
+def test_stim_plugin_windows_library_search_dirs():
+    with patch("platform.system", return_value="Windows"):
+        search_dirs = StimPlugin().library_search_dirs
+    assert search_dirs and search_dirs[0].name == "lib"
 
 
 def get_platform_suffix():
@@ -31,10 +57,29 @@ def get_platform_suffix():
         case "darwin" | "macos":
             target_system = "apple-darwin"
         case "windows":
-            target_system = "windows-msvc"
+            target_system = "windows-gnu"
         case _:
             raise RuntimeError(f"Unsupported OS: {system}")
     return f"{target_arch}-{target_system}"
+
+
+def get_helios_resource(program_name: str) -> Path:
+    """Return the platform-specific Helios IR fixture for a program.
+
+    On Windows we prefer the GNU-target fixture name, but fall back to the
+    existing MSVC fixture when a GNU fixture file is not present.
+    """
+    filename = f"{program_name}-{get_platform_suffix()}.ll"
+    helios_file = QIS_RESOURCE_DIR / "helios" / filename
+    if helios_file.exists():
+        return helios_file
+    if platform.system().lower() == "windows":
+        fallback = (
+            QIS_RESOURCE_DIR / "helios" / f"{program_name}-x86_64-windows-msvc.ll"
+        )
+        if fallback.exists():
+            return fallback
+    return helios_file
 
 
 @pytest.mark.parametrize(
@@ -44,8 +89,7 @@ def get_platform_suffix():
     ],
 )
 def test_qis(snapshot, program_name: str):
-    filename = f"{program_name}-{get_platform_suffix()}.ll"
-    helios_file = QIS_RESOURCE_DIR / "helios" / filename
+    helios_file = get_helios_resource(program_name)
     assert helios_file.exists()
 
     helios_build = build(helios_file, interface=HeliosInterface())
@@ -68,8 +112,7 @@ def test_qis(snapshot, program_name: str):
     ],
 )
 def test_qis_circuit_log(snapshot, program_name: str):
-    filename = f"{program_name}-{get_platform_suffix()}.ll"
-    helios_file = QIS_RESOURCE_DIR / "helios" / filename
+    helios_file = get_helios_resource(program_name)
     assert helios_file.exists()
 
     helios_build = build(helios_file, interface=HeliosInterface())

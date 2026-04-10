@@ -1,6 +1,7 @@
 import subprocess
 import shutil
 import sys
+import os
 from packaging.tags import sys_tags
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
@@ -60,7 +61,7 @@ class CargoWorkspaceBuild:
         self.hook.app.display_success("Cargo build completed successfully")
 
     def extract_libs(self):
-        release_dir = Path(self.hook.root) / "target/release"
+        release_dir = self.hook.get_cargo_release_dir()
         assert release_dir.exists()
         for package in self.metadata["packages"]:
             for target in package["targets"]:
@@ -71,7 +72,7 @@ class CargoWorkspaceBuild:
                 lib_filenames = {
                     "darwin": [f"lib{lib_name}.dylib"],
                     "linux": [f"lib{lib_name}.so"],
-                    "win32": [f"{lib_name}.dll", f"{lib_name}.dll.lib"],
+                    "win32": [f"{lib_name}.dll", f"lib{lib_name}.dll.a"],
                 }[sys.platform]
                 assert all((release_dir / file).exists() for file in lib_filenames), (
                     f"Compiled library for {lib_name} not found in {release_dir}. "
@@ -103,9 +104,15 @@ class CargoWorkspaceBuild:
                             f"Copying {lib_path} to {destination}"
                         )
                         shutil.copy(lib_path, destination)
-
-
 class BundleBuildHook(BuildHookInterface):
+    def get_cargo_release_dir(self) -> Path:
+        target = os.environ.get("CARGO_BUILD_TARGET")
+        if target:
+            candidate = Path(self.root) / "target" / target / "release"
+            if candidate.exists():
+                return candidate
+        return Path(self.root) / "target/release"
+
     def initialize(self, version: str, build_data: dict) -> None:
         cargo_runner = CargoWorkspaceBuild(self)
         cargo_runner.run()
@@ -188,7 +195,7 @@ class BundleBuildHook(BuildHookInterface):
         build_data["tag"] = f"py3-none-{target_platform}"
 
     def find_release_files(self, cdylib_name):
-        release_dir = Path(self.root) / "target/release"
+        release_dir = self.get_cargo_release_dir()
         if sys.platform == "darwin":
             return [release_dir / f"lib{cdylib_name}.dylib"]
         elif sys.platform == "linux":
@@ -196,7 +203,7 @@ class BundleBuildHook(BuildHookInterface):
         elif sys.platform == "win32":
             return [
                 release_dir / f"{cdylib_name}.dll",
-                release_dir / f"{cdylib_name}.dll.lib",
+                release_dir / f"lib{cdylib_name}.dll.a",
             ]
 
     def build_cargo_workspace(self):
@@ -299,16 +306,24 @@ class BundleBuildHook(BuildHookInterface):
         dist_dir = helios_qis_dir / "python/selene_helios_qis_plugin/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
         selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+        cmake_configure_cmd = [
+            "cmake",
+            f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
+            "..",
+        ]
+        if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
+            cmake_configure_cmd = [
+                cmake_configure_cmd[0],
+                "-G",
+                "MinGW Makefiles",
+                *cmake_configure_cmd[1:],
+            ]
 
         try:
             subprocess.run(
-                [
-                    "cmake",
-                    f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
-                    "..",
-                ],
+                cmake_configure_cmd,
                 cwd=cmake_build_dir,
                 check=True,
                 capture_output=True,
@@ -322,12 +337,7 @@ class BundleBuildHook(BuildHookInterface):
                 shutil.rmtree(cmake_build_dir)
                 cmake_build_dir.mkdir()
                 subprocess.run(
-                    [
-                        "cmake",
-                        f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
-                        f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
-                        "..",
-                    ],
+                    cmake_configure_cmd,
                     cwd=cmake_build_dir,
                     check=True,
                     capture_output=True,
@@ -344,6 +354,8 @@ class BundleBuildHook(BuildHookInterface):
                     ".",
                     "--target",
                     "install",
+                    "--config",
+                    "Release",
                 ],
                 check=True,
                 cwd=cmake_build_dir,

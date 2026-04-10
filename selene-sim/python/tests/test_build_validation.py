@@ -9,7 +9,7 @@ from selene_sim.build import build
 from selene_sim import Quest
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     platform.system() == "Windows",
     reason=(
         "As Lief doesn't support COFF formats yet, we can't "
@@ -83,7 +83,7 @@ def test_strict_builds_guppy(build_config):
                 build(contents, strict=True)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     platform.system() == "Windows",
     reason=(
         "As Lief doesn't support COFF formats yet, we can't "

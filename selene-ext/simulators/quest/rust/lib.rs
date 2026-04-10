@@ -17,11 +17,39 @@ use selene_core::utils::MetricValue;
 use std::io::Write;
 
 use quest_sys::Qureg;
+#[cfg(all(target_os = "windows", target_env = "gnu"))]
+use std::ffi::{CStr, c_char};
 use std::mem::size_of;
 use std::os::raw::{c_int, c_ulong};
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(target_os = "windows", target_env = "gnu"))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn invalidQuESTInputError(err_msg: *const c_char, err_func: *const c_char) {
+    let err_msg = if err_msg.is_null() {
+        "Unknown QuEST error"
+    } else {
+        // SAFETY: `err_msg` is expected to be a valid null-terminated C string from QuEST.
+        CStr::from_ptr(err_msg)
+            .to_str()
+            .unwrap_or("Invalid UTF-8 in QuEST error message")
+    };
+    let err_func = if err_func.is_null() {
+        "unknown"
+    } else {
+        // SAFETY: `err_func` is expected to be a valid null-terminated C string from QuEST.
+        CStr::from_ptr(err_func)
+            .to_str()
+            .unwrap_or("Invalid UTF-8 in QuEST function name")
+    };
+    eprintln!("!!!");
+    eprintln!("QuEST Error in function {err_func}: {err_msg}");
+    eprintln!("!!!");
+    eprintln!("Exiting...");
+    std::process::exit(1);
+}
 
 pub struct QuestSimulator {
     environment: quest_sys::QuESTEnv,

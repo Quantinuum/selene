@@ -18,6 +18,7 @@ target/
 *.so
 *.dll
 *.dll.lib
+*.dll.a
 
 venv/
 .venv/

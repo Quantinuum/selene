@@ -11,8 +11,7 @@ def get_target_triple(arch: str | None = None, system: str | None = None) -> str
     as the default is the current platform which selene components
     might be incompatible with.
 
-    Windows needs pointing to MSVC, as the default is MinGW,
-    and selene components are shipped with MSVC bindings.
+    Windows uses MinGW to align with selene wheel artifacts.
 
     Linux doesn't need further specification, as the default behaviour
     is correct. Using e.g. "x86_64-linux-gnu" would fail on nixos, for
@@ -33,7 +32,7 @@ def get_target_triple(arch: str | None = None, system: str | None = None) -> str
         case "darwin" | "macos":
             target_system = "macos.11.0-none"
         case "windows":
-            target_system = "windows-msvc"
+            target_system = "windows-gnu"
         case _:
             raise RuntimeError(f"Unsupported OS: {system}")
 

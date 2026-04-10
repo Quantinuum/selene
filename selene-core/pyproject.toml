@@ -10,7 +10,7 @@ dependencies = [
   "networkx>=2.6,<4",
   "pydot>=4.0.0",
   "pyyaml~=6.0",
-  "qir-qis>=0.1.1",
+  "qir-qis>=0.1.2,<0.1.4",
   "typing_extensions>=4",
   "ziglang~=0.13",
 ]

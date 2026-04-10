@@ -43,6 +43,9 @@ class HeliosInterface(QuantumInterface):
             case "Darwin":
                 return lib_dir / f"lib{lib_name}.a"
             case "Windows":
+                mingw_static = lib_dir / f"lib{lib_name}.a"
+                if mingw_static.exists():
+                    return mingw_static
                 return lib_dir / f"{lib_name}.lib"
             case _:
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
