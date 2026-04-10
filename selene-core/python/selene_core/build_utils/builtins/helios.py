@@ -201,6 +201,8 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.helios.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM IR to Helios-QIS object: {out_path}")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "cc",
             "-c",
@@ -208,7 +210,7 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
             "-o",
             out_path,
             verbose=build_ctx.verbose,
-            cache_dir=build_ctx.artifact_dir,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -226,13 +228,15 @@ class HeliosLLVMBitcodeFileToHeliosObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.helios.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM Bitcode to Helios-QIS object: {out_path}")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "cc",
             "-c",
             input_artifact.resource,
             "-o",
             out_path,
-            cache_dir=build_ctx.artifact_dir,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -295,6 +299,8 @@ class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
         lib_paths = [d.path for d in build_ctx.deps]
         if build_ctx.verbose:
             print("Linking helios object file with dependencies")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "cc",
             "-r",
@@ -303,7 +309,7 @@ class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
             "-o",
             out_path,
             verbose=build_ctx.verbose,
-            cache_dir=build_ctx.artifact_dir,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -351,13 +357,15 @@ class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "build-exe",
             f"-femit-bin={out_path}",
             input_artifact.resource,
             *libraries,
             *link_flags,
-            cache_dir=build_ctx.artifact_dir,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(
             out_path,
@@ -406,13 +414,15 @@ class HeliosObjectFileToSeleneExecutableStep_Darwin(Step):
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "build-exe",
             f"-femit-bin={out_path}",
             input_artifact.resource,
             *libraries,
             *link_flags,
-            cache_dir=build_ctx.artifact_dir,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(
             out_path,

@@ -52,9 +52,13 @@ def invoke_zig(
     handle_triple: bool = True,
     verbose: bool = False,
     cache_dir: Path | None = None,
-) -> str:
+) -> None:
     """
     Invoke zig with the given arguments, after conversion to strings.
+
+    When verbose is True, zig's stdout is forwarded to the console so that
+    long-running builds remain observable. stderr is always captured so that
+    a helpful message can be included in any RuntimeError raised on failure.
     """
     import subprocess
 
@@ -69,12 +73,14 @@ def invoke_zig(
     env = os.environ.copy()
     if cache_dir is not None:
         env["ZIG_LOCAL_CACHE_DIR"] = str(cache_dir)
+    # Inherit stdout when verbose so progress is visible; suppress it otherwise.
+    # Always capture stderr so we can include it in any error message.
+    stdout_target = None if verbose else subprocess.DEVNULL
     handle = subprocess.Popen(
-        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+        argv, stdout=stdout_target, stderr=subprocess.PIPE, env=env
     )
-    stdout, stderr = handle.communicate()
+    _, stderr = handle.communicate()
     if handle.returncode != 0:
         raise RuntimeError(
             f"zig command failed:\n  Command: {' '.join(argv)}\n  Error: {stderr.decode()}"
         )
-    return stdout.decode()

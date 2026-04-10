@@ -133,6 +133,8 @@ class SeleneObjectToSeleneExecutable(Step):
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "cc",
             "-o",
@@ -140,7 +142,7 @@ class SeleneObjectToSeleneExecutable(Step):
             input_artifact.resource,
             selene_lib,
             *link_flags,
-            cache_dir=build_ctx.artifact_dir,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(
             out_path,
