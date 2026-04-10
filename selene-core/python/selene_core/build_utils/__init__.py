@@ -28,6 +28,7 @@ def get_undefined_symbols_from_llvm(contents):
     )
     return get_symbols_from_llvm(contents).undefined_functions
 
+
 # The default planner, which is globally accessible and can be
 # accessed from anywhere. It is pre-loaded with builtin artifact
 # kinds and steps between them.
