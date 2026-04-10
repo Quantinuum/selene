@@ -1,5 +1,4 @@
 import pytest
-import platform
 from pathlib import Path
 from textwrap import dedent
 
@@ -7,14 +6,6 @@ from selene_sim.build import build
 from selene_sim import Quest
 
 
-# @pytest.mark.skipif(
-#    platform.system() == "Windows",
-#    reason=(
-#        "As Lief doesn't support COFF formats yet, we can't "
-#        "detect undefined symbols in Windows lib files, and "
-#        "thus can't run a strict build on Windows."
-#    ),
-# )
 @pytest.mark.parametrize(
     "build_config",
     [
@@ -90,14 +81,6 @@ def test_strict_builds_guppy(build_config, compiled_guppy):
                 build(contents, strict=True)
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason=(
-        "As Lief doesn't support COFF formats yet, we can't "
-        "detect undefined symbols in Windows lib files, and "
-        "thus can't run a strict build on Windows."
-    ),
-)
 def test_strict_builds_qir():
     qir_file = Path(__file__).parent / "resources/qir/adaptive_cond_loop.ll"
     runner = build(qir_file, strict=True)
