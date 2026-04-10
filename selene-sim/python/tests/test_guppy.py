@@ -1,32 +1,11 @@
 import datetime
+import importlib
 import sys
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 import yaml
-from guppylang.decorator import guppy
-from guppylang.std.builtins import array, exit, panic, result
-from guppylang.std.qsystem.random import RNG
-from guppylang.std.qsystem.utils import get_current_shot
-from guppylang.std.qsystem import measure_leaked
-from guppylang.std.angles import angle
-from guppylang.std.quantum import (
-    cx,
-    cy,
-    cz,
-    discard,
-    h,
-    ry,
-    measure,
-    measure_array,
-    qubit,
-    t,
-    tdg,
-    toffoli,
-    x,
-    y,
-    z,
-)
 from hugr.qsystem.result import QsysResult
 from selene_sim import ClassicalReplay, Coinflip, Quest, Stim, SimpleLeakageErrorModel
 from selene_sim.build import build
@@ -34,14 +13,25 @@ from selene_sim.event_hooks import CircuitExtractor, MetricStore, MeasurementExt
 from selene_sim.exceptions import SelenePanicError, SeleneRuntimeError
 
 
-def test_no_results():
-    @guppy
-    def bar() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        m = measure(q0)
+def test_no_results(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, h, measure
 
-    runner = build(bar.compile(), "no_results")
+        @guppy
+        def main() -> None:
+            q0 = qubit()
+            h(q0)
+            m = measure(q0)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="no_results",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     # time limits aren't necessary in general, but they are helpful in testing
     got = list(
         runner.run(Coinflip(), n_qubits=1, timeout=datetime.timedelta(seconds=1))
@@ -49,22 +39,34 @@ def test_no_results():
     assert len(got) == 0, f"expected no results, got {got}"
 
 
-def test_flip_some():
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        q3: qubit = qubit()
-        x(q0)
-        x(q2)
-        x(q3)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
-        result("c3", measure(q3))
+def test_flip_some(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.quantum import qubit, x, measure
 
-    runner = build(main.compile(), "flip_n4")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            q3: qubit = qubit()
+            x(q0)
+            x(q2)
+            x(q3)
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+            result("c3", measure(q3))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="flip_n4",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     expected = {"c0": 1, "c1": 0, "c2": 1, "c3": 1}
     # run the simulation on Quest and Stim
     for simulator in [Quest(), Stim()]:
@@ -96,20 +98,33 @@ def test_flip_some():
     assert got == got_replay, "Classical Replay failed to produce input results"
 
 
-def test_print_array():
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(10))
-        x(qs[0])
-        x(qs[2])
-        x(qs[3])
-        x(qs[9])
-        cs = measure_array(qs)
-        result("cs", cs)
-        result("is", array(i for i in range(100)))
-        result("fs", array(i * 0.0625 for i in range(100)))
+def test_print_array(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import array, result
+        from guppylang.std.quantum import qubit, x, measure_array
 
-    runner = build(main.compile(), "flip_n4_arr")
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(10))
+            x(qs[0])
+            x(qs[2])
+            x(qs[3])
+            x(qs[9])
+            cs = measure_array(qs)
+            result("cs", cs)
+            result("is", array(i for i in range(100)))
+            result("fs", array(i * 0.0625 for i in range(100)))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="flip_n4_arr",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     expected = {
         "cs": [1, 0, 1, 1, 0, 0, 0, 0, 0, 1],
         "is": list(range(100)),
@@ -122,23 +137,36 @@ def test_print_array():
         assert got == expected, f"{simulator}: expected {expected}, got {got}"
 
 
-def test_exit():
+def test_exit(compiled_guppy):
     """
     This test verifies the behaviour of exit(), which should stop the shot
     and add the error message to the result stream, but should then resume
     further shots.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            exit("Postselection failed", 42)
-        result("c", outcome)
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result, exit
+        from guppylang.std.quantum import qubit, h, measure
 
-    runner = build(main.compile(), "exit")
+        @guppy
+        def main() -> None:
+            q = qubit()
+            h(q)
+            outcome = measure(q)
+            if outcome:
+                exit("Postselection failed", 42)
+            result("c", outcome)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="exit",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     # some should have measurements of 0, some should have no measurements.
     n_1 = 0
     n_0 = 0
@@ -167,7 +195,7 @@ def test_exit():
     assert n_0 + n_exit == 100
 
 
-def test_panic():
+def test_panic(compiled_guppy):
     """
     This test verifies the behaviour of panic(), which should stop the shot
     and should not allow any further shots to be performed. On the python
@@ -175,16 +203,29 @@ def test_panic():
     into the results.
     """
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        h(q)
-        outcome = measure(q)
-        if outcome:
-            panic("Postselection failed")
-        result("c", outcome)
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result, panic
+        from guppylang.std.quantum import qubit, h, measure
 
-    runner = build(main.compile(), "panic")
+        @guppy
+        def main() -> None:
+            q = qubit()
+            h(q)
+            outcome = measure(q)
+            if outcome:
+                panic("Postselection failed")
+            result("c", outcome)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="panic",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     with pytest.raises(
         SelenePanicError, match="Postselection failed"
     ) as exception_info:
@@ -198,44 +239,42 @@ def test_panic():
         )
 
 
-def test_measure_leaked(snapshot):
-    @guppy
-    def cx_from_head() -> None:
-        head = qubit()
-        tail = array(qubit() for _ in range(20))
-        h(head)
-        for i in range(20):
-            cx(head, tail[i])
-        hl = measure_leaked(head)
-        if hl.is_leaked():
-            hl.discard()
-            result("head_leaked", 1)
-        else:
-            result("head", hl.to_result().unwrap())
-        result("tail", measure_array(tail))
+def test_measure_leaked(snapshot, compiled_guppy):
+    cx_from_head_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import array, result
+        from guppylang.std.qsystem import measure_leaked
+        from guppylang.std.quantum import qubit, h, cx, measure_array
 
-    @guppy
-    def cx_within_tail() -> None:
-        head = qubit()
-        tail = array(qubit() for _ in range(20))
-        h(head)
-        cx(head, tail[0])
-        for i in range(19):
-            cx(tail[i], tail[i + 1])
-        hl = measure_leaked(head)
-        if hl.is_leaked():
-            hl.discard()
-            result("head_leaked", 1)
-        else:
-            result("head", hl.to_result().unwrap())
-        result("tail", measure_array(tail))
+
+        @guppy
+        def main() -> None:
+            head = qubit()
+            tail = array(qubit() for _ in range(20))
+            h(head)
+            for i in range(20):
+                cx(head, tail[i])
+            hl = measure_leaked(head)
+            if hl.is_leaked():
+                hl.discard()
+                result("head_leaked", 1)
+            else:
+                result("head", hl.to_result().unwrap())
+            result("tail", measure_array(tail))
+        """
+    )
 
     simulator = Stim(random_seed=0)
     error_model = SimpleLeakageErrorModel(
         p_leak=0.01, leak_measurement_bias=0.8, random_seed=0
     )
 
-    runner = build(cx_from_head.compile(), "leak_from_head")
+    cx_from_head_llvm_file = compiled_guppy(
+        program_name="leak_from_head",
+        guppy_source=cx_from_head_source,
+    )
+    runner = build(cx_from_head_llvm_file, "leak_from_head")
     shots = [
         list(shot)
         for shot in runner.run_shots(
@@ -249,7 +288,37 @@ def test_measure_leaked(snapshot):
         yaml.dump(shots),
         "measure_leaked_from_head",
     )
-    runner = build(cx_within_tail.compile(), "leak_within_tail")
+
+    cx_within_tail_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import array, result
+        from guppylang.std.qsystem import measure_leaked
+        from guppylang.std.quantum import qubit, h, cx, measure_array
+
+
+        @guppy
+        def main() -> None:
+            head = qubit()
+            tail = array(qubit() for _ in range(20))
+            h(head)
+            cx(head, tail[0])
+            for i in range(19):
+                cx(tail[i], tail[i + 1])
+            hl = measure_leaked(head)
+            if hl.is_leaked():
+                hl.discard()
+                result("head_leaked", 1)
+            else:
+                result("head", hl.to_result().unwrap())
+            result("tail", measure_array(tail))
+        """
+    )
+    cx_within_tail_llvm_file = compiled_guppy(
+        program_name="leak_within_tail",
+        guppy_source=cx_within_tail_source,
+    )
+    runner = build(cx_within_tail_llvm_file, "leak_within_tail")
     shots = [
         list(shot)
         for shot in runner.run_shots(
@@ -265,41 +334,64 @@ def test_measure_leaked(snapshot):
     )
 
 
-def test_rus():
-    @guppy
-    def rus(q: qubit) -> None:
-        while True:
-            # Prepare ancillary qubits
-            a, b = qubit(), qubit()
-            h(a)
-            h(b)
+def test_rus(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.quantum import (
+            qubit,
+            measure,
+            discard,
+            h,
+            tdg,
+            cx,
+            t,
+            z,
+            x,
+        )
 
-            tdg(a)
-            cx(b, a)
-            t(a)
-            if not measure(a):
-                # First part failed; try again
-                discard(b)
-                continue
+        @guppy
+        def rus(q: qubit) -> None:
+            while True:
+                # Prepare ancillary qubits
+                a, b = qubit(), qubit()
+                h(a)
+                h(b)
 
-            t(q)
-            z(q)
-            cx(q, b)
-            t(b)
-            if measure(b):
-                # Success, we are done
-                break
+                tdg(a)
+                cx(b, a)
+                t(a)
+                if not measure(a):
+                    # First part failed; try again
+                    discard(b)
+                    continue
 
-            # Otherwise, apply correction
-            x(q)
+                t(q)
+                z(q)
+                cx(q, b)
+                t(b)
+                if measure(b):
+                    # Success, we are done
+                    break
 
-    @guppy
-    def main() -> None:
-        q = qubit()
-        rus(q)
-        result("result", measure(q))
+                # Otherwise, apply correction
+                x(q)
 
-    runner = build(main.compile(), "repeat_until_success")
+        @guppy
+        def main() -> None:
+            q = qubit()
+            rus(q)
+            result("result", measure(q))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="repeat_until_success",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     shots = QsysResult(
         runner.run_shots(
             Quest(random_seed=0),
@@ -319,41 +411,66 @@ def test_rus():
         assert measured == "1000100100"
 
 
-def test_get_current_shot():
-    @guppy
-    def main() -> None:
-        result("shot", get_current_shot())
+def test_get_current_shot(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.qsystem.utils import get_current_shot
 
-    runner = build(main.compile(), "current_shot")
+        @guppy
+        def main() -> None:
+            result("shot", get_current_shot())
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="current_shot",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     n_shots = 100
     shots = list(dict(shot) for shot in runner.run_shots(Quest(), 1, n_shots=n_shots))
     shot_ids = [shot["shot"] for shot in shots]
     assert shot_ids == list(range(n_shots))
 
 
-def test_rng(snapshot):
-    @guppy
-    def main() -> None:
-        rng = RNG(42)
-        rint = rng.random_int()
-        rint1 = rng.random_int()
-        rfloat = rng.random_float()
-        rint_bnd = rng.random_int_bounded(100)
-        rng.discard()
-        result("rint", rint)
-        result("rint1", rint1)
-        result("rfloat", rfloat)
-        result("rint_bnd", rint_bnd)
-        rng = RNG(84)
-        rint = rng.random_int()
-        rfloat = rng.random_float()
-        rint_bnd = rng.random_int_bounded(200)
-        rng.discard()
-        result("rint2", rint)
-        result("rfloat2", rfloat)
-        result("rint_bnd2", rint_bnd)
+def test_rng(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.qsystem.random import RNG
 
-    runner = build(main.compile(), "rng")
+
+        @guppy
+        def main() -> None:
+            rng = RNG(42)
+            rint = rng.random_int()
+            rint1 = rng.random_int()
+            rfloat = rng.random_float()
+            rint_bnd = rng.random_int_bounded(100)
+            rng.discard()
+            result("rint", rint)
+            result("rint1", rint1)
+            result("rfloat", rfloat)
+            result("rint_bnd", rint_bnd)
+            rng = RNG(84)
+            rint = rng.random_int()
+            rfloat = rng.random_float()
+            rint_bnd = rng.random_int_bounded(200)
+            rng.discard()
+            result("rint2", rint)
+            result("rfloat2", rfloat)
+            result("rint_bnd2", rint_bnd)
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="rng",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     shots = list(
         dict(shot) for shot in runner.run_shots(Quest(), 1, n_shots=10, verbose=True)
     )
@@ -366,25 +483,31 @@ def test_rng(snapshot):
     snapshot.assert_match(yaml.dump(shots[0]), "rng")
 
 
-@pytest.mark.skipif(
-    not hasattr(RNG, "random_advance"),
-    reason="RNG advance is not implemented in guppy yet",
-)
-def test_rng_advance(snapshot):
-    @guppy
-    def main() -> None:
-        rng = RNG(get_current_shot() + 42)
-        rint = rng.random_int()
-        rfloat = rng.random_float()
-        rng.advance(-2)
-        rint2 = rng.random_int()
-        rfloat2 = rng.random_float()
-        result("rint", rint)
-        result("rint2", rint2)
-        result("rfloat", rfloat)
-        result("rfloat2", rfloat2)
+def test_rng_advance(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.qsystem.random import RNG
+        from guppylang.std.qsystem.utils import get_current_shot
 
-    runner = build(main.compile(), "rng_advance")
+
+        @guppy
+        def main() -> None:
+            rng = RNG(get_current_shot() + 42)
+            result("rint", rng.random_int())
+            result("rfloat", rng.random_float())
+            rng.random_advance(-2)
+            result("rint2", rng.random_int())
+            result("rfloat2", rng.random_float())
+            rng.discard()
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="rng_advance",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     shots = list(
         dict(shot) for shot in runner.run_shots(Quest(), 1, n_shots=10, verbose=True)
     )
@@ -397,7 +520,7 @@ def test_rng_advance(snapshot):
         )
 
 
-def test_sim_restriction():
+def test_sim_restriction(compiled_guppy):
     """
     Demonstrate the propagation of panic-inducing messages from
     simulators to user-facing SelenePanicError exceptions.
@@ -408,18 +531,32 @@ def test_sim_restriction():
     caught and re-raised as an SelenePanicError.
     """
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        toffoli(q0, q1, q2)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.quantum import qubit, h, toffoli, measure
 
-    runner = build(main.compile(), "nonclifford")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            h(q0)
+            toffoli(q0, q1, q2)
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="nonclifford",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
+
     with pytest.raises(SelenePanicError, match="not representable") as exception_info:
         shots = QsysResult(
             runner.run_shots(
@@ -428,7 +565,7 @@ def test_sim_restriction():
         )
 
 
-def test_corrupted_plugin():
+def test_corrupted_plugin(compiled_guppy):
     """
     On the python side, we only check that plugin files exist.
     They can still fail when we invoke the selene binary, so demand
@@ -457,13 +594,27 @@ def test_corrupted_plugin():
         def __del__(self):
             self.path.unlink(missing_ok=True)
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        result("c0", measure(q0))
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.quantum import qubit, h, measure
 
-    runner = build(main.compile(), "broken_plugin")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            h(q0)
+            result("c0", measure(q0))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="broken_plugin",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
+
     with pytest.raises(
         SeleneRuntimeError, match=r"Failed to load runtime plugin"
     ) as exception_info:
@@ -478,19 +629,31 @@ def test_corrupted_plugin():
         )
 
 
-def test_metrics(snapshot):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        toffoli(q0, q1, q2)
-        result("c0", measure(q0))
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+def test_metrics(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.quantum import qubit, h, toffoli, measure
 
-    runner = build(main.compile(), "metrics")
+
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            h(q0)
+            toffoli(q0, q1, q2)
+            result("c0", measure(q0))
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="metrics",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     metric_store = MetricStore()
     shots = QsysResult(
         runner.run_shots(
@@ -516,20 +679,32 @@ def test_metrics(snapshot):
     snapshot.assert_match(yaml.dump(first_shot_metrics), "metrics")
 
 
-def test_metrics_on_exit(snapshot):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q0)
-        toffoli(q0, q1, q2)
-        result("c0", measure(q0))
-        exit("Testing exit with metrics", 0)
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+def test_metrics_on_exit(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result, exit
+        from guppylang.std.quantum import qubit, h, toffoli, measure
 
-    runner = build(main.compile())
+
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            h(q0)
+            toffoli(q0, q1, q2)
+            result("c0", measure(q0))
+            exit("Testing exit with metrics", 0)
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="metrics_on_exit",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
     metric_store = MetricStore()
     shots = QsysResult(
         runner.run_shots(
@@ -555,31 +730,44 @@ def test_metrics_on_exit(snapshot):
     snapshot.assert_match(yaml.dump(first_shot_metrics), "metrics_on_exit")
 
 
-def test_circuit_output():
-    try:
-        import pytket
-    except ImportError:
-        pytest.skip("pytket not available")
-        return
+@pytest.mark.skipif(
+    importlib.util.find_spec("pytket") is None, reason="pytket not installed"
+)
+def test_circuit_output(compiled_guppy):
+    from pytket import Circuit
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        h(q0)
-        c0 = measure(q0)
-        result("c0", c0)
-        if c0:
-            q1: qubit = qubit()
-            h(q1)
-            c1 = measure(q1)
-            result("c1", c1)
-            if c1:
-                q2: qubit = qubit()
-                h(q2)
-                c2 = measure(q2)
-                result("c2", c2)
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.quantum import qubit, h, measure
 
-    runner = build(main.compile(), "circuit")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            h(q0)
+            c0 = measure(q0)
+            result("c0", c0)
+            if c0:
+                q1: qubit = qubit()
+                h(q1)
+                c1 = measure(q1)
+                result("c1", c1)
+                if c1:
+                    q2: qubit = qubit()
+                    h(q2)
+                    c2 = measure(q2)
+                    result("c2", c2)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="circuit_output",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
+
     circuits = CircuitExtractor()
     # ok, so let's construct some classical replay data
     # to run through all classical branches
@@ -596,7 +784,7 @@ def test_circuit_output():
     assert len(circuits.shots) == 3
     # the first run should have only one qubit, one H gate, and one measurement
     user_circuit = circuits.shots[0].get_user_circuit()
-    expected_circuit = pytket.Circuit(1, 1)
+    expected_circuit = Circuit(1, 1)
     expected_circuit.Reset(0)
     expected_circuit.PhasedX(0.5, 1.5, 0)
     expected_circuit.Rz(1, 0)
@@ -605,7 +793,7 @@ def test_circuit_output():
 
     # the second run would operate on the same qubit twice
     user_circuit = circuits.shots[1].get_user_circuit()
-    expected_circuit = pytket.Circuit(1, 1)
+    expected_circuit = Circuit(1, 1)
     expected_circuit.Reset(0)
     expected_circuit.PhasedX(0.5, 1.5, 0)
     expected_circuit.Rz(1, 0)
@@ -618,7 +806,7 @@ def test_circuit_output():
 
     # the third would operate on the same qubit three times
     user_circuit = circuits.shots[2].get_user_circuit()
-    expected_circuit = pytket.Circuit(1, 1)
+    expected_circuit = Circuit(1, 1)
     expected_circuit.Reset(0)
     expected_circuit.PhasedX(0.5, 1.5, 0)
     expected_circuit.Rz(1, 0)
@@ -634,34 +822,48 @@ def test_circuit_output():
     assert user_circuit == expected_circuit
 
 
-def test_measurement_output():
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        q1 = qubit()
-        q2 = qubit()
-        q3 = qubit()
+def test_measurement_output(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.qsystem import measure_leaked
+        from guppylang.std.quantum import qubit, x, y, z, cx, cz, measure
 
-        x(q0)
-        if measure(q0):
-            x(q1)
-            cx(q1, q2)
-            z(q3)
-        else:
-            y(q1)
-            cz(q1, q2)
-            x(q3)
+        @guppy
+        def main() -> None:
+            q0 = qubit()
+            q1 = qubit()
+            q2 = qubit()
+            q3 = qubit()
 
-        if measure(q1):
-            result("q2", measure(q2))
-            q3r = measure_leaked(q3).to_result()
-            result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
-        else:
-            q2r = measure_leaked(q2).to_result()
-            result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
-            result("q3", measure(q3))
+            x(q0)
+            if measure(q0):
+                x(q1)
+                cx(q1, q2)
+                z(q3)
+            else:
+                y(q1)
+                cz(q1, q2)
+                x(q3)
 
-    runner = build(main.compile())
+            if measure(q1):
+                result("q2", measure(q2))
+                q3r = measure_leaked(q3).to_result()
+                result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
+            else:
+                q2r = measure_leaked(q2).to_result()
+                result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
+                result("q3", measure(q3))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="measurement_output",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     measlog = MeasurementExtractor()
     got = list(runner.run(Quest(), verbose=True, n_qubits=4, event_hook=measlog))
 
@@ -676,35 +878,48 @@ def test_measurement_output():
     assert [str(entry) for entry in measlog.log_entries[0]] == expected_meas_strs
 
 
-def test_measurement_output_multishot():
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        q1 = qubit()
-        q2 = qubit()
-        q3 = qubit()
+def test_measurement_output_multishot(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import result
+        from guppylang.std.qsystem import measure_leaked
+        from guppylang.std.quantum import qubit, x, y, z, cx, cz, measure
 
-        x(q0)
-        if measure(q0):
-            x(q1)
-            cx(q1, q2)
-            z(q3)
-        else:
-            y(q1)
-            cz(q1, q2)
-            x(q3)
+        @guppy
+        def main() -> None:
+            q0 = qubit()
+            q1 = qubit()
+            q2 = qubit()
+            q3 = qubit()
 
-        if measure(q1):
-            result("q2", measure(q2))
-            q3r = measure_leaked(q3).to_result()
-            result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
-        else:
-            q2r = measure_leaked(q2).to_result()
-            result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
-            result("q3", measure(q3))
+            x(q0)
+            if measure(q0):
+                x(q1)
+                cx(q1, q2)
+                z(q3)
+            else:
+                y(q1)
+                cz(q1, q2)
+                x(q3)
 
-    n_shots = 10
-    runner = build(main.compile())
+            if measure(q1):
+                result("q2", measure(q2))
+                q3r = measure_leaked(q3).to_result()
+                result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
+            else:
+                q2r = measure_leaked(q2).to_result()
+                result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
+                result("q3", measure(q3))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="measurement_output_multishot",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     measlog = MeasurementExtractor()
     shots = runner.run_shots(
         Quest(), verbose=True, n_qubits=4, n_shots=10, event_hook=measlog
@@ -723,29 +938,46 @@ def test_measurement_output_multishot():
         assert [str(entry) for entry in shot_meas] == expected_meas_strs
 
 
-def test_cy():
+def test_cy(compiled_guppy):
     """Test CY is implemented correctly."""
+
+    bases = ["00", "01", "10", "11"]
+
+    guppy_source = dedent(
+        f"""
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import array, result
+        from guppylang.std.quantum import qubit, x, y, cy, measure
+
+        two_qb_bases = {bases}
+
+        @guppy.comptime
+        def main() -> None:
+            # test every basis state
+            for basis in two_qb_bases:
+                a, b = qubit(), qubit()
+                if basis[0] == "1":
+                    x(a)
+                if basis[1] == "1":
+                    x(b)
+
+                # if a is |1> the y gate will undo the cy
+                cy(a, b)
+                y(b)
+                ar = array(measure(a), measure(b))
+                result(basis, ar)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="cy_test",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file)
+
     n_shots = 10
-    two_qb_bases = ["00", "01", "10", "11"]
-
-    @guppy.comptime
-    def foo() -> None:
-        # test every basis state
-        for basis in two_qb_bases:
-            a, b = qubit(), qubit()
-            if basis[0] == "1":
-                x(a)
-            if basis[1] == "1":
-                x(b)
-
-            # if a is |1> the y gate will undo the cy
-            cy(a, b)
-            y(b)
-            ar = array(measure(a), measure(b))
-            result(basis, ar)
-
     res = QsysResult(
-        build(foo.compile()).run_shots(
+        runner.run_shots(
             Quest(),
             n_qubits=2,
             n_shots=n_shots,
@@ -760,30 +992,46 @@ def test_cy():
         "10": "10",
         "11": "11",
     }
-    for basis in two_qb_bases:
+    for basis in bases:
         assert dict(res[basis]) == {expected_map[basis]: n_shots}
 
 
-def test_cz():
+def test_cz(compiled_guppy):
     """Test CZ is implemented correctly."""
+
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import array, result
+        from guppylang.std.quantum import qubit, ry, cz, measure
+        from guppylang.std.angles import angle
+
+
+        @guppy
+        def subc(a: qubit, b: qubit) -> None:
+            ry(a, angle(5.535942))
+
+            cz(a, b)
+
+        @guppy
+        def main() -> None:
+            a, b = qubit(), qubit()
+            subc(a, b)
+            subc(a, b)
+            ar = array(measure(a), measure(b))
+            result("c", ar)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="cz_test",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     n_shots = 10
-
-    @guppy
-    def subc(a: qubit, b: qubit) -> None:
-        ry(a, angle(5.535942))
-
-        cz(a, b)
-
-    @guppy
-    def foo() -> None:
-        a, b = qubit(), qubit()
-        subc(a, b)
-        subc(a, b)
-        ar = array(measure(a), measure(b))
-        result("c", ar)
-
     res = QsysResult(
-        build(foo.compile()).run_shots(
+        runner.run_shots(
             Quest(),
             n_qubits=2,
             n_shots=n_shots,

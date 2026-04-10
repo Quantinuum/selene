@@ -6,7 +6,12 @@ description = "The core interop library for Selene python interfaces"
 readme = "python/selene_core/README.md"
 dependencies = [
   "hugr>=0.13.0",
+  # required for inspecting object files to find defined and declared symbols
   "lief>=0.16.5",
+  # required for inspecting LLVM files to find defined and declared symbols
+  # note: llvmlite 0.45.1 is the last version to support x86_64 macOS.
+  "llvmlite==0.45.1; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "llvmlite~=0.47; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "networkx>=2.6,<4",
   "pydot>=4.0.0",
   "pyyaml~=6.0",

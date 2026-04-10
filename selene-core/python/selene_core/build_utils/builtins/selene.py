@@ -18,7 +18,8 @@ from typing import Any
 
 from ..planner import BuildPlanner
 from ..types import ArtifactKind, Step, BuildCtx, Artifact
-from ..utils import get_undefined_symbols_from_object, invoke_zig
+from ..utils import invoke_zig
+from ..symbols import get_symbols_from_object
 
 
 class SeleneExecutableKind(ArtifactKind[Path]):
@@ -37,8 +38,8 @@ class SeleneObjectFileKind(ArtifactKind[Path]):
             return False
         if resource.suffix not in [".o", ".obj"]:
             return False
-        undefined_symbols = get_undefined_symbols_from_object(resource)
-        return "selene_load_config" in undefined_symbols
+        symbols = get_symbols_from_object(resource)
+        return symbols.has_undefined_function("selene_load_config")
 
 
 class SeleneObjectStringKind(ArtifactKind):
@@ -50,15 +51,16 @@ class SeleneObjectStringKind(ArtifactKind):
             b"\x7fELF",  # ELF
             b"MZ",  # PE
             b"\xcf\xfa\xed\xfe",  # Mach-O Little Endian 64-bit
+            b"\x64\x86",  # COFF for AMD64
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
         try:
-            undefined_symbols = get_undefined_symbols_from_object(resource)
+            symbols = get_symbols_from_object(resource)
         except Exception:
             # unable to parse object file
             return False
-        return "selene_load_config" in undefined_symbols
+        return symbols.has_undefined_function("selene_load_config")
 
 
 class SeleneObjectStringToSeleneObjectFileStep(Step):

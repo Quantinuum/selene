@@ -1,22 +1,11 @@
 import pytest
-import platform
 from pathlib import Path
-
-from guppylang import guppy
-from guppylang.std.quantum import discard, qubit
+from textwrap import dedent
 
 from selene_sim.build import build
 from selene_sim import Quest
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason=(
-        "As Lief doesn't support COFF formats yet, we can't "
-        "detect undefined symbols in Windows lib files, and "
-        "thus can't run a strict build on Windows."
-    ),
-)
 @pytest.mark.parametrize(
     "build_config",
     [
@@ -25,7 +14,7 @@ from selene_sim import Quest
         {"name": "llvm_bc", "kwargs": {"build_method": "via-llvm-bitcode"}},
     ],
 )
-def test_strict_builds_guppy(build_config):
+def test_strict_builds_guppy(build_config, compiled_guppy):
     """
     Selene sim builds are multi-step processes that
     are described by a build graph, with artifacts
@@ -56,12 +45,21 @@ def test_strict_builds_guppy(build_config):
     checks are working as intended.
     """
 
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        discard(q0)
+    guppy_source = dedent("""
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import discard, qubit
+        @guppy
+        def main() -> None:
+            q0 = qubit()
+            discard(q0)
+    """)
 
-    runner = build(main.compile(), strict=True, **build_config["kwargs"])
+    llvm_file = compiled_guppy(
+        program_name=f"strict_build_{build_config['name']}",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file, strict=True, **build_config["kwargs"])
     got = list(runner.run(Quest(), n_qubits=1))
     assert len(got) == 0
 
@@ -83,14 +81,6 @@ def test_strict_builds_guppy(build_config):
                 build(contents, strict=True)
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason=(
-        "As Lief doesn't support COFF formats yet, we can't "
-        "detect undefined symbols in Windows lib files, and "
-        "thus can't run a strict build on Windows."
-    ),
-)
 def test_strict_builds_qir():
     qir_file = Path(__file__).parent / "resources/qir/adaptive_cond_loop.ll"
     runner = build(qir_file, strict=True)

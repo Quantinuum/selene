@@ -1,9 +1,7 @@
-from guppylang.decorator import guppy
-from guppylang.std.quantum import qubit, measure, h, cx, x, y
-from guppylang.std.builtins import result
 from hugr.qsystem.result import QsysResult
 import random
 import yaml
+from textwrap import dedent
 
 from selene_sim import Quest, ClassicalReplay
 from selene_sim.build import build
@@ -22,17 +20,29 @@ def count_occurances(shots: QsysResult) -> dict:
     return counts
 
 
-def test_measurement_error(snapshot):
-    @guppy
-    def main() -> None:
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        h(q1)
-        h(q2)
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+def test_measurement_error(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure, h
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "measurement_error")
+
+        @guppy
+        def main() -> None:
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            h(q1)
+            h(q2)
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="depolarising_measurement_error",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file, "measurement_error")
     error_model = DepolarizingErrorModel(
         random_seed=12478918,  # for reproducibility
         p_init=0,  # constant zero for this test
@@ -156,16 +166,28 @@ def test_measurement_error(snapshot):
     assert total_measurement_errors == errors
 
 
-def test_init_error(snapshot):
-    @guppy
-    def main() -> None:
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        # note: no gates
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+def test_init_error(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "init_error")
+
+        @guppy
+        def main() -> None:
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            # note: no gates
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="depolarising_init_error",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file, "init_error")
 
     simulator = Quest(random_seed=12472461)
     error_model = DepolarizingErrorModel(
@@ -235,24 +257,36 @@ def test_init_error(snapshot):
     snapshot.assert_match(yaml.dump(counts), "counts_pinit_100pc")
 
 
-def test_1q_error(snapshot):
-    @guppy
-    def main() -> None:
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        # 1 1q gate on q1
-        x(q1)
-        # 2 1q gates on q2
-        y(q2)
-        y(q2)
-        # some self-cancelling 2q gates just to demonstrate that
-        # they aren't affected by q1 errors
-        cx(q1, q2)
-        cx(q1, q2)
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+def test_1q_error(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure, cx, x, y
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "init_error")
+
+        @guppy
+        def main() -> None:
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            # 1 1q gate on q1
+            x(q1)
+            # 2 1q gates on q2
+            y(q2)
+            y(q2)
+            # some self-cancelling 2q gates just to demonstrate that
+            # they aren't affected by q1 errors
+            cx(q1, q2)
+            cx(q1, q2)
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="depolarising_1q_error",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file, "1q_error")
 
     simulator = Quest(random_seed=75264817)
     error_model = DepolarizingErrorModel(
@@ -321,23 +355,35 @@ def test_1q_error(snapshot):
     snapshot.assert_match(yaml.dump(counts), "counts_p1q_100pc")
 
 
-def test_2q_error(snapshot):
-    @guppy
-    def main() -> None:
-        q1: qubit = qubit()
-        q2: qubit = qubit()
-        # 1 1q gate on q1 - should not be impacted by error
-        x(q1)
-        # 2 1q gates on q2 - should not be impacted by error
-        y(q2)
-        y(q2)
-        # some self-cancelling 2q gates - should be impacted by error
-        cx(q1, q2)
-        cx(q1, q2)
-        result("c1", measure(q1))
-        result("c2", measure(q2))
+def test_2q_error(snapshot, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure, cx, x, y
+        from guppylang.std.builtins import result
 
-    runner = build(main.compile(), "init_error")
+
+        @guppy
+        def main() -> None:
+            q1: qubit = qubit()
+            q2: qubit = qubit()
+            # 1 1q gate on q1 - should not be impacted by error
+            x(q1)
+            # 2 1q gates on q2 - should not be impacted by error
+            y(q2)
+            y(q2)
+            # some self-cancelling 2q gates - should be impacted by error
+            cx(q1, q2)
+            cx(q1, q2)
+            result("c1", measure(q1))
+            result("c2", measure(q2))
+        """
+    )
+    llvm_file = compiled_guppy(
+        program_name="depolarising_2q_error",
+        guppy_source=guppy_source,
+    )
+    runner = build(llvm_file, "2q_error")
 
     simulator = Quest(random_seed=75264817)
     error_model = DepolarizingErrorModel(

@@ -1,22 +1,6 @@
 import pytest
+from textwrap import dedent
 
-from guppylang import guppy
-from guppylang.std.builtins import array
-from guppylang.std.debug import state_result
-from guppylang.std.angles import pi
-from guppylang.std.quantum import (
-    discard,
-    qubit,
-    discard_array,
-    x,
-    h,
-    cx,
-    measure,
-    ry,
-    rz,
-    rx,
-)
-from guppylang.std.qsystem.utils import get_current_shot
 from hugr.qsystem.result import QsysResult
 import numpy as np
 
@@ -25,30 +9,57 @@ from selene_sim import Quest, Stim, QuantumReplay
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
-def test_initial_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        q0 = qubit()
-        state_result("initial_state", q0)
-        discard(q0)
+def test_initial_state(simulator_plugin, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, discard
+        from guppylang.std.debug import state_result
 
-    runner = build(main.compile(), "initial_state")
+        @guppy
+        def main() -> None:
+            q0 = qubit()
+            state_result("initial_state", q0)
+            discard(q0)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="initial_state",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     got = runner.run(simulator_plugin(), n_qubits=1)
     state = simulator_plugin.extract_states_dict(got)["initial_state"]
     assert state.get_dirac_notation()[0].probability == 1
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
-def test_array_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        for i in range(2):
-            x(qs[i])
-        state_result("array_state", qs)
-        discard_array(qs)
+def test_array_state(simulator_plugin, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, discard_array
+        from guppylang.std.builtins import array
+        from guppylang.std.debug import state_result
 
-    runner = build(main.compile(), "array_state")
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(2))
+            for i in range(2):
+                x(qs[i])
+            state_result("array_state", qs)
+            discard_array(qs)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="array_state",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(
@@ -64,16 +75,30 @@ def test_array_state(simulator_plugin):
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
-def test_array_subscript_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        for i in range(2):
-            x(qs[i])
-        state_result("array_state", qs[0])
-        discard_array(qs)
+def test_array_subscript_state(simulator_plugin, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, discard_array
+        from guppylang.std.builtins import array
+        from guppylang.std.debug import state_result
 
-    runner = build(main.compile(), "array_state")
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(2))
+            for i in range(2):
+                x(qs[i])
+            state_result("array_state", qs[0])
+            discard_array(qs)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="array_subscript_state",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(
@@ -89,18 +114,33 @@ def test_array_subscript_state(simulator_plugin):
 
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
-def test_qubit_ordering_state(simulator_plugin):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        x(qs[0])
-        # expected state is |10> so that qs[0] is the MSB
-        state_result("default", qs[0], qs[1])
-        # reversed order, expected state is |01>
-        state_result("reversed", qs[1], qs[0])
-        discard_array(qs)
+def test_qubit_ordering_state(simulator_plugin, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, discard_array
+        from guppylang.std.builtins import array
+        from guppylang.std.debug import state_result
 
-    runner = build(main.compile())
+
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(2))
+            x(qs[0])
+            # expected state is |10> so that qs[0] is the MSB
+            state_result("default", qs[0], qs[1])
+            # reversed order, expected state is |01>
+            state_result("reversed", qs[1], qs[0])
+            discard_array(qs)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="qubit_ordering_state",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(
@@ -119,19 +159,33 @@ def test_qubit_ordering_state(simulator_plugin):
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 @pytest.mark.parametrize("first_measurement", [0, 1])
-def test_quantum_replay_state(simulator_plugin, first_measurement):
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        q1: qubit = qubit()
-        h(q0)
-        cx(q0, q1)
-        state_result("entangled_state", q0, q1)
-        result("c0", measure(q0))
-        state_result("post_measurement_state", q1)
-        result("c1", measure(q1))
+def test_quantum_replay_state(simulator_plugin, first_measurement, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, h, cx, measure
+        from guppylang.std.builtins import result
+        from guppylang.std.debug import state_result
 
-    runner = build(main.compile(), "quantum_replay_state")
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            q1: qubit = qubit()
+            h(q0)
+            cx(q0, q1)
+            state_result("entangled_state", q0, q1)
+            result("c0", measure(q0))
+            state_result("post_measurement_state", q1)
+            result("c1", measure(q1))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="quantum_replay_state",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     underlying_simulator = simulator_plugin(random_seed=1234)
     replay_simulator = QuantumReplay(
         simulator=underlying_simulator,
@@ -170,8 +224,8 @@ def test_quantum_replay_state(simulator_plugin, first_measurement):
     np.testing.assert_allclose(post_measurement, expected)
 
 
-@pytest.mark.parametrize("gate_name", ["rx", "ry", "rz"])
-def test_stim_gate_implementations_single_qubit(gate_name):
+@pytest.mark.parametrize("gate", ["rx", "ry", "rz"])
+def test_stim_gate_implementations_single_qubit(gate, compiled_guppy):
     import random
 
     random.seed(1234)
@@ -179,17 +233,34 @@ def test_stim_gate_implementations_single_qubit(gate_name):
         i / 2 for i in range(-8, 9)
     ]  # from -4pi to 4pi in pi/2 increments
     params = [random.choice(all_quarter_turns) for _ in range(1000)]
-    gate = {"rx": rx, "ry": ry, "rz": rz}[gate_name]
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        angle = comptime(params)[get_current_shot()]
-        gate(q0, pi * angle)
-        state_result("entangled_state", q0)
-        discard(q0)
+    guppy_source = dedent(
+        f"""
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, {gate}, discard
+        from guppylang.std.debug import state_result
+        from guppylang.std.angles import pi
+        from guppylang.std.qsystem.utils import get_current_shot
 
-    runner = build(main.compile())
+        params = {params}
+
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            angle = comptime(params)[get_current_shot()]
+            {gate}(q0, pi * angle)
+            state_result("entangled_state", q0)
+            discard(q0)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name=f"stim_gate_implementation_{gate}",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
+
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(
@@ -214,14 +285,14 @@ def test_stim_gate_implementations_single_qubit(gate_name):
         quest_state = Quest.extract_states_dict(quest_shot.entries)["entangled_state"]
         quest_statevector = quest_state.get_single_state()
         print(f"Shot {shot}:")
-        print(f"   gate: {gate_name}(pi * {params[shot]})")
+        print(f"   gate: {gate}(pi * {params[shot]})")
         print("   Stim state:", stim_statevector)
         print("   Quest state:", quest_statevector)
         print("   Stabilizers", stim_state.get_reduced_stabilizers())
         np.testing.assert_allclose(stim_statevector, quest_statevector)
 
 
-def test_stim_gate_implementations_single_qubit_triples():
+def test_stim_gate_implementations_single_qubit_triples(compiled_guppy):
     import random
 
     random.seed(1234)
@@ -230,17 +301,34 @@ def test_stim_gate_implementations_single_qubit_triples():
     ]  # from -4pi to 4pi in pi/2 increments
     params = [[random.choice(all_quarter_turns) for _ in range(3)] for _ in range(1000)]
 
-    @guppy
-    def main() -> None:
-        q0: qubit = qubit()
-        angles = comptime(params)[get_current_shot()]
-        rx(q0, pi * angles[0])
-        ry(q0, pi * angles[1])
-        rz(q0, pi * angles[2])
-        state_result("entangled_state", q0)
-        discard(q0)
+    guppy_source = dedent(
+        f"""
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, ry, rz, rx, discard
+        from guppylang.std.debug import state_result
+        from guppylang.std.angles import pi
+        from guppylang.std.qsystem.utils import get_current_shot
 
-    runner = build(main.compile())
+        params = {params}
+
+        @guppy
+        def main() -> None:
+            q0: qubit = qubit()
+            angles = comptime(params)[get_current_shot()]
+            rx(q0, pi * angles[0])
+            ry(q0, pi * angles[1])
+            rz(q0, pi * angles[2])
+            state_result("entangled_state", q0)
+            discard(q0)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="stim_gate_implementation_triples",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(
@@ -276,16 +364,30 @@ def test_stim_gate_implementations_single_qubit_triples():
 
 @pytest.mark.parametrize("simulator_plugin", [Quest, Stim])
 @pytest.mark.parametrize("cleanup_param", [True, False, None])
-def test_state_cleanup(simulator_plugin, cleanup_param):
-    @guppy
-    def main() -> None:
-        qs = array(qubit() for _ in range(2))
-        for i in range(2):
-            x(qs[i])
-        state_result("array_state", qs[0])
-        discard_array(qs)
+def test_state_cleanup(simulator_plugin, cleanup_param, compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, x, discard_array
+        from guppylang.std.builtins import array
+        from guppylang.std.debug import state_result
 
-    runner = build(main.compile(), "array_state")
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(2))
+            for i in range(2):
+                x(qs[i])
+            state_result("array_state", qs[0])
+            discard_array(qs)
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="array_state_cleanup",
+        guppy_source=guppy_source,
+    )
+
+    runner = build(llvm_file)
     plugin = simulator_plugin()
     shots = QsysResult(
         runner.run_shots(

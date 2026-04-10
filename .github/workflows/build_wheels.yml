@@ -118,8 +118,9 @@ jobs:
             /tmp/ci-cache/selene
             target/
           key: selene-sim--build-env--${{ matrix.os }}--${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            selene-sim--build-env--${{ matrix.os }}--
+          # purge cache
+          #restore-keys: |
+          #  selene-sim--build-env--${{ matrix.os }}--
 
       # Perform the selene-sim build
       - name: Build selene-sim wheels

@@ -7,22 +7,29 @@ from ..types import (
     Artifact,
     Step,
 )
-from ..utils import (
-    get_undefined_symbols_from_object,
-    get_undefined_symbols_from_llvm_ir_file,
-    get_undefined_symbols_from_llvm_ir_string,
-    invoke_zig,
-)
+from ..utils import invoke_zig
+from ..symbols import get_symbols_from_object, get_symbols_from_llvm, SymbolTable
 from ..planner import BuildPlanner
 
 from .selene import SeleneObjectFileKind, SeleneExecutableKind
 
-HELIOS_REQUIRED_CALLS = [
-    "setup",
-    "teardown",
-]
 
-# Artifact Kinds:
+def _match_helios_qis(symbol_table: SymbolTable) -> bool:
+    # all programs targeting helios start with a setup call
+    if not symbol_table.has_defined_function("qmain"):
+        return False
+    if not symbol_table.has_undefined_function("setup"):
+        return False
+    # These are functions for a different platform to Helios
+    if any(
+        symbol_table.has_undefined_function(f)
+        for f in ("___rpp", "___rp", "___rxxyyzz")
+    ):
+        return False
+    # otherwise we may assume this targets helios, for now.
+    # Ideally QIS will gain a platform identifier so we can
+    # be more confident.
+    return True
 
 
 class HeliosLLVMIRStringKind(ArtifactKind):
@@ -30,8 +37,8 @@ class HeliosLLVMIRStringKind(ArtifactKind):
     def matches(cls, resource: Any) -> bool:
         if not isinstance(resource, str):
             return False
-        undefined_symbols = get_undefined_symbols_from_llvm_ir_string(resource)
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        symbols = get_symbols_from_llvm(resource)
+        if not _match_helios_qis(symbols):
             return False
         return True
 
@@ -45,8 +52,8 @@ class HeliosLLVMIRFileKind(ArtifactKind):
             return False
         if resource.suffix != ".ll":
             return False
-        undefined_symbols = get_undefined_symbols_from_llvm_ir_file(resource)
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        symbols = get_symbols_from_llvm(resource)
+        if not _match_helios_qis(symbols):
             return False
         return True
 
@@ -65,7 +72,8 @@ class HeliosLLVMBitcodeStringKind(ArtifactKind):
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
-        if not all(f.encode("UTF-8") in resource for f in HELIOS_REQUIRED_CALLS):
+        symbols = get_symbols_from_llvm(resource)
+        if not _match_helios_qis(symbols):
             return False
         return True
 
@@ -80,7 +88,14 @@ class HeliosLLVMBitcodeFileKind(ArtifactKind):
         if resource.suffix != ".bc":
             return False
         content = resource.read_bytes()
-        if not all(f.encode("UTF-8") in content for f in HELIOS_REQUIRED_CALLS):
+        magic_numbers = [
+            b"BC\xc0\xde",  # modern bitcode stream, observed on linux and windows runs
+            b"\xde\xc0\x17\x0b",  # legacy bitcode wrapper, observed on macOS runs
+        ]
+        if not any(content.startswith(magic) for magic in magic_numbers):
+            return False
+        symbols = get_symbols_from_llvm(content)
+        if not _match_helios_qis(symbols):
             return False
         return True
 
@@ -93,11 +108,11 @@ class HeliosObjectFileKind(ArtifactKind):
         if resource.suffix not in [".o", ".obj"]:
             return False
         try:
-            undefined_symbols = get_undefined_symbols_from_object(resource)
+            symbols = get_symbols_from_object(resource)
         except Exception:
             # unable to parse object file
             return False
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        if not _match_helios_qis(symbols):
             return False
         return True
 
@@ -111,15 +126,16 @@ class HeliosObjectStringKind(ArtifactKind):
             b"\x7fELF",  # ELF
             b"MZ",  # PE
             b"\xcf\xfa\xed\xfe",  # Mach-O Little Endian 64-bit
+            b"\x64\x86",  # COFF for AMD64
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
         try:
-            undefined_symbols = get_undefined_symbols_from_object(resource)
+            symbols = get_symbols_from_object(resource)
         except RuntimeError:
             # unable to parse object file
             return False
-        if not all(f in undefined_symbols for f in HELIOS_REQUIRED_CALLS):
+        if not _match_helios_qis(symbols):
             return False
         return True
 

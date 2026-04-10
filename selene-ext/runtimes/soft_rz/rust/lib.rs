@@ -245,11 +245,10 @@ impl RuntimeInterface for SoftRZRuntime {
                     result_id: measure_result_id,
                     ..
                 } = op
+                    && result_id == *measure_result_id
                 {
-                    if result_id == *measure_result_id {
-                        self.flush_size = std::cmp::max(self.flush_size, i + 1);
-                        return Ok(());
-                    }
+                    self.flush_size = std::cmp::max(self.flush_size, i + 1);
+                    return Ok(());
                 }
             }
         }

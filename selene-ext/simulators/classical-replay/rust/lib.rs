@@ -38,9 +38,9 @@ impl SimulatorInterface for ClassicalReplaySimulator {
     }
     fn shot_start(&mut self, shot_id: u64, _seed: u64) -> Result<()> {
         // Ensure the shot ID corresponds to a set of provided measurements.
-        if shot_id > self.all_shot_measurements.len() as u64 {
+        if shot_id >= self.all_shot_measurements.len() as u64 {
             return Err(anyhow!(
-                "Shot ID {shot_id} is out of bounds. The maximum shot ID is {}.",
+                "Shot ID {shot_id} is out of bounds. The number of shots is {}.",
                 self.all_shot_measurements.len()
             ));
         }

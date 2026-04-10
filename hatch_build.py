@@ -18,17 +18,24 @@ class CargoWorkspaceBuild:
         self.extract_libs()
 
     def _get_metadata(self):
-        call = subprocess.run(
+        p = subprocess.Popen(
             [
                 "cargo",
                 "metadata",
                 "--no-deps",
             ],
             cwd=self.hook.root,
-            check=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-        return json.loads(call.stdout)
+        stdout, stderr = p.communicate()
+        if p.returncode != 0:
+            self.hook.app.display_error(
+                f"Cargo metadata command failed with return code {p.returncode}"
+            )
+            self.hook.app.display_error(stderr.decode("utf-8"))
+            sys.exit(1)
+        return json.loads(stdout)
 
     def build_all(self):
         self.hook.app.display_mini_header("Building cargo workspace")
@@ -104,6 +111,8 @@ class CargoWorkspaceBuild:
                             f"Copying {lib_path} to {destination}"
                         )
                         shutil.copy(lib_path, destination)
+
+
 class BundleBuildHook(BuildHookInterface):
     def get_cargo_release_dir(self) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")
@@ -246,12 +255,19 @@ class BundleBuildHook(BuildHookInterface):
         dist_dir = selene_sim_dir / "python/selene_sim/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
 
-        cmake_build_dir = selene_sim_dir / "c/build"
+        cmake_source_dir = selene_sim_dir / "c"
+
+        cmake_build_dir = Path(self.root) / "target" / "selene_c_interface_build"
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             subprocess.run(
-                ["cmake", f"-DCMAKE_INSTALL_PREFIX={dist_dir}", ".."],
+                [
+                    "cmake",
+                    f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    f"{cmake_source_dir}",
+                ],
                 cwd=cmake_build_dir,
                 check=True,
                 capture_output=True,
@@ -269,7 +285,7 @@ class BundleBuildHook(BuildHookInterface):
                         "cmake",
                         f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
                         "-DCMAKE_BUILD_TYPE=Release",
-                        "..",
+                        f"{cmake_source_dir}",
                     ],
                     cwd=cmake_build_dir,
                     check=True,
@@ -301,7 +317,8 @@ class BundleBuildHook(BuildHookInterface):
     def build_helios_qis(self):
         self.app.display_mini_header("Building Helios QIS")
         helios_qis_dir = Path(self.root) / "selene-ext/interfaces/helios_qis"
-        cmake_build_dir = helios_qis_dir / "c/build"
+        cmake_source_dir = helios_qis_dir / "c"
+        cmake_build_dir = Path(self.root) / "target" / "helios_qis_build"
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
         dist_dir = helios_qis_dir / "python/selene_helios_qis_plugin/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
@@ -311,7 +328,7 @@ class BundleBuildHook(BuildHookInterface):
             f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
             "-DCMAKE_BUILD_TYPE=Release",
             f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
-            "..",
+            f"{cmake_source_dir}",
         ]
         if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
             cmake_configure_cmd = [

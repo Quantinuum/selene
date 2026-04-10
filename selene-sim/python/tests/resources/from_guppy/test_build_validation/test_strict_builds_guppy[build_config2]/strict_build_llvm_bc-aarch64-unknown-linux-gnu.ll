@@ -1,0 +1,53 @@
+; ModuleID = 'hugr'
+source_filename = "hugr"
+target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
+target triple = "aarch64-unknown-linux-gnu"
+
+@"e_No more qu.3B2EEBF0.0" = private constant [47 x i8] c".EXIT:INT:No more qubits available to allocate."
+
+declare void @___qfree(i64) local_unnamed_addr
+
+declare i64 @___qalloc() local_unnamed_addr
+
+declare void @___reset(i64) local_unnamed_addr
+
+; Function Attrs: noreturn
+declare void @panic(i32, i8*) local_unnamed_addr #0
+
+define i64 @qmain(i64 %0) local_unnamed_addr {
+entry:
+  tail call void @setup(i64 %0)
+  %qalloc.i.i = tail call i64 @___qalloc()
+  %not_max.not.i.i = icmp eq i64 %qalloc.i.i, -1
+  br i1 %not_max.not.i.i, label %id_bb.i.i, label %reset_bb.i.i
+
+reset_bb.i.i:                                     ; preds = %entry
+  tail call void @___reset(i64 %qalloc.i.i)
+  br label %id_bb.i.i
+
+id_bb.i.i:                                        ; preds = %reset_bb.i.i, %entry
+  %1 = insertvalue { i1, i64 } { i1 true, i64 poison }, i64 %qalloc.i.i, 1
+  %2 = select i1 %not_max.not.i.i, { i1, i64 } { i1 false, i64 poison }, { i1, i64 } %1
+  %.fca.0.extract.i.i = extractvalue { i1, i64 } %2, 0
+  br i1 %.fca.0.extract.i.i, label %__hugr__.main.1.exit, label %cond_17_case_0.i.i
+
+cond_17_case_0.i.i:                               ; preds = %id_bb.i.i
+  tail call void @panic(i32 1001, i8* getelementptr inbounds ([47 x i8], [47 x i8]* @"e_No more qu.3B2EEBF0.0", i64 0, i64 0))
+  unreachable
+
+__hugr__.main.1.exit:                             ; preds = %id_bb.i.i
+  %.fca.1.extract.i.i = extractvalue { i1, i64 } %2, 1
+  tail call void @___qfree(i64 %.fca.1.extract.i.i)
+  %3 = tail call i64 @teardown()
+  ret i64 %3
+}
+
+declare void @setup(i64) local_unnamed_addr
+
+declare i64 @teardown() local_unnamed_addr
+
+attributes #0 = { noreturn }
+
+!name = !{!0}
+
+!0 = !{!"mainlib"}

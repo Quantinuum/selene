@@ -89,16 +89,21 @@ packages = [
 
 [tool.uv]
 cache-keys = [
-  { file = "selene-sim/**/*.c" },
-  { file = "selene-sim/**/*.h" },
-  { file = "selene-sim/**/*.rs" },
-  { file = "selene-sim/**/CMakeLists.txt" },
-  { file = "selene-sim/**/Cargo.toml" },
-  { file = "selene-sim/**/Cargo.lock" },
-  { file = "selene-ext/**/*.c" },
-  { file = "selene-ext/**/*.h" },
-  { file = "selene-ext/**/*.rs" },
-  { file = "selene-ext/**/CMakeLists.txt" },
+  { file = "Cargo.lock" },
+  { file = "Cargo.toml" },
+  { file = "hatch_build.py" },
+  { file = "selene-sim/c/**/*.c" },
+  { file = "selene-sim/c/**/*.h" },
+  { file = "selene-sim/c/**/CMakeLists.txt" },
+  { file = "selene-sim/rust/**/*.rs" },
+  { file = "selene-sim/rust/**/Cargo.toml" },
+  { file = "selene-ext/*/*/c/**/*.c" },
+  { file = "selene-ext/*/*/c/**/*.h" },
+  { file = "selene-ext/*/*/c/**/CMakeLists.txt" },
+  { file = "selene-ext/*/*/c_interface/**/*.c" },
+  { file = "selene-ext/*/*/c_interface/**/*.h" },
+  { file = "selene-ext/*/*/c_interface/**/CMakeLists.txt" },
+  { file = "selene-ext/*/*/rust/**/*.rs" },
   { file = "selene-ext/**/Cargo.toml" },
   { file = "selene-ext/**/Cargo.lock" },
 ]
@@ -176,7 +181,6 @@ environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-requires = [
   "pytest",
   "pytest-snapshot",
-  "guppylang~=0.21.6,!=0.21.7,!=0.21.9",
   "pytket~=2.9.1",
 ]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
@@ -219,9 +223,18 @@ before-test = '''
 '''
 [tool.cibuildwheel.macos]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "11.0" }
-before-all = ['curl -sSf https://sh.rustup.rs | sh -s -- -y']
-before-test = ['uv pip install ./selene-core']
+before-all = [
+    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y'
+]
+before-test = [
+    'uv pip install ./selene-core'
+]
 [tool.cibuildwheel.windows]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu" }
-before-all = ['curl -sSf https://sh.rustup.rs | sh -s -- -y', 'rustup target add x86_64-pc-windows-gnu']
-before-test = ['uv pip install ./selene-core']
+before-all = [
+    'curl -sSf https://sh.rustup.rs | sh -s -- -y',
+    'rustup target add x86_64-pc-windows-gnu'
+]
+before-test = [
+    'uv pip install ./selene-core'
+]
