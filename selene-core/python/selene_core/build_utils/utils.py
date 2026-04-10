@@ -47,7 +47,12 @@ def get_target_triple(arch: str | None = None, system: str | None = None) -> str
     return f"{target_arch}-{target_system}"
 
 
-def invoke_zig(*args, handle_triple=True, verbose=False, cache_dir=None) -> str:
+def invoke_zig(
+    *args,
+    handle_triple: bool = True,
+    verbose: bool = False,
+    cache_dir: Path | None = None,
+) -> str:
     """
     Invoke zig with the given arguments, after conversion to strings.
     """
