@@ -11,13 +11,13 @@ from .symbols import (
 )
 
 
-def get_undefined_symbols_from_object(object):  # noqa: A002
+def get_undefined_symbols_from_object(obj):
     warnings.warn(
         "get_undefined_symbols_from_object is deprecated; use get_symbols_from_object(...).undefined_functions instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return get_symbols_from_object(object).undefined_functions
+    return get_symbols_from_object(obj).undefined_functions
 
 
 def get_undefined_symbols_from_llvm(contents):
