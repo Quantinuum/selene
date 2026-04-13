@@ -1,17 +1,38 @@
 from pathlib import Path
 from typing import Any
 
-from .helios import HeliosLLVMBitcodeStringKind
+from .helios import HeliosLLVMBitcodeStringKind, _match_helios_qis
 from ..planner import BuildPlanner
 from ..types import ArtifactKind, Step, BuildCtx, Artifact
+from ..symbols import get_symbols_from_llvm
 
-from qir_qis import qir_ll_to_bc, qir_to_qis, validate_qir
+from qir_qis import get_entry_attributes, qir_ll_to_bc, qir_to_qis, validate_qir
 
-QIR_MATCHES = [
-    "__quantum__qis",
-    "__quantum__rt",
-    "entry_point",
-]
+
+def _matches_qir_ir(text: str) -> bool:
+    try:
+        symbols = get_symbols_from_llvm(text)
+    except Exception:
+        return False
+    if _match_helios_qis(symbols):
+        return False
+    return '"entry_point"' in text
+
+
+def _matches_qir_bitcode(bitcode: bytes) -> bool:
+    magic_numbers = [
+        b"BC\xc0\xde",  # modern bitcode stream, observed on linux and windows runs
+        b"\xde\xc0\x17\x0b",  # legacy bitcode wrapper, observed on macOS runs
+    ]
+    if not any(bitcode.startswith(magic) for magic in magic_numbers):
+        return False
+    try:
+        symbols = get_symbols_from_llvm(bitcode)
+    except Exception:
+        return False
+    if _match_helios_qis(symbols):
+        return False
+    return bool(get_entry_attributes(bitcode))
 
 
 class QIRIRFileKind(ArtifactKind):
@@ -25,8 +46,7 @@ class QIRIRFileKind(ArtifactKind):
             return False
         if resource.suffix != ".ll":
             return False
-        contents = resource.read_text()
-        return any(match in contents for match in QIR_MATCHES)
+        return _matches_qir_ir(resource.read_text())
 
 
 class QIRIRStringKind(ArtifactKind):
@@ -38,7 +58,7 @@ class QIRIRStringKind(ArtifactKind):
             resource = resource.ir
         if not isinstance(resource, str):
             return False
-        return any(match in resource for match in QIR_MATCHES)
+        return _matches_qir_ir(resource)
 
 
 class QIRBitcodeFileKind(ArtifactKind):
@@ -52,8 +72,7 @@ class QIRBitcodeFileKind(ArtifactKind):
             return False
         if resource.suffix != ".bc":
             return False
-        contents = resource.read_bytes()
-        return any(match.encode("utf-8") in contents for match in QIR_MATCHES)
+        return _matches_qir_bitcode(resource.read_bytes())
 
 
 class QIRBitcodeStringKind(ArtifactKind):
@@ -65,13 +84,7 @@ class QIRBitcodeStringKind(ArtifactKind):
             resource = resource.bitcode
         if not isinstance(resource, bytes):
             return False
-        magic_numbers = [
-            b"BC\xc0\xde",  # modern bitcode stream, observed on linux and windows runs
-            b"\xde\xc0\x17\x0b",  # legacy bitcode wrapper, observed on macOS runs
-        ]
-        if not any(resource.startswith(magic) for magic in magic_numbers):
-            return False
-        return any(match.encode("utf-8") in resource for match in QIR_MATCHES)
+        return _matches_qir_bitcode(resource)
 
 
 class QIRIRStringToQIRIRFileStep(Step):
