@@ -1,11 +1,28 @@
 use std::collections::VecDeque;
 
 use anyhow::{Result, bail};
+use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
+
+#[derive(Parser, Debug)]
+struct Params {
+    #[arg(long)]
+    duration_ns_rxy: u64,
+    #[arg(long)]
+    duration_ns_rzz: u64,
+    #[arg(long)]
+    duration_ns_measure: u64,
+    #[arg(long)]
+    duration_ns_reset: u64,
+    #[arg(long)]
+    duration_ns_measure_leaked: u64,
+    #[arg(long)]
+    max_batch_size: usize,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 enum QubitStatus {
@@ -27,25 +44,72 @@ struct SoftRZRuntime {
     flush_size: usize,
     future_results: Vec<FutureResult>,
     start: selene_core::time::Instant,
+    params: Params,
 }
 
 impl SoftRZRuntime {
-    pub fn new(n_qubits: u64, start: selene_core::time::Instant) -> Self {
+    pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
             flush_size: 0,
             future_results: Vec::with_capacity(1000),
             start,
+            params,
         }
     }
 
     pub fn push(&mut self, op: Operation) {
-        self.operation_queue.push_back(BatchOperation::new(
-            vec![op],
-            self.start,
-            Default::default(),
-        ));
+        // iff:
+        // - the last batch operation has fewer than max_batch_size operations
+        // - the ops on the last batch are of the same kind as op
+        // - none of the operations in the last batch act on the same qubits as op
+        // then we can push op onto the last batch instead of creating a new batch for it.
+        if let Some(last_op) = self.operation_queue.back_mut()
+            && last_op.len() < self.params.max_batch_size
+        {
+            // determine if it's a batch of the same type
+            let same_type = last_op.iter_ops().all(|last_op| match (&last_op, &op) {
+                (Operation::RXYGate { .. }, Operation::RXYGate { .. }) => true,
+                (Operation::RZGate { .. }, Operation::RZGate { .. }) => true,
+                (Operation::RZZGate { .. }, Operation::RZZGate { .. }) => true,
+                (Operation::Measure { .. }, Operation::Measure { .. }) => true,
+                (Operation::MeasureLeaked { .. }, Operation::MeasureLeaked { .. }) => true,
+                (Operation::Reset { .. }, Operation::Reset { .. }) => true,
+                // don't allow custom ops to be batched, since we don't know their semantics
+                _ => false,
+            });
+            let op_qubits = last_op.get_qubit_ids(); // hashset of u64
+            let disjoint_qubits = match &op {
+                Operation::RXYGate { qubit_id, .. }
+                | Operation::RZGate { qubit_id, .. }
+                | Operation::Measure { qubit_id, .. }
+                | Operation::MeasureLeaked { qubit_id, .. }
+                | Operation::Reset { qubit_id, .. } => !op_qubits.contains(qubit_id),
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    ..
+                } => !op_qubits.contains(qubit_id_1) || op_qubits.contains(qubit_id_2),
+                Operation::Custom { .. } => false,
+            };
+
+            if same_type && disjoint_qubits {
+                last_op.add_operation(op);
+                return;
+            }
+        }
+        let duration = match op {
+            Operation::RXYGate { .. } => self.params.duration_ns_rxy,
+            Operation::RZZGate { .. } => self.params.duration_ns_rzz,
+            Operation::Measure { .. } => self.params.duration_ns_measure,
+            Operation::Reset { .. } => self.params.duration_ns_reset,
+            Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
+            _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
+        };
+        self.operation_queue
+            .push_back(BatchOperation::new(vec![op], self.start, duration.into()));
+        self.start += duration.into();
     }
 }
 
@@ -320,7 +384,12 @@ impl RuntimeInterfaceFactory for SoftRZRuntimeFactory {
         start: selene_core::time::Instant,
         _args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
-        Ok(Box::new(SoftRZRuntime::new(n_qubits, start)))
+        let args: Vec<String> = _args.iter().map(|s| s.as_ref().to_string()).collect();
+
+        match Params::try_parse_from(args) {
+            Ok(params) => Ok(Box::new(SoftRZRuntime::new(n_qubits, start, params))),
+            Err(e) => bail!("Failed to parse arguments for SoftRZRuntimeFactory: {e}"),
+        }
     }
 }
 

@@ -94,6 +94,35 @@ impl BatchOperation {
             duration,
         }
     }
+
+    pub fn get_qubit_ids(&self) -> std::collections::HashSet<u64> {
+        self.ops
+            .iter()
+            .fold(std::collections::HashSet::new(), |mut acc, op| match op {
+                Operation::Measure { qubit_id, .. }
+                | Operation::Reset { qubit_id }
+                | Operation::RXYGate { qubit_id, .. }
+                | Operation::RZGate { qubit_id, .. }
+                | Operation::MeasureLeaked { qubit_id, .. } => {
+                    acc.insert(*qubit_id);
+                    acc
+                }
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    ..
+                } => {
+                    acc.insert(*qubit_id_1);
+                    acc.insert(*qubit_id_2);
+                    acc
+                }
+                Operation::Custom { .. } => acc,
+            })
+    }
+
+    pub fn add_operation(&mut self, op: Operation) {
+        self.ops.push(op);
+    }
 }
 
 impl IntoIterator for BatchOperation {
