@@ -184,6 +184,8 @@ impl Emulator {
 
     pub fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
         self.runtime.simulate_delay(delay_ns)?;
+        self.event_hooks
+            .on_user_call(&Operation::ClassicalDelay(delay_ns));
         self.process_runtime()
     }
 }
