@@ -82,6 +82,10 @@ impl Instruction {
                 encoder.write(12u64)?;
                 encoder.write(*qubit1)?;
             }
+            Operation::ClassicalDelay(duration) => {
+                encoder.write(13u64)?;
+                encoder.write(*duration)?;
+            }
         }
         Ok(())
     }

@@ -113,3 +113,150 @@ def test_simulate_delay():
         {"op": "BatchStart", "start_time_ns": 1234500000, "duration_ns": 0},
         {"op": "FutureRead", "qubit": 1},
     ]
+
+    all_output = list(helios_circuit_extractor.shots[0])
+    all_output_serialised = []
+    for item in all_output:
+        all_output_serialised.append(
+            {"source": str(item.source), "operation": item.operation.to_dict()}
+        )
+
+    assert all_output_serialised == [
+        {
+            "operation": {
+                "op": "QAlloc",
+                "qubit": 0,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "QAlloc",
+                "qubit": 1,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "Reset",
+                "qubit": 0,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "duration_ns": 0,
+                "op": "BatchStart",
+                "start_time_ns": 0,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "Reset",
+                "qubit": 0,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "Reset",
+                "qubit": 1,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "duration_ns": 0,
+                "op": "BatchStart",
+                "start_time_ns": 0,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "Reset",
+                "qubit": 1,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "MeasureRequest",
+                "qubit": 0,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "duration_ns": 0,
+                "op": "BatchStart",
+                "start_time_ns": 0,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "FutureRead",
+                "qubit": 0,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "QFree",
+                "qubit": 0,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "FutureRead",
+                "qubit": 0,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "duration_ns": 1234500000,
+                "op": "ClassicalDelay",
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "MeasureRequest",
+                "qubit": 1,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "duration_ns": 0,
+                "op": "BatchStart",
+                "start_time_ns": 1234500000,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "FutureRead",
+                "qubit": 1,
+            },
+            "source": "Source.OPTIMISER",
+        },
+        {
+            "operation": {
+                "op": "QFree",
+                "qubit": 1,
+            },
+            "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "FutureRead",
+                "qubit": 1,
+            },
+            "source": "Source.USER",
+        },
+    ]

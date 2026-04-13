@@ -300,6 +300,22 @@ class FutureRead(Operation):
         return FutureRead(qubit=next(it))
 
 
+@dataclass
+class ClassicalDelay(Operation):
+    duration_ns: int
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        pass
+
+    def to_dict(self) -> dict:
+        return {"op": "ClassicalDelay", "duration_ns": self.duration_ns}
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        duration_ns = next(it)
+        return ClassicalDelay(duration_ns=duration_ns)
+
+
 class Source(Enum):
     """
     Selene provides the source of each instruction as an
@@ -370,6 +386,8 @@ class Instruction:
                 operation = GlobalBarrier.from_iterator(it)
             case 12:
                 operation = MeasureLeakedRequest.from_iterator(it)
+            case 13:
+                operation = ClassicalDelay.from_iterator(it)
         if operation is None:
             raise ValueError(f"Unknown instruction operation index {operation_idx}")
         return Instruction(source=source, operation=operation)

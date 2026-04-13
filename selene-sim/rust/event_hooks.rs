@@ -21,6 +21,7 @@ pub enum Operation {
     GlobalBarrier(u64),
     LocalBarrier(Vec<u64>, u64),
     Custom(u64, Vec<u8>),
+    ClassicalDelay(u64),
 }
 
 pub trait EventHook {
