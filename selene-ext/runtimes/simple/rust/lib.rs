@@ -1,11 +1,26 @@
 use std::collections::VecDeque;
 
 use anyhow::{Result, bail};
+use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
+
+#[derive(Parser, Debug)]
+struct Params {
+    #[arg(long)]
+    duration_ns_rxy: u64,
+    #[arg(long)]
+    duration_ns_rzz: u64,
+    #[arg(long)]
+    duration_ns_measure: u64,
+    #[arg(long)]
+    duration_ns_reset: u64,
+    #[arg(long)]
+    duration_ns_measure_leaked: u64,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 enum QubitStatus {
@@ -27,24 +42,35 @@ struct SimpleRuntime {
     operation_queue: VecDeque<BatchOperation>,
     future_results: Vec<FutureResult>,
     start: selene_core::time::Instant,
+    params: Params,
 }
 
 impl SimpleRuntime {
-    pub fn new(n_qubits: u64, start: selene_core::time::Instant) -> Self {
+    pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
             future_results: Vec::with_capacity(1000),
             start,
+            params,
         }
     }
 
     pub fn push(&mut self, op: Operation) {
+        let duration_ns = match op {
+            Operation::RXYGate { .. } => self.params.duration_ns_rxy,
+            Operation::RZZGate { .. } => self.params.duration_ns_rzz,
+            Operation::Measure { .. } => self.params.duration_ns_measure,
+            Operation::Reset { .. } => self.params.duration_ns_reset,
+            Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
+            _ => 0,
+        };
         self.operation_queue.push_back(BatchOperation::new(
             vec![op],
             self.start,
-            Default::default(),
+            duration_ns.into(),
         ));
+        self.start += duration_ns.into();
     }
 }
 
@@ -246,9 +272,14 @@ impl RuntimeInterfaceFactory for SimpleRuntimeFactory {
         self: std::sync::Arc<Self>,
         n_qubits: u64,
         start: selene_core::time::Instant,
-        _args: &[impl AsRef<str>],
+        args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
-        Ok(Box::new(SimpleRuntime::new(n_qubits, start)))
+        let args: Vec<String> = args.iter().map(|s| s.as_ref().to_string()).collect();
+
+        match Params::try_parse_from(args) {
+            Ok(params) => Ok(Box::new(SimpleRuntime::new(n_qubits, start, params))),
+            Err(e) => bail!("Failed to parse runtime parameters: {e}"),
+        }
     }
 }
 

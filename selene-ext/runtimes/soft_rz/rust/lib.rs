@@ -1,11 +1,28 @@
 use std::collections::VecDeque;
 
 use anyhow::{Result, bail};
+use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
+
+#[derive(Parser, Debug)]
+struct Params {
+    #[arg(long)]
+    duration_ns_rxy: u64,
+    #[arg(long)]
+    duration_ns_rzz: u64,
+    #[arg(long)]
+    duration_ns_measure: u64,
+    #[arg(long)]
+    duration_ns_reset: u64,
+    #[arg(long)]
+    duration_ns_measure_leaked: u64,
+    #[arg(long)]
+    max_batch_size: usize,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 enum QubitStatus {
@@ -27,25 +44,107 @@ struct SoftRZRuntime {
     flush_size: usize,
     future_results: Vec<FutureResult>,
     start: selene_core::time::Instant,
+    params: Params,
+}
+
+struct AppendSearchResult {
+    can_append: bool,
+    can_continue_search: bool,
 }
 
 impl SoftRZRuntime {
-    pub fn new(n_qubits: u64, start: selene_core::time::Instant) -> Self {
+    pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
             flush_size: 0,
             future_results: Vec::with_capacity(1000),
             start,
+            params,
         }
     }
 
     pub fn push(&mut self, op: Operation) {
-        self.operation_queue.push_back(BatchOperation::new(
-            vec![op],
-            self.start,
-            Default::default(),
-        ));
+        // In this runtime we aim to schedule an operation as early as possible.
+        // As such, we search backwards through the operation queue for the earliest
+        // batch that op can be appended to, taking into account the batch's operations' types, the batch's qubits,
+        // and the max batch size.
+        let mut append_idx = self.operation_queue.len();
+        for (i, operation) in self.operation_queue.iter().enumerate().rev() {
+            let append_result = self.append_search_impl(&op, operation);
+            if append_result.can_append {
+                append_idx = i;
+            }
+            if !append_result.can_continue_search {
+                break;
+            }
+        }
+
+        if append_idx < self.operation_queue.len() {
+            // We found a batch to append to!
+            self.operation_queue[append_idx].add_operation(op);
+        } else {
+            // We didn't find a batch to append to, so we need to create a new batch for this operation.
+            let duration = match op {
+                Operation::RXYGate { .. } => self.params.duration_ns_rxy,
+                Operation::RZZGate { .. } => self.params.duration_ns_rzz,
+                Operation::Measure { .. } => self.params.duration_ns_measure,
+                Operation::Reset { .. } => self.params.duration_ns_reset,
+                Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
+                _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
+            };
+            self.operation_queue.push_back(BatchOperation::new(
+                vec![op],
+                self.start,
+                duration.into(),
+            ));
+            self.start += duration.into();
+        }
+    }
+
+    fn append_search_impl(&self, op: &Operation, batch: &BatchOperation) -> AppendSearchResult {
+        // first, check if the current batch operates intersects op's qubits.
+        // if it does, we can't append and we can't continue searching due to causality.
+        if batch
+            .get_qubit_ids()
+            .intersection(&op.get_qubit_ids())
+            .next()
+            .is_some()
+        {
+            return AppendSearchResult {
+                can_append: false,
+                can_continue_search: false,
+            };
+        }
+        // next, check if there's space in this batch to append op. If there isn't, we can't append, but we can continue searching for an earlier batch that op might fit into.
+        if batch.len() >= self.params.max_batch_size {
+            return AppendSearchResult {
+                can_append: false,
+                can_continue_search: true,
+            };
+        }
+        // next, check the type of the operations in this batch. If they aren't the same type as op, we can't append, but we can continue searching for an earlier batch that op might fit into.
+        let same_type = batch.iter_ops().all(|batch_op| match (batch_op, op) {
+            (Operation::RXYGate { .. }, Operation::RXYGate { .. }) => true,
+            (Operation::RZGate { .. }, Operation::RZGate { .. }) => true,
+            (Operation::RZZGate { .. }, Operation::RZZGate { .. }) => true,
+            (Operation::Measure { .. }, Operation::Measure { .. }) => true,
+            (Operation::MeasureLeaked { .. }, Operation::MeasureLeaked { .. }) => true,
+            (Operation::Reset { .. }, Operation::Reset { .. }) => true,
+            // don't allow custom ops to be batched, since we don't know their semantics
+            _ => false,
+        });
+        if !same_type {
+            AppendSearchResult {
+                can_append: false,
+                can_continue_search: true,
+            }
+        } else {
+            AppendSearchResult {
+                can_append: true,
+                can_continue_search: true,
+            }
+        }
     }
 }
 
@@ -85,54 +184,21 @@ impl RuntimeInterface for SoftRZRuntime {
         Ok(())
     }
     fn local_barrier(&mut self, qubits: &[u64], _sleep_ns: u64) -> Result<()> {
-        let mut last_op_using_qubits = 0;
-        for (i, operation) in self
+        // search backwards through the operation queue for the last operation that uses any of the barrier's qubits.
+        // All operations up to and including that operation can be flushed.
+        //
+        // then set self.flush_size to the number of operations that can be flushed.
+        // flush_size is kept monotonic to avoid reducing a previously larger flush window.
+        let qubits: std::collections::HashSet<u64> = qubits.iter().cloned().collect();
+        let found = self
             .operation_queue
             .iter()
-            .skip(self.flush_size)
             .enumerate()
-        {
-            for op in operation.iter_ops() {
-                match op {
-                    Operation::RXYGate { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::RZGate { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::RZZGate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        ..
-                    } => {
-                        if qubits.contains(qubit_id_1) || qubits.contains(qubit_id_2) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Measure { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::MeasureLeaked { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Reset { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Custom { .. } => {}
-                }
-            }
+            .rev()
+            .find(|(_, op)| op.get_qubit_ids().intersection(&qubits).next().is_some());
+        if let Some((i, _)) = found {
+            self.flush_size = self.flush_size.max(i + 1);
         }
-        self.flush_size = std::cmp::max(self.flush_size, last_op_using_qubits + 1);
         Ok(())
     }
     // Allocation
@@ -318,9 +384,14 @@ impl RuntimeInterfaceFactory for SoftRZRuntimeFactory {
         self: std::sync::Arc<Self>,
         n_qubits: u64,
         start: selene_core::time::Instant,
-        _args: &[impl AsRef<str>],
+        args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
-        Ok(Box::new(SoftRZRuntime::new(n_qubits, start)))
+        let args: Vec<String> = args.iter().map(|s| s.as_ref().to_string()).collect();
+
+        match Params::try_parse_from(args) {
+            Ok(params) => Ok(Box::new(SoftRZRuntime::new(n_qubits, start, params))),
+            Err(e) => bail!("Failed to parse arguments for SoftRZRuntimeFactory: {e}"),
+        }
     }
 }
 

@@ -3,6 +3,7 @@ pub mod interface;
 pub mod plugin;
 pub mod version;
 
+use std::collections::HashSet;
 use std::{iter, sync};
 
 pub use interface::{RuntimeInterface, RuntimeInterfaceFactory};
@@ -54,6 +55,33 @@ pub enum Operation {
     },
 }
 
+impl Operation {
+    pub fn get_qubit_ids(&self) -> HashSet<u64> {
+        match self {
+            Operation::Measure { qubit_id, .. }
+            | Operation::Reset { qubit_id }
+            | Operation::RXYGate { qubit_id, .. }
+            | Operation::RZGate { qubit_id, .. }
+            | Operation::MeasureLeaked { qubit_id, .. } => {
+                let mut set = HashSet::new();
+                set.insert(*qubit_id);
+                set
+            }
+            Operation::RZZGate {
+                qubit_id_1,
+                qubit_id_2,
+                ..
+            } => {
+                let mut set = HashSet::new();
+                set.insert(*qubit_id_1);
+                set.insert(*qubit_id_2);
+                set
+            }
+            Operation::Custom { .. } => HashSet::new(),
+        }
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct BatchOperation {
     ops: Vec<Operation>,
@@ -93,6 +121,19 @@ impl BatchOperation {
             start,
             duration,
         }
+    }
+
+    pub fn get_qubit_ids(&self) -> HashSet<u64> {
+        self.ops.iter().fold(HashSet::new(), |mut acc, op| {
+            for qubit_id in op.get_qubit_ids() {
+                acc.insert(qubit_id);
+            }
+            acc
+        })
+    }
+
+    pub fn add_operation(&mut self, op: Operation) {
+        self.ops.push(op);
     }
 }
 
