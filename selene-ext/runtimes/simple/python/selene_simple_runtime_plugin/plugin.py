@@ -16,6 +16,30 @@ class SimpleRuntimePlugin(Runtime):
     retrieve the result.
     """
 
+    duration_ns_rxy: int = 0
+    duration_ns_rzz: int = 0
+    duration_ns_measure: int = 0
+    duration_ns_reset: int = 0
+    duration_ns_measure_leaked: int = 0
+
+    def __post_init__(self):
+        assert self.duration_ns_rxy >= 0, "duration_ns_rxy must be non-negative"
+        assert self.duration_ns_rzz >= 0, "duration_ns_rzz must be non-negative"
+        assert self.duration_ns_measure >= 0, "duration_ns_measure must be non-negative"
+        assert self.duration_ns_reset >= 0, "duration_ns_reset must be non-negative"
+        assert self.duration_ns_measure_leaked >= 0, (
+            "duration_ns_measure_leaked must be non-negative"
+        )
+
+    def get_init_args(self):
+        return [
+            f"--duration-ns-rxy={self.duration_ns_rxy}",
+            f"--duration-ns-rzz={self.duration_ns_rzz}",
+            f"--duration-ns-measure={self.duration_ns_measure}",
+            f"--duration-ns-reset={self.duration_ns_reset}",
+            f"--duration-ns-measure-leaked={self.duration_ns_measure_leaked}",
+        ]
+
     @property
     def library_file(self):
         libdir = Path(__file__).parent / "_dist/lib/"
@@ -28,9 +52,3 @@ class SimpleRuntimePlugin(Runtime):
                 return libdir / "selene_simple_runtime.dll"
             case _:
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
-
-    def get_init_args(self):
-        """
-        There are no init args for the simple runtime.
-        """
-        return []

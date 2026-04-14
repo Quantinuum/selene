@@ -712,6 +712,7 @@ name = "selene-simple-runtime"
 version = "0.2.13"
 dependencies = [
  "anyhow",
+ "clap",
  "selene-core",
 ]
 

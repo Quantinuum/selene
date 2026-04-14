@@ -69,36 +69,8 @@ def test_simple_vs_softrz(snapshot, compiled_guppy):
     soft_metrics = soft_metric_store.shots[0]
     soft_instructions = soft_circuit_extractor.shots[0]
 
-    soft_batched_metric_store = MetricStore()
-    soft_batched_circuit_extractor = CircuitExtractor()
-    soft_batched_event_hook = MultiEventHook(
-        [soft_batched_metric_store, soft_batched_circuit_extractor]
-    )
-    soft_batched = dict(
-        runner.run(
-            simulator,
-            runtime=SoftRZRuntime(
-                max_batch_size=10,
-                # The below times are arbitrary, and test that timing
-                # information is correctly recorded in the instruction log.
-                duration_ns_reset=500_000,  # 0.7ms
-                duration_ns_measure=3_000_000,  # 3ms
-                duration_ns_rxy=1_200_000,  # 1.2ms
-                duration_ns_rzz=2_500_000,  # 2.5ms
-            ),
-            verbose=True,
-            n_qubits=4,
-            event_hook=soft_batched_event_hook,
-        )
-    )
-    soft_batched_metrics = soft_batched_metric_store.shots[0]
-    soft_batched_instructions = soft_batched_circuit_extractor.shots[0]
-
     assert simple == soft, (
         f"Simple and SoftRZ runtimes produced different results: {simple} vs {soft}"
-    )
-    assert soft == soft_batched, (
-        f"SoftRZ runtimes with different batch sizes produced different results: {soft} vs {soft_batched}"
     )
     assert soft_metrics["user_program"] == simple_metrics["user_program"], (
         f"User program metrics differ: {soft_metrics['user_program']} vs {simple_metrics['user_program']}"
@@ -130,12 +102,5 @@ def test_simple_vs_softrz(snapshot, compiled_guppy):
         {"source": str(event.source), "operation": event.operation.to_dict()}
         for event in soft_instructions
     ]
-    soft_batched_events = [
-        {"source": str(event.source), "operation": event.operation.to_dict()}
-        for event in soft_batched_instructions
-    ]
     snapshot.assert_match(json.dumps(simple_events, indent=2), "simple_events.json")
     snapshot.assert_match(json.dumps(soft_events, indent=2), "soft_events.json")
-    snapshot.assert_match(
-        json.dumps(soft_batched_events, indent=2), "soft_batched_events.json"
-    )

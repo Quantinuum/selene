@@ -13,4 +13,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow.workspace = true
+clap.workspace = true
 selene-core = { path = "../../../selene-core" }
