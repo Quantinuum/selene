@@ -188,17 +188,13 @@ impl RuntimeInterface for SoftRZRuntime {
         // All operations up to and including that operation can be flushed.
         //
         // then set self.flush_size to the number of operations that can be flushed.
+        // flush_size is kept monotonic to avoid reducing a previously larger flush window.
         let qubits: std::collections::HashSet<u64> = qubits.iter().cloned().collect();
-        for (i, operation) in self.operation_queue.iter().enumerate().rev() {
-            if operation
-                .get_qubit_ids()
-                .intersection(&qubits)
-                .next()
-                .is_some()
-            {
-                self.flush_size = i + 1;
-                break;
-            }
+        let found = self.operation_queue.iter().enumerate().rev().find(|(_, op)| {
+            op.get_qubit_ids().intersection(&qubits).next().is_some()
+        });
+        if let Some((i, _)) = found {
+            self.flush_size = self.flush_size.max(i + 1);
         }
         Ok(())
     }
