@@ -75,9 +75,7 @@ class EventRecord(BaseModel):
 class Trace(BaseModel):
     events: list[EventRecord] = Field(default_factory=list)
 
-    def add_runtime_event(
-        self, event: AbstractEvent, start_time_ns: int, end_time_ns: int
-    ):
+    def add_runtime_event(self, event: Event, start_time_ns: int, end_time_ns: int):
         self.events.append(
             EventRecord(
                 source=RuntimeSource(
@@ -88,7 +86,7 @@ class Trace(BaseModel):
             )
         )
 
-    def add_user_program_event(self, event: AbstractEvent, index: int):
+    def add_user_program_event(self, event: Event, index: int):
         self.events.append(
             EventRecord(
                 source=UserProgramSource(index=index),
@@ -96,14 +94,14 @@ class Trace(BaseModel):
             )
         )
 
-    def filter(self, predicate: Callable[[EventRecord], bool]) -> list[EventRecord]:
+    def filter(self, predicate: Callable[[EventRecord], bool]) -> "Trace":
         return Trace(events=list(filter(predicate, self.events)))
 
-    def strip_custom_events(self) -> list[EventRecord]:
+    def strip_custom_events(self) -> "Trace":
         return self.filter(lambda r: not isinstance(r.event, CustomEvent))
 
-    def get_runtime_trace(self) -> list[EventRecord]:
+    def get_runtime_trace(self) -> "Trace":
         return self.filter(lambda e: isinstance(e.source, RuntimeSource))
 
-    def get_user_program_trace(self) -> list[EventRecord]:
+    def get_user_program_trace(self) -> "Trace":
         return self.filter(lambda e: isinstance(e.source, UserProgramSource))
