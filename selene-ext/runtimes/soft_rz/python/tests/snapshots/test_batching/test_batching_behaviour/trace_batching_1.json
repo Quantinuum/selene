@@ -1,0 +1,2575 @@
+{
+  "events": [
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 1
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 2
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 3
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 4
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 5
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 6
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 7
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 8
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 9
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 10
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 11
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 12
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 13
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 14
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 15
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 16
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 17
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 18
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 19
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 20
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 21
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 22
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 23
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 24
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 25
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 26
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 27
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 28
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 29
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 30
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          1
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 31
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 32
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 33
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 34
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 35
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 36
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 37
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 38
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 39
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 40
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 41
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 42
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 43
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 44
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 45
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.7853981633974483
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 46
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 47
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 48
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 49
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 50
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 51
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 52
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 53
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 54
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 55
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 56
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 57
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.39269908169872414
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 58
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 59
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 60
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 61
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 62
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 63
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 64
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 65
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 66
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 67
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.19634954084936207
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 68
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 69
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.09817477042468103
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 71
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.09817477042468103
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 72
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.09817477042468103
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 73
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.09817477042468103
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 74
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.09817477042468103
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 75
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.09817477042468103
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 76
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 77
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 78
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.04908738521234052
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 79
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.04908738521234052
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 80
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.04908738521234052
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 81
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.04908738521234052
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 82
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 83
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 84
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          -0.02454369260617026
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 85
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          0.02454369260617026
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 86
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 87
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 88
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 89
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 90
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 91
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 92
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 93
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 94
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 95
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 96
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 97
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 98
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 99
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 100
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 101
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 102
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 103
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 104
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 105
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 106
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 500000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 500000,
+        "end_time": 1000000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 1000000,
+        "end_time": 1500000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 1500000,
+        "end_time": 2000000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 2000000,
+        "end_time": 2500000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 2500000,
+        "end_time": 3000000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 3000000,
+        "end_time": 3500000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 3500000,
+        "end_time": 4000000
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 4000000,
+        "end_time": 5200000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 5200000,
+        "end_time": 7700000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 7700000,
+        "end_time": 10200000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 10200000,
+        "end_time": 12700000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 12700000,
+        "end_time": 15200000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 15200000,
+        "end_time": 17700000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 17700000,
+        "end_time": 20200000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 20200000,
+        "end_time": 22700000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          1
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 22700000,
+        "end_time": 23900000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 23900000,
+        "end_time": 26400000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 26400000,
+        "end_time": 28900000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 28900000,
+        "end_time": 31400000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 31400000,
+        "end_time": 33900000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 33900000,
+        "end_time": 36400000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 36400000,
+        "end_time": 38900000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 38900000,
+        "end_time": 40100000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 40100000,
+        "end_time": 42600000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 42600000,
+        "end_time": 45100000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 45100000,
+        "end_time": 47600000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 47600000,
+        "end_time": 50100000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 50100000,
+        "end_time": 52600000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 52600000,
+        "end_time": 53800000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 53800000,
+        "end_time": 56300000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 56300000,
+        "end_time": 58800000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 58800000,
+        "end_time": 61300000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 61300000,
+        "end_time": 63800000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 63800000,
+        "end_time": 65000000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 65000000,
+        "end_time": 67500000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 67500000,
+        "end_time": 70000000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 70000000,
+        "end_time": 72500000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 72500000,
+        "end_time": 73700000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 73700000,
+        "end_time": 76200000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 76200000,
+        "end_time": 78700000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 78700000,
+        "end_time": 79900000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 79900000,
+        "end_time": 82400000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 82400000,
+        "end_time": 83600000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 83600000,
+        "end_time": 84800000
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84800000,
+        "end_time": 87800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 107
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 87800000,
+        "end_time": 90800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 108
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 90800000,
+        "end_time": 93800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 109
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 93800000,
+        "end_time": 96800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 110
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 96800000,
+        "end_time": 99800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 111
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 99800000,
+        "end_time": 102800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 112
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 102800000,
+        "end_time": 105800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 113
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 105800000,
+        "end_time": 108800000
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    }
+  ]
+}
