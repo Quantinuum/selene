@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal, Union, Callable
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -95,3 +95,12 @@ class Trace(BaseModel):
                 event=event,
             )
         )
+
+    def filter(self, predicate: Callable[[EventRecord], bool]) -> list[EventRecord]:
+        return Trace(events=list(filter(predicate, self.events)))
+
+    def get_runtime_trace(self) -> list[EventRecord]:
+        return self.filter(lambda e: isinstance(e.source, RuntimeSource))
+
+    def get_user_program_trace(self) -> list[EventRecord]:
+        return self.filter(lambda e: isinstance(e.source, UserProgramSource))
