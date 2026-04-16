@@ -99,6 +99,9 @@ class Trace(BaseModel):
     def filter(self, predicate: Callable[[EventRecord], bool]) -> list[EventRecord]:
         return Trace(events=list(filter(predicate, self.events)))
 
+    def strip_custom_events(self) -> list[EventRecord]:
+        return self.filter(lambda r: not isinstance(r.event, CustomEvent))
+
     def get_runtime_trace(self) -> list[EventRecord]:
         return self.filter(lambda e: isinstance(e.source, RuntimeSource))
 
