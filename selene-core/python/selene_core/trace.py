@@ -51,10 +51,28 @@ class ResetEvent(AbstractEvent):
     qubit: int
 
 
-class CustomEvent(AbstractEvent):
-    kind: Literal["Custom"] = "Custom"
+class OpaquePayload(AbstractEvent):
+    kind: Literal["OpaquePayload"] = "OpaquePayload"
     tag: int
     data: bytes
+
+
+class KeyValuePairPayload(AbstractEvent):
+    kind: Literal["KeyValuePairPayload"] = "KeyValuePairPayload"
+    data: dict[
+        str, str | int | float | bool | list[int] | list[float] | list[str] | list[bool]
+    ]
+
+
+CustomPayload = Annotated[
+    Union[OpaquePayload, KeyValuePairPayload],
+    Field(discriminator="kind"),
+]
+
+
+class CustomEvent(AbstractEvent):
+    kind: Literal["Custom"] = "Custom"
+    payload: CustomPayload
 
 
 Event = Annotated[
@@ -99,6 +117,16 @@ class Trace(BaseModel):
 
     def strip_custom_events(self) -> "Trace":
         return self.filter(lambda r: not isinstance(r.event, CustomEvent))
+
+    def strip_opaque_custom_events(self) -> "Trace":
+        return self.filter(
+            lambda r: (
+                not (
+                    isinstance(r.event, CustomEvent)
+                    and isinstance(r.event.payload, OpaquePayload)
+                )
+            )
+        )
 
     def get_runtime_trace(self) -> "Trace":
         return self.filter(lambda e: isinstance(e.source, RuntimeSource))

@@ -20,6 +20,7 @@ from selene_core.trace import (
     GateEvent,
     MeasurementEvent,
     ResetEvent,
+    OpaquePayload,
     CustomEvent,
 )
 
@@ -468,7 +469,7 @@ class ShotInstructions:
                 match instruction.operation:
                     case CustomOperation(tag=tag, data=data):
                         trace.add_user_program_event(
-                            CustomEvent(tag=tag, data=data),
+                            CustomEvent(payload=OpaquePayload(tag=tag, data=data)),
                             index=user_program_event_index,
                         )
                         user_program_event_index += 1
@@ -610,7 +611,7 @@ class ShotInstructions:
                         )
                         trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case CustomOperation(tag=tag, data=data):
-                        event = CustomEvent(tag=tag, data=data)
+                        event = CustomEvent(payload=OpaquePayload(tag=tag, data=data))
                         trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case _:
                         pass
