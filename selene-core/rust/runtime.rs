@@ -81,9 +81,21 @@ impl Operation {
                 set.insert(*qubit_id);
                 set
             }
-            Operation::RZZGate { qubit_id_1,  qubit_id_2, .. }
-            | Operation::RPPGate { qubit_id_1, qubit_id_2, .. }
-            | Operation::TK2Gate { qubit_id_1, qubit_id_2, .. } => {
+            Operation::RZZGate {
+                qubit_id_1,
+                qubit_id_2,
+                ..
+            }
+            | Operation::RPPGate {
+                qubit_id_1,
+                qubit_id_2,
+                ..
+            }
+            | Operation::TK2Gate {
+                qubit_id_1,
+                qubit_id_2,
+                ..
+            } => {
                 let mut set = HashSet::new();
                 set.insert(*qubit_id_1);
                 set.insert(*qubit_id_2);
