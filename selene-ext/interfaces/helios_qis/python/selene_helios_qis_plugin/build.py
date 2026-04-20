@@ -14,13 +14,10 @@ try:
         compile_to_llvm_ir,
         compile_to_bitcode,
     )
-except ImportError:
-    raise RuntimeError(
-        "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
-        "is required for building. Please install it via pip."
-    )
 
-# Steps
+    HAS_HUGR_QIS_COMPILER = True
+except ImportError:
+    HAS_HUGR_QIS_COMPILER = False
 
 
 class SeleneCompileHUGRToLLVMIRStringStep(Step):
@@ -47,6 +44,11 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         if build_ctx.verbose:
             print("Converting HUGR envelope bytes to LLVM IR string")
+        if not HAS_HUGR_QIS_COMPILER:
+            raise RuntimeError(
+                "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
+                " is required for building. Please install it via pip."
+            )
         ir = compile_to_llvm_ir(input_artifact.resource)
         return cls._make_artifact(ir)
 
@@ -75,5 +77,10 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         if build_ctx.verbose:
             print("Converting HUGR envelope bytes to LLVM Bitcode")
+        if not HAS_HUGR_QIS_COMPILER:
+            raise RuntimeError(
+                "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
+                " is required for building. Please install it via pip."
+            )
         bitcode = compile_to_bitcode(input_artifact.resource)
         return cls._make_artifact(bitcode)

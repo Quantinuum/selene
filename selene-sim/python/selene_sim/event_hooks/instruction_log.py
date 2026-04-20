@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import Any, Optional
+from typing import Any
 import math
 
 from .event_hook import EventHook
@@ -316,9 +316,6 @@ class ClassicalDelay(Operation):
         return ClassicalDelay(duration_ns=duration_ns)
 
 
-RPP_PYTKET_DEFINITION: Optional["pytket.circuit.CustomGateDef"] = None
-
-
 @dataclass
 class RPP(Operation):
     qubit0: int
@@ -326,32 +323,13 @@ class RPP(Operation):
     theta: float
     phi: float
 
-    @staticmethod
-    def get_gate_definition() -> "pytket.circuit.CustomGateDef":
-        assert PYTKET_AVAILABLE, "pytket is not available"
-        import sympy
-
-        global RPP_PYTKET_DEFINITION
-        if RPP_PYTKET_DEFINITION is not None:
-            return RPP_PYTKET_DEFINITION
-        theta, phi = sympy.symbols("theta phi")
-        subcircuit = pytket.Circuit(2)
-        subcircuit.Rz(angle=-phi, qubit=0)
-        subcircuit.Rz(angle=-phi, qubit=1)
-        subcircuit.XXPhase(angle=theta, qubit0=0, qubit1=1)
-        subcircuit.Rz(angle=phi, qubit=0)
-        subcircuit.Rz(angle=phi, qubit=1)
-        RPP_PYTKET_DEFINITION = pytket.circuit.CustomGateDef.define(
-            name="PhasedXX", circ=subcircuit, args=[theta, phi]
-        )
-        return RPP_PYTKET_DEFINITION
-
     def append_to_circuit(self, circuit: "pytket.Circuit"):
         assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.add_custom_gate(
-            definition=self.get_gate_definition(),
-            params=[self.theta / math.pi, self.phi / math.pi],
-            qubits=[self.qubit0, self.qubit1],
+        circuit.PhasedXX(
+            angle0=self.theta / math.pi,
+            angle1=self.phi / math.pi,
+            qubit0=self.qubit0,
+            qubit1=self.qubit1,
         )
 
     def to_dict(self) -> dict:
@@ -382,7 +360,7 @@ class TK2(Operation):
 
     def append_to_circuit(self, circuit: "pytket.Circuit"):
         assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.tk2(
+        circuit.TK2(
             angle0=self.alpha / math.pi,
             angle1=self.beta / math.pi,
             angle2=self.gamma / math.pi,
