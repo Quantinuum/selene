@@ -163,8 +163,8 @@ class Step(metaclass=BuildTypeMeta):
     path in chosen circumstances.
     """
 
-    input_kind: type[ArtifactKind]
-    output_kind: type[ArtifactKind]
+    input_kind: ClassVar[type[ArtifactKind]]
+    output_kind: ClassVar[type[ArtifactKind]]
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
