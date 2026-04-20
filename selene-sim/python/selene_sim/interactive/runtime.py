@@ -30,6 +30,24 @@ RXY_CB = ctypes.CFUNCTYPE(
 RZ_CB = ctypes.CFUNCTYPE(
     None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_double
 )
+RPP_CB = ctypes.CFUNCTYPE(
+    None,
+    SeleneRuntimeGetOperationInstance,
+    ctypes.c_uint64,
+    ctypes.c_uint64,
+    ctypes.c_double,
+    ctypes.c_double,
+)
+TK2_CB = ctypes.CFUNCTYPE(
+    None,
+    SeleneRuntimeGetOperationInstance,
+    ctypes.c_uint64,
+    ctypes.c_uint64,
+    ctypes.c_double,
+    ctypes.c_double,
+    ctypes.c_double,
+)
+
 MEASURE_CB = ctypes.CFUNCTYPE(
     None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_uint64
 )
@@ -51,14 +69,16 @@ SET_BATCH_TIME_CB = ctypes.CFUNCTYPE(
 
 class SeleneRuntimeGetOperationInterface(ctypes.Structure):
     _fields_ = [
-        ("rzz_fn", RZZ_CB),
-        ("rxy_fn", RXY_CB),
-        ("rz_fn", RZ_CB),
         ("measure_fn", MEASURE_CB),
         ("measure_leaked_fn", MEASURE_LEAKED_CB),
         ("reset_fn", RESET_CB),
         ("custom_fn", CUSTOM_CB),
         ("set_batch_time_fn", SET_BATCH_TIME_CB),
+        ("rzz_fn", RZZ_CB),
+        ("rxy_fn", RXY_CB),
+        ("rz_fn", RZ_CB),
+        ("rpp_fn", RPP_CB),
+        ("tk2_fn", TK2_CB),
     ]
 
 
@@ -94,6 +114,23 @@ class RZZGateOperation:
 
 
 @dataclass
+class RPPGateOperation:
+    qubit_id_a: int
+    qubit_id_b: int
+    theta: float
+    phi: float
+
+
+@dataclass
+class TK2GateOperation:
+    qubit_id_a: int
+    qubit_id_b: int
+    alpha: float
+    beta: float
+    gamma: float
+
+
+@dataclass
 class CustomOperation:
     tag: int
     data: bytes
@@ -111,6 +148,8 @@ RuntimeOperation = (
     | RXYGateOperation
     | RZGateOperation
     | RZZGateOperation
+    | RPPGateOperation
+    | TK2GateOperation
     | CustomOperation
     | MeasureLeakedOperation
 )

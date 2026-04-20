@@ -8,6 +8,7 @@ from ..symbols import get_symbols_from_llvm
 
 from qir_qis import get_entry_attributes, qir_ll_to_bc, qir_to_qis, validate_qir
 
+
 def _matches_qir_ir(text: str) -> bool:
     try:
         symbols = get_symbols_from_llvm(text)

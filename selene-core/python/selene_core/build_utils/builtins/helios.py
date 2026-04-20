@@ -13,6 +13,7 @@ from ..planner import BuildPlanner
 
 from .selene import SeleneObjectFileKind, SeleneExecutableKind
 
+
 def _match_helios_qis(symbol_table: SymbolTable) -> bool:
     # all programs targeting helios start with a setup call
     if not symbol_table.has_defined_function("qmain"):

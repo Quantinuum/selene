@@ -13,6 +13,7 @@ from ..planner import BuildPlanner
 
 from .selene import SeleneObjectFileKind, SeleneExecutableKind
 
+
 def _match_sol_qis(symbol_table: SymbolTable) -> bool:
     # all programs targeting sol start with a setup call
     if not symbol_table.has_defined_function("qmain"):
@@ -20,10 +21,7 @@ def _match_sol_qis(symbol_table: SymbolTable) -> bool:
     if not symbol_table.has_undefined_function("setup"):
         return False
     # These are functions for Helios, not Sol
-    if any(
-        symbol_table.has_undefined_function(f)
-        for f in ("___rxy", "___rzz")
-    ):
+    if any(symbol_table.has_undefined_function(f) for f in ("___rxy", "___rzz")):
         return False
     # otherwise we may assume this targets Sol, for now.
     # Ideally QIS will gain a platform identifier so we can
@@ -71,6 +69,7 @@ class SolLLVMBitcodeStringKind(ArtifactKind):
         ]
         if not any(resource.startswith(magic) for magic in magic_numbers):
             return False
+        symbols = get_symbols_from_llvm(resource)
         if not _match_sol_qis(symbols):
             return False
         return True
@@ -86,6 +85,13 @@ class SolLLVMBitcodeFileKind(ArtifactKind):
         if resource.suffix != ".bc":
             return False
         content = resource.read_bytes()
+        magic_numbers = [
+            b"BC\xc0\xde",  # modern bitcode stream, observed on linux and windows runs
+            b"\xde\xc0\x17\x0b",  # legacy bitcode wrapper, observed on macOS runs
+        ]
+        if not any(content.startswith(magic) for magic in magic_numbers):
+            return False
+        symbols = get_symbols_from_llvm(content)
         if not _match_sol_qis(symbols):
             return False
         return True
