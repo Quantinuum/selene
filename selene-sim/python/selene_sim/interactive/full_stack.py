@@ -6,6 +6,7 @@ import platform
 import sys
 import tempfile
 from pathlib import Path
+from typing import ClassVar
 
 import yaml
 from selene_core import ErrorModel, Runtime, SeleneComponent, Simulator
@@ -277,6 +278,9 @@ class InternalOutputStream(DataStream):
         self._full_stack = full_stack
 
     def read_chunk(self, length: int) -> bytes:
+        assert self._full_stack._lib is not None, (
+            "Selene library must be loaded to read from output stream"
+        )
         if len(self._buffer) < length:
             # make a new buffer to read into
             chunk_size = max(length - len(self._buffer), 4096)
@@ -300,12 +304,13 @@ class Qubit:
 
 
 class InteractiveFullStack:
+    _preloaded_lib: ClassVar[SeleneSimLib | None] = None
+
     @classmethod
     def load_library(cls) -> SeleneSimLib:
-        if hasattr(cls, "_lib") and cls._lib is not None:
-            return cls._lib
-        cls._lib = SeleneSimLib()
-        return cls._lib
+        if cls._preloaded_lib is None:
+            cls._preloaded_lib = SeleneSimLib()
+        return cls._preloaded_lib
 
     def __init__(
         self,
