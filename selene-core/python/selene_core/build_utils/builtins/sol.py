@@ -197,6 +197,8 @@ class SolLLVMIRFileToSolObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.sol.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM IR to Sol-QIS object: {out_path}")
+        zig_cache_dir = build_ctx.artifact_dir / "zig_cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "cc",
             "-c",
@@ -204,6 +206,7 @@ class SolLLVMIRFileToSolObjectFileStep(Step):
             "-o",
             out_path,
             verbose=build_ctx.verbose,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -221,7 +224,16 @@ class SolLLVMBitcodeFileToSolObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.sol.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM Bitcode to Sol-QIS object: {out_path}")
-        invoke_zig("cc", "-c", input_artifact.resource, "-o", out_path)
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
+        invoke_zig(
+            "cc",
+            "-c",
+            input_artifact.resource,
+            "-o",
+            out_path,
+            cache_dir=zig_cache_dir,
+        )
         return cls._make_artifact(out_path)
 
 
@@ -283,6 +295,8 @@ class SolObjectFileToSeleneObjectFileStep_Linux(Step):
         lib_paths = [d.path for d in build_ctx.deps]
         if build_ctx.verbose:
             print("Linking sol object file with dependencies")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "cc",
             "-r",
@@ -291,6 +305,7 @@ class SolObjectFileToSeleneObjectFileStep_Linux(Step):
             "-o",
             out_path,
             verbose=build_ctx.verbose,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(out_path)
 
@@ -327,7 +342,7 @@ class SolObjectFileToSeleneExecutableStep_Windows(Step):
             )
 
         selene_lib_dir = selene_dist / "lib"
-        selene_lib = selene_lib_dir / "selene.dll.lib"
+        selene_lib = selene_lib_dir / "libselene.dll.a"
         link_flags = ["-lc"]
         libraries = [selene_lib]
         library_search_dirs = [selene_lib_dir]
@@ -338,12 +353,15 @@ class SolObjectFileToSeleneExecutableStep_Windows(Step):
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "build-exe",
             f"-femit-bin={out_path}",
             input_artifact.resource,
             *libraries,
             *link_flags,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(
             out_path,
@@ -392,12 +410,15 @@ class SolObjectFileToSeleneExecutableStep_Darwin(Step):
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
+        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
+        zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
             "build-exe",
             f"-femit-bin={out_path}",
             input_artifact.resource,
             *libraries,
             *link_flags,
+            cache_dir=zig_cache_dir,
         )
         return cls._make_artifact(
             out_path,
