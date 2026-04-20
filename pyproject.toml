@@ -11,8 +11,13 @@ dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
   "selene-core~=0.3.0a0",
-  "selene-hugr-qis-compiler~=0.2.6",
   "tqdm>=4.67.1",
+  # temporarily an optional dependency until a release provides the lowerings we need.
+  # CI doesn't make use of the compiler, so this is only needed when using local
+  # compilations. For this I recommend a uv pip install on a wheel generated from a PR
+  # with the relevant changes.
+  #
+  #"selene-hugr-qis-compiler~=0.2.6", 
 ]
 authors = [
   { name = "Jake Arkinstall", email = "jake.arkinstall@quantinuum.com" },
@@ -46,7 +51,6 @@ repository = "https://github.com/quantinuum/selene"
 dev = [
   "auditwheel>=6.3.0",
   "cibuildwheel>=2.23.3",
-  #"guppylang~=0.21.11", # temporary workaround for libtket.so compatibility issues
   "hugr~=0.16.0",
   "mypy>=1.14.1",
   "pip>=24.2",
@@ -62,7 +66,6 @@ dev = [
 [tool.uv.sources]
 selene-sim = { workspace = true }
 selene-core = { workspace = true }
-selene-hugr-qis-compiler = { path = "../tket2/dist/selene_hugr_qis_compiler-0.2.10-cp310-abi3-linux_x86_64.whl" }
 
 [tool.uv.workspace]
 members = ["selene-core"]

@@ -9,10 +9,17 @@ from selene_core.build_utils.builtins import (
     SolLLVMBitcodeStringKind,
 )
 
-from selene_hugr_qis_compiler import (
-    compile_to_llvm_ir,
-    compile_to_bitcode,
-)
+try:
+    from selene_hugr_qis_compiler import (
+        compile_to_llvm_ir,
+        compile_to_bitcode,
+    )
+except ImportError:
+    raise RuntimeError(
+        "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
+        "is required for building. Please install it via pip."
+    )
+
 
 # Steps
 

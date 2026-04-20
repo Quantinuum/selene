@@ -1392,14 +1392,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "selene-hugr-qis-compiler"
-version = "0.2.10"
-source = { path = "../tket2/dist/selene_hugr_qis_compiler-0.2.10-cp310-abi3-linux_x86_64.whl" }
-wheels = [
-    { filename = "selene_hugr_qis_compiler-0.2.10-cp310-abi3-linux_x86_64.whl", hash = "sha256:65b255c470fdec06eee40f2f43463f036bc0bc77c6e683115e34267ebc30c69a" },
-]
-
-[[package]]
 name = "selene-sim"
 version = "0.3.0a0"
 source = { editable = "." }
@@ -1408,7 +1400,6 @@ dependencies = [
     { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pyyaml" },
     { name = "selene-core" },
-    { name = "selene-hugr-qis-compiler" },
     { name = "tqdm" },
 ]
 
@@ -1433,7 +1424,6 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "selene-core", editable = "selene-core" },
-    { name = "selene-hugr-qis-compiler", path = "../tket2/dist/selene_hugr_qis_compiler-0.2.10-cp310-abi3-linux_x86_64.whl" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
