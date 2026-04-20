@@ -1,1 +1,4 @@
 * text=auto
+
+**/tests/snapshots/** linguist-generated=true
+**/tests/resources/from_guppy/** linguist-generated=true
