@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "selene-sim"
 description = "Quantinuum's open source emulator for quantum computation"
-version = "0.2.13"
+version = "0.3.0a0"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
-  "selene-core~=0.2.4",
+  "selene-core~=0.3.0a0",
   "selene-hugr-qis-compiler~=0.2.6",
   "tqdm>=4.67.1",
 ]
@@ -46,8 +46,8 @@ repository = "https://github.com/quantinuum/selene"
 dev = [
   "auditwheel>=6.3.0",
   "cibuildwheel>=2.23.3",
-  "guppylang~=0.21.6,!=0.21.7,!=0.21.9", # temporary workaround for libtket.so compatibility issues
-  "hugr>=0.13.0",
+  #"guppylang~=0.21.11", # temporary workaround for libtket.so compatibility issues
+  "hugr~=0.16.0",
   "mypy>=1.14.1",
   "pip>=24.2",
   "pytest-snapshot~=0.9.0",

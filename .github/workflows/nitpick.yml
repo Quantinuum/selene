@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - main
+      - 0.3-series
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,11 +39,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
-          version: "0.6.6"
+          version: "0.11.7"
       - name: Rust format check
         run: cargo fmt --all -- --check
       - name: Rust lint

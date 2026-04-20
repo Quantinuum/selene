@@ -2,7 +2,9 @@ name: Rust CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches:
+    - main
+    - 0.3-series
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
