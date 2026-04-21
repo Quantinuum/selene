@@ -9,10 +9,14 @@ class SeleneCoreBuildHook(BuildHookInterface):
         # as selene_core isn't yet available we need to import selene_core/trace.py manually
         import importlib.util
 
+        trace_module_path = Path("python/selene_core/trace.py")
         spec = importlib.util.spec_from_file_location(
-            "selene_core.trace", "python/selene_core/trace.py"
+            "selene_core.trace", trace_module_path
         )
-        assert spec is not None and spec.loader is not None
+        if spec is None or spec.loader is None:
+            raise RuntimeError(
+                f"Unable to load module spec for selene_core.trace from {trace_module_path}"
+            )
         trace_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(trace_module)
         schema_path = Path(
