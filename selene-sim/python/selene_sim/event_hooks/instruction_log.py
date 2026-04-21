@@ -575,6 +575,7 @@ class ShotInstructions:
                             ),
                             index=user_program_event_index,
                         )
+                        user_program_event_index += 1
             if instruction.source == Source.OPTIMISER:
                 match instruction.operation:
                     case BatchStart(start_time_ns=start, duration_ns=duration):
