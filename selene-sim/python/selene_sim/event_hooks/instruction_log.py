@@ -591,24 +591,21 @@ class ShotInstructions:
                         event = GateEvent(
                             gate_name="Rxy",
                             qubits=[qubit],
-                            args={
-                                "theta": theta,
-                                "phi": phi,
-                            },
+                            params=[theta, phi],
                         )
                         trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case Rz(qubit=qubit, theta=theta):
                         event = GateEvent(
                             gate_name="Rz",
                             qubits=[qubit],
-                            args={"theta": theta},
+                            params=[theta],
                         )
                         trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
                         event = GateEvent(
                             gate_name="Rzz",
                             qubits=[qubit0, qubit1],
-                            args={"theta": theta},
+                            params=[theta],
                         )
                         trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case CustomOperation(tag=tag, data=data):
