@@ -582,35 +582,49 @@ class ShotInstructions:
                         start_time_ns = start
                         end_time_ns = start + duration
                     case Reset(qubit=qubit):
-                        event = ResetEvent(qubit=qubit)
-                        trace.add_runtime_event(event, start_time_ns, end_time_ns)
+                        trace.add_runtime_event(
+                            ResetEvent(qubit=qubit), start_time_ns, end_time_ns
+                        )
                     case FutureRead(qubit=qubit):
-                        event = MeasurementEvent(qubit=qubit)
-                        trace.add_runtime_event(event, start_time_ns, end_time_ns)
+                        trace.add_runtime_event(
+                            MeasurementEvent(qubit=qubit), start_time_ns, end_time_ns
+                        )
                     case Rxy(qubit=qubit, theta=theta, phi=phi):
-                        event = GateEvent(
-                            gate_name="Rxy",
-                            qubits=[qubit],
-                            params=[theta, phi],
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rxy",
+                                qubits=[qubit],
+                                params=[theta, phi],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
                         )
-                        trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case Rz(qubit=qubit, theta=theta):
-                        event = GateEvent(
-                            gate_name="Rz",
-                            qubits=[qubit],
-                            params=[theta],
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rz",
+                                qubits=[qubit],
+                                params=[theta],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
                         )
-                        trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
-                        event = GateEvent(
-                            gate_name="Rzz",
-                            qubits=[qubit0, qubit1],
-                            params=[theta],
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rzz",
+                                qubits=[qubit0, qubit1],
+                                params=[theta],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
                         )
-                        trace.add_runtime_event(event, start_time_ns, end_time_ns)
                     case CustomOperation(tag=tag, data=data):
-                        event = CustomEvent(payload=OpaquePayload(tag=tag, data=data))
-                        trace.add_runtime_event(event, start_time_ns, end_time_ns)
+                        trace.add_runtime_event(
+                            CustomEvent(payload=OpaquePayload(tag=tag, data=data)),
+                            start_time_ns,
+                            end_time_ns,
+                        )
                     case _:
                         pass
         return trace

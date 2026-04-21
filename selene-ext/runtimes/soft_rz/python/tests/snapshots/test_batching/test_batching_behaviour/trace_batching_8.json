@@ -1805,7 +1805,10 @@
           0
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1822,7 +1825,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1839,7 +1844,9 @@
           6
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1856,7 +1863,9 @@
           5
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1873,7 +1882,9 @@
           4
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1890,7 +1901,9 @@
           3
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1907,7 +1920,9 @@
           2
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1924,7 +1939,9 @@
           1
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -1.5707963267948966
+        ],
         "predicates": []
       }
     },
@@ -1940,7 +1957,10 @@
           1
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -3.141592653589793
+        ],
         "predicates": []
       }
     },
@@ -1957,7 +1977,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.7853981633974483
+        ],
         "predicates": []
       }
     },
@@ -1974,7 +1996,9 @@
           6
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.7853981633974483
+        ],
         "predicates": []
       }
     },
@@ -1991,7 +2015,9 @@
           5
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.7853981633974483
+        ],
         "predicates": []
       }
     },
@@ -2008,7 +2034,9 @@
           4
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.7853981633974483
+        ],
         "predicates": []
       }
     },
@@ -2025,7 +2053,9 @@
           3
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.7853981633974483
+        ],
         "predicates": []
       }
     },
@@ -2042,7 +2072,9 @@
           2
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.7853981633974483
+        ],
         "predicates": []
       }
     },
@@ -2058,7 +2090,10 @@
           2
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -3.9269908169872414
+        ],
         "predicates": []
       }
     },
@@ -2075,7 +2110,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.39269908169872414
+        ],
         "predicates": []
       }
     },
@@ -2092,7 +2129,9 @@
           6
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.39269908169872414
+        ],
         "predicates": []
       }
     },
@@ -2109,7 +2148,9 @@
           5
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.39269908169872414
+        ],
         "predicates": []
       }
     },
@@ -2126,7 +2167,9 @@
           4
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.39269908169872414
+        ],
         "predicates": []
       }
     },
@@ -2143,7 +2186,9 @@
           3
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.39269908169872414
+        ],
         "predicates": []
       }
     },
@@ -2159,7 +2204,10 @@
           3
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -4.319689898685965
+        ],
         "predicates": []
       }
     },
@@ -2176,7 +2224,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.19634954084936207
+        ],
         "predicates": []
       }
     },
@@ -2193,7 +2243,9 @@
           6
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.19634954084936207
+        ],
         "predicates": []
       }
     },
@@ -2210,7 +2262,9 @@
           5
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.19634954084936207
+        ],
         "predicates": []
       }
     },
@@ -2227,7 +2281,9 @@
           4
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.19634954084936207
+        ],
         "predicates": []
       }
     },
@@ -2243,7 +2299,10 @@
           4
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -4.516039439535327
+        ],
         "predicates": []
       }
     },
@@ -2260,7 +2319,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.09817477042468103
+        ],
         "predicates": []
       }
     },
@@ -2277,7 +2338,9 @@
           6
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.09817477042468103
+        ],
         "predicates": []
       }
     },
@@ -2294,7 +2357,9 @@
           5
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.09817477042468103
+        ],
         "predicates": []
       }
     },
@@ -2310,7 +2375,10 @@
           5
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -4.614214209960009
+        ],
         "predicates": []
       }
     },
@@ -2327,7 +2395,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.04908738521234052
+        ],
         "predicates": []
       }
     },
@@ -2344,7 +2414,9 @@
           6
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.04908738521234052
+        ],
         "predicates": []
       }
     },
@@ -2360,7 +2432,10 @@
           6
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -4.663301595172349
+        ],
         "predicates": []
       }
     },
@@ -2377,7 +2452,9 @@
           7
         ],
         "gate_name": "Rzz",
-        "params": [],
+        "params": [
+          -0.02454369260617026
+        ],
         "predicates": []
       }
     },
@@ -2393,7 +2470,10 @@
           7
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -4.687845287778519
+        ],
         "predicates": []
       }
     },
@@ -2409,7 +2489,10 @@
           7
         ],
         "gate_name": "Rxy",
-        "params": [],
+        "params": [
+          1.5707963267948966,
+          -7.829437941368312
+        ],
         "predicates": []
       }
     },

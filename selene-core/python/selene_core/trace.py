@@ -37,7 +37,7 @@ class GateEvent(AbstractEvent):
     kind: Literal["Gate"] = "Gate"
     qubits: list[int] = Field(default_factory=list)
     gate_name: str
-    params: list[float] = Field(default_factory=list)
+    params: list[float | int | bool] = Field(default_factory=list)
     predicates: list[PredicateResult] = Field(default_factory=list)
 
 
