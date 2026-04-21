@@ -26,7 +26,7 @@ homepage = "https://github.com/quantinuum/selene/selene-core"
 repository = "https://github.com/quantinuum/selene/selene-core"
 
 [build-system]
-requires = ["hatchling", "pydantic"]
+requires = ["hatchling", "pydantic>=2.12.5"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
