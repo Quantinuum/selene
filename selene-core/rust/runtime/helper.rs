@@ -97,14 +97,16 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
 
                 let (start, duration) = (batch.start(), batch.duration());
                 let RuntimeGetOperationInterface {
-                    rzz_fn,
-                    rxy_fn,
-                    rz_fn,
                     measure_fn,
                     measure_leaked_fn,
                     reset_fn,
                     custom_fn,
                     set_batch_time_fn,
+                    rzz_fn,
+                    rxy_fn,
+                    rz_fn,
+                    rpp_fn,
+                    tk2_fn,
                     ..
                 } = unsafe { &*callbacks };
                 unsafe { set_batch_time_fn(goi, start.into(), duration.into()) };
@@ -132,6 +134,19 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             qubit_id_2,
                             theta,
                         } => unsafe { rzz_fn(goi, qubit_id_1, qubit_id_2, theta) },
+                        Operation::RPPGate {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                            phi,
+                        } => unsafe { rpp_fn(goi, qubit_id_1, qubit_id_2, theta, phi) },
+                        Operation::TK2Gate {
+                            qubit_id_1,
+                            qubit_id_2,
+                            alpha,
+                            beta,
+                            gamma,
+                        } => unsafe { tk2_fn(goi, qubit_id_1, qubit_id_2, alpha, beta, gamma) },
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                             unsafe { custom_fn(goi, custom_tag, ptr, len) }
@@ -249,6 +264,37 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         result_to_errno(
             "Failed in rz_gate",
             Self::with_runtime_instance(instance, |runtime| runtime.rz_gate(qubit_id, theta)),
+        )
+    }
+
+    pub unsafe fn rpp_gate(
+        instance: RuntimeInstance,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+    ) -> Errno {
+        result_to_errno(
+            "Failed in rpp_gate",
+            Self::with_runtime_instance(instance, |runtime| {
+                runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi)
+            }),
+        )
+    }
+
+    pub unsafe fn tk2_gate(
+        instance: RuntimeInstance,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        alpha: f64,
+        beta: f64,
+        gamma: f64,
+    ) -> Errno {
+        result_to_errno(
+            "Failed in tk2_gate",
+            Self::with_runtime_instance(instance, |runtime| {
+                runtime.tk2_gate(qubit_id_1, qubit_id_2, alpha, beta, gamma)
+            }),
         )
     }
 
@@ -650,6 +696,10 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Instruct the runtime to apply an RXY gate to the qubit with the given ID.
+            /// It might not be supported by all runtimes, and an error will be returned
+            /// if it is used on a runtime that does not support it, or if the runtime
+            /// is unable to apply it for any reason.
+            ///
             /// Note that it is up to the runtime whether or not this gate is applied immediately:
             /// The runtime might act lazily and apply the gate at a later time when an observable
             /// outcome is requested.
@@ -664,6 +714,10 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Instruct the runtime to apply an RZZ gate to the qubits with the given IDs.
+            /// It might not be supported by all runtimes, and an error will be returned
+            /// if it is used on a runtime that does not support it, or if the runtime
+            /// is unable to apply it for any reason.
+            ///
             /// Note that it is up to the runtime whether or not this gate is applied
             /// immediately: The runtime might act lazily and apply the gate at a later time.
             #[unsafe(no_mangle)]
@@ -677,6 +731,10 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Instruct the runtime to apply an RZ gate to the qubit with the given ID.
+            /// It might not be supported by all runtimes, and an error will be returned
+            /// if it is used on a runtime that does not support it, or if the runtime
+            /// is unable to apply it for any reason.
+            ///
             /// Note that it is up to the runtime whether or not this gate is applied
             /// immediately: The runtime might act lazily and apply the gate at a later time.
             /// It might not apply it at all, as RZ may be elided in code.
@@ -687,6 +745,43 @@ macro_rules! export_runtime_plugin {
                 theta: f64,
             ) -> i32 {
                 Helper::rz_gate(instance, qubit_id, theta)
+            }
+
+            /// Instruct the runtime to apply an RPP gate to the qubits with the given IDs.
+            /// It might not be supported by all runtimes, and an error will be returned
+            /// if it is used on a runtime that does not support it, or if the runtime
+            /// is unable to apply it for any reason.
+            ///
+            /// Note that it is up to the runtime whether or not this gate is applied
+            /// immediately: The runtime might act lazily and apply the gate at a later time.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_rpp_gate(
+                instance: RuntimeInstance,
+                qubit_id_1: u64,
+                qubit_id_2: u64,
+                theta: f64,
+                phi: f64,
+            ) -> i32 {
+                Helper::rpp_gate(instance, qubit_id_1, qubit_id_2, theta, phi)
+            }
+
+            /// Instruct the runtime to apply a TK2 gate to the qubits with the given IDs.
+            /// It might not be supported by all runtimes, and an error will be returned
+            /// if it is used on a runtime that does not support it, or if the runtime
+            /// is unable to apply it for any reason.
+            ///
+            /// Note that it is up to the runtime whether or not this gate is applied
+            /// immediately: The runtime might act lazily and apply the gate at a later time.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_tk2_gate(
+                instance: RuntimeInstance,
+                qubit_id_1: u64,
+                qubit_id_2: u64,
+                alpha: f64,
+                beta: f64,
+                gamma: f64,
+            ) -> i32 {
+                Helper::tk2_gate(instance, qubit_id_1, qubit_id_2, alpha, beta, gamma)
             }
 
             /// Instruct the runtime that a measurement is to be requested and to write

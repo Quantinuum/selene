@@ -31,6 +31,36 @@ from .helios import (
     register_helios_builtins,
 )
 
+from .sol import (
+    SolLLVMIRStringKind,
+    SolLLVMIRFileKind,
+    SolLLVMBitcodeStringKind,
+    SolLLVMBitcodeFileKind,
+    SolObjectFileKind,
+    SolLLVMBitcodeStringToSolLLVMBitcodeFileStep,
+    SolLLVMIRStringToSolLLVMIRFileStep,
+    SolLLVMIRFileToSolObjectFileStep,
+    SolLLVMBitcodeFileToSolObjectFileStep,
+    SolObjectFileToSeleneObjectFileStep_Linux,
+    SolObjectFileToSeleneExecutableStep_Windows,
+    SolObjectFileToSeleneExecutableStep_Darwin,
+    register_sol_builtins,
+)
+
+from .qir import (
+    QIRIRFileKind,
+    QIRIRStringKind,
+    QIRBitcodeFileKind,
+    QIRBitcodeStringKind,
+    QIRIRStringToQIRIRFileStep,
+    QIRIRFileToQIRIRStringStep,
+    QIRBitcodeStringToQIRBitcodeFileStep,
+    QIRIRFileToQIRBitcodeFileStep,
+    QIRBitcodeFileToQIRBitcodeStringStep,
+    QIRBitcodeStringToHeliosBitcodeStringStep,
+    register_qir_builtins,
+)
+
 additional_registrations = []
 additional_exports = []
 
@@ -105,6 +135,8 @@ def register_builtins(planner: BuildPlanner):
     """
     register_selene_builtins(planner)
     register_helios_builtins(planner)
+    register_sol_builtins(planner)
+    register_qir_builtins(planner)
     for reg in additional_registrations:
         reg(planner)
 
@@ -125,5 +157,28 @@ __all__ = [
     "HeliosObjectFileToSeleneObjectFileStep_Linux",
     "HeliosObjectFileToSeleneExecutableStep_Windows",
     "HeliosObjectFileToSeleneExecutableStep_Darwin",
+    "QIRIRFileKind",
+    "QIRIRStringKind",
+    "QIRBitcodeFileKind",
+    "QIRBitcodeStringKind",
+    "QIRIRStringToQIRIRFileStep",
+    "QIRIRFileToQIRIRStringStep",
+    "QIRBitcodeStringToQIRBitcodeFileStep",
+    "QIRBitcodeFileToQIRBitcodeStringStep",
+    "QIRIRFileToQIRBitcodeFileStep",
+    "QIRBitcodeFileToQIRBitcodeStringStep",
+    "QIRBitcodeStringToHeliosBitcodeStringStep",
+    "SolLLVMIRStringKind",
+    "SolLLVMIRFileKind",
+    "SolLLVMBitcodeStringKind",
+    "SolLLVMBitcodeFileKind",
+    "SolObjectFileKind",
+    "SolLLVMBitcodeStringToSolLLVMBitcodeFileStep",
+    "SolLLVMIRStringToSolLLVMIRFileStep",
+    "SolLLVMIRFileToSolObjectFileStep",
+    "SolLLVMBitcodeFileToSolObjectFileStep",
+    "SolObjectFileToSeleneObjectFileStep_Linux",
+    "SolObjectFileToSeleneExecutableStep_Windows",
+    "SolObjectFileToSeleneExecutableStep_Darwin",
     "register_builtins",
 ] + additional_exports

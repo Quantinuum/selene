@@ -11,8 +11,13 @@ dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
   "selene-core~=0.3.0a0",
-  "selene-hugr-qis-compiler~=0.2.6",
   "tqdm>=4.67.1",
+  # temporarily an optional dependency until a release provides the lowerings we need.
+  # CI doesn't make use of the compiler, so this is only needed when using local
+  # compilations. For this I recommend a uv pip install on a wheel generated from a PR
+  # with the relevant changes.
+  #
+  #"selene-hugr-qis-compiler~=0.2.6", 
 ]
 authors = [
   { name = "Jake Arkinstall", email = "jake.arkinstall@quantinuum.com" },
@@ -43,20 +48,18 @@ classifiers = [
 repository = "https://github.com/quantinuum/selene"
 
 [dependency-groups]
-dev = [
-  "auditwheel>=6.3.0",
-  "cibuildwheel>=2.23.3",
-  #"guppylang~=0.21.11", # temporary workaround for libtket.so compatibility issues
-  "hugr~=0.16.0",
-  "mypy>=1.14.1",
-  "pip>=24.2",
+test = [
   "pytest-snapshot~=0.9.0",
   "pytest>=8.3.5",
-  "pytket>=2.0.1",
-  "pytket~=2.9.1",
-  "qir-qis~=0.1.2",
+  "pytket~=2.16",
+]
+dev = [
+  "hugr~=0.16.0",
+  "mypy>=1.14.1",
   "ruff>=0.8.0",
+  "qir-qis~=0.1.2",
   "types-pyyaml>=6.0.12.20250402",
+  { include-group = "test" },
 ]
 
 [tool.uv.sources]
@@ -78,6 +81,7 @@ packages = [
   "selene-ext/error-models/ideal/python/selene_ideal_error_model_plugin",
   "selene-ext/error-models/simple-leakage/python/selene_simple_leakage_error_model_plugin",
   "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin",
+  "selene-ext/interfaces/sol_qis/python/selene_sol_qis_plugin",
   "selene-ext/runtimes/simple/python/selene_simple_runtime_plugin",
   "selene-ext/runtimes/soft_rz/python/selene_soft_rz_runtime_plugin",
   "selene-ext/simulators/classical-replay/python/selene_classical_replay_plugin",
@@ -106,13 +110,12 @@ cache-keys = [
   { file = "selene-ext/*/*/rust/**/*.rs" },
   { file = "selene-ext/**/Cargo.toml" },
   { file = "selene-ext/**/Cargo.lock" },
+  { file = "selene-core/rust/**/*.rs" },
 ]
 
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process
-extend-exclude = [
-  "target",
-]
+extend-exclude = ["target"]
 [tool.ruff.lint.per-file-ignores]
 "**/python/tests/*.py" = ["F821", "F841"] #  ^
 
@@ -143,10 +146,7 @@ known_first_party = [
   "selene_quest_plugin",
   "selene_stim_plugin",
 ]
-extend_exclude = [
-  "target",
-  "selene-core/python/selene_core",
-]
+extend_exclude = ["target", "selene-core/python/selene_core"]
 
 [tool.deptry.package_module_name_map]
 pyyaml = "yaml"
@@ -178,11 +178,7 @@ build = "cp310-*"
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-frontend = { name = "build[uv]", args = ["-C--profile=release"] }
 environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
-test-requires = [
-  "pytest",
-  "pytest-snapshot",
-  "pytket~=2.9.1",
-]
+test-groups = ["test"]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
 [tool.cibuildwheel.linux]
 environment = { PATH = "$PATH:$HOME/.cargo/bin" }

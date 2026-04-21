@@ -60,9 +60,10 @@ def _collect_libdeps(
     Collects the library dependencies for the selene build process,
     and registers the chosen quantum interface with the planner.
     """
-    from selene_helios_qis_plugin import HeliosInterface
+    if interface is None:
+        from selene_helios_qis_plugin import HeliosInterface
 
-    interface = interface or HeliosInterface()
+        interface = HeliosInterface()
     deps = [LibDep.from_plugin(interface)]
     interface.register_build_steps(planner)
     for u in utilities or []:
@@ -150,15 +151,31 @@ def build(
     run_dir.mkdir(parents=True, exist_ok=True)
     _log.info("Instance dir: %s", instance_root)
 
+    # User-provided kwargs are bundled into a cfg dict used by the build
+    # planner for customisation.
+    cfg = kwargs
+
+    if interface is None and "platform" in cfg:
+        match cfg["platform"]:
+            case "sol":
+                from selene_sol_qis_plugin import SolInterface
+
+                interface = SolInterface()
+            case "helios":
+                from selene_helios_qis_plugin import HeliosInterface
+
+                interface = HeliosInterface()
+            case _:
+                raise ValueError(
+                    f"Unknown quantum platform specified in cfg: {cfg['platform']}"
+                )
+
     # Create a build planner and register additional build information
     # from the interface and utilities passed in. This is necessary for
     # interfaces and utilities to be able to customise the final build,
     # e.g. adding link path arguments.
     deps = _collect_libdeps(planner, interface, utilities)
 
-    # User-provided kwargs are bundled into a cfg dict used by the build
-    # planner for customisation.
-    cfg = kwargs
     if "build_method" not in cfg:
         # If the build method is not provided, default to VIA_LLVM_BITCODE
         cfg["build_method"] = BuildMethod.VIA_LLVM_BITCODE.value

@@ -224,8 +224,9 @@ def test_quantum_replay_state(simulator_plugin, first_measurement, compiled_gupp
     np.testing.assert_allclose(post_measurement, expected)
 
 
+@pytest.mark.parametrize("platform", ["helios", "sol"])
 @pytest.mark.parametrize("gate", ["rx", "ry", "rz"])
-def test_stim_gate_implementations_single_qubit(gate, compiled_guppy):
+def test_stim_gate_implementations_single_qubit(platform, gate, compiled_guppy):
     import random
 
     random.seed(1234)
@@ -257,9 +258,10 @@ def test_stim_gate_implementations_single_qubit(gate, compiled_guppy):
     llvm_file = compiled_guppy(
         program_name=f"stim_gate_implementation_{gate}",
         guppy_source=guppy_source,
+        qis_platform=platform,
     )
 
-    runner = build(llvm_file)
+    runner = build(llvm_file, platform=platform)
 
     stim_shots = QsysResult(
         runner.run_shots(
@@ -292,7 +294,8 @@ def test_stim_gate_implementations_single_qubit(gate, compiled_guppy):
         np.testing.assert_allclose(stim_statevector, quest_statevector)
 
 
-def test_stim_gate_implementations_single_qubit_triples(compiled_guppy):
+@pytest.mark.parametrize("platform", ["helios", "sol"])
+def test_stim_gate_implementations_single_qubit_triples(compiled_guppy, platform):
     import random
 
     random.seed(1234)
@@ -326,9 +329,10 @@ def test_stim_gate_implementations_single_qubit_triples(compiled_guppy):
     llvm_file = compiled_guppy(
         program_name="stim_gate_implementation_triples",
         guppy_source=guppy_source,
+        qis_platform=platform,
     )
 
-    runner = build(llvm_file)
+    runner = build(llvm_file, platform=platform)
     stim_shots = QsysResult(
         runner.run_shots(
             simulator=Stim(

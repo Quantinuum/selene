@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <inttypes.h>
 #include <helios_qis/cl_types.h>
 

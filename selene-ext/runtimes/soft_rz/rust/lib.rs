@@ -262,6 +262,29 @@ impl RuntimeInterface for SoftRZRuntime {
         };
         Ok(())
     }
+    fn tk2_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _alpha: f64,
+        _beta: f64,
+        _gamma: f64,
+    ) -> Result<()> {
+        bail!(
+            "The TK2 gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
+        );
+    }
+    fn rpp_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _theta: f64,
+        _phi: f64,
+    ) -> Result<()> {
+        bail!(
+            "The RPP gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
+        );
+    }
     // Lifetime ops
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {

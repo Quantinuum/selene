@@ -115,6 +115,30 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
                     self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
                 }
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => {
+                    self.maybe_leak(qubit_id_1)?;
+                    self.maybe_leak(qubit_id_2)?;
+                    self.spread_leakage(qubit_id_1, qubit_id_2)?;
+                    self.simulator
+                        .tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                }
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    self.maybe_leak(qubit_id_1)?;
+                    self.maybe_leak(qubit_id_2)?;
+                    self.spread_leakage(qubit_id_1, qubit_id_2)?;
+                    self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                }
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -144,6 +168,9 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
+                }
+                _ => {
+                    bail!("SimpleLeakageErrorModel: Unsupported operation {:?}", op);
                 }
             }
         }

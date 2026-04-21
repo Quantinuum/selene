@@ -316,6 +316,78 @@ class ClassicalDelay(Operation):
         return ClassicalDelay(duration_ns=duration_ns)
 
 
+@dataclass
+class RPP(Operation):
+    qubit0: int
+    qubit1: int
+    theta: float
+    phi: float
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        assert PYTKET_AVAILABLE, "pytket is not available"
+        circuit.PhasedXX(
+            angle0=self.theta / math.pi,
+            angle1=self.phi / math.pi,
+            qubit0=self.qubit0,
+            qubit1=self.qubit1,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "op": "RPP",
+            "qubit0": self.qubit0,
+            "qubit1": self.qubit1,
+            "theta": self.theta,
+            "phi": self.phi,
+        }
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        qubit0 = next(it)
+        qubit1 = next(it)
+        theta = next(it)
+        phi = next(it)
+        return RPP(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi)
+
+
+@dataclass
+class TK2(Operation):
+    qubit0: int
+    qubit1: int
+    alpha: float
+    beta: float
+    gamma: float
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        assert PYTKET_AVAILABLE, "pytket is not available"
+        circuit.TK2(
+            angle0=self.alpha / math.pi,
+            angle1=self.beta / math.pi,
+            angle2=self.gamma / math.pi,
+            qubit0=self.qubit0,
+            qubit1=self.qubit1,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "op": "TK2",
+            "qubit0": self.qubit0,
+            "qubit1": self.qubit1,
+            "alpha": self.alpha,
+            "beta": self.beta,
+            "gamma": self.gamma,
+        }
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        qubit0 = next(it)
+        qubit1 = next(it)
+        alpha = next(it)
+        beta = next(it)
+        gamma = next(it)
+        return TK2(qubit0=qubit0, qubit1=qubit1, alpha=alpha, beta=beta, gamma=gamma)
+
+
 class Source(Enum):
     """
     Selene provides the source of each instruction as an
@@ -388,6 +460,10 @@ class Instruction:
                 operation = MeasureLeakedRequest.from_iterator(it)
             case 13:
                 operation = ClassicalDelay.from_iterator(it)
+            case 14:
+                operation = RPP.from_iterator(it)
+            case 15:
+                operation = TK2.from_iterator(it)
         if operation is None:
             raise ValueError(f"Unknown instruction operation index {operation_idx}")
         return Instruction(source=source, operation=operation)

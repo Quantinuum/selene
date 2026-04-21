@@ -222,6 +222,12 @@ struct selene_void_result_t selene_refcount_decrement(struct SeleneInstance *ins
  */
 struct selene_void_result_t selene_refcount_increment(struct SeleneInstance *instance, uint64_t r);
 
+struct selene_void_result_t selene_rpp(struct SeleneInstance *instance,
+                                       uint64_t qubit_id,
+                                       uint64_t qubit_id2,
+                                       double theta,
+                                       double phi);
+
 struct selene_void_result_t selene_rxy(struct SeleneInstance *instance,
                                        uint64_t qubit_id,
                                        double theta,
@@ -248,6 +254,13 @@ struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
  */
 struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instance,
                                                   uint64_t delay);
+
+struct selene_void_result_t selene_tk2(struct SeleneInstance *instance,
+                                       uint64_t qubit_id,
+                                       uint64_t qubit_id2,
+                                       double alpha,
+                                       double beta,
+                                       double gamma);
 
 /**
  * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.

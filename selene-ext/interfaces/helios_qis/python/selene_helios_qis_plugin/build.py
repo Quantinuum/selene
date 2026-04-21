@@ -9,12 +9,15 @@ from selene_core.build_utils.builtins import (
     HeliosLLVMBitcodeStringKind,
 )
 
-from selene_hugr_qis_compiler import (
-    compile_to_llvm_ir,
-    compile_to_bitcode,
-)
+try:
+    from selene_hugr_qis_compiler import (
+        compile_to_llvm_ir,
+        compile_to_bitcode,
+    )
 
-# Steps
+    HAS_HUGR_QIS_COMPILER = True
+except ImportError:
+    HAS_HUGR_QIS_COMPILER = False
 
 
 class SeleneCompileHUGRToLLVMIRStringStep(Step):
@@ -27,6 +30,9 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
+        if "platform" in build_ctx.cfg and build_ctx.cfg["platform"] != "helios":
+            return float("inf")
+
         if (
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-ir"
@@ -38,6 +44,11 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         if build_ctx.verbose:
             print("Converting HUGR envelope bytes to LLVM IR string")
+        if not HAS_HUGR_QIS_COMPILER:
+            raise RuntimeError(
+                "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
+                " is required for building. Please install it via pip."
+            )
         ir = compile_to_llvm_ir(input_artifact.resource)
         return cls._make_artifact(ir)
 
@@ -52,6 +63,9 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
+        if "platform" in build_ctx.cfg and build_ctx.cfg["platform"] != "helios":
+            return float("inf")
+
         if (
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-bitcode"
@@ -63,5 +77,10 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         if build_ctx.verbose:
             print("Converting HUGR envelope bytes to LLVM Bitcode")
+        if not HAS_HUGR_QIS_COMPILER:
+            raise RuntimeError(
+                "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
+                " is required for building. Please install it via pip."
+            )
         bitcode = compile_to_bitcode(input_artifact.resource)
         return cls._make_artifact(bitcode)

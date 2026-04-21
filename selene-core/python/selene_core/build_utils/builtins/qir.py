@@ -14,6 +14,7 @@ def _matches_qir_ir(text: str) -> bool:
         symbols = get_symbols_from_llvm(text)
     except Exception:
         return False
+    # TODO: add sol support
     if _match_helios_qis(symbols):
         return False
     return '"entry_point"' in text
