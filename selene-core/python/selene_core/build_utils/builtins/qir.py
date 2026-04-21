@@ -9,6 +9,12 @@ from ..symbols import get_symbols_from_llvm
 from qir_qis import get_entry_attributes, qir_ll_to_bc, qir_to_qis, validate_qir
 
 
+def _unwrap_bitcode_resource(resource: Any) -> bytes | None:
+    if hasattr(resource, "bitcode"):
+        resource = resource.bitcode
+    return resource if isinstance(resource, bytes) else None
+
+
 def _matches_qir_ir(text: str) -> bool:
     try:
         symbols = get_symbols_from_llvm(text)
@@ -80,9 +86,8 @@ class QIRBitcodeStringKind(ArtifactKind):
 
     @classmethod
     def matches(cls, resource: Any) -> bool:
-        if hasattr(resource, "bitcode"):
-            resource = resource.bitcode
-        if not isinstance(resource, bytes):
+        resource = _unwrap_bitcode_resource(resource)
+        if resource is None:
             return False
         return _matches_qir_bitcode(resource)
 
@@ -195,8 +200,10 @@ class QIRBitcodeStringToHeliosBitcodeStringStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        validate_qir(input_artifact.resource)
-        result = qir_to_qis(input_artifact.resource)
+        bitcode = _unwrap_bitcode_resource(input_artifact.resource)
+        assert bitcode is not None, "QIR bitcode step received a non-bitcode resource"
+        validate_qir(bitcode)
+        result = qir_to_qis(bitcode)
         return cls._make_artifact(result)
 
 
