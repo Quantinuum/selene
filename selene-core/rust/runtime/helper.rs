@@ -105,8 +105,8 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     rzz_fn,
                     rxy_fn,
                     rz_fn,
-                    rpp_gate,
-                    tk2_gate,
+                    rpp_fn,
+                    tk2_fn,
                     ..
                 } = unsafe { &*callbacks };
                 unsafe { set_batch_time_fn(goi, start.into(), duration.into()) };
@@ -139,14 +139,14 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             qubit_id_2,
                             theta,
                             phi,
-                        } => unsafe { rpp_gate(goi, qubit_id_1, qubit_id_2, theta, phi) },
+                        } => unsafe { rpp_fn(goi, qubit_id_1, qubit_id_2, theta, phi) },
                         Operation::TK2Gate {
                             qubit_id_1,
                             qubit_id_2,
                             alpha,
                             beta,
                             gamma,
-                        } => unsafe { tk2_gate(goi, qubit_id_1, qubit_id_2, alpha, beta, gamma) },
+                        } => unsafe { tk2_fn(goi, qubit_id_1, qubit_id_2, alpha, beta, gamma) },
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                             unsafe { custom_fn(goi, custom_tag, ptr, len) }

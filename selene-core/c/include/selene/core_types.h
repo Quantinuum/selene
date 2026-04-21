@@ -130,17 +130,17 @@ typedef struct SeleneRuntimeGetOperationInterface {
   void (*rz_fn)(SeleneRuntimeGetOperationInstance,
                 uint64_t,
                 double);
-  void (*rpp_gate)(SeleneRuntimeGetOperationInstance,
-                   uint64_t,
-                   uint64_t,
-                   double,
-                   double);
-  void (*tk2_gate)(SeleneRuntimeGetOperationInstance,
-                   uint64_t,
-                   uint64_t,
-                   double,
-                   double,
-                   double);
+  void (*rpp_fn)(SeleneRuntimeGetOperationInstance,
+                 uint64_t,
+                 uint64_t,
+                 double,
+                 double);
+  void (*tk2_fn)(SeleneRuntimeGetOperationInstance,
+                 uint64_t,
+                 uint64_t,
+                 double,
+                 double,
+                 double);
 } SeleneRuntimeGetOperationInterface;
 
 typedef void *SeleneRuntimeExtractOperationInstance;

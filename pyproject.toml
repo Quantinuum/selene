@@ -110,6 +110,7 @@ cache-keys = [
   { file = "selene-ext/*/*/rust/**/*.rs" },
   { file = "selene-ext/**/Cargo.toml" },
   { file = "selene-ext/**/Cargo.lock" },
+  { file = "selene-core/rust/**/*.rs" },
 ]
 
 [tool.ruff]

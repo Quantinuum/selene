@@ -833,8 +833,8 @@ impl BatchBuilder {
             rzz_fn: Self::rzz,
             rxy_fn: Self::rxy,
             rz_fn: Self::rz,
-            rpp_gate: Self::rpp,
-            tk2_gate: Self::tk2,
+            rpp_fn: Self::rpp,
+            tk2_fn: Self::tk2,
             _marker: PhantomData,
         };
         (instance, interface)
@@ -872,8 +872,8 @@ pub struct RuntimeGetOperationInterface<'a> {
     pub rzz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64),
     pub rxy_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64, f64),
     pub rz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64),
-    pub rpp_gate: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
-    pub tk2_gate: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64, f64),
+    pub rpp_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
+    pub tk2_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64, f64),
     _marker: PhantomData<&'a ()>,
 }
 
@@ -900,8 +900,8 @@ impl BatchExtractor {
             rzz_fn,
             rxy_fn,
             rz_fn,
-            rpp_gate,
-            tk2_gate,
+            rpp_fn,
+            tk2_fn,
             ..
         } = interface_out;
         unsafe { set_batch_time_fn(instance_out, batch.start().into(), batch.duration().into()) };
@@ -934,7 +934,7 @@ impl BatchExtractor {
                     qubit_id_2,
                     theta,
                     phi,
-                } => unsafe { rpp_gate(instance_out, *qubit_id_1, *qubit_id_2, *theta, *phi) },
+                } => unsafe { rpp_fn(instance_out, *qubit_id_1, *qubit_id_2, *theta, *phi) },
                 Operation::TK2Gate {
                     qubit_id_1,
                     qubit_id_2,
@@ -942,7 +942,7 @@ impl BatchExtractor {
                     beta,
                     gamma,
                 } => unsafe {
-                    tk2_gate(
+                    tk2_fn(
                         instance_out,
                         *qubit_id_1,
                         *qubit_id_2,
