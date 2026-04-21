@@ -60,9 +60,10 @@ def _collect_libdeps(
     Collects the library dependencies for the selene build process,
     and registers the chosen quantum interface with the planner.
     """
-    from selene_helios_qis_plugin import HeliosInterface
+    if interface is None:
+        from selene_helios_qis_plugin import HeliosInterface
 
-    interface = interface or HeliosInterface()
+        interface = HeliosInterface()
     deps = [LibDep.from_plugin(interface)]
     interface.register_build_steps(planner)
     for u in utilities or []:

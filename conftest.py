@@ -135,13 +135,13 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
         if compile_guppy:
             resources_dir.mkdir(parents=True, exist_ok=True)
             sha_file.write_text(input_sha256)
-            for qis_platform in SUPPORTED_QIS_PLATFORMS:
+            for qis_platform_it in SUPPORTED_QIS_PLATFORMS:
                 for target in SUPPORTED_TARGETS:
                     llvm_ir = _compile_inline_guppy_source_to_llvm_ir(
-                        guppy_source, qis_platform=qis_platform, target=target
+                        guppy_source, qis_platform=qis_platform_it, target=target
                     )
                     (
-                        resources_dir / f"{program_name}-{qis_platform}-{target}.ll"
+                        resources_dir / f"{program_name}-{qis_platform_it}-{target}.ll"
                     ).write_text(llvm_ir)
         else:
             if not sha_file.exists():

@@ -11,6 +11,8 @@
 #include <setjmp.h>
 #include <math.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>

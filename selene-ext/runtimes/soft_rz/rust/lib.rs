@@ -271,7 +271,7 @@ impl RuntimeInterface for SoftRZRuntime {
         _gamma: f64,
     ) -> Result<()> {
         bail!(
-            "The TK2 gate is not compatible with the SoftRZRuntime, as it relies on the properties of the properties of rz's interaction with (rxy, rzz)."
+            "The TK2 gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
         );
     }
     fn rpp_gate(
@@ -282,7 +282,7 @@ impl RuntimeInterface for SoftRZRuntime {
         _phi: f64,
     ) -> Result<()> {
         bail!(
-            "The RPP gate is not compatible with the SoftRZRuntime, as it relies on the properties of the properties of rz's interaction with (rxy, rzz)."
+            "The RPP gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
         );
     }
     // Lifetime ops

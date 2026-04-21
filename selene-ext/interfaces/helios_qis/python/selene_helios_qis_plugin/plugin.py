@@ -24,8 +24,8 @@ class HeliosInterface(QuantumInterface):
     def library_file(self):
         # two libraries are currently provided: one for normal runs,
         # and one for diagnostic runs. The latter prints quantum calls
-        # to stderr, and can be selected by setting the diagnostic_mode
-        # attribute to True.
+        # to stderr, and can be selected by setting log_level to
+        # LogLevel.DIAGNOSTIC.
         lib_name = "helios_selene_interface"
         match self.log_level:
             case LogLevel.QUIET:
