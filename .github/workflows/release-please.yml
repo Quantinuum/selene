@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - 0.3-series
 
 permissions:
   contents: write
@@ -18,3 +19,4 @@ jobs:
       - uses: googleapis/release-please-action@v4.3.0
         with:
           token: ${{ secrets.HUGRBOT_PAT }}
+          target-branch: ${{ github.ref_name }}
