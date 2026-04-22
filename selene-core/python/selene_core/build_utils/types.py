@@ -145,12 +145,16 @@ class Artifact(Generic[ResourceKind], metaclass=BuildTypeMeta):
         return self.kind.digest(self.resource)
 
 
-InputKind = TypeVar("InputKind", bound=ArtifactKind)
-OutputKind = TypeVar("OutputKind", bound=ArtifactKind)
+InputResource = TypeVar("InputResource")
+OutputResource = TypeVar("OutputResource")
+# Backwards-compatible public type variables for downstream type-checking code
+# that imported the previous names from this module.
+InputKind = TypeVar("InputKind")
+OutputKind = TypeVar("OutputKind")
 
 
 @dataclass
-class Step(metaclass=BuildTypeMeta):
+class Step(Generic[InputResource, OutputResource], metaclass=BuildTypeMeta):
     """
     A Step describes a single step in a build process, i.e. a transformation
     to an input ArtifactKind to an output ArtifactKind. It has an associated
@@ -163,8 +167,8 @@ class Step(metaclass=BuildTypeMeta):
     path in chosen circumstances.
     """
 
-    input_kind: type[ArtifactKind]
-    output_kind: type[ArtifactKind]
+    input_kind: ClassVar[type[ArtifactKind[InputResource]]]
+    output_kind: ClassVar[type[ArtifactKind[OutputResource]]]
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
@@ -186,8 +190,10 @@ class Step(metaclass=BuildTypeMeta):
 
     @classmethod
     def apply(
-        cls, build_ctx: BuildCtx, input_artifact: Artifact
-    ) -> Artifact[OutputKind]:
+        cls,
+        build_ctx: BuildCtx,
+        input_artifact: Artifact[InputResource],
+    ) -> Artifact[OutputResource]:
         """
         Convert the input artifact to the output artifact.
         """
@@ -195,8 +201,10 @@ class Step(metaclass=BuildTypeMeta):
 
     @classmethod
     def _make_artifact(
-        cls, resource: OutputKind, metadata: dict[str, Any] | None = None
-    ) -> Artifact[OutputKind]:
+        cls,
+        resource: OutputResource,
+        metadata: dict[str, Any] | None = None,
+    ) -> Artifact[OutputResource]:
         """
         A helper method to create an artifact of the output kind
         given an output resource.

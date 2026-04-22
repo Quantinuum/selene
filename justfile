@@ -14,6 +14,21 @@ test-py *TEST_ARGS: develop
 test-rs *TEST_ARGS:
     uv run cargo test {{TEST_ARGS}}
 
+nitpicks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo fmt --all -- --check
+    cargo clippy --all --all-features -- -D warnings
+    RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps --all-features
+    uv sync
+    (
+        cd selene-core
+        uv run mypy .
+    )
+    uv run mypy selene-sim selene-ext/*/*/python/*_plugin
+    uv run ruff format --check --config=pyproject.toml
+    uv run ruff check --config=pyproject.toml
+
 BIND_BUILD := "target/selene-bindings-build"
 PLUGIN_EXPAND := "target/plugin-expand"
 
@@ -64,7 +79,7 @@ generate-selene-sim-bindings: generate-selene-sim-headers
 
 generate-bindings: generate-selene-core-headers generate-selene-sim-bindings
 
-build-ci: 
+build-ci:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p /tmp/ci-cache

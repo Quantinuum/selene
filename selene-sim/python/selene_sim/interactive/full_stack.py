@@ -6,6 +6,7 @@ import platform
 import sys
 import tempfile
 from pathlib import Path
+from typing import ClassVar
 
 import yaml
 from selene_core import ErrorModel, Runtime, SeleneComponent, Simulator
@@ -300,12 +301,14 @@ class Qubit:
 
 
 class InteractiveFullStack:
+    _shared_lib: ClassVar[SeleneSimLib | None] = None
+
     @classmethod
     def load_library(cls) -> SeleneSimLib:
-        if hasattr(cls, "_lib") and cls._lib is not None:
-            return cls._lib
-        cls._lib = SeleneSimLib()
-        return cls._lib
+        if cls._shared_lib is not None:
+            return cls._shared_lib
+        cls._shared_lib = SeleneSimLib()
+        return cls._shared_lib
 
     def __init__(
         self,
