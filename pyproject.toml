@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
-  "selene-core~=0.2.4",
+  "selene-core~=0.2.8",
   "selene-hugr-qis-compiler~=0.2.6",
   "tqdm>=4.67.1",
 ]
@@ -54,7 +54,7 @@ dev = [
   "pytest>=8.3.5",
   "pytket>=2.0.1",
   "pytket~=2.9.1",
-  "qir-qis~=0.1.2",
+  "qir-qis~=0.1.6",
   "ruff>=0.8.0",
   "types-pyyaml>=6.0.12.20250402",
 ]
@@ -182,6 +182,7 @@ test-requires = [
   "pytest",
   "pytest-snapshot",
   "pytket~=2.9.1",
+  "qir-qis~=0.1.6",
 ]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
 [tool.cibuildwheel.linux]
