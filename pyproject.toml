@@ -225,9 +225,6 @@ before-test = '''
 '''
 [tool.cibuildwheel.macos]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "11.0" }
-before-all = [
-    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile default -y',
-]
 before-test = [
     'uv pip install ./selene-core'
 ]

@@ -87,7 +87,21 @@ jobs:
         uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
-          version: "0.6.6"
+
+      - name: Read Rust toolchain
+        if: ${{ startsWith(matrix.os, 'macos-') }}
+        id: rust_toolchain
+        shell: bash
+        run: |
+          channel="$(awk -F'"' '/^channel = / { print $2 }' rust-toolchain.toml)"
+          test -n "$channel"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
+      - name: Install rust toolchain
+        if: ${{ startsWith(matrix.os, 'macos-') }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
 
       - name: Prepare cache dir (linux)
         if: ${{ matrix.os == 'ubuntu-latest' }}
