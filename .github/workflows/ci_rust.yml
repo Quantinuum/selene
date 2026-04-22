@@ -22,8 +22,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - uses: actions/cache@v4
+        uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/
@@ -36,8 +36,8 @@ jobs:
       - name: Run rust tests
         run: cargo test --all-features
       # ensure that C interfaces are up to date
-      - uses: extractions/setup-just@v3
-      - uses: cargo-bins/cargo-binstall@v1.15.10
+      - uses: extractions/setup-just@v4
+      - uses: cargo-bins/cargo-binstall@v1.18.1
       - name: Install cbindgen and cargo-expand
         run: |
            cargo binstall cbindgen --no-confirm --version 0.28
@@ -57,4 +57,3 @@ jobs:
             echo "=============================================";
             exit 1;
           fi
-
