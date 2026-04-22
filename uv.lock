@@ -1178,7 +1178,7 @@ wheels = [
 
 [[package]]
 name = "selene-core"
-version = "0.3.0a0"
+version = "0.3.0-alpha.1"
 source = { editable = "selene-core" }
 dependencies = [
     { name = "hugr" },
