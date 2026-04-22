@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.14](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.13...selene-sim-v0.2.14) (2026-04-21)
+
+
+### Features
+
+* add timing to builtin runtimes and batching options to softrz runtime ([#158](https://github.com/Quantinuum/selene/issues/158)) ([049e123](https://github.com/Quantinuum/selene/commit/049e1231ba70ced08aa6477cf9c7efb579d4f659))
+* Record simulated delays in event hooks ([#154](https://github.com/Quantinuum/selene/issues/154)) ([608884a](https://github.com/Quantinuum/selene/commit/608884ac1afe08ad6976cf7f9480f77034d5bd9b))
+* Traces for analytics ([#160](https://github.com/Quantinuum/selene/issues/160)) ([24b9978](https://github.com/Quantinuum/selene/commit/24b997803cc91a5efc7039c91dd19509f1883e8e))
+
+
+### Bug Fixes
+
+* classify lowered qir-qis bitcode as helios ([#157](https://github.com/Quantinuum/selene/issues/157)) ([67fca60](https://github.com/Quantinuum/selene/commit/67fca60db58dd6b04de8656cfc9dbd9d62a9d92f))
+
 ## [0.2.13](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.12...selene-sim-v0.2.13) (2026-04-10)
 
 

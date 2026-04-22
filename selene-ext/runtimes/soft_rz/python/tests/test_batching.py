@@ -2,7 +2,7 @@ from textwrap import dedent
 import json
 
 from selene_sim.build import build
-from selene_sim import Quest, SoftRZRuntime
+from selene_sim.backends import Quest, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore, CircuitExtractor, MultiEventHook
 
 
@@ -98,4 +98,9 @@ def test_batching_behaviour(snapshot, compiled_guppy):
         snapshot.assert_match(
             json.dumps(format_friendly, indent=2),
             f"instructions_batching_{batching}.json",
+        )
+        trace = output_instructions.get_trace()
+        snapshot.assert_match(
+            trace.model_dump_json(indent=2),
+            f"trace_batching_{batching}.json",
         )

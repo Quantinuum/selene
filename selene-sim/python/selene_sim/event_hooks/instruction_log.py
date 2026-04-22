@@ -15,6 +15,15 @@ from collections.abc import Iterator
 from typing import Any
 import math
 
+from selene_core.trace import (
+    Trace,
+    GateEvent,
+    MeasurementEvent,
+    ResetEvent,
+    OpaquePayload,
+    CustomEvent,
+)
+
 from .event_hook import EventHook
 
 PYTKET_AVAILABLE = False
@@ -317,7 +326,7 @@ class ClassicalDelay(Operation):
 
 
 @dataclass
-class RPP(Operation):
+class Rpp(Operation):
     qubit0: int
     qubit1: int
     theta: float
@@ -334,7 +343,7 @@ class RPP(Operation):
 
     def to_dict(self) -> dict:
         return {
-            "op": "RPP",
+            "op": "Rpp",
             "qubit0": self.qubit0,
             "qubit1": self.qubit1,
             "theta": self.theta,
@@ -347,11 +356,11 @@ class RPP(Operation):
         qubit1 = next(it)
         theta = next(it)
         phi = next(it)
-        return RPP(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi)
+        return Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi)
 
 
 @dataclass
-class TK2(Operation):
+class Tk2(Operation):
     qubit0: int
     qubit1: int
     alpha: float
@@ -370,7 +379,7 @@ class TK2(Operation):
 
     def to_dict(self) -> dict:
         return {
-            "op": "TK2",
+            "op": "Tk2",
             "qubit0": self.qubit0,
             "qubit1": self.qubit1,
             "alpha": self.alpha,
@@ -385,7 +394,7 @@ class TK2(Operation):
         alpha = next(it)
         beta = next(it)
         gamma = next(it)
-        return TK2(qubit0=qubit0, qubit1=qubit1, alpha=alpha, beta=beta, gamma=gamma)
+        return Tk2(qubit0=qubit0, qubit1=qubit1, alpha=alpha, beta=beta, gamma=gamma)
 
 
 class Source(Enum):
@@ -461,9 +470,9 @@ class Instruction:
             case 13:
                 operation = ClassicalDelay.from_iterator(it)
             case 14:
-                operation = RPP.from_iterator(it)
+                operation = Rpp.from_iterator(it)
             case 15:
-                operation = TK2.from_iterator(it)
+                operation = Tk2.from_iterator(it)
         if operation is None:
             raise ValueError(f"Unknown instruction operation index {operation_idx}")
         return Instruction(source=source, operation=operation)
@@ -519,6 +528,232 @@ class ShotInstructions:
     def dump(self) -> None:
         for instruction in self:
             print(f"{instruction.source}: {instruction.operation}")
+
+    def get_trace(self) -> Trace:
+        """
+        Obtain a selene_core.Trace from the instruction log, providing a
+        structured representation of the operations performed by the runtime.
+        This trace may be consumed, analysed, and communicated easily, allowing
+        decoupling of simulation itself from analysis and visualization.
+        """
+        trace = Trace()
+        user_program_event_index = 0
+        start_time_ns = 0
+        end_time_ns = 0
+        for instruction in self:
+            if instruction.source == Source.USER:
+                match instruction.operation:
+                    case CustomOperation(tag=tag, data=data):
+                        trace.add_user_program_event(
+                            CustomEvent(payload=OpaquePayload(tag=tag, data=data)),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case LocalBarrier(qubits=qubits, sleep_time=sleep_time):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="LocalBarrier",
+                                qubits=qubits,
+                                params=[sleep_time],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case GlobalBarrier(sleep_time=sleep_time):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="GlobalBarrier",
+                                qubits=[],
+                                params=[sleep_time],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case QAlloc(qubit=qubit):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="QAlloc",
+                                qubits=[qubit],
+                                params=[],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case QFree(qubit=qubit):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="QFree",
+                                qubits=[qubit],
+                                params=[],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case Rxy(qubit=qubit, theta=theta, phi=phi):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="Rxy",
+                                qubits=[qubit],
+                                params=[theta, phi],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="Rzz",
+                                qubits=[qubit0, qubit1],
+                                params=[theta],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case Rz(qubit=qubit, theta=theta):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="Rz",
+                                qubits=[qubit],
+                                params=[theta],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="Rpp",
+                                qubits=[qubit0, qubit1],
+                                params=[theta, phi],
+                            ),
+                            index=user_program_event_index,
+                        )
+                    case Tk2(
+                        qubit0=qubit0,
+                        qubit1=qubit1,
+                        alpha=alpha,
+                        beta=beta,
+                        gamma=gamma,
+                    ):
+                        trace.add_user_program_event(
+                            GateEvent(
+                                gate_name="Tk2",
+                                qubits=[qubit0, qubit1],
+                                params=[alpha, beta, gamma],
+                            ),
+                            index=user_program_event_index,
+                        )
+                    case Reset(qubit=qubit):
+                        trace.add_user_program_event(
+                            ResetEvent(qubit=qubit), index=user_program_event_index
+                        )
+                        user_program_event_index += 1
+                    case MeasureRequest(qubit=qubit):
+                        trace.add_user_program_event(
+                            MeasurementEvent(qubit=qubit),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case MeasureLeakedRequest(qubit=qubit):
+                        trace.add_user_program_event(
+                            MeasurementEvent(qubit=qubit),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case FutureRead(qubit=qubit):
+                        trace.add_user_program_event(
+                            MeasurementEvent(qubit=qubit),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+                    case ClassicalDelay(duration_ns=duration_ns):
+                        trace.add_user_program_event(
+                            event=GateEvent(
+                                gate_name="ClassicalDelay",
+                                qubits=[],
+                                params=[duration_ns],
+                            ),
+                            index=user_program_event_index,
+                        )
+                        user_program_event_index += 1
+            if instruction.source == Source.OPTIMISER:
+                match instruction.operation:
+                    case BatchStart(start_time_ns=start, duration_ns=duration):
+                        start_time_ns = start
+                        end_time_ns = start + duration
+                    case Reset(qubit=qubit):
+                        trace.add_runtime_event(
+                            ResetEvent(qubit=qubit), start_time_ns, end_time_ns
+                        )
+                    case FutureRead(qubit=qubit):
+                        trace.add_runtime_event(
+                            MeasurementEvent(qubit=qubit), start_time_ns, end_time_ns
+                        )
+                    case Rxy(qubit=qubit, theta=theta, phi=phi):
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rxy",
+                                qubits=[qubit],
+                                params=[theta, phi],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
+                        )
+                    case Rz(qubit=qubit, theta=theta):
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rz",
+                                qubits=[qubit],
+                                params=[theta],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
+                        )
+                    case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rzz",
+                                qubits=[qubit0, qubit1],
+                                params=[theta],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
+                        )
+                    case Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi):
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Rpp",
+                                qubits=[qubit0, qubit1],
+                                params=[theta, phi],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
+                        )
+                    case Tk2(
+                        qubit0=qubit0,
+                        qubit1=qubit1,
+                        alpha=alpha,
+                        beta=beta,
+                        gamma=gamma,
+                    ):
+                        trace.add_runtime_event(
+                            GateEvent(
+                                gate_name="Tk2",
+                                qubits=[qubit0, qubit1],
+                                params=[alpha, beta, gamma],
+                            ),
+                            start_time_ns,
+                            end_time_ns,
+                        )
+                    case CustomOperation(tag=tag, data=data):
+                        trace.add_runtime_event(
+                            CustomEvent(payload=OpaquePayload(tag=tag, data=data)),
+                            start_time_ns,
+                            end_time_ns,
+                        )
+                    case _:
+                        pass
+        return trace
 
 
 class CircuitExtractor(EventHook):

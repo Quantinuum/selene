@@ -18,6 +18,9 @@ class SimpleRuntimePlugin(Runtime):
 
     duration_ns_rxy: int = 0
     duration_ns_rzz: int = 0
+    duration_ns_rz: int = 0
+    duration_ns_rpp: int = 0
+    duration_ns_tk2: int = 0
     duration_ns_measure: int = 0
     duration_ns_reset: int = 0
     duration_ns_measure_leaked: int = 0
@@ -27,6 +30,9 @@ class SimpleRuntimePlugin(Runtime):
         assert self.duration_ns_rzz >= 0, "duration_ns_rzz must be non-negative"
         assert self.duration_ns_measure >= 0, "duration_ns_measure must be non-negative"
         assert self.duration_ns_reset >= 0, "duration_ns_reset must be non-negative"
+        assert self.duration_ns_rz >= 0, "duration_ns_rz must be non-negative"
+        assert self.duration_ns_rpp >= 0, "duration_ns_rpp must be non-negative"
+        assert self.duration_ns_tk2 >= 0, "duration_ns_tk2 must be non-negative"
         assert self.duration_ns_measure_leaked >= 0, (
             "duration_ns_measure_leaked must be non-negative"
         )
@@ -35,6 +41,9 @@ class SimpleRuntimePlugin(Runtime):
         return [
             f"--duration-ns-rxy={self.duration_ns_rxy}",
             f"--duration-ns-rzz={self.duration_ns_rzz}",
+            f"--duration-ns-rz={self.duration_ns_rz}",
+            f"--duration-ns-rpp={self.duration_ns_rpp}",
+            f"--duration-ns-tk2={self.duration_ns_tk2}",
             f"--duration-ns-measure={self.duration_ns_measure}",
             f"--duration-ns-reset={self.duration_ns_reset}",
             f"--duration-ns-measure-leaked={self.duration_ns_measure_leaked}",

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.8](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.7...selene-core-v0.2.8) (2026-04-21)
+
+
+### Features
+
+* add timing to builtin runtimes and batching options to softrz runtime ([#158](https://github.com/Quantinuum/selene/issues/158)) ([049e123](https://github.com/Quantinuum/selene/commit/049e1231ba70ced08aa6477cf9c7efb579d4f659))
+* Traces for analytics ([#160](https://github.com/Quantinuum/selene/issues/160)) ([24b9978](https://github.com/Quantinuum/selene/commit/24b997803cc91a5efc7039c91dd19509f1883e8e))
+
+
+### Bug Fixes
+
+* classify lowered qir-qis bitcode as helios ([#157](https://github.com/Quantinuum/selene/issues/157)) ([67fca60](https://github.com/Quantinuum/selene/commit/67fca60db58dd6b04de8656cfc9dbd9d62a9d92f))
+
 ## [0.2.7](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.6...selene-core-v0.2.7) (2026-04-10)
 
 

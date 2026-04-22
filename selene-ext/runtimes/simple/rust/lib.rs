@@ -15,6 +15,12 @@ struct Params {
     #[arg(long)]
     duration_ns_rzz: u64,
     #[arg(long)]
+    duration_ns_rz: u64,
+    #[arg(long)]
+    duration_ns_rpp: u64,
+    #[arg(long)]
+    duration_ns_tk2: u64,
+    #[arg(long)]
     duration_ns_measure: u64,
     #[arg(long)]
     duration_ns_reset: u64,
@@ -60,6 +66,9 @@ impl SimpleRuntime {
         let duration_ns = match op {
             Operation::RXYGate { .. } => self.params.duration_ns_rxy,
             Operation::RZZGate { .. } => self.params.duration_ns_rzz,
+            Operation::RZGate { .. } => self.params.duration_ns_rz,
+            Operation::RPPGate { .. } => self.params.duration_ns_rpp,
+            Operation::TK2Gate { .. } => self.params.duration_ns_tk2,
             Operation::Measure { .. } => self.params.duration_ns_measure,
             Operation::Reset { .. } => self.params.duration_ns_reset,
             Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
