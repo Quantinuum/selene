@@ -145,16 +145,12 @@ class Artifact(Generic[ResourceKind], metaclass=BuildTypeMeta):
         return self.kind.digest(self.resource)
 
 
-InputResource = TypeVar("InputResource")
-OutputResource = TypeVar("OutputResource")
-# Backwards-compatible public type variables for downstream type-checking code
-# that imported the previous names from this module.
-InputKind = TypeVar("InputKind")
-OutputKind = TypeVar("OutputKind")
+InputKind = TypeVar("InputKind", bound=ArtifactKind)
+OutputKind = TypeVar("OutputKind", bound=ArtifactKind)
 
 
 @dataclass
-class Step(Generic[InputResource, OutputResource], metaclass=BuildTypeMeta):
+class Step(metaclass=BuildTypeMeta):
     """
     A Step describes a single step in a build process, i.e. a transformation
     to an input ArtifactKind to an output ArtifactKind. It has an associated
@@ -167,8 +163,8 @@ class Step(Generic[InputResource, OutputResource], metaclass=BuildTypeMeta):
     path in chosen circumstances.
     """
 
-    input_kind: ClassVar[type[ArtifactKind[InputResource]]]
-    output_kind: ClassVar[type[ArtifactKind[OutputResource]]]
+    input_kind: ClassVar[type[ArtifactKind]]
+    output_kind: ClassVar[type[ArtifactKind]]
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
@@ -190,10 +186,8 @@ class Step(Generic[InputResource, OutputResource], metaclass=BuildTypeMeta):
 
     @classmethod
     def apply(
-        cls,
-        build_ctx: BuildCtx,
-        input_artifact: Artifact[InputResource],
-    ) -> Artifact[OutputResource]:
+        cls, build_ctx: BuildCtx, input_artifact: Artifact
+    ) -> Artifact[OutputKind]:
         """
         Convert the input artifact to the output artifact.
         """
@@ -201,10 +195,8 @@ class Step(Generic[InputResource, OutputResource], metaclass=BuildTypeMeta):
 
     @classmethod
     def _make_artifact(
-        cls,
-        resource: OutputResource,
-        metadata: dict[str, Any] | None = None,
-    ) -> Artifact[OutputResource]:
+        cls, resource: OutputKind, metadata: dict[str, Any] | None = None
+    ) -> Artifact[OutputKind]:
         """
         A helper method to create an artifact of the output kind
         given an output resource.
