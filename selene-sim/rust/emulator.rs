@@ -4,10 +4,13 @@ use anyhow::{Result, anyhow};
 use selene_core::error_model::plugin::ErrorModelPluginInterface;
 use selene_core::error_model::{ErrorModel, ErrorModelInterface};
 use selene_core::runtime::plugin::RuntimePluginInterface;
-use selene_core::runtime::{Runtime, RuntimeInterface as _};
+use selene_core::runtime::{Runtime, RuntimeInterface};
+use selene_core::simulator::plugin::SimulatorPluginInterface;
+use selene_core::simulator::{Simulator, SimulatorInterface};
 
 pub struct Emulator {
     pub runtime: Runtime,
+    pub simulator: Simulator,
     pub error_model: ErrorModel,
     pub event_hooks: MultiEventHook,
 }
@@ -22,9 +25,10 @@ impl Emulator {
             error_model_plugin,
             n_qubits,
             config.error_model.args.as_ref(),
-            &config.simulator.file,
-            config.simulator.args.as_ref(),
         )?;
+
+        let simulator_plugin = SimulatorPluginInterface::new_from_file(&config.simulator.file)?;
+        let simulator = Simulator::new(simulator_plugin, n_qubits, config.simulator.args.as_ref())?;
 
         let runtime_plugin = RuntimePluginInterface::new_from_file(&config.runtime.file)?;
         let runtime = Runtime::new(
@@ -54,9 +58,45 @@ impl Emulator {
 
         Ok(Self {
             runtime,
+            simulator,
             error_model,
             event_hooks,
         })
+    }
+    pub fn shot_start(
+        &mut self,
+        shot_id: u64,
+        runtime_seed: u64,
+        simulator_seed: u64,
+        error_model_seed: u64,
+    ) -> Result<()> {
+        self.event_hooks.on_shot_start(shot_id);
+        self.runtime.shot_start(shot_id, runtime_seed)?;
+        self.simulator.shot_start(shot_id, simulator_seed)?;
+        self.error_model.shot_start(shot_id, error_model_seed)?;
+        // Process any operations that might be issued during shot start
+        self.poke()?;
+        Ok(())
+    }
+    pub fn shot_end(&mut self) -> Result<()> {
+        // Tell the runtime that it's time to shut down.
+        // This may flush additional operations as part of
+        // the shutdown process.
+        self.runtime.shot_end()?;
+        // Handle any operations that resulted from the runtime's shot
+        // end process
+        self.poke()?;
+        // Tell the error model, having already processed anything from
+        // the current runtime shot, that the shot is ending. The error model
+        // must also end the shot on its internal simulator.
+        self.error_model.shot_end()?;
+        self.simulator.shot_end()?;
+        // Write out any stored metadata e.g. instruction logs
+        // and inform event hooks that the shot has ended.
+        self.event_hooks.on_shot_end();
+        // Print shot boundary information so that the result stream
+        // is properly delimited.
+        Ok(())
     }
     pub fn poke(&mut self) -> Result<()> {
         self.process_runtime()
@@ -64,7 +104,7 @@ impl Emulator {
     pub fn dump_quantum_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
         self.runtime.global_barrier(0)?;
         self.process_runtime()?;
-        self.error_model.dump_simulator_state(file, qubits)
+        self.simulator.dump_state(file, qubits)
     }
     pub fn user_issued_qalloc(&mut self) -> Result<u64> {
         let address = self.runtime.qalloc()?;
@@ -149,11 +189,11 @@ impl Emulator {
         self.user_issued_read_future_bool(result_id)
     }
     pub fn user_issued_increment_measurement_refcount(&mut self, result_id: u64) -> Result<()> {
-        self.runtime.increment_future_refcount(result_id).unwrap();
+        self.runtime.increment_future_refcount(result_id)?;
         self.process_runtime()
     }
     pub fn user_issued_decrement_measurement_refcount(&mut self, result_id: u64) -> Result<()> {
-        self.runtime.decrement_future_refcount(result_id).unwrap();
+        self.runtime.decrement_future_refcount(result_id)?;
         self.process_runtime()
     }
     pub fn user_issued_read_future_bool(&mut self, result_id: u64) -> Result<bool> {
@@ -190,13 +230,11 @@ impl Emulator {
             }
         }
     }
-
     pub fn custom_runtime_call(&mut self, tag: u64, data: &[u8]) -> Result<u64> {
         let result = self.runtime.custom_call(tag, data)?;
         self.process_runtime()?;
         Ok(result)
     }
-
     pub fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
         self.runtime.simulate_delay(delay_ns)?;
         self.event_hooks
@@ -205,13 +243,13 @@ impl Emulator {
     }
 }
 
-// Handling of runtime-issued instructions
 impl Emulator {
     fn process_runtime(&mut self) -> Result<()> {
         while let Some(batch) = self.runtime.get_next_operations()? {
             self.event_hooks.on_runtime_batch(&batch);
-            //self.post_runtime_metrics.update(&batch);
-            let results = self.error_model.handle_operations(batch)?;
+            let results = self
+                .error_model
+                .handle_operations(batch, &mut self.simulator)?;
             self.event_hooks.on_runtime_results(&results);
             for bool_result in results.bool_results {
                 self.runtime

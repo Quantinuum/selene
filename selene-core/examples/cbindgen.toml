@@ -20,6 +20,9 @@ usize_is_size_t = true
 
 [export]
 include = [
+  "RuntimePluginDescriptorV1",
+  "ErrorModelPluginDescriptorV1",
+  "SimulatorPluginDescriptorV1",
   "ErrorModelAPIVersion",
   "ErrorModelInstance",
   "ErrorModelSetResultInterface",

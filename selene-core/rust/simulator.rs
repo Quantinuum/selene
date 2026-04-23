@@ -1,5 +1,6 @@
 pub mod conformance_testing;
 pub mod helper;
+pub mod inline;
 pub mod interface;
 pub mod plugin;
 pub mod version;
@@ -7,6 +8,7 @@ pub mod version;
 use std::ffi::OsStr;
 use std::sync::Arc;
 
+pub use inline::{SimulatorFFIAdapter, SimulatorOperationInterface};
 pub use interface::{SimulatorInterface, SimulatorInterfaceFactory};
 pub use version::SimulatorAPIVersion;
 
@@ -25,6 +27,14 @@ use delegate::delegate;
 pub struct Simulator(Box<dyn SimulatorInterface>);
 
 impl Simulator {
+    pub fn from_boxed(interface: Box<dyn SimulatorInterface>) -> Self {
+        Self(interface)
+    }
+
+    pub fn into_boxed(self) -> Box<dyn SimulatorInterface> {
+        self.0
+    }
+
     /// Constructs a new Simulator from a [SimulatorInterfaceFactory].
     pub fn new(
         factory: Arc<impl SimulatorInterfaceFactory + 'static>,

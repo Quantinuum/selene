@@ -43,6 +43,13 @@ pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result
 
 impl RuntimeAPIVersion {
+    pub const fn as_u64(self) -> u64 {
+        ((self.reserved as u64) << 24)
+            | ((self.major as u64) << 16)
+            | ((self.minor as u64) << 8)
+            | (self.patch as u64)
+    }
+
     pub fn validate(&self) -> Result<()> {
         // Note: this is a naive check at the moment, as we have not introduced a breaking
         // change since versioning was introduced. This logic should evolve as and when

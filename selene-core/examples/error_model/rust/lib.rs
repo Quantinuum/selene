@@ -251,23 +251,6 @@ impl ErrorModelInterface for ExampleErrorModel {
             }
         }
     }
-
-    fn get_simulator_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
-        // We passively forward the request for simulator metrics to the underlying simulator.
-        self.simulator.get_metric(nth_metric)
-    }
-
-    fn dump_simulator_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
-        // We passively forward the request to dump the simulator state to the underlying
-        // simulator. As this error model isn't manipulating the simulator state beyond
-        // immediate flips and gate mutations, this is fine.
-        //
-        // If instead we were managing some extension of simulator state, e.g. leaked qubits
-        // or accumulated phase through the error model, we should not support state dumping
-        // unless we have considered the consequences of reporting potentially incorrect state
-        // to the end user.
-        self.simulator.dump_state(file, qubits)
-    }
 }
 
 #[derive(Default)]

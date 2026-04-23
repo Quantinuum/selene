@@ -14,6 +14,94 @@ class SeleneSimulatorInstance(ctypes.Structure):
 SeleneSimulatorInstancePtr = ctypes.POINTER(SeleneSimulatorInstance)
 SeleneSimulatorInstancePtrPtr = ctypes.POINTER(SeleneSimulatorInstancePtr)
 
+Errno = ctypes.c_int32
+
+SimGetNameFn = ctypes.CFUNCTYPE(ctypes.c_char_p)
+SimInitFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtrPtr,
+    ctypes.c_uint64,
+    ctypes.c_uint32,
+    ctypes.POINTER(ctypes.c_char_p),
+)
+SimExitFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr)
+SimShotStartFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.c_uint64,
+    ctypes.c_uint64,
+)
+SimShotEndFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr)
+SimRxyFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.c_uint64,
+    ctypes.c_double,
+    ctypes.c_double,
+)
+SimRzFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.c_uint64,
+    ctypes.c_double,
+)
+SimRzzFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.c_uint64,
+    ctypes.c_uint64,
+    ctypes.c_double,
+)
+SimMeasureFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64)
+SimPostselectFn = ctypes.CFUNCTYPE(
+    Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64, ctypes.c_bool
+)
+SimResetFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64)
+SimGetMetricsFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.c_uint8,
+    ctypes.c_char_p,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.POINTER(ctypes.c_uint64),
+)
+SimDumpStateFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.c_char_p,
+    ctypes.POINTER(ctypes.c_uint64),
+    ctypes.c_uint64,
+)
+
+
+class SimulatorPluginDescriptorV1(ctypes.Structure):
+    _fields_ = [
+        ("struct_size", ctypes.c_uint64),
+        ("api_version", ctypes.c_uint64),
+        ("abi_magic", ctypes.c_uint64),
+        ("abi_hash", ctypes.c_uint64),
+        ("abi_name", ctypes.c_char_p),
+        ("signature_manifest", ctypes.c_char_p),
+        ("get_name_fn", SimGetNameFn),
+        ("init_fn", SimInitFn),
+        ("exit_fn", SimExitFn),
+        ("shot_start_fn", SimShotStartFn),
+        ("shot_end_fn", SimShotEndFn),
+        ("rxy_fn", SimRxyFn),
+        ("rz_fn", SimRzFn),
+        ("rzz_fn", SimRzzFn),
+        ("tk2_fn", ctypes.c_void_p),
+        ("rpp_fn", ctypes.c_void_p),
+        ("measure_fn", SimMeasureFn),
+        ("postselect_fn", SimPostselectFn),
+        ("reset_fn", SimResetFn),
+        ("get_metrics_fn", SimGetMetricsFn),
+        ("dump_state_fn", SimDumpStateFn),
+    ]
+
+
+GetSimulatorDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(SimulatorPluginDescriptorV1))
+
 
 class SeleneSimSimulatorLib(ctypes.CDLL):
     def __init__(self, simulator: Simulator) -> None:
@@ -21,78 +109,46 @@ class SeleneSimSimulatorLib(ctypes.CDLL):
         self._configure_signatures()
 
     def _configure_signatures(self):
-        self.selene_simulator_get_api_version.argtypes = []
-        self.selene_simulator_get_api_version.restype = ctypes.c_uint64
-        self.selene_simulator_init.argtypes = [
-            SeleneSimulatorInstancePtrPtr,
-            ctypes.c_uint64,
-            ctypes.c_uint32,
-            ctypes.POINTER(ctypes.c_char_p),
-        ]
-        self.selene_simulator_init.restype = ctypes.c_int32
+        descriptor: SimulatorPluginDescriptorV1 | None = None
+        try:
+            descriptor = SimulatorPluginDescriptorV1.in_dll(
+                self, "selene_simulator_plugin_descriptor_v1"
+            )
+        except ValueError:
+            getter = GetSimulatorDescriptorFn(
+                ("selene_simulator_get_plugin_descriptor_v1", self)
+            )
+            descriptor_ptr = getter()
+            if bool(descriptor_ptr):
+                descriptor = descriptor_ptr.contents
+        if descriptor is None:
+            raise RuntimeError(
+                "Simulator plugin did not expose descriptor symbol or accessor"
+            )
 
-        self.selene_simulator_exit.argtypes = [SeleneSimulatorInstancePtr]
-        self.selene_simulator_exit.restype = ctypes.c_int32
+        self.selene_simulator_init = descriptor.init_fn
+        self.selene_simulator_exit = descriptor.exit_fn
+        self.selene_simulator_shot_start = descriptor.shot_start_fn
+        self.selene_simulator_shot_end = descriptor.shot_end_fn
+        self.selene_simulator_operation_rxy = descriptor.rxy_fn
+        self.selene_simulator_operation_rz = descriptor.rz_fn
+        self.selene_simulator_operation_rzz = descriptor.rzz_fn
+        self.selene_simulator_operation_measure = descriptor.measure_fn
+        self.selene_simulator_operation_postselect = descriptor.postselect_fn
+        self.selene_simulator_operation_reset = descriptor.reset_fn
+        self.selene_simulator_get_metrics = descriptor.get_metrics_fn
+        self.selene_simulator_dump_state = descriptor.dump_state_fn
 
-        self.selene_simulator_shot_start.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-        ]
-        self.selene_simulator_shot_start.restype = ctypes.c_int32
-        self.selene_simulator_shot_end.argtypes = [SeleneSimulatorInstancePtr]
-        self.selene_simulator_shot_end.restype = ctypes.c_int32
-        self.selene_simulator_operation_rxy.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_double,
-            ctypes.c_double,
-        ]
-        self.selene_simulator_operation_rxy.restype = ctypes.c_int32
-        self.selene_simulator_operation_rz.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_double,
-        ]
-        self.selene_simulator_operation_rz.restype = ctypes.c_int32
-        self.selene_simulator_operation_rzz.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.c_double,
-        ]
-        self.selene_simulator_operation_rzz.restype = ctypes.c_int32
-        self.selene_simulator_operation_measure.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_simulator_operation_measure.restype = ctypes.c_int32
-        self.selene_simulator_operation_postselect.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_bool,
-        ]
-        self.selene_simulator_operation_postselect.restype = ctypes.c_int32
-        self.selene_simulator_operation_reset.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_simulator_operation_reset.restype = ctypes.c_int32
-        self.selene_simulator_get_metrics.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_uint8,
-            ctypes.c_char_p,
-            ctypes.POINTER(ctypes.c_uint8),
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_simulator_get_metrics.restype = ctypes.c_int32
-        self.selene_simulator_dump_state.argtypes = [
-            SeleneSimulatorInstancePtr,
-            ctypes.c_char_p,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.c_uint64,
-        ]
-        self.selene_simulator_dump_state.restype = ctypes.c_int32
+        if self.selene_simulator_operation_rxy is None:
+            raise RuntimeError("Simulator plugin does not expose rxy_fn")
+        if self.selene_simulator_operation_rz is None:
+            raise RuntimeError("Simulator plugin does not expose rz_fn")
+        if self.selene_simulator_operation_rzz is None:
+            raise RuntimeError("Simulator plugin does not expose rzz_fn")
+        if self.selene_simulator_operation_postselect is None:
+            raise RuntimeError("Simulator plugin does not expose postselect_fn")
+        if self.selene_simulator_get_metrics is None:
+            raise RuntimeError("Simulator plugin does not expose get_metrics_fn")
 
 
 class InteractiveSimulator:

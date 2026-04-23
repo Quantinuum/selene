@@ -6,9 +6,8 @@ use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
 use selene_core::runtime::{BatchOperation, Operation};
-use selene_core::simulator::{Simulator, SimulatorInterface};
+use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
-use std::ffi::OsStr;
 
 #[derive(Parser, Debug)]
 struct Params {
@@ -28,7 +27,6 @@ struct Stats {
 pub struct SimpleLeakageErrorModel {
     n_qubits: u64,
     rng: Pcg64Mcg,
-    simulator: Simulator,
     leak_register: Vec<bool>,
     error_params: Params,
     stats: Stats,
@@ -73,15 +71,13 @@ impl SimpleLeakageErrorModel {
 }
 
 impl ErrorModelInterface for SimpleLeakageErrorModel {
-    fn shot_start(&mut self, shot_id: u64, seed: u64, simulator_seed: u64) -> Result<()> {
+    fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
         self.rng = Pcg64Mcg::seed_from_u64(seed);
-        self.simulator.shot_start(shot_id, simulator_seed)?;
         self.leak_register = vec![false; self.n_qubits as usize];
         self.stats = Stats::default();
         Ok(())
     }
     fn shot_end(&mut self) -> Result<()> {
-        self.simulator.shot_end()?;
         Ok(())
     }
 
@@ -89,7 +85,11 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
         Ok(())
     }
 
-    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+    fn handle_operations(
+        &mut self,
+        operations: BatchOperation,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<BatchResult> {
         let mut results = BatchResult::default();
         for op in operations {
             match op {
@@ -99,11 +99,11 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     phi,
                 } => {
                     self.maybe_leak(qubit_id)?;
-                    self.simulator.rxy(qubit_id, theta, phi)?;
+                    simulator.rxy(qubit_id, theta, phi)?;
                 }
                 Operation::RZGate { qubit_id, theta } => {
                     self.maybe_leak(qubit_id)?;
-                    self.simulator.rz(qubit_id, theta)?;
+                    simulator.rz(qubit_id, theta)?;
                 }
                 Operation::RZZGate {
                     qubit_id_1,
@@ -113,7 +113,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
+                    simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
                 }
                 Operation::TK2Gate {
                     qubit_id_1,
@@ -125,8 +125,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    self.simulator
-                        .tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                    simulator.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
                 }
                 Operation::RPPGate {
                     qubit_id_1,
@@ -137,7 +136,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                    simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
                 }
                 Operation::Measure {
                     qubit_id,
@@ -147,7 +146,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                         self.rng
                             .random_bool(self.error_params.leak_measurement_bias)
                     } else {
-                        self.simulator.measure(qubit_id)?
+                        simulator.measure(qubit_id)?
                     };
                     results.set_bool_result(result_id, measurement);
                 }
@@ -158,12 +157,12 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     let measurement = if self.leak_register[qubit_id as usize] {
                         2
                     } else {
-                        self.simulator.measure(qubit_id)? as u64
+                        simulator.measure(qubit_id)? as u64
                     };
                     results.set_u64_result(result_id, measurement);
                 }
                 Operation::Reset { qubit_id } => {
-                    self.simulator.reset(qubit_id)?;
+                    simulator.reset(qubit_id)?;
                     self.leak_register[qubit_id as usize] = false;
                 }
                 Operation::Custom { .. } => {
@@ -190,9 +189,6 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
             _ => Ok(None),
         }
     }
-    fn get_simulator_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
-        self.simulator.get_metric(nth_metric)
-    }
 }
 
 #[derive(Default)]
@@ -205,8 +201,6 @@ impl ErrorModelInterfaceFactory for SimpleLeakageErrorModelFactory {
         self: std::sync::Arc<Self>,
         n_qubits: u64,
         error_model_args: &[impl AsRef<str>],
-        simulator_path: &impl AsRef<OsStr>,
-        simulator_args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
         match Params::try_parse_from(error_model_args.iter().map(|s| s.as_ref())) {
             Err(e) => Err(anyhow!(
@@ -214,13 +208,10 @@ impl ErrorModelInterfaceFactory for SimpleLeakageErrorModelFactory {
                 e
             )),
             Ok(params) => {
-                let simulator =
-                    Simulator::load_from_file(simulator_path, n_qubits, simulator_args)?;
                 let leak_register = vec![false; n_qubits as usize];
                 Ok(Box::new(SimpleLeakageErrorModel {
                     n_qubits,
                     rng: Pcg64Mcg::seed_from_u64(0),
-                    simulator,
                     leak_register,
                     error_params: params,
                     stats: Stats::default(),

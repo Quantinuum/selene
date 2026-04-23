@@ -1,4 +1,5 @@
 pub mod helper;
+pub mod inline;
 pub mod interface;
 pub mod plugin;
 pub mod version;
@@ -6,6 +7,7 @@ pub mod version;
 use std::collections::HashSet;
 use std::{iter, sync};
 
+pub use inline::{RuntimeFFIAdapter, RuntimeOperationInterface};
 pub use interface::{RuntimeInterface, RuntimeInterfaceFactory};
 pub use version::RuntimeAPIVersion;
 
@@ -182,6 +184,14 @@ impl IntoIterator for BatchOperation {
 pub struct Runtime(Box<dyn RuntimeInterface>);
 
 impl Runtime {
+    pub fn from_boxed(interface: Box<dyn RuntimeInterface>) -> Self {
+        Self(interface)
+    }
+
+    pub fn into_boxed(self) -> Box<dyn RuntimeInterface> {
+        self.0
+    }
+
     /// Constructs a new Runtime from a [RuntimeInterfaceFactory].
     pub fn new(
         factory: sync::Arc<impl RuntimeInterfaceFactory + 'static>,
