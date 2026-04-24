@@ -34,4 +34,3 @@ thiserror = "2"
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = "allow" # TODO: add safety docs
 missing_safety_doc = "allow"         # TODO: add safety docs
-too_many_arguments = "allow"         # ouroborous violates this

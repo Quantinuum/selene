@@ -9,11 +9,8 @@ pub mod state_dump;
 use configuration::Configuration;
 
 use crate::emulator::Emulator;
-use crate::event_hooks::EventHook;
 use rand_pcg::Pcg32;
 use selene_core::encoder::OutputStream;
-use selene_core::error_model::ErrorModelInterface;
-use selene_core::runtime::RuntimeInterface;
 
 pub struct SeleneInstance {
     pub config: Configuration,
@@ -89,14 +86,8 @@ impl SeleneInstance {
 
         // Now we fire off any shot start event hooks and prepare the
         // runtime and error model for the new shot.
-        self.emulator.event_hooks.on_shot_start(shot_id);
-        self.emulator.runtime.shot_start(shot_id, runtime_seed)?;
         self.emulator
-            .error_model
-            .shot_start(shot_id, error_model_seed, simulator_seed)?;
-        // If the runtime wishes to perform any startup operations
-        // before the main shot processing begins, we process them now.
-        self.emulator.poke()?;
+            .shot_start(shot_id, runtime_seed, simulator_seed, error_model_seed)?;
         Ok(())
     }
 
@@ -111,23 +102,8 @@ impl SeleneInstance {
         if self.config.event_hooks.provide_metrics {
             self.write_metrics()?;
         }
-        // Tell the runtime that it's time to shut down.
-        // This may flush additional operations as part of
-        // the shutdown process.
-        self.emulator.runtime.shot_end()?;
-        // Handle any operations that resulted from the runtime's shot
-        // end process
-        self.emulator.poke()?;
-        // Tell the error model, having already processed anything from
-        // the current runtime shot, that the shot is ending. The error model
-        // must also end the shot on its internal simulator.
-        self.emulator.error_model.shot_end()?;
-        // Finally, write out any stored metadata e.g. instruction logs
-        // and inform event hooks that the shot has ended.
+        self.emulator.shot_end()?;
         self.write_metadata()?;
-        self.emulator.event_hooks.on_shot_end();
-        // Print shot boundary information so that the result stream
-        // is properly delimited.
         self.print_shot_end()?;
         Ok(())
     }

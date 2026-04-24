@@ -269,6 +269,113 @@ OPERATION_BATCH_CALLBACKS = SeleneRuntimeGetOperationInterface(
 
 SeleneRuntimeInstancePtr = ctypes.POINTER(SeleneRuntimeInstance)
 SeleneRuntimeInstancePtrPtr = ctypes.POINTER(SeleneRuntimeInstancePtr)
+Errno = ctypes.c_int32
+
+RuntimeInitFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneRuntimeInstancePtrPtr,
+    ctypes.c_uint64,
+    ctypes.c_uint64,
+    ctypes.c_uint32,
+    ctypes.POINTER(ctypes.c_char_p),
+)
+RuntimeExitFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr)
+RuntimeShotStartFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_uint64
+)
+RuntimeShotEndFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr)
+RuntimeGetNextOpsFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneRuntimeInstancePtr,
+    SeleneRuntimeGetOperationInstance,
+    ctypes.POINTER(SeleneRuntimeGetOperationInterface),
+)
+RuntimeQallocFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.POINTER(ctypes.c_uint64)
+)
+RuntimeQfreeFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
+RuntimeRxyFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_double, ctypes.c_double
+)
+RuntimeRzFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_double
+)
+RuntimeRzzFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneRuntimeInstancePtr,
+    ctypes.c_uint64,
+    ctypes.c_uint64,
+    ctypes.c_double,
+)
+RuntimeMeasureFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
+)
+RuntimeMeasureLeakedFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
+)
+RuntimeResetFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
+RuntimeForceResultFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64
+)
+RuntimeGetBoolResultFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_int8)
+)
+RuntimeGetU64ResultFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
+)
+RuntimeSetBoolResultFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_bool
+)
+RuntimeSetU64ResultFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_uint64
+)
+RuntimeIncFutureFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
+RuntimeDecFutureFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
+RuntimeCustomCallFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneRuntimeInstancePtr,
+    ctypes.c_uint64,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_uint64),
+)
+
+
+class RuntimePluginDescriptorV1(ctypes.Structure):
+    _fields_ = [
+        ("struct_size", ctypes.c_uint64),
+        ("api_version", ctypes.c_uint64),
+        ("init_fn", RuntimeInitFn),
+        ("exit_fn", RuntimeExitFn),
+        ("get_next_operations_fn", RuntimeGetNextOpsFn),
+        ("shot_start_fn", RuntimeShotStartFn),
+        ("shot_end_fn", RuntimeShotEndFn),
+        ("get_metrics_fn", ctypes.c_void_p),
+        ("qalloc_fn", RuntimeQallocFn),
+        ("qfree_fn", RuntimeQfreeFn),
+        ("local_barrier_fn", ctypes.c_void_p),
+        ("global_barrier_fn", ctypes.c_void_p),
+        ("rxy_gate_fn", RuntimeRxyFn),
+        ("rzz_gate_fn", RuntimeRzzFn),
+        ("rz_gate_fn", RuntimeRzFn),
+        ("tk2_gate_fn", ctypes.c_void_p),
+        ("rpp_gate_fn", ctypes.c_void_p),
+        ("measure_fn", RuntimeMeasureFn),
+        ("measure_leaked_fn", RuntimeMeasureLeakedFn),
+        ("reset_fn", RuntimeResetFn),
+        ("force_result_fn", RuntimeForceResultFn),
+        ("get_bool_result_fn", RuntimeGetBoolResultFn),
+        ("get_u64_result_fn", RuntimeGetU64ResultFn),
+        ("set_bool_result_fn", RuntimeSetBoolResultFn),
+        ("set_u64_result_fn", RuntimeSetU64ResultFn),
+        ("increment_future_refcount_fn", RuntimeIncFutureFn),
+        ("decrement_future_refcount_fn", RuntimeDecFutureFn),
+        ("custom_call_fn", RuntimeCustomCallFn),
+        ("simulate_delay_fn", ctypes.c_void_p),
+    ]
+
+
+GetRuntimeDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(RuntimePluginDescriptorV1))
 
 
 class SeleneSimRuntimeLib(ctypes.CDLL):
@@ -277,133 +384,51 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
         self._configure_signatures()
 
     def _configure_signatures(self):
-        self.selene_runtime_get_api_version.argtypes = []
-        self.selene_runtime_get_api_version.restype = ctypes.c_uint64
-        self.selene_runtime_init.argtypes = [
-            SeleneRuntimeInstancePtrPtr,
-            ctypes.c_uint64,  # n_qubits
-            ctypes.c_uint64,  # start timestamp
-            ctypes.c_uint32,  # argc
-            ctypes.POINTER(ctypes.c_char_p),  # argv
-        ]
-        self.selene_runtime_init.restype = ctypes.c_int32
+        descriptor: RuntimePluginDescriptorV1 | None = None
+        try:
+            descriptor = RuntimePluginDescriptorV1.in_dll(
+                self, "selene_runtime_plugin_descriptor_v1"
+            )
+        except ValueError:
+            getter = GetRuntimeDescriptorFn(
+                ("selene_runtime_get_plugin_descriptor_v1", self)
+            )
+            descriptor_ptr = getter()
+            if bool(descriptor_ptr):
+                descriptor = descriptor_ptr.contents
+        if descriptor is None:
+            raise RuntimeError(
+                "Runtime plugin did not expose descriptor symbol or accessor"
+            )
 
-        self.selene_runtime_exit.argtypes = [SeleneRuntimeInstancePtr]
-        self.selene_runtime_exit.restype = ctypes.c_int32
+        self.selene_runtime_init = descriptor.init_fn
+        self.selene_runtime_exit = descriptor.exit_fn
+        self.selene_runtime_shot_start = descriptor.shot_start_fn
+        self.selene_runtime_shot_end = descriptor.shot_end_fn
+        self.selene_runtime_custom_call = descriptor.custom_call_fn
+        self.selene_runtime_get_next_operations = descriptor.get_next_operations_fn
+        self.selene_runtime_qalloc = descriptor.qalloc_fn
+        self.selene_runtime_qfree = descriptor.qfree_fn
+        self.selene_runtime_rxy_gate = descriptor.rxy_gate_fn
+        self.selene_runtime_rz_gate = descriptor.rz_gate_fn
+        self.selene_runtime_rzz_gate = descriptor.rzz_gate_fn
+        self.selene_runtime_measure = descriptor.measure_fn
+        self.selene_runtime_measure_leaked = descriptor.measure_leaked_fn
+        self.selene_runtime_reset = descriptor.reset_fn
+        self.selene_runtime_force_result = descriptor.force_result_fn
+        self.selene_runtime_get_bool_result = descriptor.get_bool_result_fn
+        self.selene_runtime_get_u64_result = descriptor.get_u64_result_fn
+        self.selene_runtime_set_bool_result = descriptor.set_bool_result_fn
+        self.selene_runtime_set_u64_result = descriptor.set_u64_result_fn
+        self.selene_runtime_increment_future_refcount = (
+            descriptor.increment_future_refcount_fn
+        )
+        self.selene_runtime_decrement_future_refcount = (
+            descriptor.decrement_future_refcount_fn
+        )
 
-        self.selene_runtime_shot_start.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-        ]
-        self.selene_runtime_shot_start.restype = ctypes.c_int32
-        self.selene_runtime_shot_end.argtypes = [SeleneRuntimeInstancePtr]
-        self.selene_runtime_shot_end.restype = ctypes.c_int32
-        self.selene_runtime_custom_call.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_char_p),
-            ctypes.c_size_t,
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_runtime_custom_call.restype = ctypes.c_int32
-        self.selene_runtime_get_next_operations.argtypes = [
-            SeleneRuntimeInstancePtr,
-            SeleneRuntimeGetOperationInstance,
-            ctypes.POINTER(SeleneRuntimeGetOperationInterface),
-        ]
-        self.selene_runtime_get_next_operations.restype = ctypes.c_int32
-        self.selene_runtime_qalloc.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_runtime_qalloc.restype = ctypes.c_int32
-        self.selene_runtime_qfree.argtypes = [SeleneRuntimeInstancePtr, ctypes.c_uint64]
-        self.selene_runtime_qfree.restype = ctypes.c_int32
-        self.selene_runtime_rxy_gate.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_double,
-            ctypes.c_double,
-        ]
-        self.selene_runtime_rxy_gate.restype = ctypes.c_int32
-        self.selene_runtime_rz_gate.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_double,
-        ]
-        self.selene_runtime_rz_gate.restype = ctypes.c_int32
-        self.selene_runtime_rzz_gate.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.c_double,
-        ]
-        self.selene_runtime_rzz_gate.restype = ctypes.c_int32
-        self.selene_runtime_measure.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_runtime_measure.restype = ctypes.c_int32
-        self.selene_runtime_measure_leaked.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_runtime_measure_leaked.restype = ctypes.c_int32
-        self.selene_runtime_reset.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_runtime_reset.restype = ctypes.c_int32
-        self.selene_runtime_force_result.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_runtime_force_result.restype = ctypes.c_int32
-        self.selene_runtime_get_bool_result.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint8),
-        ]
-        self.selene_runtime_get_bool_result.restype = ctypes.c_int32
-        self.selene_runtime_get_u64_result.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_runtime_get_u64_result.restype = ctypes.c_int32
-        self.selene_runtime_set_bool_result.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint8,
-        ]
-        self.selene_runtime_set_bool_result.restype = ctypes.c_int32
-        self.selene_runtime_set_u64_result.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-        ]
-        self.selene_runtime_set_u64_result.restype = ctypes.c_int32
-        self.selene_runtime_increment_future_refcount.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_runtime_increment_future_refcount.restype = ctypes.c_int32
-        self.selene_runtime_decrement_future_refcount.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_runtime_decrement_future_refcount.restype = ctypes.c_int32
-        self.selene_runtime_get_metrics.argtypes = [
-            SeleneRuntimeInstancePtr,
-            ctypes.c_uint8,
-            ctypes.c_char_p,
-            ctypes.POINTER(ctypes.c_uint8),
-            ctypes.POINTER(ctypes.c_uint64),
-        ]
-        self.selene_runtime_get_metrics.restype = ctypes.c_int32
+        if self.selene_runtime_custom_call is None:
+            raise RuntimeError("Runtime plugin does not expose custom_call_fn")
 
 
 class InteractiveRuntime:

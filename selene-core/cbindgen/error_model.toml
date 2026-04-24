@@ -5,35 +5,29 @@ includes = ["selene/core_types.h"]
 no_includes = false
 cpp_compat = true
 after_includes = ""
-############################ Code Style Options ################################
 braces = "SameLine"
 line_length = 100
 tab_width = 2
 documentation = true
 documentation_style = "auto"
 documentation_length = "full"
-line_endings = "LF"           # also "CR", "CRLF", "Native"
-############################# Codegen Options ##################################
+line_endings = "LF"
 style = "both"
 sort_by = "None"
 usize_is_size_t = true
 
 [export]
 include = [
-  "RuntimePluginDescriptorV1",
-  "ErrorModelPluginDescriptorV1",
-  "SimulatorPluginDescriptorV1",
   "ErrorModelAPIVersion",
   "ErrorModelInstance",
   "ErrorModelSetResultInterface",
   "ErrorModelSetResultInstance",
-  "SimulatorAPIVersion",
-  "SimulatorInstance",
-  "RuntimeAPIVersion",
-  "RuntimeGetOperationInterface",
+  "ErrorModelPluginDescriptorV1",
   "RuntimeGetOperationInstance",
   "RuntimeExtractOperationInterface",
   "RuntimeExtractOperationInstance",
+  "SimulatorInstance",
+  "SimulatorOperationInterface",
   "Errno",
 ]
 item_types = ["functions", "structs", "opaque", "enums", "typedefs"]
@@ -44,14 +38,13 @@ renaming_overrides_prefixing = false
 "ErrorModelInstance" = "SeleneErrorModelInstance"
 "ErrorModelSetResultInterface" = "SeleneErrorModelSetResultInterface"
 "ErrorModelSetResultInstance" = "SeleneErrorModelSetResultInstance"
-"SimulatorAPIVersion" = "SeleneSimulatorAPIVersion"
-"SimulatorInstance" = "SeleneSimulatorInstance"
-"RuntimeAPIVersion" = "SeleneRuntimeAPIVersion"
-"RuntimeGetOperationInterface" = "SeleneRuntimeGetOperationInterface"
+"ErrorModelPluginDescriptorV1" = "SeleneErrorModelPluginDescriptorV1"
 "RuntimeGetOperationInstance" = "SeleneRuntimeGetOperationInstance"
 "RuntimeExtractOperationInterface" = "SeleneRuntimeExtractOperationInterface"
 "RuntimeExtractOperationInstance" = "SeleneRuntimeExtractOperationInstance"
+"SimulatorInstance" = "SeleneSimulatorInstance"
 "Errno" = "SeleneErrno"
+"CURRENT_API_VERSION" = "SELENE_ERROR_MODEL_CURRENT_API_VERSION"
 
 [export.mangle]
 rename_types = "SnakeCase"

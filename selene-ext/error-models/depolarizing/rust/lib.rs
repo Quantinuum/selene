@@ -6,9 +6,8 @@ use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
 use selene_core::runtime::{BatchOperation, Operation};
-use selene_core::simulator::{Simulator, SimulatorInterface};
+use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
-use std::ffi::OsStr;
 
 #[derive(Parser, Debug)]
 struct Params {
@@ -63,29 +62,36 @@ pub enum ErrorType {
 pub struct DepolarizingErrorModel {
     n_qubits: u64,
     rng: Pcg64Mcg,
-    simulator: Simulator,
     error_params: Params,
     stats: Stats,
 }
 
 impl DepolarizingErrorModel {
-    pub fn apply_error(&mut self, qubit: u64, error: ErrorType) -> Result<()> {
+    pub fn apply_error(
+        &mut self,
+        qubit: u64,
+        error: ErrorType,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<()> {
         match error {
             ErrorType::I => (),
             ErrorType::X => {
-                self.simulator.rxy(qubit, std::f64::consts::PI, 0.0)?;
+                simulator.rxy(qubit, std::f64::consts::PI, 0.0)?;
             }
             ErrorType::Y => {
-                self.simulator
-                    .rxy(qubit, std::f64::consts::PI, std::f64::consts::PI / 2.0)?;
+                simulator.rxy(qubit, std::f64::consts::PI, std::f64::consts::PI / 2.0)?;
             }
             ErrorType::Z => {
-                self.simulator.rz(qubit, std::f64::consts::PI)?;
+                simulator.rz(qubit, std::f64::consts::PI)?;
             }
         }
         Ok(())
     }
-    fn maybe_apply_1q_error(&mut self, q0: u64) -> Result<()> {
+    fn maybe_apply_1q_error(
+        &mut self,
+        q0: u64,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<()> {
         // validate arg
         if q0 >= self.n_qubits {
             bail!(
@@ -114,10 +120,15 @@ impl DepolarizingErrorModel {
             ErrorType::Z => self.stats.err_count_1q_z += 1,
         }
         // apply error
-        self.apply_error(q0, error)?;
+        self.apply_error(q0, error, simulator)?;
         Ok(())
     }
-    fn maybe_apply_2q_error(&mut self, q0: u64, q1: u64) -> Result<()> {
+    fn maybe_apply_2q_error(
+        &mut self,
+        q0: u64,
+        q1: u64,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<()> {
         // validate arg
         if q0 >= self.n_qubits || q1 >= self.n_qubits {
             bail!(
@@ -170,8 +181,8 @@ impl DepolarizingErrorModel {
             (ErrorType::Z, ErrorType::Z) => self.stats.err_count_2q_zz += 1,
         }
         // apply error
-        self.apply_error(q0, error0)?;
-        self.apply_error(q1, error1)?;
+        self.apply_error(q0, error0, simulator)?;
+        self.apply_error(q1, error1, simulator)?;
         Ok(())
     }
     fn maybe_flip_measurement(&mut self, _qubit: u64, result: bool) -> bool {
@@ -185,26 +196,28 @@ impl DepolarizingErrorModel {
             result
         }
     }
-    fn maybe_flip_on_init(&mut self, qubit: u64) -> Result<()> {
+    fn maybe_flip_on_init(
+        &mut self,
+        qubit: u64,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<()> {
         self.stats.init_count += 1;
         let val = self.rng.random::<f64>();
         if val < self.error_params.p_init {
             self.stats.init_errors += 1;
-            self.apply_error(qubit, ErrorType::X)?;
+            self.apply_error(qubit, ErrorType::X, simulator)?;
         }
         Ok(())
     }
 }
 
 impl ErrorModelInterface for DepolarizingErrorModel {
-    fn shot_start(&mut self, shot_id: u64, seed: u64, simulator_seed: u64) -> Result<()> {
+    fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
         self.rng = Pcg64Mcg::seed_from_u64(seed);
-        self.simulator.shot_start(shot_id, simulator_seed)?;
         self.stats = Stats::default();
         Ok(())
     }
     fn shot_end(&mut self) -> Result<()> {
-        self.simulator.shot_end()?;
         Ok(())
     }
 
@@ -212,7 +225,11 @@ impl ErrorModelInterface for DepolarizingErrorModel {
         Ok(())
     }
 
-    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+    fn handle_operations(
+        &mut self,
+        operations: BatchOperation,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<BatchResult> {
         let mut results = BatchResult::default();
         for op in operations {
             match op {
@@ -221,20 +238,20 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     theta,
                     phi,
                 } => {
-                    self.maybe_apply_1q_error(qubit_id)?;
-                    self.simulator.rxy(qubit_id, theta, phi)?;
+                    self.maybe_apply_1q_error(qubit_id, simulator)?;
+                    simulator.rxy(qubit_id, theta, phi)?;
                 }
                 Operation::RZGate { qubit_id, theta } => {
-                    self.maybe_apply_1q_error(qubit_id)?;
-                    self.simulator.rz(qubit_id, theta)?;
+                    self.maybe_apply_1q_error(qubit_id, simulator)?;
+                    simulator.rz(qubit_id, theta)?;
                 }
                 Operation::RZZGate {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
                 } => {
-                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
-                    self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
+                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2, simulator)?;
+                    simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
                 }
                 Operation::TK2Gate {
                     qubit_id_1,
@@ -243,9 +260,8 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     beta,
                     gamma,
                 } => {
-                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
-                    self.simulator
-                        .tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2, simulator)?;
+                    simulator.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
                 }
                 Operation::RPPGate {
                     qubit_id_1,
@@ -253,14 +269,14 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     theta,
                     phi,
                 } => {
-                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
-                    self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2, simulator)?;
+                    simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
                 }
                 Operation::Measure {
                     qubit_id,
                     result_id,
                 } => {
-                    let measurement = self.simulator.measure(qubit_id)?;
+                    let measurement = simulator.measure(qubit_id)?;
                     let modified_measurement = self.maybe_flip_measurement(qubit_id, measurement);
                     results.set_bool_result(result_id, modified_measurement);
                 }
@@ -270,13 +286,13 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                 } => {
                     // We aren't modelling leakage so this is the same as a normal measurement,
                     // except we set the u64 future as 0 or 1 (leakage would include higher values)
-                    let measurement = self.simulator.measure(qubit_id)?;
+                    let measurement = simulator.measure(qubit_id)?;
                     let modified_measurement = self.maybe_flip_measurement(qubit_id, measurement);
                     results.set_u64_result(result_id, if modified_measurement { 1 } else { 0 });
                 }
                 Operation::Reset { qubit_id } => {
-                    self.simulator.reset(qubit_id)?;
-                    self.maybe_flip_on_init(qubit_id)?;
+                    simulator.reset(qubit_id)?;
+                    self.maybe_flip_on_init(qubit_id, simulator)?;
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
@@ -390,9 +406,6 @@ impl ErrorModelInterface for DepolarizingErrorModel {
             _ => Ok(None),
         }
     }
-    fn get_simulator_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
-        self.simulator.get_metric(nth_metric)
-    }
 }
 
 #[derive(Default)]
@@ -405,25 +418,18 @@ impl ErrorModelInterfaceFactory for DepolarizingErrorModelFactory {
         self: std::sync::Arc<Self>,
         n_qubits: u64,
         error_model_args: &[impl AsRef<str>],
-        simulator_path: &impl AsRef<OsStr>,
-        simulator_args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
         match Params::try_parse_from(error_model_args.iter().map(|s| s.as_ref())) {
             Err(e) => Err(anyhow!(
                 "Error parsing arguments to depolarizing error model plugin: {}",
                 e
             )),
-            Ok(params) => {
-                let simulator =
-                    Simulator::load_from_file(simulator_path, n_qubits, simulator_args)?;
-                Ok(Box::new(DepolarizingErrorModel {
-                    n_qubits,
-                    rng: Pcg64Mcg::seed_from_u64(0),
-                    simulator,
-                    error_params: params,
-                    stats: Stats::default(),
-                }))
-            }
+            Ok(params) => Ok(Box::new(DepolarizingErrorModel {
+                n_qubits,
+                rng: Pcg64Mcg::seed_from_u64(0),
+                error_params: params,
+                stats: Stats::default(),
+            })),
         }
     }
 }

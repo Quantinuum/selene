@@ -240,7 +240,9 @@ macro_rules! export_simulator_plugin {
         mod _plugin {
             use selene_core::simulator::{
                 interface::SimulatorInterfaceFactory,
-                plugin::{Errno, SimulatorInstance},
+                plugin::{
+                    Errno, SimulatorInstance, SimulatorPluginDescriptorV1,
+                },
                 version::CURRENT_API_VERSION,
             };
 
@@ -255,29 +257,6 @@ macro_rules! export_simulator_plugin {
                 fn _assert_impl<T: SimulatorInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
-
-            /// The API version comprises four unsigned 8-bit integers:
-            ///     - reserved: 8 bits (must be 0)
-            ///     - major: 8 bits
-            ///     - minor: 8 bits
-            ///     - patch: 8 bits
-            ///
-            /// Selene maintains its own API version for the simulator
-            /// and is updated upon changes to the API depending on how
-            /// breaking the changes are. Selene is also responsible for
-            /// validating the API version of the plugin against its own
-            /// version.
-            ///
-            /// The plans for this validation are a work-in-progress, but
-            /// currently selene will reject any plugin that has a different
-            /// major or minor version than the current Selene version, or with
-            /// a reserved field that is not 0.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_get_api_version() -> u64 {
-                // The API version is defined in the version module
-                // and is used to check compatibility between the plugin and the runtime.
-                CURRENT_API_VERSION.into()
-            }
 
             /// When Selene is initialised, it is provided with some default arguments
             /// (the maximum number of qubits, the path to a simulator plugin to use, etc)
@@ -296,8 +275,7 @@ macro_rules! export_simulator_plugin {
             /// within their python implementations. They should also define how those
             /// parameters are converted to an argv list to be passed to their compiled
             /// counterparts.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_init(
+            unsafe extern "C" fn selene_simulator_init(
                 instance: *mut SimulatorInstance,
                 n_qubits: u64,
                 argc: u32,
@@ -315,8 +293,7 @@ macro_rules! export_simulator_plugin {
 
             /// This function is called when Selene is exiting, and it is responsible for
             /// cleaning up any resources that the simulator plugin has allocated.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_exit(instance: SimulatorInstance) -> i32 {
+            unsafe extern "C" fn selene_simulator_exit(instance: SimulatorInstance) -> i32 {
                 Helper::exit(instance)
             }
 
@@ -324,8 +301,7 @@ macro_rules! export_simulator_plugin {
             /// initialising the simulator plugin for that shot. The seed is provided for
             /// RNG seeding, and it is highly recommended that all randomness used by the
             /// simulator is seeded with this value.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_shot_start(
+            unsafe extern "C" fn selene_simulator_shot_start(
                 instance: SimulatorInstance,
                 shot_id: u64,
                 seed: u64,
@@ -340,10 +316,8 @@ macro_rules! export_simulator_plugin {
             /// this function will usually be followed either by a call to
             /// `selene_simulator_shot_start` to prepare for the following shot, or by
             /// a call to `selene_simulator_exit` to shut down the instance.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_shot_end(
+            unsafe extern "C" fn selene_simulator_shot_end(
                 instance: SimulatorInstance,
-                seed: u64, // TODO: this is unused and will be removed in the next API release
             ) -> i32 {
                 Helper::shot_end(instance)
             }
@@ -353,8 +327,7 @@ macro_rules! export_simulator_plugin {
             /// performing:
             /// $R_z(\phi)R_x(\theta)R_z(-\phi)$
             /// (in matrix-multiplication order).
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_rxy(
+            unsafe extern "C" fn selene_simulator_operation_rxy(
                 instance: SimulatorInstance,
                 qubit: u64,
                 theta: f64,
@@ -369,8 +342,7 @@ macro_rules! export_simulator_plugin {
             /// $diag(\chi^*, \chi, \chi, \chi^*)$
             /// where
             /// $\chi = \exp(i \pi \theta / 2)$
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_rzz(
+            unsafe extern "C" fn selene_simulator_operation_rzz(
                 instance: SimulatorInstance,
                 qubit1: u64,
                 qubit2: u64,
@@ -384,8 +356,7 @@ macro_rules! export_simulator_plugin {
             /// $diag(\chi^*, \chi)$
             /// where
             /// $chi = \exp(i \pi \theta / 2)$
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_rz(
+            unsafe extern "C" fn selene_simulator_operation_rz(
                 instance: SimulatorInstance,
                 qubit: u64,
                 theta: f64,
@@ -396,8 +367,7 @@ macro_rules! export_simulator_plugin {
             /// Apply a TK2 (aka SU(4)) gate to the qubits at the requested indices,
             /// with the provided angles. This gate performs the canonical two-qubit
             /// interaction characterized by the three angles alpha, beta, and gamma.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_tk2(
+            unsafe extern "C" fn selene_simulator_operation_tk2(
                 instance: SimulatorInstance,
                 qubit1: u64,
                 qubit2: u64,
@@ -410,8 +380,7 @@ macro_rules! export_simulator_plugin {
 
             /// Apply an RPP gate to the qubits at the requested indices, with the
             /// provided angles.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_rpp(
+            unsafe extern "C" fn selene_simulator_operation_rpp(
                 instance: SimulatorInstance,
                 qubit1: u64,
                 qubit2: u64,
@@ -423,8 +392,7 @@ macro_rules! export_simulator_plugin {
 
             /// Measure the qubit at the requested index. This is a destructive
             /// operation.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_measure(
+            unsafe extern "C" fn selene_simulator_operation_measure(
                 instance: SimulatorInstance,
                 qubit: u64,
             ) -> i32 {
@@ -434,8 +402,7 @@ macro_rules! export_simulator_plugin {
             /// Postselect the qubit at the requested index. Some simulators may
             /// choose to not support post-selection, in which case this function
             /// should return an error.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_postselect(
+            unsafe extern "C" fn selene_simulator_operation_postselect(
                 instance: SimulatorInstance,
                 qubit: u64,
                 target_value: bool,
@@ -444,8 +411,7 @@ macro_rules! export_simulator_plugin {
             }
 
             /// Reset the qubit at the requested index to the |0> state.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_operation_reset(
+            unsafe extern "C" fn selene_simulator_operation_reset(
                 instance: SimulatorInstance,
                 qubit: u64,
             ) -> i32 {
@@ -459,8 +425,7 @@ macro_rules! export_simulator_plugin {
             /// returned. The tag_ptr, datatype_ptr and data_ptr are out-parameters
             /// for the plugin to write values into. See the example in the
             /// error_model documentation for details on how to write those values.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_get_metrics(
+            unsafe extern "C" fn selene_simulator_get_metrics(
                 instance: SimulatorInstance,
                 nth_metric: u8,
                 tag_ptr: *mut c_char,
@@ -482,14 +447,42 @@ macro_rules! export_simulator_plugin {
             /// The python component of the simulator should provide functionality
             /// for reading the resulting file. The filename will be written to
             /// the result stream.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_dump_state(
+            unsafe extern "C" fn selene_simulator_dump_state(
                 instance: SimulatorInstance,
                 file: *const c_char,
                 qubits: *const u64,
                 n_qubits: u64,
             ) -> i32 {
                 Helper::dump_state(instance, file, qubits, n_qubits)
+            }
+
+            selene_core::export_plugin_descriptor_v1!(
+                selene_simulator_plugin_descriptor_v1,
+                SimulatorPluginDescriptorV1,
+                CURRENT_API_VERSION.as_u64(),
+                {
+                    get_name_fn: None,
+                    init_fn: selene_simulator_init,
+                    exit_fn: Some(selene_simulator_exit),
+                    shot_start_fn: selene_simulator_shot_start,
+                    shot_end_fn: selene_simulator_shot_end,
+                    rxy_fn: Some(selene_simulator_operation_rxy),
+                    rz_fn: Some(selene_simulator_operation_rz),
+                    rzz_fn: Some(selene_simulator_operation_rzz),
+                    tk2_fn: Some(selene_simulator_operation_tk2),
+                    rpp_fn: Some(selene_simulator_operation_rpp),
+                    measure_fn: selene_simulator_operation_measure,
+                    postselect_fn: Some(selene_simulator_operation_postselect),
+                    reset_fn: selene_simulator_operation_reset,
+                    get_metrics_fn: Some(selene_simulator_get_metrics),
+                    dump_state_fn: selene_simulator_dump_state,
+                }
+            );
+
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_simulator_get_plugin_descriptor_v1(
+            ) -> *const SimulatorPluginDescriptorV1 {
+                &raw const selene_simulator_plugin_descriptor_v1
             }
         }
     };
