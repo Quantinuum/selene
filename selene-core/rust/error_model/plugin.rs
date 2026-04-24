@@ -13,22 +13,11 @@ use std::{ffi, sync::Arc};
 pub type ErrorModelInstance = *mut ffi::c_void;
 pub type Errno = i32;
 
-pub const ERROR_MODEL_DESCRIPTOR_ABI_NAME: &str = "selene.error_model.descriptor.v1";
-pub const ERROR_MODEL_DESCRIPTOR_ABI_SPEC: &str =
-    "em:init,exit?,shot_start,shot_end,handle_operations,get_metrics?";
-pub const ERROR_MODEL_DESCRIPTOR_ABI_HASH: u64 =
-    crate::fnv1a64(ERROR_MODEL_DESCRIPTOR_ABI_SPEC.as_bytes());
-pub const ERROR_MODEL_DESCRIPTOR_SIGNATURE_MANIFEST: &str = "init:int(*)(void**,u64,u32,const char**);exit:int(*)(void*);shot_start:int(*)(void*,u64,u64);shot_end:int(*)(void*);handle_operations:int(*)(void*,void*,const RuntimeExtractOperationInterface*,void*,const SimulatorOperationInterface*,void*,const ErrorModelSetResultInterface*);get_metrics:int(*)(void*,u8,char*,u8*,u64*)";
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ErrorModelPluginDescriptorV1 {
     pub struct_size: u64,
     pub api_version: u64,
-    pub abi_magic: u64,
-    pub abi_hash: u64,
-    pub abi_name: *const ffi::c_char,
-    pub signature_manifest: *const ffi::c_char,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut ErrorModelInstance,
         n_qubits: u64,
@@ -142,37 +131,6 @@ impl ErrorModelPluginInterface {
         if descriptor.struct_size < core::mem::size_of::<ErrorModelPluginDescriptorV1>() as u64 {
             return Err(anyhow!(
                 "Error model plugin descriptor is too small for v1 ABI"
-            ));
-        }
-        if descriptor.abi_magic != crate::PLUGIN_DESCRIPTOR_V1_MAGIC {
-            return Err(anyhow!("Error model plugin descriptor has invalid magic"));
-        }
-        if descriptor.abi_hash != ERROR_MODEL_DESCRIPTOR_ABI_HASH {
-            return Err(anyhow!(
-                "Error model plugin descriptor has incompatible ABI hash"
-            ));
-        }
-        if descriptor.abi_name.is_null() {
-            return Err(anyhow!("Error model plugin descriptor ABI name is null"));
-        }
-        let abi_name = unsafe { std::ffi::CStr::from_ptr(descriptor.abi_name) }.to_string_lossy();
-        if abi_name.as_ref() != ERROR_MODEL_DESCRIPTOR_ABI_NAME {
-            return Err(anyhow!(
-                "Error model plugin descriptor ABI name mismatch: {abi_name}"
-            ));
-        }
-        if descriptor.signature_manifest.is_null() {
-            return Err(anyhow!(
-                "Error model plugin descriptor signature manifest is null"
-            ));
-        }
-        let manifest =
-            unsafe { std::ffi::CStr::from_ptr(descriptor.signature_manifest) }.to_string_lossy();
-        if manifest.as_ref() != ERROR_MODEL_DESCRIPTOR_SIGNATURE_MANIFEST {
-            return Err(anyhow!(
-                "Error model plugin signature manifest mismatch.\nExpected: {}\nFound: {}",
-                ERROR_MODEL_DESCRIPTOR_SIGNATURE_MANIFEST,
-                manifest
             ));
         }
         Ok(Arc::new(Self {

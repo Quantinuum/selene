@@ -288,9 +288,9 @@ macro_rules! export_error_model_plugin {
                 error_model::{
                     ErrorModelInterfaceFactory,
                     plugin::{
-                        Errno, ERROR_MODEL_DESCRIPTOR_ABI_HASH, ErrorModelInstance,
+                        Errno, ErrorModelInstance,
                         ErrorModelPluginDescriptorV1, ErrorModelSetResultInstance,
-                        ErrorModelSetResultInterface, ERROR_MODEL_DESCRIPTOR_SIGNATURE_MANIFEST,
+                        ErrorModelSetResultInterface,
                     },
                     version::CURRENT_API_VERSION,
                 },
@@ -303,10 +303,6 @@ macro_rules! export_error_model_plugin {
 
             /// cbindgen:ignore
             type Helper = selene_core::error_model::helper::Helper<$factory_type>;
-            const ERROR_MODEL_DESCRIPTOR_ABI_NAME_BYTES: &[u8] =
-                b"selene.error_model.descriptor.v1\0";
-            const ERROR_MODEL_DESCRIPTOR_SIGNATURE_MANIFEST_BYTES: &[u8] =
-                b"init:int(*)(void**,u64,u32,const char**);exit:int(*)(void*);shot_start:int(*)(void*,u64,u64);shot_end:int(*)(void*);handle_operations:int(*)(void*,void*,const RuntimeExtractOperationInterface*,void*,const SimulatorOperationInterface*,void*,const ErrorModelSetResultInterface*);get_metrics:int(*)(void*,u8,char*,u8*,u64*)\0";
 
             // Enforce that $struct_name implements the ErrorModelInterface trait
             const _: fn() = || {
@@ -505,11 +501,6 @@ macro_rules! export_error_model_plugin {
                 ErrorModelPluginDescriptorV1,
                 CURRENT_API_VERSION.as_u64(),
                 {
-                    abi_magic: selene_core::PLUGIN_DESCRIPTOR_V1_MAGIC,
-                    abi_hash: ERROR_MODEL_DESCRIPTOR_ABI_HASH,
-                    abi_name: ERROR_MODEL_DESCRIPTOR_ABI_NAME_BYTES.as_ptr() as *const c_char,
-                    signature_manifest: ERROR_MODEL_DESCRIPTOR_SIGNATURE_MANIFEST_BYTES
-                        .as_ptr() as *const c_char,
                     init_fn: selene_error_model_init,
                     exit_fn: Some(selene_error_model_exit),
                     shot_start_fn: selene_error_model_shot_start,

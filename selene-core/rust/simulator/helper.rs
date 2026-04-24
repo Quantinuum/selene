@@ -241,8 +241,7 @@ macro_rules! export_simulator_plugin {
             use selene_core::simulator::{
                 interface::SimulatorInterfaceFactory,
                 plugin::{
-                    Errno, SIMULATOR_DESCRIPTOR_ABI_HASH, SIMULATOR_DESCRIPTOR_SIGNATURE_MANIFEST,
-                    SimulatorInstance, SimulatorPluginDescriptorV1,
+                    Errno, SimulatorInstance, SimulatorPluginDescriptorV1,
                 },
                 version::CURRENT_API_VERSION,
             };
@@ -252,10 +251,6 @@ macro_rules! export_simulator_plugin {
 
             /// cbindgen:ignore
             type Helper = selene_core::simulator::helper::Helper<$factory_type>;
-            const SIMULATOR_DESCRIPTOR_ABI_NAME_BYTES: &[u8] =
-                b"selene.simulator.descriptor.v1\0";
-            const SIMULATOR_DESCRIPTOR_SIGNATURE_MANIFEST_BYTES: &[u8] =
-                b"init:int(*)(void**,u64,u32,const char**);exit:int(*)(void*);shot_start:int(*)(void*,u64,u64);shot_end:int(*)(void*);rxy:int(*)(void*,u64,double,double);rz:int(*)(void*,u64,double);rzz:int(*)(void*,u64,u64,double);tk2:int(*)(void*,u64,u64,double,double,double);rpp:int(*)(void*,u64,u64,double,double);measure:int(*)(void*,u64);postselect:int(*)(void*,u64,bool);reset:int(*)(void*,u64);get_metrics:int(*)(void*,u8,char*,u8*,u64*);dump_state:int(*)(void*,const char*,const u64*,u64)\0";
 
             // Enforce that $struct_name implements the SimulatorInterfaceFactory trait
             const _: fn() = || {
@@ -489,11 +484,6 @@ macro_rules! export_simulator_plugin {
                 SimulatorPluginDescriptorV1,
                 CURRENT_API_VERSION.as_u64(),
                 {
-                    abi_magic: selene_core::PLUGIN_DESCRIPTOR_V1_MAGIC,
-                    abi_hash: SIMULATOR_DESCRIPTOR_ABI_HASH,
-                    abi_name: SIMULATOR_DESCRIPTOR_ABI_NAME_BYTES.as_ptr() as *const c_char,
-                    signature_manifest: SIMULATOR_DESCRIPTOR_SIGNATURE_MANIFEST_BYTES.as_ptr()
-                        as *const c_char,
                     get_name_fn: None,
                     init_fn: selene_simulator_init,
                     exit_fn: Some(selene_simulator_exit),

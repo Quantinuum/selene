@@ -13,20 +13,11 @@ pub type RuntimeInstance = *mut ffi::c_void;
 
 pub type Errno = i32;
 
-pub const RUNTIME_DESCRIPTOR_ABI_NAME: &str = "selene.runtime.descriptor.v1";
-pub const RUNTIME_DESCRIPTOR_ABI_SPEC: &str = "rt:init,exit?,get_next_operations,shot_start,shot_end,get_metrics?,qalloc,qfree,local_barrier,global_barrier,rxy,rzz,rz,tk2,rpp,measure,measure_leaked,reset,force_result,get_bool,get_u64,set_bool,set_u64,inc_ref,dec_ref,custom_call?,simulate_delay?";
-pub const RUNTIME_DESCRIPTOR_ABI_HASH: u64 = crate::fnv1a64(RUNTIME_DESCRIPTOR_ABI_SPEC.as_bytes());
-pub const RUNTIME_DESCRIPTOR_SIGNATURE_MANIFEST: &str = "init:int(*)(void**,u64,u64,u32,const char**);exit:int(*)(void*);get_next_operations:int(*)(void*,void*,const RuntimeGetOperationInterface*);shot_start:int(*)(void*,u64,u64);shot_end:int(*)(void*);get_metrics:int(*)(void*,u8,char*,u8*,u64*);qalloc:int(*)(void*,u64*);qfree:int(*)(void*,u64);local_barrier:int(*)(void*,const u64*,u64,u64);global_barrier:int(*)(void*,u64);rxy:int(*)(void*,u64,double,double);rzz:int(*)(void*,u64,u64,double);rz:int(*)(void*,u64,double);tk2:int(*)(void*,u64,u64,double,double,double);rpp:int(*)(void*,u64,u64,double,double);measure:int(*)(void*,u64,u64*);measure_leaked:int(*)(void*,u64,u64*);reset:int(*)(void*,u64);force_result:int(*)(void*,u64);get_bool_result:int(*)(void*,u64,i8*);get_u64_result:int(*)(void*,u64,u64*);set_bool_result:int(*)(void*,u64,bool);set_u64_result:int(*)(void*,u64,u64);increment_future_refcount:int(*)(void*,u64);decrement_future_refcount:int(*)(void*,u64);custom_call:int(*)(void*,u64,const void*,usize,u64*);simulate_delay:int(*)(void*,u64)";
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RuntimePluginDescriptorV1 {
     pub struct_size: u64,
     pub api_version: u64,
-    pub abi_magic: u64,
-    pub abi_hash: u64,
-    pub abi_name: *const ffi::c_char,
-    pub signature_manifest: *const ffi::c_char,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut RuntimeInstance,
         n_qubits: u64,
@@ -249,37 +240,6 @@ impl RuntimePluginInterface {
         version.validate()?;
         if descriptor.struct_size < core::mem::size_of::<RuntimePluginDescriptorV1>() as u64 {
             return Err(anyhow!("Runtime plugin descriptor is too small for v1 ABI"));
-        }
-        if descriptor.abi_magic != crate::PLUGIN_DESCRIPTOR_V1_MAGIC {
-            return Err(anyhow!("Runtime plugin descriptor has invalid magic"));
-        }
-        if descriptor.abi_hash != RUNTIME_DESCRIPTOR_ABI_HASH {
-            return Err(anyhow!(
-                "Runtime plugin descriptor has incompatible ABI hash"
-            ));
-        }
-        if descriptor.abi_name.is_null() {
-            return Err(anyhow!("Runtime plugin descriptor ABI name is null"));
-        }
-        let abi_name = unsafe { std::ffi::CStr::from_ptr(descriptor.abi_name) }.to_string_lossy();
-        if abi_name.as_ref() != RUNTIME_DESCRIPTOR_ABI_NAME {
-            return Err(anyhow!(
-                "Runtime plugin descriptor ABI name mismatch: {abi_name}"
-            ));
-        }
-        if descriptor.signature_manifest.is_null() {
-            return Err(anyhow!(
-                "Runtime plugin descriptor signature manifest is null"
-            ));
-        }
-        let manifest =
-            unsafe { std::ffi::CStr::from_ptr(descriptor.signature_manifest) }.to_string_lossy();
-        if manifest.as_ref() != RUNTIME_DESCRIPTOR_SIGNATURE_MANIFEST {
-            return Err(anyhow!(
-                "Runtime plugin signature manifest mismatch.\nExpected: {}\nFound: {}",
-                RUNTIME_DESCRIPTOR_SIGNATURE_MANIFEST,
-                manifest
-            ));
         }
         Ok(Arc::new(Self {
             _lib: lib,

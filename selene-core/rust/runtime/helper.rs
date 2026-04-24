@@ -461,9 +461,8 @@ macro_rules! export_runtime_plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
                 plugin::{
-                    Errno, RUNTIME_DESCRIPTOR_ABI_HASH, RuntimeGetOperationInstance,
+                    Errno, RuntimeGetOperationInstance,
                     RuntimeGetOperationInterface, RuntimeInstance, RuntimePluginDescriptorV1,
-                    RUNTIME_DESCRIPTOR_SIGNATURE_MANIFEST,
                 },
                 version::CURRENT_API_VERSION,
             };
@@ -473,9 +472,6 @@ macro_rules! export_runtime_plugin {
 
             /// cbindgen:ignore
             type Helper = selene_core::runtime::helper::Helper<$factory_type>;
-            const RUNTIME_DESCRIPTOR_ABI_NAME_BYTES: &[u8] = b"selene.runtime.descriptor.v1\0";
-            const RUNTIME_DESCRIPTOR_SIGNATURE_MANIFEST_BYTES: &[u8] =
-                b"init:int(*)(void**,u64,u64,u32,const char**);exit:int(*)(void*);get_next_operations:int(*)(void*,void*,const RuntimeGetOperationInterface*);shot_start:int(*)(void*,u64,u64);shot_end:int(*)(void*);get_metrics:int(*)(void*,u8,char*,u8*,u64*);qalloc:int(*)(void*,u64*);qfree:int(*)(void*,u64);local_barrier:int(*)(void*,const u64*,u64,u64);global_barrier:int(*)(void*,u64);rxy:int(*)(void*,u64,double,double);rzz:int(*)(void*,u64,u64,double);rz:int(*)(void*,u64,double);tk2:int(*)(void*,u64,u64,double,double,double);rpp:int(*)(void*,u64,u64,double,double);measure:int(*)(void*,u64,u64*);measure_leaked:int(*)(void*,u64,u64*);reset:int(*)(void*,u64);force_result:int(*)(void*,u64);get_bool_result:int(*)(void*,u64,i8*);get_u64_result:int(*)(void*,u64,u64*);set_bool_result:int(*)(void*,u64,bool);set_u64_result:int(*)(void*,u64,u64);increment_future_refcount:int(*)(void*,u64);decrement_future_refcount:int(*)(void*,u64);custom_call:int(*)(void*,u64,const void*,usize,u64*);simulate_delay:int(*)(void*,u64)\0";
 
             // Enforce that factory_type implements the RuntimeInterfaceFactory trait
             const _: fn() = || {
@@ -877,11 +873,6 @@ macro_rules! export_runtime_plugin {
                 RuntimePluginDescriptorV1,
                 CURRENT_API_VERSION.as_u64(),
                 {
-                    abi_magic: selene_core::PLUGIN_DESCRIPTOR_V1_MAGIC,
-                    abi_hash: RUNTIME_DESCRIPTOR_ABI_HASH,
-                    abi_name: RUNTIME_DESCRIPTOR_ABI_NAME_BYTES.as_ptr() as *const c_char,
-                    signature_manifest: RUNTIME_DESCRIPTOR_SIGNATURE_MANIFEST_BYTES.as_ptr()
-                        as *const c_char,
                     init_fn: selene_runtime_init,
                     exit_fn: Some(selene_runtime_exit),
                     get_next_operations_fn: selene_runtime_get_next_operations,

@@ -78,10 +78,6 @@ class SimulatorPluginDescriptorV1(ctypes.Structure):
     _fields_ = [
         ("struct_size", ctypes.c_uint64),
         ("api_version", ctypes.c_uint64),
-        ("abi_magic", ctypes.c_uint64),
-        ("abi_hash", ctypes.c_uint64),
-        ("abi_name", ctypes.c_char_p),
-        ("signature_manifest", ctypes.c_char_p),
         ("get_name_fn", SimGetNameFn),
         ("init_fn", SimInitFn),
         ("exit_fn", SimExitFn),

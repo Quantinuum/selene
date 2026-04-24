@@ -10,21 +10,11 @@ pub type SimulatorInstance = *mut std::ffi::c_void;
 
 pub type Errno = i32;
 
-pub const SIMULATOR_DESCRIPTOR_ABI_NAME: &str = "selene.simulator.descriptor.v1";
-pub const SIMULATOR_DESCRIPTOR_ABI_SPEC: &str = "sim:init,exit?,shot_start,shot_end,rxy?,rz?,rzz?,tk2?,rpp?,measure,postselect?,reset,get_metrics?,dump_state";
-pub const SIMULATOR_DESCRIPTOR_ABI_HASH: u64 =
-    crate::fnv1a64(SIMULATOR_DESCRIPTOR_ABI_SPEC.as_bytes());
-pub const SIMULATOR_DESCRIPTOR_SIGNATURE_MANIFEST: &str = "init:int(*)(void**,u64,u32,const char**);exit:int(*)(void*);shot_start:int(*)(void*,u64,u64);shot_end:int(*)(void*);rxy:int(*)(void*,u64,double,double);rz:int(*)(void*,u64,double);rzz:int(*)(void*,u64,u64,double);tk2:int(*)(void*,u64,u64,double,double,double);rpp:int(*)(void*,u64,u64,double,double);measure:int(*)(void*,u64);postselect:int(*)(void*,u64,bool);reset:int(*)(void*,u64);get_metrics:int(*)(void*,u8,char*,u8*,u64*);dump_state:int(*)(void*,const char*,const u64*,u64)";
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SimulatorPluginDescriptorV1 {
     pub struct_size: u64,
     pub api_version: u64,
-    pub abi_magic: u64,
-    pub abi_hash: u64,
-    pub abi_name: *const c_char,
-    pub signature_manifest: *const c_char,
     pub get_name_fn: Option<unsafe extern "C" fn() -> *const c_char>,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut SimulatorInstance,
@@ -216,31 +206,6 @@ impl SimulatorPluginInterface {
         };
         if descriptor.struct_size < core::mem::size_of::<SimulatorPluginDescriptorV1>() as u64 {
             bail!("Simulator plugin descriptor is too small for v1 ABI");
-        }
-        if descriptor.abi_magic != crate::PLUGIN_DESCRIPTOR_V1_MAGIC {
-            bail!("Simulator plugin descriptor has invalid magic");
-        }
-        if descriptor.abi_hash != SIMULATOR_DESCRIPTOR_ABI_HASH {
-            bail!("Simulator plugin descriptor has incompatible ABI hash");
-        }
-        if descriptor.abi_name.is_null() {
-            bail!("Simulator plugin descriptor ABI name is null");
-        }
-        let abi_name = unsafe { std::ffi::CStr::from_ptr(descriptor.abi_name) }.to_string_lossy();
-        if abi_name.as_ref() != SIMULATOR_DESCRIPTOR_ABI_NAME {
-            bail!("Simulator plugin descriptor ABI name mismatch: {abi_name}");
-        }
-        if descriptor.signature_manifest.is_null() {
-            bail!("Simulator plugin descriptor signature manifest is null");
-        }
-        let manifest =
-            unsafe { std::ffi::CStr::from_ptr(descriptor.signature_manifest) }.to_string_lossy();
-        if manifest.as_ref() != SIMULATOR_DESCRIPTOR_SIGNATURE_MANIFEST {
-            bail!(
-                "Simulator plugin signature manifest mismatch.\nExpected: {}\nFound: {}",
-                SIMULATOR_DESCRIPTOR_SIGNATURE_MANIFEST,
-                manifest
-            );
         }
         Ok(Arc::new(Self {
             _lib: lib,
