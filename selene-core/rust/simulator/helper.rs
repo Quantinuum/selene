@@ -258,29 +258,6 @@ macro_rules! export_simulator_plugin {
                 _assert_impl::<$factory_type>();
             };
 
-            /// The API version comprises four unsigned 8-bit integers:
-            ///     - reserved: 8 bits (must be 0)
-            ///     - major: 8 bits
-            ///     - minor: 8 bits
-            ///     - patch: 8 bits
-            ///
-            /// Selene maintains its own API version for the simulator
-            /// and is updated upon changes to the API depending on how
-            /// breaking the changes are. Selene is also responsible for
-            /// validating the API version of the plugin against its own
-            /// version.
-            ///
-            /// The plans for this validation are a work-in-progress, but
-            /// currently selene will reject any plugin that has a different
-            /// major or minor version than the current Selene version, or with
-            /// a reserved field that is not 0.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_simulator_get_api_version() -> u64 {
-                // The API version is defined in the version module
-                // and is used to check compatibility between the plugin and the runtime.
-                CURRENT_API_VERSION.into()
-            }
-
             /// When Selene is initialised, it is provided with some default arguments
             /// (the maximum number of qubits, the path to a simulator plugin to use, etc)
             /// and some custom arguments for the simulator. These arguments are provided
