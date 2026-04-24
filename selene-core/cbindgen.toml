@@ -27,13 +27,16 @@ include = [
   "ErrorModelInstance",
   "ErrorModelSetResultInterface",
   "ErrorModelSetResultInstance",
+  "ErrorModelPluginDescriptorV1",
   "SimulatorAPIVersion",
   "SimulatorInstance",
+  "SimulatorPluginDescriptorV1",
   "RuntimeAPIVersion",
   "RuntimeGetOperationInterface",
   "RuntimeGetOperationInstance",
   "RuntimeExtractOperationInterface",
   "RuntimeExtractOperationInstance",
+  "RuntimePluginDescriptorV1",
   "Errno",
 ]
 item_types = ["functions", "structs", "opaque", "enums", "typedefs"]
@@ -44,13 +47,16 @@ renaming_overrides_prefixing = false
 "ErrorModelInstance" = "SeleneErrorModelInstance"
 "ErrorModelSetResultInterface" = "SeleneErrorModelSetResultInterface"
 "ErrorModelSetResultInstance" = "SeleneErrorModelSetResultInstance"
+"ErrorModelPluginDescriptorV1" = "SeleneErrorModelPluginDescriptorV1"
 "SimulatorAPIVersion" = "SeleneSimulatorAPIVersion"
 "SimulatorInstance" = "SeleneSimulatorInstance"
+"SimulatorPluginDescriptorV1" = "SeleneSimulatorPluginDescriptorV1"
 "RuntimeAPIVersion" = "SeleneRuntimeAPIVersion"
 "RuntimeGetOperationInterface" = "SeleneRuntimeGetOperationInterface"
 "RuntimeGetOperationInstance" = "SeleneRuntimeGetOperationInstance"
 "RuntimeExtractOperationInterface" = "SeleneRuntimeExtractOperationInterface"
 "RuntimeExtractOperationInstance" = "SeleneRuntimeExtractOperationInstance"
+"RuntimePluginDescriptorV1" = "SeleneRuntimePluginDescriptorV1"
 "Errno" = "SeleneErrno"
 
 #"RuntimeInstance" = "SeleneOpaqueInstance"
