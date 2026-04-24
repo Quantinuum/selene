@@ -19,7 +19,7 @@ impl RuntimeFFIAdapter {
         Self { runtime }
     }
 
-    pub fn ffi_interface(&mut self) -> (RuntimeInstance, RuntimeOperationInterface<'_>) {
+    pub fn ffi_interface(&mut self) -> (RuntimeInstance, RuntimeOperationInterface<'static>) {
         (
             &raw mut self.runtime as RuntimeInstance,
             RuntimeOperationInterface {
@@ -411,6 +411,7 @@ impl RuntimeFFIAdapter {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 #[non_exhaustive]
 pub struct RuntimeOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,

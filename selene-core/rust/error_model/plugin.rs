@@ -237,7 +237,7 @@ impl ErrorModelInterface for ErrorModelPlugin {
 #[derive(Default)]
 /// A helper type used by the plugin tooling above to implement
 /// [ErrorModelSetResultInterface].
-struct BatchResultBuilder(BatchResult);
+pub(crate) struct BatchResultBuilder(BatchResult);
 
 impl BatchResultBuilder {
     unsafe extern "C" fn set_bool_result(
@@ -264,7 +264,7 @@ impl BatchResultBuilder {
     /// The plugin calls this to obtain an instance and an interface.
     /// The lifetime parameter of the interface ensures that it cannot outlive the `Vec`
     /// that the functions will mutate.
-    fn error_model_set_result(
+    pub(crate) fn error_model_set_result(
         &mut self,
     ) -> (
         ErrorModelSetResultInstance,
@@ -280,7 +280,7 @@ impl BatchResultBuilder {
     }
 
     /// Consumes the `BatchBuilder` returning the accumulated operations.
-    fn finish(self) -> BatchResult {
+    pub(crate) fn finish(self) -> BatchResult {
         self.0
     }
 }

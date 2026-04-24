@@ -8,9 +8,7 @@ use crate::{
     runtime::plugin::{
         BatchBuilder, RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
     },
-    simulator::{
-        SimulatorInterface, inline::SimulatorOperationInterface, plugin::SimulatorInstance,
-    },
+    simulator::{Simulator, inline::SimulatorOperationInterface, plugin::SimulatorInstance},
     utils::{result_of_errno_to_errno, result_to_errno},
 };
 use std::{ffi, marker::PhantomData};
@@ -26,7 +24,7 @@ impl ErrorModelFFIAdapter {
         Self { error_model }
     }
 
-    pub fn ffi_interface(&mut self) -> (ErrorModelInstance, ErrorModelOperationInterface<'_>) {
+    pub fn ffi_interface(&mut self) -> (ErrorModelInstance, ErrorModelOperationInterface<'static>) {
         (
             &raw mut self.error_model as ErrorModelInstance,
             ErrorModelOperationInterface {
@@ -92,10 +90,8 @@ impl ErrorModelFFIAdapter {
                 let RuntimeExtractOperationInterface { extract_fn, .. } = &*batch_interface;
                 extract_fn(batch_instance, builder_instance, builder_interface);
 
-                let mut simulator = FfiSimulator {
-                    instance: simulator_instance,
-                    interface: simulator_interface,
-                };
+                let mut simulator =
+                    Simulator::from_raw_parts(simulator_instance, *simulator_interface);
                 let results =
                     error_model.handle_operations(batch_builder.finish(), &mut simulator)?;
                 Self::write_results(results, result_instance, result_interface);
@@ -143,49 +139,8 @@ impl ErrorModelFFIAdapter {
     }
 }
 
-struct FfiSimulator<'a> {
-    instance: SimulatorInstance,
-    interface: *const SimulatorOperationInterface<'a>,
-}
-impl SimulatorInterface for FfiSimulator<'_> {
-    fn exit(&mut self) -> anyhow::Result<()> {
-        Ok(())
-    }
-    fn shot_start(&mut self, _shot_id: u64, _seed: u64) -> anyhow::Result<()> {
-        Ok(())
-    }
-    fn shot_end(&mut self) -> anyhow::Result<()> {
-        Ok(())
-    }
-    fn measure(&mut self, _qubit: u64) -> anyhow::Result<bool> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.measure_fn)(self.instance, _qubit) } {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => anyhow::bail!("Simulator interface measure failed"),
-        }
-    }
-    fn reset(&mut self, _qubit: u64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.reset_fn)(self.instance, _qubit) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface reset failed"),
-        }
-    }
-    fn get_metric(
-        &mut self,
-        _nth_metric: u8,
-    ) -> anyhow::Result<Option<(String, crate::utils::MetricValue)>> {
-        crate::utils::read_raw_metric(|tag_ptr, datatype_ptr, data_ptr| {
-            let iface = unsafe { &*self.interface };
-            unsafe {
-                (iface.get_metric_fn)(self.instance, _nth_metric, tag_ptr, datatype_ptr, data_ptr)
-            }
-        })
-    }
-}
-
 #[repr(C)]
+#[derive(Clone, Copy)]
 #[non_exhaustive]
 pub struct ErrorModelOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(ErrorModelInstance) -> Errno,

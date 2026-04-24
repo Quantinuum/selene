@@ -161,7 +161,7 @@ impl SimulatorFFIAdapter {
         Self { simulator }
     }
 
-    pub fn ffi_interface(&mut self) -> (SimulatorInstance, SimulatorOperationInterface<'_>) {
+    pub fn ffi_interface(&mut self) -> (SimulatorInstance, SimulatorOperationInterface<'static>) {
         (
             &raw mut self.simulator as SimulatorInstance,
             SimulatorOperationInterface {
@@ -339,6 +339,7 @@ impl SimulatorFFIAdapter {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 #[non_exhaustive]
 pub struct SimulatorOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(instance: SimulatorInstance) -> Errno,
@@ -391,4 +392,25 @@ pub struct SimulatorOperationInterface<'a> {
         n_qubits: u64,
     ) -> Errno,
     _marker: PhantomData<&'a ()>,
+}
+
+impl SimulatorOperationInterface<'_> {
+    pub fn into_static(self) -> SimulatorOperationInterface<'static> {
+        SimulatorOperationInterface {
+            exit_fn: self.exit_fn,
+            shot_start_fn: self.shot_start_fn,
+            shot_end_fn: self.shot_end_fn,
+            rxy_fn: self.rxy_fn,
+            rz_fn: self.rz_fn,
+            rzz_fn: self.rzz_fn,
+            tk2_fn: self.tk2_fn,
+            rpp_fn: self.rpp_fn,
+            measure_fn: self.measure_fn,
+            postselect_fn: self.postselect_fn,
+            reset_fn: self.reset_fn,
+            get_metric_fn: self.get_metric_fn,
+            dump_state_fn: self.dump_state_fn,
+            _marker: PhantomData,
+        }
+    }
 }

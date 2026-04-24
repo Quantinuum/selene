@@ -1,11 +1,8 @@
 use crate::event_hooks::{EventHook, MultiEventHook, Operation};
 use crate::selene_instance::configuration::Configuration;
 use anyhow::{Result, anyhow};
-use selene_core::error_model::plugin::ErrorModelPluginInterface;
 use selene_core::error_model::{ErrorModel, ErrorModelInterface};
-use selene_core::runtime::plugin::RuntimePluginInterface;
 use selene_core::runtime::{Runtime, RuntimeInterface};
-use selene_core::simulator::plugin::SimulatorPluginInterface;
 use selene_core::simulator::{Simulator, SimulatorInterface};
 
 pub struct Emulator {
@@ -19,20 +16,20 @@ pub struct Emulator {
 impl Emulator {
     pub fn from_configuration(config: &Configuration) -> Result<Self> {
         let n_qubits = config.n_qubits;
-        let error_model_plugin =
-            ErrorModelPluginInterface::new_from_file(&config.error_model.file)?;
-        let error_model = ErrorModel::new(
-            error_model_plugin,
+        let error_model = ErrorModel::load_from_file(
+            &config.error_model.file,
             n_qubits,
             config.error_model.args.as_ref(),
         )?;
 
-        let simulator_plugin = SimulatorPluginInterface::new_from_file(&config.simulator.file)?;
-        let simulator = Simulator::new(simulator_plugin, n_qubits, config.simulator.args.as_ref())?;
+        let simulator = Simulator::load_from_file(
+            &config.simulator.file,
+            n_qubits,
+            config.simulator.args.as_ref(),
+        )?;
 
-        let runtime_plugin = RuntimePluginInterface::new_from_file(&config.runtime.file)?;
-        let runtime = Runtime::new(
-            runtime_plugin,
+        let runtime = Runtime::load_from_file(
+            &config.runtime.file,
             n_qubits,
             selene_core::time::Instant::default(),
             config.runtime.args.as_ref(),
@@ -249,7 +246,7 @@ impl Emulator {
             self.event_hooks.on_runtime_batch(&batch);
             let results = self
                 .error_model
-                .handle_operations(batch, &mut self.simulator)?;
+                .handle_operations_with_simulator(batch, &mut self.simulator)?;
             self.event_hooks.on_runtime_results(&results);
             for bool_result in results.bool_results {
                 self.runtime

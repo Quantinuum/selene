@@ -12,7 +12,7 @@ use super::{
 use crate::runtime::plugin::{
     BatchBuilder, RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
 };
-use crate::simulator::SimulatorInterface;
+use crate::simulator::Simulator;
 use crate::simulator::inline::SimulatorOperationInterface;
 use crate::simulator::plugin::SimulatorInstance;
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
@@ -115,10 +115,8 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
                 let (builder_instance, builder_interface) = batch_builder.runtime_get_operation();
                 let RuntimeExtractOperationInterface { extract_fn, .. } = &*extract_ops_interface;
                 extract_fn(extract_ops_instance, builder_instance, builder_interface);
-                let mut simulator = FfiSimulator {
-                    instance: simulator_instance,
-                    interface: simulator_interface,
-                };
+                let mut simulator =
+                    Simulator::from_raw_parts(simulator_instance, *simulator_interface);
                 let results =
                     error_model.handle_operations(batch_builder.finish(), &mut simulator)?;
                 let ErrorModelSetResultInterface {
@@ -154,117 +152,6 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
                 Ok(0)
             }),
         )
-    }
-}
-
-struct FfiSimulator<'a> {
-    instance: SimulatorInstance,
-    interface: *const SimulatorOperationInterface<'a>,
-}
-impl SimulatorInterface for FfiSimulator<'_> {
-    fn exit(&mut self) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.exit_fn)(self.instance) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface exit failed"),
-        }
-    }
-    fn shot_start(&mut self, shot_id: u64, seed: u64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.shot_start_fn)(self.instance, shot_id, seed) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface shot_start failed"),
-        }
-    }
-    fn shot_end(&mut self) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.shot_end_fn)(self.instance) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface shot_end failed"),
-        }
-    }
-    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.rxy_fn)(self.instance, qubit, theta, phi) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface rxy failed"),
-        }
-    }
-    fn rz(&mut self, qubit: u64, theta: f64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.rz_fn)(self.instance, qubit, theta) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface rz failed"),
-        }
-    }
-    fn rzz(&mut self, q1: u64, q2: u64, theta: f64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.rzz_fn)(self.instance, q1, q2, theta) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface rzz failed"),
-        }
-    }
-    fn tk2(&mut self, q1: u64, q2: u64, a: f64, b: f64, c: f64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.tk2_fn)(self.instance, q1, q2, a, b, c) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface tk2 failed"),
-        }
-    }
-    fn rpp(&mut self, q1: u64, q2: u64, theta: f64, phi: f64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.rpp_fn)(self.instance, q1, q2, theta, phi) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface rpp failed"),
-        }
-    }
-    fn measure(&mut self, qubit: u64) -> anyhow::Result<bool> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.measure_fn)(self.instance, qubit) } {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => anyhow::bail!("Simulator interface measure failed"),
-        }
-    }
-    fn postselect(&mut self, qubit: u64, target: bool) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.postselect_fn)(self.instance, qubit, target) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface postselect failed"),
-        }
-    }
-    fn reset(&mut self, qubit: u64) -> anyhow::Result<()> {
-        let iface = unsafe { &*self.interface };
-        match unsafe { (iface.reset_fn)(self.instance, qubit) } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface reset failed"),
-        }
-    }
-    fn get_metric(
-        &mut self,
-        nth_metric: u8,
-    ) -> anyhow::Result<Option<(String, crate::utils::MetricValue)>> {
-        crate::utils::read_raw_metric(|tag_ptr, datatype_ptr, data_ptr| {
-            let iface = unsafe { &*self.interface };
-            unsafe {
-                (iface.get_metric_fn)(self.instance, nth_metric, tag_ptr, datatype_ptr, data_ptr)
-            }
-        })
-    }
-    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> anyhow::Result<()> {
-        let c_file = std::ffi::CString::new(file.to_string_lossy().as_bytes()).unwrap();
-        let iface = unsafe { &*self.interface };
-        match unsafe {
-            (iface.dump_state_fn)(
-                self.instance,
-                c_file.as_ptr(),
-                qubits.as_ptr(),
-                qubits.len() as u64,
-            )
-        } {
-            0 => Ok(()),
-            _ => anyhow::bail!("Simulator interface dump_state failed"),
-        }
     }
 }
 
