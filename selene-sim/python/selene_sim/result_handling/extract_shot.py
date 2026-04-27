@@ -224,7 +224,7 @@ def extract_shot(
         case FullPanicMessage(message=message, code=_):
             # Seeing panics before a shot start is unexpected, and we consider
             # it to either be a misconfiguration or a bug. As such, we raise it
-            # as a runtime error.
+            # as a startup error.
             raise SeleneStartupError(message)
         case other:
             raise SeleneStartupError(f"Unexpected record {other} before shot start")
