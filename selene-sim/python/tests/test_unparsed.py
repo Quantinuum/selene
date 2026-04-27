@@ -9,7 +9,6 @@ from selene_sim.event_hooks import MetricStore
 from selene_sim.exceptions import (
     SelenePanicError,
     SeleneStartupError,
-    SeleneRuntimeError,
     SeleneTimeoutError,
 )
 from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
@@ -407,7 +406,7 @@ def test_memory_allocation_unparsed(compiled_guppy):
             parse_results=False,
         )
     )
-    assert isinstance(error, SeleneRuntimeError)
+    assert isinstance(error, SeleneStartupError)
     assert (
         "It is impossible to describe more than 60 qubits in a statevector on a computer with a 64-bit address space."
         in error.stderr
@@ -475,5 +474,5 @@ def test_corrupted_plugin_unparsed(compiled_guppy):
         )
     )
     assert len(shots) == 0
-    assert isinstance(error, SeleneRuntimeError)
+    assert isinstance(error, SeleneStartupError)
     assert "Failed to load runtime plugin" in error.stderr
