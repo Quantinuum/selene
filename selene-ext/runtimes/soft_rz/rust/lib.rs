@@ -93,7 +93,7 @@ impl SoftRZRuntime {
                 Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
                 _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
             };
-            self.operation_queue.push_back(BatchOperation::new(
+            self.operation_queue.push_back(BatchOperation::runtime(
                 vec![op],
                 self.start,
                 duration.into(),

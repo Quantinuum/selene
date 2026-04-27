@@ -172,10 +172,9 @@ impl PostRuntimeMetrics {
             }
         }
 
-        self.total_duration_ns = std::cmp::max(
-            self.total_duration_ns,
-            u64::from(batch.start()) + u64::from(batch.duration()),
-        );
+        if let Some(timing) = batch.runtime_source() {
+            self.total_duration_ns = std::cmp::max(self.total_duration_ns, u64::from(timing.end()));
+        }
         if rxy_count > 0 {
             self.rxy_batch_count += 1;
             self.rxy_individual_count += rxy_count;

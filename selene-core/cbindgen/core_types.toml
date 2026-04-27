@@ -20,7 +20,7 @@ sort_by = "None"
 usize_is_size_t = true
 
 [export]
-include = ["Errno"]
+include = ["Errno", "Operation"]
 item_types = ["functions", "structs", "opaque", "enums", "typedefs"]
 renaming_overrides_prefixing = false
 

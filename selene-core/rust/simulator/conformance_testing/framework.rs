@@ -86,6 +86,7 @@ If any operations come *after* the last test, they will never be invoked.
 
 */
 
+use crate::operation::{BatchOperation, Operation as SimulatorOperation};
 use crate::simulator::{Simulator, SimulatorInterface, SimulatorInterfaceFactory};
 use std::sync::Arc;
 
@@ -132,21 +133,38 @@ impl EngineState {
                 self.qubit_phases[*q as usize] += theta;
             }
             Operation::Rxy(q, theta, phi) => {
-                self.simulator
-                    .rxy(*q, *theta, *phi - self.qubit_phases[*q as usize])
-                    .unwrap();
+                self.apply_void(SimulatorOperation::RXYGate {
+                    qubit_id: *q,
+                    theta: *theta,
+                    phi: *phi - self.qubit_phases[*q as usize],
+                });
             }
             Operation::Tk2(q0, q1, alpha, beta, gamma) => {
-                self.simulator.tk2(*q0, *q1, *alpha, *beta, *gamma).unwrap();
+                self.apply_void(SimulatorOperation::TK2Gate {
+                    qubit_id_1: *q0,
+                    qubit_id_2: *q1,
+                    alpha: *alpha,
+                    beta: *beta,
+                    gamma: *gamma,
+                });
             }
             Operation::Rpp(q0, q1, theta, phi) => {
-                self.simulator.rpp(*q0, *q1, *theta, *phi).unwrap();
+                self.apply_void(SimulatorOperation::RPPGate {
+                    qubit_id_1: *q0,
+                    qubit_id_2: *q1,
+                    theta: *theta,
+                    phi: *phi,
+                });
             }
             Operation::Rzz(q0, q1, theta) => {
-                self.simulator.rzz(*q0, *q1, *theta).unwrap();
+                self.apply_void(SimulatorOperation::RZZGate {
+                    qubit_id_1: *q0,
+                    qubit_id_2: *q1,
+                    theta: *theta,
+                });
             }
             Operation::Reset(q) => {
-                self.simulator.reset(*q).unwrap();
+                self.apply_void(SimulatorOperation::Reset { qubit_id: *q });
             }
             Operation::Measure(q) => {
                 if self.measure(*q) {
@@ -156,8 +174,27 @@ impl EngineState {
             }
         }
     }
+
+    fn apply_void(&mut self, operation: SimulatorOperation) {
+        let results = self
+            .simulator
+            .handle_operations(BatchOperation::simulator(vec![operation]))
+            .unwrap();
+        assert!(results.bool_results.is_empty() && results.u64_results.is_empty());
+    }
+
     pub fn measure(&mut self, q: u64) -> bool {
-        self.simulator.measure(q).unwrap()
+        let results = self
+            .simulator
+            .handle_operations(BatchOperation::simulator(vec![
+                SimulatorOperation::Measure {
+                    qubit_id: q,
+                    result_id: 0,
+                },
+            ]))
+            .unwrap();
+        assert!(results.u64_results.is_empty() && results.bool_results.len() == 1);
+        results.bool_results[0].value
     }
 }
 

@@ -5,6 +5,8 @@
 #include <stdlib.h>
 
 
+typedef struct Operation Operation;
+
 typedef struct ErrorModelAPIVersion {
   /**
    * Reserved for future use, must be 0.

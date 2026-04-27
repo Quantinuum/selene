@@ -2,12 +2,11 @@ use super::{
     BatchResult, BoolResult, ErrorModelAPIVersion, ErrorModelInterface, ErrorModelInterfaceFactory,
     U64Result,
 };
-use crate::runtime::BatchOperation;
+use crate::operation::BatchOperation;
 use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
 use anyhow::{Result, anyhow};
 use libloading;
 use std::ffi::OsStr;
-use std::marker::PhantomData;
 use std::{ffi, sync::Arc};
 
 pub type ErrorModelInstance = *mut ffi::c_void;
@@ -33,12 +32,9 @@ pub struct ErrorModelPluginDescriptorV1 {
     pub shot_end_fn: unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno,
     pub handle_operations_fn: unsafe extern "C" fn(
         handle: ErrorModelInstance,
-        batch_instance: crate::runtime::plugin::RuntimeExtractOperationInstance,
-        batch_interface: *const crate::runtime::plugin::RuntimeExtractOperationInterface,
-        simulator_instance: crate::simulator::plugin::SimulatorInstance,
-        simulator_interface: *const crate::simulator::inline::SimulatorOperationInterface,
-        result_instance: ErrorModelSetResultInstance,
-        result_interface: *const ErrorModelSetResultInterface,
+        batch: crate::operation::plugin::RuntimeExtractOperationHandle,
+        simulator: crate::simulator::inline::SimulatorHandle<'static>,
+        result: ErrorModelSetResultHandle,
     ) -> Errno,
     pub get_metrics_fn: Option<
         unsafe extern "C" fn(
@@ -78,12 +74,9 @@ pub struct ErrorModelPluginInterface {
     shot_end_fn: unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno,
     handle_operations_fn: unsafe extern "C" fn(
         handle: ErrorModelInstance,
-        batch_instance: crate::runtime::plugin::RuntimeExtractOperationInstance,
-        batch_interface: *const crate::runtime::plugin::RuntimeExtractOperationInterface,
-        simulator_instance: crate::simulator::plugin::SimulatorInstance,
-        simulator_interface: *const crate::simulator::inline::SimulatorOperationInterface,
-        result_instance: ErrorModelSetResultInstance,
-        result_interface: *const ErrorModelSetResultInterface,
+        batch: crate::operation::plugin::RuntimeExtractOperationHandle,
+        simulator: crate::simulator::inline::SimulatorHandle<'static>,
+        result: ErrorModelSetResultHandle,
     ) -> Errno,
     get_metrics_fn: Option<
         unsafe extern "C" fn(
@@ -201,24 +194,16 @@ impl ErrorModelInterface for ErrorModelPlugin {
         simulator: &mut dyn crate::simulator::SimulatorInterface,
     ) -> Result<BatchResult> {
         let mut batch_extractor =
-            crate::runtime::plugin::BatchExtractor::from_batch_operation(operations);
-        let (batch_instance, batch_interface) = batch_extractor.runtime_batch_extraction();
+            crate::operation::plugin::BatchExtractor::from_batch_operation(operations);
+        let batch = batch_extractor.runtime_batch_extraction();
         let mut result_builder = BatchResultBuilder::default();
-        let (result_instance, result_interface) = result_builder.error_model_set_result();
+        let result = result_builder.error_model_set_result();
         let mut simulator_ref = simulator;
-        let (simulator_instance, simulator_interface) =
-            crate::simulator::inline::borrowed_simulator_interface(&mut simulator_ref);
+        let simulator = crate::simulator::inline::borrowed_simulator_interface(&mut simulator_ref)
+            .into_static();
         check_errno(
             unsafe {
-                (self.interface.handle_operations_fn)(
-                    self.instance,
-                    batch_instance,
-                    &raw const batch_interface,
-                    simulator_instance,
-                    &raw const simulator_interface,
-                    result_instance,
-                    &raw const result_interface,
-                )
+                (self.interface.handle_operations_fn)(self.instance, batch, simulator, result)
             },
             || anyhow!("ErrorModelPlugin: handle_operations failed"),
         )?;
@@ -238,6 +223,13 @@ impl ErrorModelInterface for ErrorModelPlugin {
 /// A helper type used by the plugin tooling above to implement
 /// [ErrorModelSetResultInterface].
 pub(crate) struct BatchResultBuilder(BatchResult);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ErrorModelSetResultHandle {
+    pub instance: ErrorModelSetResultInstance,
+    pub interface: ErrorModelSetResultInterface,
+}
 
 impl BatchResultBuilder {
     unsafe extern "C" fn set_bool_result(
@@ -264,19 +256,14 @@ impl BatchResultBuilder {
     /// The plugin calls this to obtain an instance and an interface.
     /// The lifetime parameter of the interface ensures that it cannot outlive the `Vec`
     /// that the functions will mutate.
-    pub(crate) fn error_model_set_result(
-        &mut self,
-    ) -> (
-        ErrorModelSetResultInstance,
-        ErrorModelSetResultInterface<'_>,
-    ) {
-        let instance = &raw mut self.0 as ErrorModelSetResultInstance;
-        let interface = ErrorModelSetResultInterface {
-            set_bool_result_fn: Self::set_bool_result,
-            set_u64_result_fn: Self::set_u64_result,
-            _marker: PhantomData,
-        };
-        (instance, interface)
+    pub(crate) fn error_model_set_result(&mut self) -> ErrorModelSetResultHandle {
+        ErrorModelSetResultHandle {
+            instance: &raw mut self.0 as ErrorModelSetResultInstance,
+            interface: ErrorModelSetResultInterface {
+                set_bool_result_fn: Self::set_bool_result,
+                set_u64_result_fn: Self::set_u64_result,
+            },
+        }
     }
 
     /// Consumes the `BatchBuilder` returning the accumulated operations.
@@ -291,14 +278,14 @@ impl BatchResultBuilder {
 pub type ErrorModelSetResultInstance = *mut ffi::c_void;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 #[non_exhaustive]
 /// A plugin's implementation of `selene_runtime_get_next_operations` is provided
 /// a pointer to a `ErrorModelSetResultInterface` as well as a
 /// [ErrorModelSetResultInstance]. It should call the functions
 /// within to populate a batch. All such calls must pass the instance as the
 /// first parameter.
-pub struct ErrorModelSetResultInterface<'a> {
+pub struct ErrorModelSetResultInterface {
     pub set_bool_result_fn: unsafe extern "C" fn(ErrorModelSetResultInstance, u64, bool),
     pub set_u64_result_fn: unsafe extern "C" fn(ErrorModelSetResultInstance, u64, u64),
-    _marker: PhantomData<&'a ()>,
 }

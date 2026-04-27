@@ -8,14 +8,15 @@ pub mod version;
 use std::ffi::{CString, OsStr};
 use std::sync::Arc;
 
-pub use inline::{SimulatorFFIAdapter, SimulatorOperationInterface};
+pub use inline::{SimulatorFFIAdapter, SimulatorHandle, SimulatorOperationInterface};
 pub use interface::{SimulatorInterface, SimulatorInterfaceFactory};
 pub use version::SimulatorAPIVersion;
 
 use crate::utils::{MetricValue, check_errno, read_raw_metric};
 use anyhow::{Result, anyhow};
 
-use self::plugin::SimulatorInstance;
+use crate::error_model::BatchResult;
+use crate::runtime::{BatchOperation, Operation};
 
 enum SimulatorBacking {
     Adapter { _adapter: Box<SimulatorFFIAdapter> },
@@ -28,18 +29,15 @@ enum SimulatorBacking {
 /// selene-core. It stores the simulator instance pointer alongside the
 /// function-table descriptor used to operate on it.
 pub struct Simulator {
-    instance: SimulatorInstance,
-    interface: SimulatorOperationInterface<'static>,
+    handle: SimulatorHandle<'static>,
     backing: SimulatorBacking,
 }
 
 impl Simulator {
     pub fn from_boxed(interface: Box<dyn SimulatorInterface>) -> Self {
         let mut adapter = Box::new(SimulatorFFIAdapter::new(interface));
-        let (instance, interface) = adapter.ffi_interface();
         Self {
-            instance,
-            interface,
+            handle: adapter.ffi_interface(),
             backing: SimulatorBacking::Adapter { _adapter: adapter },
         }
     }
@@ -67,24 +65,15 @@ impl Simulator {
         Self::new(plugin, n_qubits, args)
     }
 
-    pub(crate) fn from_raw_parts(
-        instance: SimulatorInstance,
-        interface: SimulatorOperationInterface<'_>,
-    ) -> Self {
+    pub(crate) fn from_raw_parts(handle: SimulatorHandle<'_>) -> Self {
         Self {
-            instance,
-            interface: interface.into_static(),
+            handle: handle.into_static(),
             backing: SimulatorBacking::Borrowed,
         }
     }
 
-    pub(crate) fn ffi_parts(
-        &mut self,
-    ) -> (
-        SimulatorInstance,
-        *const SimulatorOperationInterface<'static>,
-    ) {
-        (self.instance, &self.interface as *const _)
+    pub(crate) fn ffi_parts(&mut self) -> SimulatorHandle<'static> {
+        self.handle
     }
 }
 
@@ -103,86 +92,159 @@ impl AsMut<dyn SimulatorInterface> for Simulator {
 impl SimulatorInterface for Simulator {
     fn exit(&mut self) -> Result<()> {
         let _ = &self.backing;
-        check_errno(unsafe { (self.interface.exit_fn)(self.instance) }, || {
-            anyhow!("Simulator: exit failed")
-        })
+        check_errno(
+            unsafe { (self.handle.interface.exit_fn)(self.handle.instance) },
+            || anyhow!("Simulator: exit failed"),
+        )
     }
 
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
         check_errno(
-            unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
+            unsafe { (self.handle.interface.shot_start_fn)(self.handle.instance, shot_id, seed) },
             || anyhow!("Simulator: shot_start failed"),
         )
     }
 
     fn shot_end(&mut self) -> Result<()> {
         check_errno(
-            unsafe { (self.interface.shot_end_fn)(self.instance) },
+            unsafe { (self.handle.interface.shot_end_fn)(self.handle.instance) },
             || anyhow!("Simulator: shot_end failed"),
         )
     }
 
-    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.rz_fn)(self.instance, qubit, theta) },
-            || anyhow!("Simulator: rz failed"),
-        )
-    }
-
-    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.rxy_fn)(self.instance, qubit, theta, phi) },
-            || anyhow!("Simulator: rxy failed"),
-        )
-    }
-
-    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.rzz_fn)(self.instance, qubit1, qubit2, theta) },
-            || anyhow!("Simulator: rzz failed"),
-        )
-    }
-
-    fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.tk2_fn)(self.instance, qubit1, qubit2, alpha, beta, gamma) },
-            || anyhow!("Simulator: tk2 failed"),
-        )
-    }
-
-    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.rpp_fn)(self.instance, qubit1, qubit2, theta, phi) },
-            || anyhow!("Simulator: rpp failed"),
-        )
-    }
-
-    fn measure(&mut self, qubit: u64) -> Result<bool> {
-        match unsafe { (self.interface.measure_fn)(self.instance, qubit) } {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => Err(anyhow!("Simulator: measure failed")),
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => {
+                    check_errno(
+                        unsafe {
+                            (self.handle.interface.rxy_fn)(
+                                self.handle.instance,
+                                qubit_id,
+                                theta,
+                                phi,
+                            )
+                        },
+                        || anyhow!("Simulator: rxy failed"),
+                    )?;
+                }
+                Operation::RZGate { qubit_id, theta } => {
+                    check_errno(
+                        unsafe {
+                            (self.handle.interface.rz_fn)(self.handle.instance, qubit_id, theta)
+                        },
+                        || anyhow!("Simulator: rz failed"),
+                    )?;
+                }
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => {
+                    check_errno(
+                        unsafe {
+                            (self.handle.interface.rzz_fn)(
+                                self.handle.instance,
+                                qubit_id_1,
+                                qubit_id_2,
+                                theta,
+                            )
+                        },
+                        || anyhow!("Simulator: rzz failed"),
+                    )?;
+                }
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => {
+                    check_errno(
+                        unsafe {
+                            (self.handle.interface.tk2_fn)(
+                                self.handle.instance,
+                                qubit_id_1,
+                                qubit_id_2,
+                                alpha,
+                                beta,
+                                gamma,
+                            )
+                        },
+                        || anyhow!("Simulator: tk2 failed"),
+                    )?;
+                }
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    check_errno(
+                        unsafe {
+                            (self.handle.interface.rpp_fn)(
+                                self.handle.instance,
+                                qubit_id_1,
+                                qubit_id_2,
+                                theta,
+                                phi,
+                            )
+                        },
+                        || anyhow!("Simulator: rpp failed"),
+                    )?;
+                }
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => match unsafe {
+                    (self.handle.interface.measure_fn)(self.handle.instance, qubit_id)
+                } {
+                    0 => results.set_bool_result(result_id, false),
+                    1 => results.set_bool_result(result_id, true),
+                    _ => return Err(anyhow!("Simulator: measure failed")),
+                },
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => match unsafe {
+                    (self.handle.interface.measure_fn)(self.handle.instance, qubit_id)
+                } {
+                    0 => results.set_u64_result(result_id, 0),
+                    1 => results.set_u64_result(result_id, 1),
+                    _ => return Err(anyhow!("Simulator: measure leaked failed")),
+                },
+                Operation::Reset { qubit_id } => {
+                    check_errno(
+                        unsafe { (self.handle.interface.reset_fn)(self.handle.instance, qubit_id) },
+                        || anyhow!("Simulator: reset failed"),
+                    )?;
+                }
+                Operation::Custom { .. } => {
+                    return Err(anyhow!("Simulator: custom operations are not supported"));
+                }
+            }
         }
+        Ok(results)
     }
 
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
         check_errno(
-            unsafe { (self.interface.postselect_fn)(self.instance, qubit, target_value) },
+            unsafe {
+                (self.handle.interface.postselect_fn)(self.handle.instance, qubit, target_value)
+            },
             || anyhow!("Simulator: postselect failed"),
-        )
-    }
-
-    fn reset(&mut self, qubit: u64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.reset_fn)(self.instance, qubit) },
-            || anyhow!("Simulator: reset failed"),
         )
     }
 
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         read_raw_metric(|tag_ptr, datatype_ptr, data_ptr| unsafe {
-            (self.interface.get_metric_fn)(
-                self.instance,
+            (self.handle.interface.get_metric_fn)(
+                self.handle.instance,
                 nth_metric,
                 tag_ptr,
                 datatype_ptr,
@@ -200,8 +262,8 @@ impl SimulatorInterface for Simulator {
         })?;
         check_errno(
             unsafe {
-                (self.interface.dump_state_fn)(
-                    self.instance,
+                (self.handle.interface.dump_state_fn)(
+                    self.handle.instance,
                     filename.as_ptr(),
                     qubits.as_ptr(),
                     qubits.len() as u64,

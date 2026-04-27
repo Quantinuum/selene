@@ -46,18 +46,11 @@ typedef struct SeleneRuntimeAPIVersion {
 
 /**
  * An instance is provided to `selene_runtime_get_next_operations`, which must
- * pass that back to any function it calls in it's provided
+ * pass that back to any function it calls in its provided
  * [RuntimeGetOperationInterface].
  */
 typedef void *SeleneRuntimeGetOperationInstance;
 
-/**
- * A plugin's implementation of `selene_runtime_get_next_operations` is provided
- * a pointer to a `RuntimeGetOperationInterface` as well as a
- * [RuntimeGetOperationInstance]. It should call the functions
- * within to populate a batch. All such calls must pass the instance as the
- * first parameter.
- */
 typedef struct SeleneRuntimeGetOperationInterface {
   void (*measure_fn)(SeleneRuntimeGetOperationInstance,
                      uint64_t,
@@ -100,10 +93,19 @@ typedef struct SeleneRuntimeGetOperationInterface {
 
 typedef void *SeleneRuntimeExtractOperationInstance;
 
+typedef struct RuntimeExtractOperationHandle {
+  SeleneRuntimeExtractOperationInstance instance;
+  struct SeleneRuntimeExtractOperationInterface interface;
+} RuntimeExtractOperationHandle;
+
+typedef struct RuntimeGetOperationHandle {
+  SeleneRuntimeGetOperationInstance instance;
+  struct SeleneRuntimeGetOperationInterface interface;
+} RuntimeGetOperationHandle;
+
 typedef struct SeleneRuntimeExtractOperationInterface {
-  void (*extract_fn)(SeleneRuntimeExtractOperationInstance,
-                     SeleneRuntimeGetOperationInstance,
-                     struct SeleneRuntimeGetOperationInterface);
+  void (*extract_fn)(struct RuntimeExtractOperationHandle,
+                     struct RuntimeGetOperationHandle);
 } SeleneRuntimeExtractOperationInterface;
 
 typedef int32_t SeleneErrno;
@@ -120,8 +122,7 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
                          const char *const *argv);
   SeleneErrno (*exit_fn)(RuntimeInstance handle);
   SeleneErrno (*get_next_operations_fn)(RuntimeInstance handle,
-                                        SeleneRuntimeGetOperationInstance instance,
-                                        const struct SeleneRuntimeGetOperationInterface *interface);
+                                        struct RuntimeGetOperationHandle ops);
   SeleneErrno (*shot_start_fn)(RuntimeInstance handle,
                                uint64_t shot_id,
                                uint64_t seed);

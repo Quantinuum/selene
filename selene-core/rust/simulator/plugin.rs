@@ -1,4 +1,6 @@
 use super::{SimulatorAPIVersion, SimulatorInterface, SimulatorInterfaceFactory};
+use crate::error_model::BatchResult;
+use crate::runtime::{BatchOperation, Operation};
 use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
 use anyhow::{Result, anyhow, bail};
 use libloading;
@@ -233,6 +235,90 @@ pub struct SimulatorPlugin {
     instance: SimulatorInstance,
 }
 
+impl SimulatorPlugin {
+    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
+        let Some(rxy_fn) = self.interface.rxy_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RXY gate",
+                &self.interface.name
+            );
+        };
+        check_errno(unsafe { rxy_fn(self.instance, qubit, theta, phi) }, || {
+            anyhow!("SimulatorPlugin({}): rxy failed", &self.interface.name)
+        })
+    }
+
+    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
+        let Some(rz_fn) = self.interface.rz_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RZ gate",
+                &self.interface.name
+            );
+        };
+        check_errno(unsafe { rz_fn(self.instance, qubit, theta) }, || {
+            anyhow!("SimulatorPlugin({}): rz failed", &self.interface.name)
+        })
+    }
+
+    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
+        let Some(rzz_fn) = self.interface.rzz_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RZZ gate",
+                &self.interface.name
+            );
+        };
+        check_errno(
+            unsafe { rzz_fn(self.instance, qubit1, qubit2, theta) },
+            || anyhow!("SimulatorPlugin({}): rzz failed", &self.interface.name),
+        )
+    }
+
+    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
+        let Some(rpp_fn) = self.interface.rpp_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RPP gate",
+                &self.interface.name
+            );
+        };
+        check_errno(
+            unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
+            || anyhow!("SimulatorPlugin({}): rpp failed", &self.interface.name),
+        )
+    }
+
+    fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
+        let Some(tk2_fn) = self.interface.tk2_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the TK2 gate",
+                &self.interface.name
+            );
+        };
+        check_errno(
+            unsafe { tk2_fn(self.instance, qubit1, qubit2, alpha, beta, gamma) },
+            || anyhow!("SimulatorPlugin({}): tk2 failed", &self.interface.name),
+        )
+    }
+
+    fn measure(&mut self, qubit: u64) -> Result<bool> {
+        let result = unsafe { (self.interface.measure_fn)(self.instance, qubit) };
+        match result {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(anyhow!(
+                "SimulatorPlugin({}): measure failed",
+                &self.interface.name
+            )),
+        }
+    }
+
+    fn reset(&mut self, qubit: u64) -> Result<()> {
+        check_errno(
+            unsafe { (self.interface.reset_fn)(self.instance, qubit) },
+            || anyhow!("SimulatorPlugin({}): reset failed", &self.interface.name),
+        )
+    }
+}
+
 impl SimulatorInterfaceFactory for SimulatorPluginInterface {
     type Interface = SimulatorPlugin;
 
@@ -281,74 +367,47 @@ impl SimulatorInterface for SimulatorPlugin {
             || anyhow!("SimulatorPlugin({}): shot_end failed", &self.interface.name),
         )
     }
-    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
-        let Some(rxy_fn) = self.interface.rxy_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RXY gate",
-                &self.interface.name
-            );
-        };
-        check_errno(unsafe { rxy_fn(self.instance, qubit, theta, phi) }, || {
-            anyhow!("SimulatorPlugin({}): rxy failed", &self.interface.name)
-        })
-    }
-    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
-        let Some(rz_fn) = self.interface.rz_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RZ gate",
-                &self.interface.name
-            );
-        };
-        check_errno(unsafe { rz_fn(self.instance, qubit, theta) }, || {
-            anyhow!("SimulatorPlugin({}): rz failed", &self.interface.name)
-        })
-    }
-    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
-        let Some(rzz_fn) = self.interface.rzz_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RZZ gate",
-                &self.interface.name
-            );
-        };
-        check_errno(
-            unsafe { rzz_fn(self.instance, qubit1, qubit2, theta) },
-            || anyhow!("SimulatorPlugin({}): rzz failed", &self.interface.name),
-        )
-    }
-    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
-        let Some(rpp_fn) = self.interface.rpp_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RPP gate",
-                &self.interface.name
-            );
-        };
-        check_errno(
-            unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
-            || anyhow!("SimulatorPlugin({}): rpp failed", &self.interface.name),
-        )
-    }
-    fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        let Some(tk2_fn) = self.interface.tk2_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the TK2 gate",
-                &self.interface.name
-            );
-        };
-        check_errno(
-            unsafe { tk2_fn(self.instance, qubit1, qubit2, alpha, beta, gamma) },
-            || anyhow!("SimulatorPlugin({}): tk2 failed", &self.interface.name),
-        )
-    }
-    fn measure(&mut self, qubit: u64) -> Result<bool> {
-        let result = unsafe { (self.interface.measure_fn)(self.instance, qubit) };
-        match result {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => Err(anyhow!(
-                "SimulatorPlugin({}): measure failed",
-                &self.interface.name
-            )),
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => self.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+            }
         }
+        Ok(results)
     }
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
         let Some(postselect_fn) = self.interface.postselect_fn else {
@@ -362,12 +421,6 @@ impl SimulatorInterface for SimulatorPlugin {
                     &self.interface.name
                 )
             },
-        )
-    }
-    fn reset(&mut self, qubit: u64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.reset_fn)(self.instance, qubit) },
-            || anyhow!("SimulatorPlugin({}): reset failed", &self.interface.name),
         )
     }
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {

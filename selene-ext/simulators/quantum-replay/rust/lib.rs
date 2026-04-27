@@ -1,6 +1,8 @@
 use anyhow::{Result, anyhow};
 use clap::Parser;
+use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::simulator::{Simulator, SimulatorInterface};
 use selene_core::utils::MetricValue;
@@ -50,6 +52,146 @@ pub struct QuantumReplaySimulator {
     measurements_performed: usize,
 }
 
+impl QuantumReplaySimulator {
+    fn apply_wrapped_void(&mut self, operation: Operation) -> Result<()> {
+        let results = self
+            .wrapped
+            .handle_operations(BatchOperation::simulator(vec![operation]))?;
+        if results.bool_results.is_empty() && results.u64_results.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "QuantumReplaySimulator: wrapped simulator unexpectedly produced results"
+            ))
+        }
+    }
+
+    fn apply_wrapped_measure(&mut self, qubit_id: u64) -> Result<bool> {
+        let results = self
+            .wrapped
+            .handle_operations(BatchOperation::simulator(vec![Operation::Measure {
+                qubit_id,
+                result_id: 0,
+            }]))?;
+        if results.u64_results.is_empty() && results.bool_results.len() == 1 {
+            Ok(results.bool_results[0].value)
+        } else {
+            Err(anyhow!(
+                "QuantumReplaySimulator: wrapped simulator returned an unexpected measurement result shape"
+            ))
+        }
+    }
+
+    fn rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
+        if q0 < self.n_qubits {
+            self.apply_wrapped_void(Operation::RXYGate {
+                qubit_id: q0,
+                theta,
+                phi,
+            })
+        } else {
+            Err(anyhow!(
+                "RXY(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            self.apply_wrapped_void(Operation::RZZGate {
+                qubit_id_1: q0,
+                qubit_id_2: q1,
+                theta,
+            })
+        } else {
+            Err(anyhow!(
+                "RZZ(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn rz(&mut self, q0: u64, theta: f64) -> Result<()> {
+        if q0 < self.n_qubits {
+            self.apply_wrapped_void(Operation::RZGate {
+                qubit_id: q0,
+                theta,
+            })
+        } else {
+            Err(anyhow!(
+                "RZ(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            self.apply_wrapped_void(Operation::TK2Gate {
+                qubit_id_1: q0,
+                qubit_id_2: q1,
+                alpha,
+                beta,
+                gamma,
+            })
+        } else {
+            Err(anyhow!(
+                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        if q0 < self.n_qubits && q1 < self.n_qubits {
+            self.apply_wrapped_void(Operation::RPPGate {
+                qubit_id_1: q0,
+                qubit_id_2: q1,
+                theta,
+                phi,
+            })
+        } else {
+            Err(anyhow!(
+                "RPP(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+
+    fn measure(&mut self, q0: u64) -> Result<bool> {
+        if q0 >= self.n_qubits {
+            Err(anyhow!(
+                "Measure(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        } else if self.next_postselection_index < self.current_shot_postselections.len() {
+            let measurement = self.current_shot_postselections[self.next_postselection_index];
+            self.next_postselection_index += 1;
+            self.wrapped.postselect(q0, measurement)?;
+            Ok(measurement)
+        } else if self.resume_with_measurement {
+            self.measurements_performed += 1;
+            self.apply_wrapped_measure(q0)
+        } else {
+            Err(anyhow!(
+                "All measurements have been consumed, and resume_with_measurement is set to false. If you intend to switch to measurements after postselection measurements have been consumed, set resume_with_measurement to true."
+            ))
+        }
+    }
+
+    fn reset(&mut self, q0: u64) -> Result<()> {
+        if q0 >= self.n_qubits {
+            Err(anyhow!(
+                "Reset(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        } else {
+            self.apply_wrapped_void(Operation::Reset { qubit_id: q0 })
+        }
+    }
+}
+
 impl SimulatorInterface for QuantumReplaySimulator {
     fn exit(&mut self) -> Result<()> {
         Ok(())
@@ -83,95 +225,50 @@ impl SimulatorInterface for QuantumReplaySimulator {
         }
     }
 
-    fn rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
-        if q0 < self.n_qubits {
-            self.wrapped.rxy(q0, theta, phi)
-        } else {
-            Err(anyhow!(
-                "RXY(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => self.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+                _ => {}
+            }
         }
+        Ok(results)
     }
 
-    fn rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
-        if q0 < self.n_qubits && q1 < self.n_qubits {
-            self.wrapped.rzz(q0, q1, theta)
-        } else {
-            Err(anyhow!(
-                "RZZ(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        }
-    }
-
-    fn rz(&mut self, q0: u64, theta: f64) -> Result<()> {
-        if q0 < self.n_qubits {
-            self.wrapped.rz(q0, theta)
-        } else {
-            Err(anyhow!(
-                "RZ(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        }
-    }
-
-    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        if q0 < self.n_qubits && q1 < self.n_qubits {
-            self.wrapped.tk2(q0, q1, alpha, beta, gamma)
-        } else {
-            Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        }
-    }
-
-    fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
-        if q0 < self.n_qubits && q1 < self.n_qubits {
-            self.wrapped.rpp(q0, q1, theta, phi)
-        } else {
-            Err(anyhow!(
-                "RPP(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        }
-    }
-
-    fn measure(&mut self, q0: u64) -> Result<bool> {
-        if q0 >= self.n_qubits {
-            Err(anyhow!(
-                "Measure(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        } else if self.next_postselection_index < self.current_shot_postselections.len() {
-            // postselect
-            let measurement = self.current_shot_postselections[self.next_postselection_index];
-            self.next_postselection_index += 1;
-            self.wrapped.postselect(q0, measurement)?;
-            Ok(measurement)
-        } else if self.resume_with_measurement {
-            // measure
-            self.measurements_performed += 1;
-            self.wrapped.measure(q0)
-        } else {
-            // exhausted predefined measurements, resume_with_measurement is false
-            Err(anyhow!(
-                "All measurements have been consumed, and resume_with_measurement is set to false. If you intend to switch to measurements after postselection measurements have been consumed, set resume_with_measurement to true."
-            ))
-        }
-    }
-
-    fn reset(&mut self, q0: u64) -> Result<()> {
-        if q0 >= self.n_qubits {
-            Err(anyhow!(
-                "Reset(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        } else {
-            self.wrapped.reset(q0)
-        }
-    }
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         match nth_metric {
             0 => Ok(Some((

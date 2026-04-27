@@ -1,6 +1,8 @@
 use anyhow::{Result, bail};
 use std::sync::Arc;
 
+use crate::error_model::BatchResult;
+use crate::runtime::BatchOperation;
 use crate::utils::MetricValue;
 
 pub trait SimulatorInterface {
@@ -16,44 +18,9 @@ pub trait SimulatorInterface {
     // shot.
     fn shot_end(&mut self) -> Result<()>;
 
-    // Perform a Z rotation on the given qubit with the given angle.
-    fn rz(&mut self, _qubit: u64, _theta: f64) -> Result<()> {
-        bail!("SimulatorInterface: The chosen simulator does not support the RZ gate");
-    }
-
-    // Perform an Rxy gate on the given qubit with the given angles.
-    // This gate is also known as phased_x and R1XY
-    fn rxy(&mut self, _qubit: u64, _theta: f64, _phi: f64) -> Result<()> {
-        bail!("SimulatorInterface: The chosen simulator does not support the RXY gate");
-    }
-
-    // Perform an Rzz gate between the given qubits with the given angle.
-    // This gate is also known as zz_phase, phase_shift, and R2ZZ
-    fn rzz(&mut self, _qubit1: u64, _qubit2: u64, _theta: f64) -> Result<()> {
-        bail!("SimulatorInterface: The chosen simulator does not support the RZZ gate");
-    }
-
-    // Perform a TK2 gate between the given qubits with the given angles.
-    // This gate is also known as the SU(4) gate.
-    fn tk2(
-        &mut self,
-        _qubit1: u64,
-        _qubit2: u64,
-        _alpha: f64,
-        _beta: f64,
-        _gamma: f64,
-    ) -> Result<()> {
-        bail!("SimulatorInterface: The chosen simulator does not support the TK2 gate");
-    }
-
-    // Perform an Rpp gate between the given qubits with the given angles.
-    fn rpp(&mut self, _qubit1: u64, _qubit2: u64, _theta: f64, _phi: f64) -> Result<()> {
-        bail!("SimulatorInterface: The chosen simulator does not support the RPP gate");
-    }
-
-    // Perform a measurement on the given qubit.
-    // The result of the measurement is returned as a boolean.
-    fn measure(&mut self, qubit: u64) -> Result<bool>;
+    // Perform a batch of runtime operations on the simulator and return the
+    // results of any measurements in the batch.
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult>;
 
     // Perform a post-selection on the given qubit.
     // If the post-selection isn't deemed possible, return an error.
@@ -62,9 +29,6 @@ pub trait SimulatorInterface {
     fn postselect(&mut self, _qubit: u64, _target_value: bool) -> Result<()> {
         bail!("Post-selection is not supported on the chosen simulator.");
     }
-
-    // Reset the given qubit to the |0> state.
-    fn reset(&mut self, qubit: u64) -> Result<()>;
 
     // Provide a metric to the output stream.
     // Will be called with incrementing `nth_metric` until `None` is returned.

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::utils::MetricValue;
 
-use super::BatchOperation;
+use crate::operation::BatchOperation;
 
 /// Instances of runtime plugins implement this interface.
 ///

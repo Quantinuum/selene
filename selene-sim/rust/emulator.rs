@@ -1,15 +1,91 @@
-use crate::event_hooks::{EventHook, MultiEventHook, Operation};
+use crate::event_hooks::{Operation, SharedEventHook};
 use crate::selene_instance::configuration::Configuration;
 use anyhow::{Result, anyhow};
-use selene_core::error_model::{ErrorModel, ErrorModelInterface};
-use selene_core::runtime::{Runtime, RuntimeInterface};
+use selene_core::error_model::{BatchResult, ErrorModel, ErrorModelInterface};
+use selene_core::runtime::{
+    BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInterface,
+};
 use selene_core::simulator::{Simulator, SimulatorInterface};
+use std::time::Instant;
+
+struct HookedSimulator {
+    inner: Box<dyn SimulatorInterface>,
+    event_hooks: SharedEventHook,
+}
+
+impl HookedSimulator {
+    fn new(inner: Box<dyn SimulatorInterface>, event_hooks: SharedEventHook) -> Self {
+        Self { inner, event_hooks }
+    }
+}
+
+fn time_simulator_call<T>(
+    event_hooks: &SharedEventHook,
+    operation: &Operation,
+    callback: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    event_hooks.on_error_model_output(operation);
+    let start = Instant::now();
+    let result = callback();
+    let duration_ns = start.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+    event_hooks.on_simulator_call(operation, duration_ns);
+    result
+}
+
+fn singleton_batch(operation: RuntimeOperation) -> BatchOperation {
+    BatchOperation::simulator(vec![operation])
+}
+
+impl SimulatorInterface for HookedSimulator {
+    fn exit(&mut self) -> Result<()> {
+        self.inner.exit()
+    }
+
+    fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
+        self.inner.shot_start(shot_id, seed)
+    }
+
+    fn shot_end(&mut self) -> Result<()> {
+        self.inner.shot_end()
+    }
+
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            let event_operation = Operation::from_simulator_operation(&operation);
+            let batch = singleton_batch(operation);
+            let batch_results = time_simulator_call(&self.event_hooks, &event_operation, || {
+                self.inner.handle_operations(batch)
+            })?;
+            results.extend(batch_results);
+        }
+        Ok(results)
+    }
+
+    fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
+        let operation = Operation::Postselect(qubit, target_value);
+        time_simulator_call(&self.event_hooks, &operation, || {
+            self.inner.postselect(qubit, target_value)
+        })
+    }
+
+    fn get_metric(
+        &mut self,
+        nth_metric: u8,
+    ) -> Result<Option<(String, selene_core::utils::MetricValue)>> {
+        self.inner.get_metric(nth_metric)
+    }
+
+    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+        self.inner.dump_state(file, qubits)
+    }
+}
 
 pub struct Emulator {
     pub runtime: Runtime,
     pub simulator: Simulator,
     pub error_model: ErrorModel,
-    pub event_hooks: MultiEventHook,
+    pub event_hooks: SharedEventHook,
 }
 
 // User-issued function calls
@@ -36,7 +112,7 @@ impl Emulator {
         )?;
 
         // Set up the event hooks
-        let mut event_hooks = MultiEventHook::default();
+        let event_hooks = SharedEventHook::default();
         if config.event_hooks.provide_metrics {
             event_hooks.add_hook(Box::new(
                 crate::event_hooks::metrics::HighLevelMetrics::default(),
@@ -52,6 +128,11 @@ impl Emulator {
                 crate::event_hooks::measurement_log::MeasurementLog::default(),
             ));
         }
+
+        let simulator = Simulator::from_boxed(Box::new(HookedSimulator::new(
+            simulator.into_boxed(),
+            event_hooks.clone(),
+        )));
 
         Ok(Self {
             runtime,

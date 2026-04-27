@@ -6,6 +6,16 @@ from selene_sim.backends import Quest, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore, CircuitExtractor, MultiEventHook
 
 
+def _snapshot_instruction_log(shot_instructions):
+    result = []
+    for event in shot_instructions:
+        operation = event.operation.to_dict()
+        if event.duration_ns is not None:
+            operation["duration_ns"] = 0
+        result.append({"source": str(event.source), "operation": operation})
+    return result
+
+
 def test_batching_behaviour(snapshot, compiled_guppy):
     guppy_source = dedent(
         """
@@ -91,15 +101,12 @@ def test_batching_behaviour(snapshot, compiled_guppy):
             )
 
     for batching, output_instructions in instructions.items():
-        format_friendly = [
-            {"source": str(event.source), "operation": event.operation.to_dict()}
-            for event in output_instructions
-        ]
+        format_friendly = _snapshot_instruction_log(output_instructions)
         snapshot.assert_match(
             json.dumps(format_friendly, indent=2),
             f"instructions_batching_{batching}.json",
         )
-        trace = output_instructions.get_trace()
+        trace = output_instructions.get_trace().clear_simulator_perf_timing()
         snapshot.assert_match(
             trace.model_dump_json(indent=2),
             f"trace_batching_{batching}.json",

@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::Arc;
 
 use crate::error_model::BatchResult;
-use crate::runtime::BatchOperation;
+use crate::operation::BatchOperation;
 use crate::simulator::SimulatorInterface;
 use crate::utils::MetricValue;
 

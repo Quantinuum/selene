@@ -10,7 +10,9 @@
 // as giving their real/imaginary parts for simplicity. The outputs are provided
 // in the comments within the implementation of each gate within this source file.
 use anyhow::{Result, anyhow, bail};
+use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -94,6 +96,61 @@ impl SimulatorInterface for QuestSimulator {
         Ok(())
     }
 
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => self.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+                _ => {}
+            }
+        }
+        Ok(results)
+    }
+    fn postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
+        self.do_postselect(q0, target_value)
+    }
+    fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+        self.do_get_metric(nth_metric)
+    }
+    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+        self.do_dump_state(file, qubits)
+    }
+}
+
+impl QuestSimulator {
     fn rz(&mut self, q0: u64, theta: f64) -> Result<()> {
         if q0 >= self.n_qubits {
             Err(anyhow!(
@@ -390,7 +447,7 @@ impl SimulatorInterface for QuestSimulator {
         }
     }
 
-    fn postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
+    fn do_postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
         if q0 >= self.n_qubits {
             Err(anyhow!(
                 "Postselect(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
@@ -435,7 +492,7 @@ impl SimulatorInterface for QuestSimulator {
             Ok(())
         }
     }
-    fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+    fn do_get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         match nth_metric {
             0 => Ok(Some((
                 "cumulative_postselect_probability".to_string(),
@@ -444,7 +501,7 @@ impl SimulatorInterface for QuestSimulator {
             _ => Ok(None),
         }
     }
-    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+    fn do_dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
         let handle = std::fs::File::create(file)?;
         let mut writer = std::io::BufWriter::new(handle);
         writer.write_all(b"selene-quest")?;

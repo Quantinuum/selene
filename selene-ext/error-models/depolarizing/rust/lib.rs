@@ -67,31 +67,45 @@ pub struct DepolarizingErrorModel {
 }
 
 impl DepolarizingErrorModel {
-    pub fn apply_error(
+    fn singleton_batch(op: Operation) -> BatchOperation {
+        BatchOperation::error_model(vec![op])
+    }
+
+    fn flush_pending(
         &mut self,
-        qubit: u64,
-        error: ErrorType,
+        pending: &mut Vec<Operation>,
         simulator: &mut dyn SimulatorInterface,
+        results: &mut BatchResult,
     ) -> Result<()> {
-        match error {
-            ErrorType::I => (),
-            ErrorType::X => {
-                simulator.rxy(qubit, std::f64::consts::PI, 0.0)?;
-            }
-            ErrorType::Y => {
-                simulator.rxy(qubit, std::f64::consts::PI, std::f64::consts::PI / 2.0)?;
-            }
-            ErrorType::Z => {
-                simulator.rz(qubit, std::f64::consts::PI)?;
-            }
+        if pending.is_empty() {
+            return Ok(());
         }
+        results.extend(
+            simulator.handle_operations(BatchOperation::error_model(std::mem::take(pending)))?,
+        );
         Ok(())
     }
-    fn maybe_apply_1q_error(
-        &mut self,
-        q0: u64,
-        simulator: &mut dyn SimulatorInterface,
-    ) -> Result<()> {
+
+    fn error_operation(&self, qubit: u64, error: ErrorType) -> Option<Operation> {
+        match error {
+            ErrorType::I => None,
+            ErrorType::X => Some(Operation::RXYGate {
+                qubit_id: qubit,
+                theta: std::f64::consts::PI,
+                phi: 0.0,
+            }),
+            ErrorType::Y => Some(Operation::RXYGate {
+                qubit_id: qubit,
+                theta: std::f64::consts::PI,
+                phi: std::f64::consts::PI / 2.0,
+            }),
+            ErrorType::Z => Some(Operation::RZGate {
+                qubit_id: qubit,
+                theta: std::f64::consts::PI,
+            }),
+        }
+    }
+    fn maybe_apply_1q_error(&mut self, q0: u64) -> Result<Option<Operation>> {
         // validate arg
         if q0 >= self.n_qubits {
             bail!(
@@ -119,16 +133,9 @@ impl DepolarizingErrorModel {
             ErrorType::Y => self.stats.err_count_1q_y += 1,
             ErrorType::Z => self.stats.err_count_1q_z += 1,
         }
-        // apply error
-        self.apply_error(q0, error, simulator)?;
-        Ok(())
+        Ok(self.error_operation(q0, error))
     }
-    fn maybe_apply_2q_error(
-        &mut self,
-        q0: u64,
-        q1: u64,
-        simulator: &mut dyn SimulatorInterface,
-    ) -> Result<()> {
+    fn maybe_apply_2q_error(&mut self, q0: u64, q1: u64) -> Result<Vec<Operation>> {
         // validate arg
         if q0 >= self.n_qubits || q1 >= self.n_qubits {
             bail!(
@@ -180,10 +187,14 @@ impl DepolarizingErrorModel {
             (ErrorType::Z, ErrorType::Y) => self.stats.err_count_2q_zy += 1,
             (ErrorType::Z, ErrorType::Z) => self.stats.err_count_2q_zz += 1,
         }
-        // apply error
-        self.apply_error(q0, error0, simulator)?;
-        self.apply_error(q1, error1, simulator)?;
-        Ok(())
+        let mut operations = Vec::new();
+        if let Some(op) = self.error_operation(q0, error0) {
+            operations.push(op);
+        }
+        if let Some(op) = self.error_operation(q1, error1) {
+            operations.push(op);
+        }
+        Ok(operations)
     }
     fn maybe_flip_measurement(&mut self, _qubit: u64, result: bool) -> bool {
         let val = self.rng.random::<f64>();
@@ -196,18 +207,14 @@ impl DepolarizingErrorModel {
             result
         }
     }
-    fn maybe_flip_on_init(
-        &mut self,
-        qubit: u64,
-        simulator: &mut dyn SimulatorInterface,
-    ) -> Result<()> {
+    fn maybe_flip_on_init(&mut self, qubit: u64) -> Result<Option<Operation>> {
         self.stats.init_count += 1;
         let val = self.rng.random::<f64>();
         if val < self.error_params.p_init {
             self.stats.init_errors += 1;
-            self.apply_error(qubit, ErrorType::X, simulator)?;
+            return Ok(self.error_operation(qubit, ErrorType::X));
         }
-        Ok(())
+        Ok(None)
     }
 }
 
@@ -231,6 +238,7 @@ impl ErrorModelInterface for DepolarizingErrorModel {
         simulator: &mut dyn SimulatorInterface,
     ) -> Result<BatchResult> {
         let mut results = BatchResult::default();
+        let mut pending = Vec::new();
         for op in operations {
             match op {
                 Operation::RXYGate {
@@ -238,20 +246,32 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     theta,
                     phi,
                 } => {
-                    self.maybe_apply_1q_error(qubit_id, simulator)?;
-                    simulator.rxy(qubit_id, theta, phi)?;
+                    if let Some(error) = self.maybe_apply_1q_error(qubit_id)? {
+                        pending.push(error);
+                    }
+                    pending.push(Operation::RXYGate {
+                        qubit_id,
+                        theta,
+                        phi,
+                    });
                 }
                 Operation::RZGate { qubit_id, theta } => {
-                    self.maybe_apply_1q_error(qubit_id, simulator)?;
-                    simulator.rz(qubit_id, theta)?;
+                    if let Some(error) = self.maybe_apply_1q_error(qubit_id)? {
+                        pending.push(error);
+                    }
+                    pending.push(Operation::RZGate { qubit_id, theta });
                 }
                 Operation::RZZGate {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
                 } => {
-                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2, simulator)?;
-                    simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
+                    pending.extend(self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?);
+                    pending.push(Operation::RZZGate {
+                        qubit_id_1,
+                        qubit_id_2,
+                        theta,
+                    });
                 }
                 Operation::TK2Gate {
                     qubit_id_1,
@@ -260,8 +280,14 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     beta,
                     gamma,
                 } => {
-                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2, simulator)?;
-                    simulator.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                    pending.extend(self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?);
+                    pending.push(Operation::TK2Gate {
+                        qubit_id_1,
+                        qubit_id_2,
+                        alpha,
+                        beta,
+                        gamma,
+                    });
                 }
                 Operation::RPPGate {
                     qubit_id_1,
@@ -269,30 +295,59 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     theta,
                     phi,
                 } => {
-                    self.maybe_apply_2q_error(qubit_id_1, qubit_id_2, simulator)?;
-                    simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                    pending.extend(self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?);
+                    pending.push(Operation::RPPGate {
+                        qubit_id_1,
+                        qubit_id_2,
+                        theta,
+                        phi,
+                    });
                 }
                 Operation::Measure {
                     qubit_id,
                     result_id,
                 } => {
-                    let measurement = simulator.measure(qubit_id)?;
-                    let modified_measurement = self.maybe_flip_measurement(qubit_id, measurement);
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
+                    let measurement_result =
+                        simulator.handle_operations(Self::singleton_batch(Operation::Measure {
+                            qubit_id,
+                            result_id,
+                        }))?;
+                    let Some(measurement) = measurement_result.bool_results.into_iter().next()
+                    else {
+                        bail!("Depolarizing error model did not receive a measurement result");
+                    };
+                    let modified_measurement =
+                        self.maybe_flip_measurement(qubit_id, measurement.value);
                     results.set_bool_result(result_id, modified_measurement);
                 }
                 Operation::MeasureLeaked {
                     qubit_id,
                     result_id,
                 } => {
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
                     // We aren't modelling leakage so this is the same as a normal measurement,
                     // except we set the u64 future as 0 or 1 (leakage would include higher values)
-                    let measurement = simulator.measure(qubit_id)?;
-                    let modified_measurement = self.maybe_flip_measurement(qubit_id, measurement);
+                    let measurement_result =
+                        simulator.handle_operations(Self::singleton_batch(Operation::Measure {
+                            qubit_id,
+                            result_id,
+                        }))?;
+                    let Some(measurement) = measurement_result.bool_results.into_iter().next()
+                    else {
+                        bail!(
+                            "Depolarizing error model did not receive a leaked measurement result"
+                        );
+                    };
+                    let modified_measurement =
+                        self.maybe_flip_measurement(qubit_id, measurement.value);
                     results.set_u64_result(result_id, if modified_measurement { 1 } else { 0 });
                 }
                 Operation::Reset { qubit_id } => {
-                    simulator.reset(qubit_id)?;
-                    self.maybe_flip_on_init(qubit_id, simulator)?;
+                    pending.push(Operation::Reset { qubit_id });
+                    if let Some(error) = self.maybe_flip_on_init(qubit_id)? {
+                        pending.push(error);
+                    }
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
@@ -302,6 +357,7 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                 }
             }
         }
+        self.flush_pending(&mut pending, simulator, &mut results)?;
         Ok(results)
     }
 

@@ -1,12 +1,15 @@
-use crate::runtime::Operation;
+pub use crate::operation::Operation;
+pub use crate::operation::plugin::{
+    BatchBuilder, BatchExtractor, RuntimeExtractOperationHandle, RuntimeExtractOperationInstance,
+    RuntimeExtractOperationInterface, RuntimeGetOperationHandle, RuntimeGetOperationInstance,
+    RuntimeGetOperationInterface,
+};
 use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
 
 use super::{BatchOperation, RuntimeAPIVersion, RuntimeInterface, RuntimeInterfaceFactory};
 use anyhow::{Result, anyhow};
-use core::slice;
 use libloading;
 use std::ffi::OsStr;
-use std::marker::PhantomData;
 use std::{ffi, sync::Arc};
 
 pub type RuntimeInstance = *mut ffi::c_void;
@@ -26,11 +29,8 @@ pub struct RuntimePluginDescriptorV1 {
         argv: *const *const ffi::c_char,
     ) -> Errno,
     pub exit_fn: Option<unsafe extern "C" fn(handle: RuntimeInstance) -> Errno>,
-    pub get_next_operations_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        instance: RuntimeGetOperationInstance,
-        interface: *const RuntimeGetOperationInterface,
-    ) -> Errno,
+    pub get_next_operations_fn:
+        unsafe extern "C" fn(handle: RuntimeInstance, ops: RuntimeGetOperationHandle) -> Errno,
     pub shot_start_fn:
         unsafe extern "C" fn(handle: RuntimeInstance, shot_id: u64, seed: u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(handle: RuntimeInstance) -> Errno,
@@ -125,11 +125,8 @@ pub struct RuntimePluginInterface {
         argv: *const *const ffi::c_char,
     ) -> Errno,
     exit_fn: Option<unsafe extern "C" fn(handle: RuntimeInstance) -> Errno>,
-    get_next_operations_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        instance: RuntimeGetOperationInstance,
-        interface: *const RuntimeGetOperationInterface,
-    ) -> Errno,
+    get_next_operations_fn:
+        unsafe extern "C" fn(handle: RuntimeInstance, ops: RuntimeGetOperationHandle) -> Errno,
     shot_start_fn: unsafe extern "C" fn(handle: RuntimeInstance, shot_id: u64, seed: u64) -> Errno,
     shot_end_fn: unsafe extern "C" fn(handle: RuntimeInstance) -> Errno,
     get_metrics_fn: Option<
@@ -314,15 +311,9 @@ impl RuntimeInterface for RuntimePlugin {
 
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         let mut batch_builder = BatchBuilder::default();
-        let (instance, interface) = batch_builder.runtime_get_operation();
+        let ops = batch_builder.runtime_get_operation();
         check_errno(
-            unsafe {
-                (self.interface.get_next_operations_fn)(
-                    self.instance,
-                    instance,
-                    &raw const interface,
-                )
-            },
+            unsafe { (self.interface.get_next_operations_fn)(self.instance, ops) },
             || anyhow!("RuntimePlugin: get_next_operations failed"),
         )?;
         Ok(Some(batch_builder.finish()).filter(|b| !b.is_empty()))
@@ -577,327 +568,4 @@ impl RuntimeInterface for RuntimePlugin {
             ))
         }
     }
-}
-
-/// A helper type used by the plugin tooling above to implement
-/// [RuntimeGetOperationInterface].
-#[derive(Default)]
-pub struct BatchBuilder(Vec<Operation>, crate::time::Instant, crate::time::Duration);
-
-impl BatchBuilder {
-    // pub fn new() -> Self {
-    //     Self(None)
-    // }
-
-    fn push(interface: RuntimeGetOperationInstance, op: Operation) {
-        Self::with_interface(interface, move |this| this.0.push(op))
-    }
-
-    fn with_interface<T>(
-        interface: RuntimeGetOperationInstance,
-        go: impl FnOnce(&mut Self) -> T,
-    ) -> T {
-        let this = interface as *mut Self;
-        let this = unsafe { &mut *this };
-        go(this)
-    }
-
-    unsafe extern "C" fn rzz(
-        interface: RuntimeGetOperationInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        theta: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::RZZGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-            },
-        )
-    }
-
-    unsafe extern "C" fn rz(interface: RuntimeGetOperationInstance, qubit_id: u64, theta: f64) {
-        Self::push(interface, Operation::RZGate { qubit_id, theta })
-    }
-
-    unsafe extern "C" fn rxy(
-        interface: RuntimeGetOperationInstance,
-        qubit_id: u64,
-        theta: f64,
-        phi: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::RXYGate {
-                qubit_id,
-                theta,
-                phi,
-            },
-        )
-    }
-
-    unsafe extern "C" fn rpp(
-        interface: RuntimeGetOperationInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        theta: f64,
-        phi: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::RPPGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-                phi,
-            },
-        )
-    }
-
-    unsafe extern "C" fn tk2(
-        interface: RuntimeGetOperationInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::TK2Gate {
-                qubit_id_1,
-                qubit_id_2,
-                alpha,
-                beta,
-                gamma,
-            },
-        )
-    }
-
-    unsafe extern "C" fn measure(
-        interface: RuntimeGetOperationInstance,
-        qubit_id: u64,
-        result_id: u64,
-    ) {
-        Self::push(
-            interface,
-            Operation::Measure {
-                qubit_id,
-                result_id,
-            },
-        )
-    }
-
-    unsafe extern "C" fn measure_leaked(
-        interface: RuntimeGetOperationInstance,
-        qubit_id: u64,
-        result_id: u64,
-    ) {
-        Self::push(
-            interface,
-            Operation::MeasureLeaked {
-                qubit_id,
-                result_id,
-            },
-        )
-    }
-
-    unsafe extern "C" fn reset(interface: RuntimeGetOperationInstance, qubit_id: u64) {
-        Self::push(interface, Operation::Reset { qubit_id })
-    }
-
-    unsafe extern "C" fn custom(
-        interface: RuntimeGetOperationInstance,
-        custom_tag: usize,
-        data: *const ffi::c_void,
-        len: usize,
-    ) {
-        let data = unsafe { slice::from_raw_parts(data as *mut u8, len) }
-            .to_vec()
-            .into_boxed_slice();
-        Self::push(interface, Operation::Custom { custom_tag, data })
-    }
-
-    unsafe extern "C" fn set_batch_time(
-        interface: RuntimeGetOperationInstance,
-        start: u64,
-        duration: u64,
-    ) {
-        Self::with_interface(interface, |this| {
-            this.1 = start.into();
-            this.2 = duration.into();
-        })
-    }
-
-    /// The plugin calls this to obtain an instance and an interface.
-    /// The lifetime parameter of the interface ensures that it cannot outlive the `Vec`
-    /// that the functions will mutate.
-    pub fn runtime_get_operation(
-        &mut self,
-    ) -> (
-        RuntimeGetOperationInstance,
-        RuntimeGetOperationInterface<'_>,
-    ) {
-        let instance = &raw mut self.0 as RuntimeGetOperationInstance;
-        let interface = RuntimeGetOperationInterface {
-            measure_fn: Self::measure,
-            measure_leaked_fn: Self::measure_leaked,
-            reset_fn: Self::reset,
-            custom_fn: Self::custom,
-            set_batch_time_fn: Self::set_batch_time,
-            rzz_fn: Self::rzz,
-            rxy_fn: Self::rxy,
-            rz_fn: Self::rz,
-            rpp_fn: Self::rpp,
-            tk2_fn: Self::tk2,
-            _marker: PhantomData,
-        };
-        (instance, interface)
-    }
-
-    /// Consumes the `BatchBuilder` returning the accumulated operations.
-    pub fn finish(self) -> BatchOperation {
-        BatchOperation {
-            ops: self.0,
-            start: self.1,
-            duration: self.2,
-        }
-    }
-}
-
-/// An instance is provided to `selene_runtime_get_next_operations`, which must
-/// pass that back to any function it calls in it's provided
-/// [RuntimeGetOperationInterface].
-pub type RuntimeGetOperationInstance = *mut ffi::c_void;
-
-#[repr(C)]
-#[non_exhaustive]
-/// A plugin's implementation of `selene_runtime_get_next_operations` is provided
-/// a pointer to a `RuntimeGetOperationInterface` as well as a
-/// [RuntimeGetOperationInstance]. It should call the functions
-/// within to populate a batch. All such calls must pass the instance as the
-/// first parameter.
-pub struct RuntimeGetOperationInterface<'a> {
-    pub measure_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
-    pub measure_leaked_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
-    pub reset_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64),
-    pub custom_fn:
-        unsafe extern "C" fn(RuntimeGetOperationInstance, usize, *const ffi::c_void, usize),
-    pub set_batch_time_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
-    pub rzz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64),
-    pub rxy_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64, f64),
-    pub rz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64),
-    pub rpp_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
-    pub tk2_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64, f64),
-    _marker: PhantomData<&'a ()>,
-}
-
-#[derive(Default)]
-pub struct BatchExtractor(BatchOperation);
-
-impl BatchExtractor {
-    pub fn from_batch_operation(batch: BatchOperation) -> Self {
-        Self(batch)
-    }
-    pub unsafe extern "C" fn extract(
-        instance_in: RuntimeExtractOperationInstance,
-        instance_out: RuntimeGetOperationInstance,
-        interface_out: RuntimeGetOperationInterface,
-    ) {
-        let batch_ptr = instance_in as *const BatchOperation;
-        let batch: &BatchOperation = unsafe { &*batch_ptr };
-        let RuntimeGetOperationInterface {
-            measure_fn,
-            measure_leaked_fn,
-            reset_fn,
-            custom_fn,
-            set_batch_time_fn,
-            rzz_fn,
-            rxy_fn,
-            rz_fn,
-            rpp_fn,
-            tk2_fn,
-            ..
-        } = interface_out;
-        unsafe { set_batch_time_fn(instance_out, batch.start().into(), batch.duration().into()) };
-        for operation in batch.iter_ops() {
-            match operation {
-                Operation::Measure {
-                    qubit_id,
-                    result_id,
-                } => unsafe { measure_fn(instance_out, *qubit_id, *result_id) },
-                Operation::MeasureLeaked {
-                    qubit_id,
-                    result_id,
-                } => unsafe { measure_leaked_fn(instance_out, *qubit_id, *result_id) },
-                Operation::Reset { qubit_id } => unsafe { reset_fn(instance_out, *qubit_id) },
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => unsafe { rxy_fn(instance_out, *qubit_id, *theta, *phi) },
-                Operation::RZGate { qubit_id, theta } => unsafe {
-                    rz_fn(instance_out, *qubit_id, *theta)
-                },
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => unsafe { rzz_fn(instance_out, *qubit_id_1, *qubit_id_2, *theta) },
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => unsafe { rpp_fn(instance_out, *qubit_id_1, *qubit_id_2, *theta, *phi) },
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => unsafe {
-                    tk2_fn(
-                        instance_out,
-                        *qubit_id_1,
-                        *qubit_id_2,
-                        *alpha,
-                        *beta,
-                        *gamma,
-                    )
-                },
-                Operation::Custom { custom_tag, data } => {
-                    let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
-                    unsafe { custom_fn(instance_out, *custom_tag, ptr, len) }
-                }
-            }
-        }
-    }
-    pub fn runtime_batch_extraction(
-        &mut self,
-    ) -> (
-        RuntimeExtractOperationInstance,
-        RuntimeExtractOperationInterface<'_>,
-    ) {
-        let instance = &raw mut self.0 as RuntimeExtractOperationInstance;
-        let reoi = RuntimeExtractOperationInterface {
-            extract_fn: Self::extract,
-            _marker: PhantomData,
-        };
-        (instance, reoi)
-    }
-}
-
-pub type RuntimeExtractOperationInstance = *mut ffi::c_void;
-#[repr(C)]
-#[non_exhaustive]
-pub struct RuntimeExtractOperationInterface<'a> {
-    pub extract_fn: unsafe extern "C" fn(
-        RuntimeExtractOperationInstance,
-        RuntimeGetOperationInstance,
-        RuntimeGetOperationInterface,
-    ),
-    _marker: PhantomData<&'a ()>,
 }

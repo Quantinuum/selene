@@ -1,12 +1,20 @@
 use super::{
     RuntimeInterface,
-    plugin::{Errno, RuntimeGetOperationInstance, RuntimeGetOperationInterface, RuntimeInstance},
+    plugin::{Errno, RuntimeInstance},
 };
 use crate::{
+    operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface},
     runtime::Operation,
     utils::{result_of_errno_to_errno, result_to_errno},
 };
 use std::{ffi, marker::PhantomData};
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RuntimeHandle<'a> {
+    pub instance: RuntimeInstance,
+    pub interface: RuntimeOperationInterface<'a>,
+}
 
 /// Owns a Rust runtime implementation and exposes a C-ABI-friendly
 /// `(instance pointer, function table)` pair for dependency injection.
@@ -19,10 +27,10 @@ impl RuntimeFFIAdapter {
         Self { runtime }
     }
 
-    pub fn ffi_interface(&mut self) -> (RuntimeInstance, RuntimeOperationInterface<'static>) {
-        (
-            &raw mut self.runtime as RuntimeInstance,
-            RuntimeOperationInterface {
+    pub fn ffi_interface(&mut self) -> RuntimeHandle<'static> {
+        RuntimeHandle {
+            instance: &raw mut self.runtime as RuntimeInstance,
+            interface: RuntimeOperationInterface {
                 exit_fn: Self::exit,
                 get_next_operations_fn: Self::get_next_operations,
                 shot_start_fn: Self::shot_start,
@@ -51,7 +59,7 @@ impl RuntimeFFIAdapter {
                 simulate_delay_fn: Self::simulate_delay,
                 _marker: PhantomData,
             },
-        )
+        }
     }
 
     unsafe fn with_runtime<T>(
@@ -71,8 +79,7 @@ impl RuntimeFFIAdapter {
 
     unsafe extern "C" fn get_next_operations(
         instance: RuntimeInstance,
-        ops_instance: RuntimeGetOperationInstance,
-        ops_interface: *const RuntimeGetOperationInterface,
+        ops: RuntimeGetOperationHandle,
     ) -> Errno {
         result_to_errno("RuntimeFFIAdapter: get_next_operations failed", unsafe {
             Self::with_runtime(instance, |runtime| {
@@ -91,38 +98,44 @@ impl RuntimeFFIAdapter {
                     rpp_fn,
                     tk2_fn,
                     ..
-                } = &*ops_interface;
-                set_batch_time_fn(ops_instance, batch.start().into(), batch.duration().into());
+                } = ops.interface;
+                if let Some(timing) = batch.runtime_source() {
+                    set_batch_time_fn(
+                        ops.instance,
+                        timing.start().into(),
+                        timing.duration().into(),
+                    );
+                }
                 for operation in batch.iter_ops() {
                     match operation {
                         Operation::Measure {
                             qubit_id,
                             result_id,
-                        } => measure_fn(ops_instance, *qubit_id, *result_id),
+                        } => measure_fn(ops.instance, *qubit_id, *result_id),
                         Operation::MeasureLeaked {
                             qubit_id,
                             result_id,
-                        } => measure_leaked_fn(ops_instance, *qubit_id, *result_id),
-                        Operation::Reset { qubit_id } => reset_fn(ops_instance, *qubit_id),
+                        } => measure_leaked_fn(ops.instance, *qubit_id, *result_id),
+                        Operation::Reset { qubit_id } => reset_fn(ops.instance, *qubit_id),
                         Operation::RXYGate {
                             qubit_id,
                             theta,
                             phi,
-                        } => rxy_fn(ops_instance, *qubit_id, *theta, *phi),
+                        } => rxy_fn(ops.instance, *qubit_id, *theta, *phi),
                         Operation::RZGate { qubit_id, theta } => {
-                            rz_fn(ops_instance, *qubit_id, *theta)
+                            rz_fn(ops.instance, *qubit_id, *theta)
                         }
                         Operation::RZZGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
-                        } => rzz_fn(ops_instance, *qubit_id_1, *qubit_id_2, *theta),
+                        } => rzz_fn(ops.instance, *qubit_id_1, *qubit_id_2, *theta),
                         Operation::RPPGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
                             phi,
-                        } => rpp_fn(ops_instance, *qubit_id_1, *qubit_id_2, *theta, *phi),
+                        } => rpp_fn(ops.instance, *qubit_id_1, *qubit_id_2, *theta, *phi),
                         Operation::TK2Gate {
                             qubit_id_1,
                             qubit_id_2,
@@ -130,7 +143,7 @@ impl RuntimeFFIAdapter {
                             beta,
                             gamma,
                         } => tk2_fn(
-                            ops_instance,
+                            ops.instance,
                             *qubit_id_1,
                             *qubit_id_2,
                             *alpha,
@@ -138,7 +151,7 @@ impl RuntimeFFIAdapter {
                             *gamma,
                         ),
                         Operation::Custom { custom_tag, data } => custom_fn(
-                            ops_instance,
+                            ops.instance,
                             *custom_tag,
                             data.as_ptr() as *const ffi::c_void,
                             data.len(),
@@ -415,11 +428,8 @@ impl RuntimeFFIAdapter {
 #[non_exhaustive]
 pub struct RuntimeOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
-    pub get_next_operations_fn: unsafe extern "C" fn(
-        RuntimeInstance,
-        RuntimeGetOperationInstance,
-        *const RuntimeGetOperationInterface,
-    ) -> Errno,
+    pub get_next_operations_fn:
+        unsafe extern "C" fn(RuntimeInstance, RuntimeGetOperationHandle) -> Errno,
     pub shot_start_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
     pub get_metrics_fn:

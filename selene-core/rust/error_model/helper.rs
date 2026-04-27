@@ -5,16 +5,13 @@
 use super::{
     ErrorModelInterface,
     interface::ErrorModelInterfaceFactory,
-    plugin::{
-        Errno, ErrorModelInstance, ErrorModelSetResultInstance, ErrorModelSetResultInterface,
-    },
+    plugin::{Errno, ErrorModelInstance, ErrorModelSetResultHandle, ErrorModelSetResultInterface},
 };
-use crate::runtime::plugin::{
-    BatchBuilder, RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
+use crate::operation::plugin::{
+    BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
 };
 use crate::simulator::Simulator;
-use crate::simulator::inline::SimulatorOperationInterface;
-use crate::simulator::plugin::SimulatorInstance;
+use crate::simulator::inline::SimulatorHandle;
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 use std::{ffi, mem, sync::Arc};
 
@@ -101,34 +98,30 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
 
     pub unsafe fn handle_operations(
         instance: ErrorModelInstance,
-        extract_ops_instance: RuntimeExtractOperationInstance,
-        extract_ops_interface: *const RuntimeExtractOperationInterface,
-        simulator_instance: SimulatorInstance,
-        simulator_interface: *const SimulatorOperationInterface,
-        result_instance: ErrorModelSetResultInstance,
-        result_interface: *const ErrorModelSetResultInterface,
+        batch: RuntimeExtractOperationHandle,
+        simulator: SimulatorHandle<'static>,
+        result: ErrorModelSetResultHandle,
     ) -> Errno {
         result_to_errno(
             "Failed to handle operations",
             Self::with_error_model_instance(instance, |error_model| unsafe {
                 let mut batch_builder: BatchBuilder = BatchBuilder::default();
-                let (builder_instance, builder_interface) = batch_builder.runtime_get_operation();
-                let RuntimeExtractOperationInterface { extract_fn, .. } = &*extract_ops_interface;
-                extract_fn(extract_ops_instance, builder_instance, builder_interface);
-                let mut simulator =
-                    Simulator::from_raw_parts(simulator_instance, *simulator_interface);
+                let builder = batch_builder.runtime_get_operation();
+                let RuntimeExtractOperationInterface { extract_fn, .. } = batch.interface;
+                extract_fn(batch, builder);
+                let mut simulator = Simulator::from_raw_parts(simulator);
                 let results =
                     error_model.handle_operations(batch_builder.finish(), &mut simulator)?;
                 let ErrorModelSetResultInterface {
                     set_bool_result_fn,
                     set_u64_result_fn,
                     ..
-                } = &*result_interface;
+                } = result.interface;
                 for bool_result in results.bool_results {
-                    set_bool_result_fn(result_instance, bool_result.result_id, bool_result.value);
+                    set_bool_result_fn(result.instance, bool_result.result_id, bool_result.value);
                 }
                 for u64_result in results.u64_results {
-                    set_u64_result_fn(result_instance, u64_result.result_id, u64_result.value);
+                    set_u64_result_fn(result.instance, u64_result.result_id, u64_result.value);
                 }
                 anyhow::Ok(())
             }),
@@ -175,14 +168,15 @@ macro_rules! export_error_model_plugin {
                 error_model::{
                     ErrorModelInterfaceFactory,
                     plugin::{
-                        Errno, ErrorModelInstance,
-                        ErrorModelPluginDescriptorV1, ErrorModelSetResultInstance,
+                        Errno, ErrorModelInstance, ErrorModelPluginDescriptorV1,
+                        ErrorModelSetResultHandle, ErrorModelSetResultInstance,
                         ErrorModelSetResultInterface,
                     },
                     version::CURRENT_API_VERSION,
                 },
-                runtime::plugin::{
-                    BatchBuilder, RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
+                operation::plugin::{
+                    BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInstance,
+                    RuntimeExtractOperationInterface,
                 },
             };
 
@@ -286,22 +280,11 @@ macro_rules! export_error_model_plugin {
             /// the results of the measurements in the runtime.
             unsafe extern "C" fn selene_error_model_handle_operations(
                 instance: ErrorModelInstance,
-                extract_ops_instance: RuntimeExtractOperationInstance,
-                extract_ops_interface: *const RuntimeExtractOperationInterface,
-                simulator_instance: selene_core::simulator::plugin::SimulatorInstance,
-                simulator_interface: *const selene_core::simulator::inline::SimulatorOperationInterface,
-                result_instance: ErrorModelSetResultInstance,
-                result_interface: *const ErrorModelSetResultInterface,
+                batch: RuntimeExtractOperationHandle,
+                simulator: selene_core::simulator::inline::SimulatorHandle<'static>,
+                result: ErrorModelSetResultHandle,
             ) -> Errno {
-                Helper::handle_operations(
-                    instance,
-                    extract_ops_instance,
-                    extract_ops_interface,
-                    simulator_instance,
-                    simulator_interface,
-                    result_instance,
-                    result_interface,
-                )
+                Helper::handle_operations(instance, batch, simulator, result)
             }
 
             /// This function is called to get a metric from the error model. When the time comes

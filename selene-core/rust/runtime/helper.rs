@@ -4,12 +4,13 @@
 //! See `selene-simple-runtime-plugin` for a fully worked example.
 use std::{ffi, mem, sync::Arc};
 
+use crate::operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface};
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 
 use super::{
     Operation, RuntimeInterface,
     interface::RuntimeInterfaceFactory,
-    plugin::{Errno, RuntimeGetOperationInstance, RuntimeGetOperationInterface, RuntimeInstance},
+    plugin::{Errno, RuntimeInstance},
 };
 
 #[derive(Default)]
@@ -85,8 +86,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     }
     pub unsafe fn get_next_operations(
         instance: RuntimeInstance,
-        goi: RuntimeGetOperationInstance,
-        callbacks: *const RuntimeGetOperationInterface,
+        ops: RuntimeGetOperationHandle,
     ) -> Errno {
         result_to_errno(
             "Failed in get_next_operations",
@@ -95,7 +95,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     return anyhow::Ok(());
                 };
 
-                let (start, duration) = (batch.start(), batch.duration());
                 let RuntimeGetOperationInterface {
                     measure_fn,
                     measure_leaked_fn,
@@ -108,48 +107,60 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     rpp_fn,
                     tk2_fn,
                     ..
-                } = unsafe { &*callbacks };
-                unsafe { set_batch_time_fn(goi, start.into(), duration.into()) };
+                } = ops.interface;
+                if let Some(timing) = batch.runtime_source() {
+                    unsafe {
+                        set_batch_time_fn(
+                            ops.instance,
+                            timing.start().into(),
+                            timing.duration().into(),
+                        )
+                    };
+                }
                 for op in batch {
                     match op {
                         Operation::Measure {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_fn(goi, qubit_id, result_id) },
+                        } => unsafe { measure_fn(ops.instance, qubit_id, result_id) },
                         Operation::MeasureLeaked {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_leaked_fn(goi, qubit_id, result_id) },
-                        Operation::Reset { qubit_id } => unsafe { reset_fn(goi, qubit_id) },
+                        } => unsafe { measure_leaked_fn(ops.instance, qubit_id, result_id) },
+                        Operation::Reset { qubit_id } => unsafe {
+                            reset_fn(ops.instance, qubit_id)
+                        },
                         Operation::RZGate { qubit_id, theta } => unsafe {
-                            rz_fn(goi, qubit_id, theta)
+                            rz_fn(ops.instance, qubit_id, theta)
                         },
                         Operation::RXYGate {
                             qubit_id,
                             theta,
                             phi,
-                        } => unsafe { rxy_fn(goi, qubit_id, theta, phi) },
+                        } => unsafe { rxy_fn(ops.instance, qubit_id, theta, phi) },
                         Operation::RZZGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
-                        } => unsafe { rzz_fn(goi, qubit_id_1, qubit_id_2, theta) },
+                        } => unsafe { rzz_fn(ops.instance, qubit_id_1, qubit_id_2, theta) },
                         Operation::RPPGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
                             phi,
-                        } => unsafe { rpp_fn(goi, qubit_id_1, qubit_id_2, theta, phi) },
+                        } => unsafe { rpp_fn(ops.instance, qubit_id_1, qubit_id_2, theta, phi) },
                         Operation::TK2Gate {
                             qubit_id_1,
                             qubit_id_2,
                             alpha,
                             beta,
                             gamma,
-                        } => unsafe { tk2_fn(goi, qubit_id_1, qubit_id_2, alpha, beta, gamma) },
+                        } => unsafe {
+                            tk2_fn(ops.instance, qubit_id_1, qubit_id_2, alpha, beta, gamma)
+                        },
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
-                            unsafe { custom_fn(goi, custom_tag, ptr, len) }
+                            unsafe { custom_fn(ops.instance, custom_tag, ptr, len) }
                         }
                     }
                 }
@@ -460,11 +471,11 @@ macro_rules! export_runtime_plugin {
         mod _plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
-                plugin::{
-                    Errno, RuntimeGetOperationInstance,
-                    RuntimeGetOperationInterface, RuntimeInstance, RuntimePluginDescriptorV1,
-                },
+                plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
                 version::CURRENT_API_VERSION,
+            };
+            use selene_core::operation::plugin::{
+                RuntimeGetOperationHandle, RuntimeGetOperationInstance, RuntimeGetOperationInterface,
             };
 
             use std::cell::LazyCell;
@@ -589,10 +600,9 @@ macro_rules! export_runtime_plugin {
             /// through the CircuitExtractor for interpretation.
             unsafe extern "C" fn selene_runtime_get_next_operations(
                 instance: RuntimeInstance,
-                goi: RuntimeGetOperationInstance,
-                callbacks: *const RuntimeGetOperationInterface,
+                ops: RuntimeGetOperationHandle,
             ) -> Errno {
-                Helper::get_next_operations(instance, goi, callbacks)
+                Helper::get_next_operations(instance, ops)
             }
 
             /// This function is called to retrieve any metrics that the runtime is willing

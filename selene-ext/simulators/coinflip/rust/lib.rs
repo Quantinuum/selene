@@ -2,7 +2,9 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
+use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -29,23 +31,6 @@ impl CoinflipSimulator {
     }
     pub fn get_observed_bias(&self) -> f64 {
         self.true_flips as f64 / self.total_flips as f64
-    }
-}
-
-impl SimulatorInterface for CoinflipSimulator {
-    fn exit(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
-        self.rng = Pcg64Mcg::seed_from_u64(seed);
-        Ok(())
-    }
-
-    fn shot_end(&mut self) -> Result<()> {
-        self.true_flips = 0;
-        self.total_flips = 0;
-        Ok(())
     }
 
     fn rxy(&mut self, q0: u64, _theta: f64, _phi: f64) -> Result<()> {
@@ -120,23 +105,84 @@ impl SimulatorInterface for CoinflipSimulator {
         }
     }
 
-    fn postselect(&mut self, q0: u64, _target_value: bool) -> Result<()> {
-        if q0 < self.n_qubits {
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "Postselect(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        }
-    }
-
     fn reset(&mut self, q0: u64) -> Result<()> {
         if q0 < self.n_qubits {
             Ok(())
         } else {
             Err(anyhow!(
                 "Reset(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                self.n_qubits
+            ))
+        }
+    }
+}
+
+impl SimulatorInterface for CoinflipSimulator {
+    fn exit(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
+        self.rng = Pcg64Mcg::seed_from_u64(seed);
+        Ok(())
+    }
+
+    fn shot_end(&mut self) -> Result<()> {
+        self.true_flips = 0;
+        self.total_flips = 0;
+        Ok(())
+    }
+
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::TK2Gate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    alpha,
+                    beta,
+                    gamma,
+                } => self.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+                _ => {}
+            }
+        }
+        Ok(results)
+    }
+
+    fn postselect(&mut self, q0: u64, _target_value: bool) -> Result<()> {
+        if q0 < self.n_qubits {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "Postselect(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
                 self.n_qubits
             ))
         }

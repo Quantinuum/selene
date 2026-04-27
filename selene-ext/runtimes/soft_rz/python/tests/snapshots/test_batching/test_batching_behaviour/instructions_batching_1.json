@@ -875,6 +875,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 0
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 0,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -887,6 +902,21 @@
     "operation": {
       "op": "Reset",
       "qubit": 1
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 1
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 1,
+      "duration_ns": 0
     }
   },
   {
@@ -905,6 +935,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 2
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 2,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -917,6 +962,21 @@
     "operation": {
       "op": "Reset",
       "qubit": 3
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 3
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 3,
+      "duration_ns": 0
     }
   },
   {
@@ -935,6 +995,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 4
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 4,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -947,6 +1022,21 @@
     "operation": {
       "op": "Reset",
       "qubit": 5
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 5
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 5,
+      "duration_ns": 0
     }
   },
   {
@@ -965,6 +1055,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 6
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 6,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -977,6 +1082,21 @@
     "operation": {
       "op": "Reset",
       "qubit": 7
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Reset",
+      "qubit": 7
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Reset",
+      "qubit": 7,
+      "duration_ns": 0
     }
   },
   {
@@ -997,6 +1117,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 0,
+      "theta": 1.5707963267948966,
+      "phi": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 0,
+      "theta": 1.5707963267948966,
+      "phi": -1.5707963267948966,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1011,6 +1150,25 @@
       "qubit0": 0,
       "qubit1": 7,
       "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 7,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 7,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
     }
   },
   {
@@ -1031,6 +1189,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 6,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 6,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1045,6 +1222,25 @@
       "qubit0": 0,
       "qubit1": 5,
       "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 5,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 5,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
     }
   },
   {
@@ -1065,6 +1261,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 4,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 4,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1079,6 +1294,25 @@
       "qubit0": 0,
       "qubit1": 3,
       "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 3,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 3,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
     }
   },
   {
@@ -1099,6 +1333,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 2,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 2,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1113,6 +1366,25 @@
       "qubit0": 0,
       "qubit1": 1,
       "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 1,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 1,
+      "theta": -1.5707963267948966,
+      "duration_ns": 0
     }
   },
   {
@@ -1133,6 +1405,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": 1.5707963267948966,
+      "phi": -3.141592653589793
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": 1.5707963267948966,
+      "phi": -3.141592653589793,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1147,6 +1438,25 @@
       "qubit0": 1,
       "qubit1": 7,
       "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 7,
+      "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 7,
+      "theta": -0.7853981633974483,
+      "duration_ns": 0
     }
   },
   {
@@ -1167,6 +1477,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 6,
+      "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 6,
+      "theta": -0.7853981633974483,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1181,6 +1510,25 @@
       "qubit0": 1,
       "qubit1": 5,
       "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 5,
+      "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 5,
+      "theta": -0.7853981633974483,
+      "duration_ns": 0
     }
   },
   {
@@ -1201,6 +1549,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 4,
+      "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 4,
+      "theta": -0.7853981633974483,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1215,6 +1582,25 @@
       "qubit0": 1,
       "qubit1": 3,
       "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 3,
+      "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 3,
+      "theta": -0.7853981633974483,
+      "duration_ns": 0
     }
   },
   {
@@ -1235,6 +1621,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 2,
+      "theta": -0.7853981633974483
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 2,
+      "theta": -0.7853981633974483,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1249,6 +1654,25 @@
       "qubit": 2,
       "theta": 1.5707963267948966,
       "phi": -3.9269908169872414
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 2,
+      "theta": 1.5707963267948966,
+      "phi": -3.9269908169872414
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 2,
+      "theta": 1.5707963267948966,
+      "phi": -3.9269908169872414,
+      "duration_ns": 0
     }
   },
   {
@@ -1269,6 +1693,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 7,
+      "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 7,
+      "theta": -0.39269908169872414,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1283,6 +1726,25 @@
       "qubit0": 2,
       "qubit1": 6,
       "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 6,
+      "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 6,
+      "theta": -0.39269908169872414,
+      "duration_ns": 0
     }
   },
   {
@@ -1303,6 +1765,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 5,
+      "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 5,
+      "theta": -0.39269908169872414,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1317,6 +1798,25 @@
       "qubit0": 2,
       "qubit1": 4,
       "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 4,
+      "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 4,
+      "theta": -0.39269908169872414,
+      "duration_ns": 0
     }
   },
   {
@@ -1337,6 +1837,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 3,
+      "theta": -0.39269908169872414
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 2,
+      "qubit1": 3,
+      "theta": -0.39269908169872414,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1351,6 +1870,25 @@
       "qubit": 3,
       "theta": 1.5707963267948966,
       "phi": -4.319689898685965
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 3,
+      "theta": 1.5707963267948966,
+      "phi": -4.319689898685965
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 3,
+      "theta": 1.5707963267948966,
+      "phi": -4.319689898685965,
+      "duration_ns": 0
     }
   },
   {
@@ -1371,6 +1909,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 7,
+      "theta": -0.19634954084936207
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 7,
+      "theta": -0.19634954084936207,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1385,6 +1942,25 @@
       "qubit0": 3,
       "qubit1": 6,
       "theta": -0.19634954084936207
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 6,
+      "theta": -0.19634954084936207
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 6,
+      "theta": -0.19634954084936207,
+      "duration_ns": 0
     }
   },
   {
@@ -1405,6 +1981,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 5,
+      "theta": -0.19634954084936207
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 5,
+      "theta": -0.19634954084936207,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1419,6 +2014,25 @@
       "qubit0": 3,
       "qubit1": 4,
       "theta": -0.19634954084936207
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 4,
+      "theta": -0.19634954084936207
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 3,
+      "qubit1": 4,
+      "theta": -0.19634954084936207,
+      "duration_ns": 0
     }
   },
   {
@@ -1439,6 +2053,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 4,
+      "theta": 1.5707963267948966,
+      "phi": -4.516039439535327
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 4,
+      "theta": 1.5707963267948966,
+      "phi": -4.516039439535327,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1453,6 +2086,25 @@
       "qubit0": 4,
       "qubit1": 7,
       "theta": -0.09817477042468103
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 4,
+      "qubit1": 7,
+      "theta": -0.09817477042468103
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 4,
+      "qubit1": 7,
+      "theta": -0.09817477042468103,
+      "duration_ns": 0
     }
   },
   {
@@ -1473,6 +2125,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 4,
+      "qubit1": 6,
+      "theta": -0.09817477042468103
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 4,
+      "qubit1": 6,
+      "theta": -0.09817477042468103,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1487,6 +2158,25 @@
       "qubit0": 4,
       "qubit1": 5,
       "theta": -0.09817477042468103
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 4,
+      "qubit1": 5,
+      "theta": -0.09817477042468103
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 4,
+      "qubit1": 5,
+      "theta": -0.09817477042468103,
+      "duration_ns": 0
     }
   },
   {
@@ -1507,6 +2197,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 5,
+      "theta": 1.5707963267948966,
+      "phi": -4.614214209960009
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 5,
+      "theta": 1.5707963267948966,
+      "phi": -4.614214209960009,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1521,6 +2230,25 @@
       "qubit0": 5,
       "qubit1": 7,
       "theta": -0.04908738521234052
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 5,
+      "qubit1": 7,
+      "theta": -0.04908738521234052
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 5,
+      "qubit1": 7,
+      "theta": -0.04908738521234052,
+      "duration_ns": 0
     }
   },
   {
@@ -1541,6 +2269,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 5,
+      "qubit1": 6,
+      "theta": -0.04908738521234052
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 5,
+      "qubit1": 6,
+      "theta": -0.04908738521234052,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1555,6 +2302,25 @@
       "qubit": 6,
       "theta": 1.5707963267948966,
       "phi": -4.663301595172349
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 6,
+      "theta": 1.5707963267948966,
+      "phi": -4.663301595172349
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 6,
+      "theta": 1.5707963267948966,
+      "phi": -4.663301595172349,
+      "duration_ns": 0
     }
   },
   {
@@ -1575,6 +2341,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 6,
+      "qubit1": 7,
+      "theta": -0.02454369260617026
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 6,
+      "qubit1": 7,
+      "theta": -0.02454369260617026,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1589,6 +2374,25 @@
       "qubit": 7,
       "theta": 1.5707963267948966,
       "phi": -4.687845287778519
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 7,
+      "theta": 1.5707963267948966,
+      "phi": -4.687845287778519
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 7,
+      "theta": 1.5707963267948966,
+      "phi": -4.687845287778519,
+      "duration_ns": 0
     }
   },
   {
@@ -1609,6 +2413,25 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 7,
+      "theta": 1.5707963267948966,
+      "phi": -7.829437941368312
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 7,
+      "theta": 1.5707963267948966,
+      "phi": -7.829437941368312,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "BatchStart",
@@ -1621,6 +2444,21 @@
     "operation": {
       "op": "FutureRead",
       "qubit": 0
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 0
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 0,
+      "duration_ns": 0
     }
   },
   {
@@ -1646,6 +2484,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 1
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 1,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
@@ -1665,6 +2518,21 @@
     "operation": {
       "op": "FutureRead",
       "qubit": 2
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 2
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 2,
+      "duration_ns": 0
     }
   },
   {
@@ -1690,6 +2558,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 3
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 3,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
@@ -1709,6 +2592,21 @@
     "operation": {
       "op": "FutureRead",
       "qubit": 4
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 4
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 4,
+      "duration_ns": 0
     }
   },
   {
@@ -1734,6 +2632,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 5
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 5,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
@@ -1756,6 +2669,21 @@
     }
   },
   {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 6
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 6,
+      "duration_ns": 0
+    }
+  },
+  {
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
@@ -1775,6 +2703,21 @@
     "operation": {
       "op": "FutureRead",
       "qubit": 7
+    }
+  },
+  {
+    "source": "Source.ERROR_MODEL",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 7
+    }
+  },
+  {
+    "source": "Source.SIMULATOR",
+    "operation": {
+      "op": "MeasureRequest",
+      "qubit": 7,
+      "duration_ns": 0
     }
   }
 ]

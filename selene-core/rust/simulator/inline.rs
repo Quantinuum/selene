@@ -1,5 +1,6 @@
 use super::{SimulatorInterface, plugin::SimulatorInstance};
 use crate::{
+    runtime::{BatchOperation, Operation},
     simulator::plugin::Errno,
     utils::{result_of_errno_to_errno, result_to_errno},
 };
@@ -11,12 +12,19 @@ pub struct SimulatorFFIAdapter {
     simulator: Box<dyn SimulatorInterface>,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SimulatorHandle<'a> {
+    pub instance: SimulatorInstance,
+    pub interface: SimulatorOperationInterface<'a>,
+}
+
 pub fn borrowed_simulator_interface(
     simulator: &mut &mut dyn SimulatorInterface,
-) -> (SimulatorInstance, SimulatorOperationInterface<'static>) {
-    (
-        simulator as *mut &mut dyn SimulatorInterface as SimulatorInstance,
-        SimulatorOperationInterface {
+) -> SimulatorHandle<'static> {
+    SimulatorHandle {
+        instance: simulator as *mut &mut dyn SimulatorInterface as SimulatorInstance,
+        interface: SimulatorOperationInterface {
             exit_fn: BorrowedSimulatorBridge::exit,
             shot_start_fn: BorrowedSimulatorBridge::shot_start,
             shot_end_fn: BorrowedSimulatorBridge::shot_end,
@@ -32,11 +40,15 @@ pub fn borrowed_simulator_interface(
             dump_state_fn: BorrowedSimulatorBridge::dump_state,
             _marker: PhantomData,
         },
-    )
+    }
 }
 
 struct BorrowedSimulatorBridge;
 impl BorrowedSimulatorBridge {
+    fn singleton_batch(op: Operation) -> BatchOperation {
+        BatchOperation::simulator(vec![op])
+    }
+
     unsafe fn with_simulator<T>(
         instance: SimulatorInstance,
         mut go: impl FnMut(&mut dyn SimulatorInterface) -> T,
@@ -67,17 +79,52 @@ impl BorrowedSimulatorBridge {
         phi: f64,
     ) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: rxy failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rxy(qubit, theta, phi))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RXYGate {
+                        qubit_id: qubit,
+                        theta,
+                        phi,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RXY unexpectedly produced results")
+                }
+            })
         })
     }
     unsafe extern "C" fn rz(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: rz failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rz(qubit, theta))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RZGate {
+                        qubit_id: qubit,
+                        theta,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RZ unexpectedly produced results")
+                }
+            })
         })
     }
     unsafe extern "C" fn rzz(instance: SimulatorInstance, q1: u64, q2: u64, theta: f64) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: rzz failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rzz(q1, q2, theta))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RZZGate {
+                        qubit_id_1: q1,
+                        qubit_id_2: q2,
+                        theta,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RZZ unexpectedly produced results")
+                }
+            })
         })
     }
     unsafe extern "C" fn tk2(
@@ -89,7 +136,21 @@ impl BorrowedSimulatorBridge {
         c: f64,
     ) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: tk2 failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.tk2(q1, q2, a, b, c))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::TK2Gate {
+                        qubit_id_1: q1,
+                        qubit_id_2: q2,
+                        alpha: a,
+                        beta: b,
+                        gamma: c,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("TK2 unexpectedly produced results")
+                }
+            })
         })
     }
     unsafe extern "C" fn rpp(
@@ -100,11 +161,37 @@ impl BorrowedSimulatorBridge {
         phi: f64,
     ) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: rpp failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rpp(q1, q2, theta, phi))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RPPGate {
+                        qubit_id_1: q1,
+                        qubit_id_2: q2,
+                        theta,
+                        phi,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RPP unexpectedly produced results")
+                }
+            })
         })
     }
     unsafe extern "C" fn measure(instance: SimulatorInstance, qubit: u64) -> Errno {
-        match unsafe { Self::with_simulator(instance, |simulator| simulator.measure(qubit)) } {
+        match unsafe {
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::Measure {
+                        qubit_id: qubit,
+                        result_id: 0,
+                    }))?;
+                if results.u64_results.is_empty() && results.bool_results.len() == 1 {
+                    Ok(results.bool_results[0].value)
+                } else {
+                    anyhow::bail!("Measure expected exactly one bool result")
+                }
+            })
+        } {
             Ok(false) => 0,
             Ok(true) => 1,
             Err(_) => -1,
@@ -121,7 +208,17 @@ impl BorrowedSimulatorBridge {
     }
     unsafe extern "C" fn reset(instance: SimulatorInstance, qubit: u64) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: reset failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.reset(qubit))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::Reset {
+                        qubit_id: qubit,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("Reset unexpectedly produced results")
+                }
+            })
         })
     }
     unsafe extern "C" fn get_metric(
@@ -157,14 +254,18 @@ impl BorrowedSimulatorBridge {
 }
 
 impl SimulatorFFIAdapter {
+    fn singleton_batch(op: Operation) -> BatchOperation {
+        BatchOperation::simulator(vec![op])
+    }
+
     pub fn new(simulator: Box<dyn SimulatorInterface>) -> Self {
         Self { simulator }
     }
 
-    pub fn ffi_interface(&mut self) -> (SimulatorInstance, SimulatorOperationInterface<'static>) {
-        (
-            &raw mut self.simulator as SimulatorInstance,
-            SimulatorOperationInterface {
+    pub fn ffi_interface(&mut self) -> SimulatorHandle<'static> {
+        SimulatorHandle {
+            instance: &raw mut self.simulator as SimulatorInstance,
+            interface: SimulatorOperationInterface {
                 exit_fn: Self::exit,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
@@ -180,7 +281,7 @@ impl SimulatorFFIAdapter {
                 dump_state_fn: Self::dump_state,
                 _marker: PhantomData,
             },
-        )
+        }
     }
 
     unsafe fn with_simulator<T>(
@@ -220,13 +321,36 @@ impl SimulatorFFIAdapter {
         phi: f64,
     ) -> Errno {
         result_to_errno("SimulatorFFIAdapter: rxy failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rxy(qubit, theta, phi))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RXYGate {
+                        qubit_id: qubit,
+                        theta,
+                        phi,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RXY unexpectedly produced results")
+                }
+            })
         })
     }
 
     unsafe extern "C" fn rz(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno {
         result_to_errno("SimulatorFFIAdapter: rz failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rz(qubit, theta))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RZGate {
+                        qubit_id: qubit,
+                        theta,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RZ unexpectedly produced results")
+                }
+            })
         })
     }
 
@@ -237,7 +361,19 @@ impl SimulatorFFIAdapter {
         theta: f64,
     ) -> Errno {
         result_to_errno("SimulatorFFIAdapter: rzz failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.rzz(qubit1, qubit2, theta))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RZZGate {
+                        qubit_id_1: qubit1,
+                        qubit_id_2: qubit2,
+                        theta,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RZZ unexpectedly produced results")
+                }
+            })
         })
     }
 
@@ -251,7 +387,19 @@ impl SimulatorFFIAdapter {
     ) -> Errno {
         result_to_errno("SimulatorFFIAdapter: tk2 failed", unsafe {
             Self::with_simulator(instance, |simulator| {
-                simulator.tk2(qubit1, qubit2, alpha, beta, gamma)
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::TK2Gate {
+                        qubit_id_1: qubit1,
+                        qubit_id_2: qubit2,
+                        alpha,
+                        beta,
+                        gamma,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("TK2 unexpectedly produced results")
+                }
             })
         })
     }
@@ -265,14 +413,37 @@ impl SimulatorFFIAdapter {
     ) -> Errno {
         result_to_errno("SimulatorFFIAdapter: rpp failed", unsafe {
             Self::with_simulator(instance, |simulator| {
-                simulator.rpp(qubit1, qubit2, theta, phi)
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RPPGate {
+                        qubit_id_1: qubit1,
+                        qubit_id_2: qubit2,
+                        theta,
+                        phi,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RPP unexpectedly produced results")
+                }
             })
         })
     }
 
     unsafe extern "C" fn measure(instance: SimulatorInstance, qubit: u64) -> Errno {
-        let result =
-            unsafe { Self::with_simulator(instance, |simulator| simulator.measure(qubit)) };
+        let result = unsafe {
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::Measure {
+                        qubit_id: qubit,
+                        result_id: 0,
+                    }))?;
+                if results.u64_results.is_empty() && results.bool_results.len() == 1 {
+                    Ok(results.bool_results[0].value)
+                } else {
+                    anyhow::bail!("Measure expected exactly one bool result")
+                }
+            })
+        };
         match result {
             Ok(false) => 0,
             Ok(true) => 1,
@@ -297,7 +468,17 @@ impl SimulatorFFIAdapter {
 
     unsafe extern "C" fn reset(instance: SimulatorInstance, qubit: u64) -> Errno {
         result_to_errno("SimulatorFFIAdapter: reset failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.reset(qubit))
+            Self::with_simulator(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::Reset {
+                        qubit_id: qubit,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("Reset unexpectedly produced results")
+                }
+            })
         })
     }
 
@@ -411,6 +592,15 @@ impl SimulatorOperationInterface<'_> {
             get_metric_fn: self.get_metric_fn,
             dump_state_fn: self.dump_state_fn,
             _marker: PhantomData,
+        }
+    }
+}
+
+impl SimulatorHandle<'_> {
+    pub fn into_static(self) -> SimulatorHandle<'static> {
+        SimulatorHandle {
+            instance: self.instance,
+            interface: self.interface.into_static(),
         }
     }
 }

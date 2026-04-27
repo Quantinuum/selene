@@ -56,18 +56,11 @@ typedef void *SeleneRuntimeExtractOperationInstance;
 
 /**
  * An instance is provided to `selene_runtime_get_next_operations`, which must
- * pass that back to any function it calls in it's provided
+ * pass that back to any function it calls in its provided
  * [RuntimeGetOperationInterface].
  */
 typedef void *SeleneRuntimeGetOperationInstance;
 
-/**
- * A plugin's implementation of `selene_runtime_get_next_operations` is provided
- * a pointer to a `RuntimeGetOperationInterface` as well as a
- * [RuntimeGetOperationInstance]. It should call the functions
- * within to populate a batch. All such calls must pass the instance as the
- * first parameter.
- */
 typedef struct RuntimeGetOperationInterface {
   void (*measure_fn)(SeleneRuntimeGetOperationInstance,
                      uint64_t,
@@ -108,11 +101,20 @@ typedef struct RuntimeGetOperationInterface {
                  double);
 } RuntimeGetOperationInterface;
 
+typedef struct RuntimeGetOperationHandle {
+  SeleneRuntimeGetOperationInstance instance;
+  struct RuntimeGetOperationInterface interface;
+} RuntimeGetOperationHandle;
+
 typedef struct SeleneRuntimeExtractOperationInterface {
-  void (*extract_fn)(SeleneRuntimeExtractOperationInstance,
-                     SeleneRuntimeGetOperationInstance,
-                     struct RuntimeGetOperationInterface);
+  void (*extract_fn)(struct RuntimeExtractOperationHandle,
+                     struct RuntimeGetOperationHandle);
 } SeleneRuntimeExtractOperationInterface;
+
+typedef struct RuntimeExtractOperationHandle {
+  SeleneRuntimeExtractOperationInstance instance;
+  struct SeleneRuntimeExtractOperationInterface interface;
+} RuntimeExtractOperationHandle;
 
 typedef void *SeleneSimulatorInstance;
 
@@ -162,6 +164,16 @@ typedef struct SimulatorOperationInterface {
                                uint64_t n_qubits);
 } SimulatorOperationInterface;
 
+typedef struct SimulatorHandle {
+  SeleneSimulatorInstance instance;
+  struct SimulatorOperationInterface interface;
+} SimulatorHandle;
+
+typedef struct ErrorModelSetResultHandle {
+  SeleneErrorModelSetResultInstance instance;
+  struct SeleneErrorModelSetResultInterface interface;
+} ErrorModelSetResultHandle;
+
 typedef struct SeleneErrorModelPluginDescriptorV1 {
   uint64_t struct_size;
   uint64_t api_version;
@@ -175,12 +187,9 @@ typedef struct SeleneErrorModelPluginDescriptorV1 {
                                uint64_t error_model_seed);
   SeleneErrno (*shot_end_fn)(SeleneErrorModelInstance handle);
   SeleneErrno (*handle_operations_fn)(SeleneErrorModelInstance handle,
-                                      SeleneRuntimeExtractOperationInstance batch_instance,
-                                      const struct SeleneRuntimeExtractOperationInterface *batch_interface,
-                                      SeleneSimulatorInstance simulator_instance,
-                                      const struct SimulatorOperationInterface *simulator_interface,
-                                      SeleneErrorModelSetResultInstance result_instance,
-                                      const struct SeleneErrorModelSetResultInterface *result_interface);
+                                      struct RuntimeExtractOperationHandle batch,
+                                      struct SimulatorHandle simulator,
+                                      struct ErrorModelSetResultHandle result);
   SeleneErrno (*get_metrics_fn)(SeleneErrorModelInstance handle,
                                 uint8_t nth_metric,
                                 char *out_tag_str,

@@ -9,6 +9,7 @@ use super::{
     interface::SimulatorInterfaceFactory,
     plugin::{Errno, SimulatorInstance},
 };
+use crate::runtime::{BatchOperation, Operation};
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 
 #[derive(Default)]
@@ -18,6 +19,10 @@ use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to
 pub struct Helper<F>(Arc<F>);
 
 impl<F: SimulatorInterfaceFactory> Helper<F> {
+    fn singleton_batch(op: Operation) -> BatchOperation {
+        BatchOperation::simulator(vec![op])
+    }
+
     fn into_simulator_instance(s: Box<F::Interface>) -> SimulatorInstance {
         Box::into_raw(s) as SimulatorInstance
     }
@@ -126,20 +131,53 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
     pub unsafe fn rxy(instance: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno {
         result_to_errno(
             "Failed to apply RXY gate",
-            Self::with_simulator_instance(instance, |simulator| simulator.rxy(qubit, theta, phi)),
+            Self::with_simulator_instance(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RXYGate {
+                        qubit_id: qubit,
+                        theta,
+                        phi,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RXY unexpectedly produced results")
+                }
+            }),
         )
     }
     pub unsafe fn rz(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno {
         result_to_errno(
             "Failed to apply RZ gate",
-            Self::with_simulator_instance(instance, |simulator| simulator.rz(qubit, theta)),
+            Self::with_simulator_instance(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RZGate {
+                        qubit_id: qubit,
+                        theta,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RZ unexpectedly produced results")
+                }
+            }),
         )
     }
     pub unsafe fn rzz(instance: SimulatorInstance, qubit1: u64, qubit2: u64, theta: f64) -> Errno {
         result_to_errno(
             "Failed to apply RZZ gate",
             Self::with_simulator_instance(instance, |simulator| {
-                simulator.rzz(qubit1, qubit2, theta)
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RZZGate {
+                        qubit_id_1: qubit1,
+                        qubit_id_2: qubit2,
+                        theta,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RZZ unexpectedly produced results")
+                }
             }),
         )
     }
@@ -154,7 +192,19 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
         result_to_errno(
             "Failed to apply TK2 gate",
             Self::with_simulator_instance(instance, |simulator| {
-                simulator.tk2(qubit1, qubit2, alpha, beta, gamma)
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::TK2Gate {
+                        qubit_id_1: qubit1,
+                        qubit_id_2: qubit2,
+                        alpha,
+                        beta,
+                        gamma,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("TK2 unexpectedly produced results")
+                }
             }),
         )
     }
@@ -168,12 +218,34 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
         result_to_errno(
             "Failed to apply RPP gate",
             Self::with_simulator_instance(instance, |simulator| {
-                simulator.rpp(qubit1, qubit2, theta, phi)
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::RPPGate {
+                        qubit_id_1: qubit1,
+                        qubit_id_2: qubit2,
+                        theta,
+                        phi,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("RPP unexpectedly produced results")
+                }
             }),
         )
     }
     pub unsafe fn measure(instance: SimulatorInstance, qubit: u64) -> Errno {
-        let result = Self::with_simulator_instance(instance, |simulator| simulator.measure(qubit));
+        let result = Self::with_simulator_instance(instance, |simulator| {
+            let results =
+                simulator.handle_operations(Self::singleton_batch(Operation::Measure {
+                    qubit_id: qubit,
+                    result_id: 0,
+                }))?;
+            if results.u64_results.is_empty() && results.bool_results.len() == 1 {
+                Ok(results.bool_results[0].value)
+            } else {
+                anyhow::bail!("Measure expected exactly one bool result")
+            }
+        });
         match result {
             Ok(false) => 0,
             Ok(true) => 1,
@@ -194,7 +266,17 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
     pub unsafe fn reset(instance: SimulatorInstance, qubit: u64) -> Errno {
         result_to_errno(
             "Failed to reset qubit",
-            Self::with_simulator_instance(instance, |simulator| simulator.reset(qubit)),
+            Self::with_simulator_instance(instance, |simulator| {
+                let results =
+                    simulator.handle_operations(Self::singleton_batch(Operation::Reset {
+                        qubit_id: qubit,
+                    }))?;
+                if results.bool_results.is_empty() && results.u64_results.is_empty() {
+                    Ok(())
+                } else {
+                    anyhow::bail!("Reset unexpectedly produced results")
+                }
+            }),
         )
     }
 }

@@ -174,6 +174,20 @@ class InteractiveSimulator:
         ):
             raise RuntimeError("Failed to start first shot on Selene simulator")
 
+    def _apply_void_operation(self, func, operation_name: str, *args):
+        # The Python surface stays single-operation for ergonomics, while the
+        # native bridge now executes each call via the simulator's batch API.
+        if 0 != func(self._instance, *args):
+            raise RuntimeError(
+                f"Failed to apply {operation_name} operation on Selene simulator"
+            )
+
+    def _apply_measure_operation(self, qubit: int) -> bool:
+        result = self._lib.selene_simulator_operation_measure(self._instance, qubit)
+        if result not in (0, 1):
+            raise RuntimeError("Failed to apply MEASURE operation on Selene simulator")
+        return bool(result)
+
     def next_shot(self):
         if 0 != self._lib.selene_simulator_shot_end(self._instance):
             raise RuntimeError("Failed to end current shot on Selene simulator")
@@ -184,38 +198,39 @@ class InteractiveSimulator:
             raise RuntimeError("Failed to start next shot on Selene simulator")
 
     def rxy(self, qubit: int, theta: float, phi: float):
-        if 0 != self._lib.selene_simulator_operation_rxy(
-            self._instance, qubit, theta, phi
-        ):
-            raise RuntimeError("Failed to apply RXY operation on Selene simulator")
+        self._apply_void_operation(
+            self._lib.selene_simulator_operation_rxy, "RXY", qubit, theta, phi
+        )
 
     def rz(self, qubit: int, theta: float):
-        if 0 != self._lib.selene_simulator_operation_rz(self._instance, qubit, theta):
-            raise RuntimeError("Failed to apply RZ operation on Selene simulator")
+        self._apply_void_operation(
+            self._lib.selene_simulator_operation_rz, "RZ", qubit, theta
+        )
 
     def rzz(self, qubit_a: int, qubit_b: int, theta: float):
-        if 0 != self._lib.selene_simulator_operation_rzz(
-            self._instance, qubit_a, qubit_b, theta
-        ):
-            raise RuntimeError("Failed to apply RZZ operation on Selene simulator")
+        self._apply_void_operation(
+            self._lib.selene_simulator_operation_rzz,
+            "RZZ",
+            qubit_a,
+            qubit_b,
+            theta,
+        )
 
     def measure(self, qubit: int) -> bool:
-        result = self._lib.selene_simulator_operation_measure(self._instance, qubit)
-        if result not in (0, 1):
-            raise RuntimeError("Failed to apply MEASURE operation on Selene simulator")
-        return bool(result)
+        return self._apply_measure_operation(qubit)
 
     def reset(self, qubit: int):
-        if 0 != self._lib.selene_simulator_operation_reset(self._instance, qubit):
-            raise RuntimeError("Failed to apply RESET operation on Selene simulator")
+        self._apply_void_operation(
+            self._lib.selene_simulator_operation_reset, "RESET", qubit
+        )
 
     def postselect(self, qubit: int, value: bool):
-        if 0 != self._lib.selene_simulator_operation_postselect(
-            self._instance, qubit, value
-        ):
-            raise RuntimeError(
-                "Failed to apply POSTSELECT operation on Selene simulator"
-            )
+        self._apply_void_operation(
+            self._lib.selene_simulator_operation_postselect,
+            "POSTSELECT",
+            qubit,
+            value,
+        )
 
     def get_metrics(self) -> dict[str, int | float | bool]:
         # for i in 0...255, calls selene_simulator_get_metrics with:

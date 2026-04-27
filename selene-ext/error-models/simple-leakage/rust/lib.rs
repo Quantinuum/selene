@@ -33,6 +33,25 @@ pub struct SimpleLeakageErrorModel {
 }
 
 impl SimpleLeakageErrorModel {
+    fn singleton_batch(op: Operation) -> BatchOperation {
+        BatchOperation::error_model(vec![op])
+    }
+
+    fn flush_pending(
+        &mut self,
+        pending: &mut Vec<Operation>,
+        simulator: &mut dyn SimulatorInterface,
+        results: &mut BatchResult,
+    ) -> Result<()> {
+        if pending.is_empty() {
+            return Ok(());
+        }
+        results.extend(
+            simulator.handle_operations(BatchOperation::error_model(std::mem::take(pending)))?,
+        );
+        Ok(())
+    }
+
     fn is_leaked(&self, qubit: u64) -> Result<bool> {
         if qubit >= self.n_qubits {
             bail!(
@@ -91,6 +110,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
         simulator: &mut dyn SimulatorInterface,
     ) -> Result<BatchResult> {
         let mut results = BatchResult::default();
+        let mut pending = Vec::new();
         for op in operations {
             match op {
                 Operation::RXYGate {
@@ -99,11 +119,15 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     phi,
                 } => {
                     self.maybe_leak(qubit_id)?;
-                    simulator.rxy(qubit_id, theta, phi)?;
+                    pending.push(Operation::RXYGate {
+                        qubit_id,
+                        theta,
+                        phi,
+                    });
                 }
                 Operation::RZGate { qubit_id, theta } => {
                     self.maybe_leak(qubit_id)?;
-                    simulator.rz(qubit_id, theta)?;
+                    pending.push(Operation::RZGate { qubit_id, theta });
                 }
                 Operation::RZZGate {
                     qubit_id_1,
@@ -113,7 +137,11 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
+                    pending.push(Operation::RZZGate {
+                        qubit_id_1,
+                        qubit_id_2,
+                        theta,
+                    });
                 }
                 Operation::TK2Gate {
                     qubit_id_1,
@@ -125,7 +153,13 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    simulator.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
+                    pending.push(Operation::TK2Gate {
+                        qubit_id_1,
+                        qubit_id_2,
+                        alpha,
+                        beta,
+                        gamma,
+                    });
                 }
                 Operation::RPPGate {
                     qubit_id_1,
@@ -136,17 +170,35 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
                     self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
+                    pending.push(Operation::RPPGate {
+                        qubit_id_1,
+                        qubit_id_2,
+                        theta,
+                        phi,
+                    });
                 }
                 Operation::Measure {
                     qubit_id,
                     result_id,
                 } => {
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
                     let measurement = if self.leak_register[qubit_id as usize] {
                         self.rng
                             .random_bool(self.error_params.leak_measurement_bias)
                     } else {
-                        simulator.measure(qubit_id)?
+                        let measurement_result = simulator.handle_operations(
+                            Self::singleton_batch(Operation::Measure {
+                                qubit_id,
+                                result_id,
+                            }),
+                        )?;
+                        let Some(measurement) = measurement_result.bool_results.into_iter().next()
+                        else {
+                            bail!(
+                                "Simple leakage error model did not receive a measurement result"
+                            );
+                        };
+                        measurement.value
                     };
                     results.set_bool_result(result_id, measurement);
                 }
@@ -154,16 +206,29 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     qubit_id,
                     result_id,
                 } => {
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
                     let measurement = if self.leak_register[qubit_id as usize] {
                         2
                     } else {
-                        simulator.measure(qubit_id)? as u64
+                        let measurement_result = simulator.handle_operations(
+                            Self::singleton_batch(Operation::Measure {
+                                qubit_id,
+                                result_id,
+                            }),
+                        )?;
+                        let Some(measurement) = measurement_result.bool_results.into_iter().next()
+                        else {
+                            bail!(
+                                "Simple leakage error model did not receive a leaked measurement result"
+                            );
+                        };
+                        measurement.value as u64
                     };
                     results.set_u64_result(result_id, measurement);
                 }
                 Operation::Reset { qubit_id } => {
-                    simulator.reset(qubit_id)?;
                     self.leak_register[qubit_id as usize] = false;
+                    pending.push(Operation::Reset { qubit_id });
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
@@ -173,6 +238,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                 }
             }
         }
+        self.flush_pending(&mut pending, simulator, &mut results)?;
         Ok(results)
     }
 

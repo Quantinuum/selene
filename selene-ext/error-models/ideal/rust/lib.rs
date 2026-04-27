@@ -7,6 +7,10 @@ use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
 pub struct IdealErrorModel;
 
+fn singleton_batch(op: Operation) -> BatchOperation {
+    BatchOperation::error_model(vec![op])
+}
+
 impl ErrorModelInterface for IdealErrorModel {
     fn exit(&mut self) -> Result<()> {
         Ok(())
@@ -24,61 +28,37 @@ impl ErrorModelInterface for IdealErrorModel {
         simulator: &mut dyn SimulatorInterface,
     ) -> Result<BatchResult> {
         let mut results = BatchResult::default();
+        let mut pending = Vec::new();
         for op in operations {
             match op {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => {
-                    simulator.rxy(qubit_id, theta, phi)?;
-                }
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => {
-                    simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
-                }
-                Operation::RZGate { qubit_id, theta } => {
-                    simulator.rz(qubit_id, theta)?;
-                }
-                Operation::Measure {
-                    qubit_id,
-                    result_id,
-                } => {
-                    let measurement = simulator.measure(qubit_id)?;
-                    results.set_bool_result(result_id, measurement);
-                }
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => {
-                    simulator.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
-                }
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => {
-                    simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
-                }
+                Operation::RXYGate { .. }
+                | Operation::RZZGate { .. }
+                | Operation::RZGate { .. }
+                | Operation::Measure { .. }
+                | Operation::TK2Gate { .. }
+                | Operation::RPPGate { .. }
+                | Operation::Reset { .. } => pending.push(op),
                 Operation::MeasureLeaked {
                     qubit_id,
                     result_id,
                 } => {
-                    // In this ideal model, there's no leakage.
-                    // Just do a normal measurement and stick to the [0,1] range
-                    let measurement = simulator.measure(qubit_id)?;
-                    results.set_u64_result(result_id, measurement.into());
-                }
-
-                Operation::Reset { qubit_id } => {
-                    simulator.reset(qubit_id)?;
+                    if !pending.is_empty() {
+                        results.extend(simulator.handle_operations(
+                            BatchOperation::error_model(std::mem::take(&mut pending)),
+                        )?);
+                    }
+                    // In this ideal model, there's no leakage, so a leaked measurement
+                    // is just a regular measurement projected into the [0, 1] range.
+                    let measurement_result =
+                        simulator.handle_operations(singleton_batch(Operation::Measure {
+                            qubit_id,
+                            result_id,
+                        }))?;
+                    let Some(measurement) = measurement_result.bool_results.into_iter().next()
+                    else {
+                        bail!("Ideal error model did not receive a measurement result");
+                    };
+                    results.set_u64_result(result_id, measurement.value.into());
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
@@ -87,6 +67,9 @@ impl ErrorModelInterface for IdealErrorModel {
                     bail!("Ideal error model received unsupported operation: {:?}", op);
                 }
             }
+        }
+        if !pending.is_empty() {
+            results.extend(simulator.handle_operations(BatchOperation::error_model(pending))?);
         }
         Ok(results)
     }

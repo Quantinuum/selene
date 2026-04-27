@@ -6,7 +6,6 @@ use selene_core::runtime::RuntimeInterface;
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
 
-use crate::event_hooks::EventHook;
 use crate::selene_instance::SeleneInstance;
 
 impl SeleneInstance {
