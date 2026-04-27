@@ -4,6 +4,7 @@ from enum import Enum
 
 from ..exceptions import (
     SelenePanicError,
+    SeleneStartupError,
     SeleneRuntimeError,
 )
 
@@ -224,9 +225,9 @@ def extract_shot(
             # Seeing panics before a shot start is unexpected, and we consider
             # it to either be a misconfiguration or a bug. As such, we raise it
             # as a runtime error.
-            raise SeleneRuntimeError(message)
+            raise SeleneStartupError(message)
         case other:
-            raise SeleneRuntimeError(f"Unexpected record {other} before shot start")
+            raise SeleneStartupError(f"Unexpected record {other} before shot start")
 
     # Now we process the rest of the shots.
     for record in records:
