@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.9](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.8...selene-core-v0.2.9) (2026-04-27)
+
+
+### Bug Fixes
+
+* make qir-qis optional and stabilize CI ([#164](https://github.com/Quantinuum/selene/issues/164)) ([e52c0b2](https://github.com/Quantinuum/selene/commit/e52c0b2b30a5f227943477857ca1f0175ae6a2d5))
+
 ## [0.2.8](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.7...selene-core-v0.2.8) (2026-04-21)
 
 
