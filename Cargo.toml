@@ -13,6 +13,7 @@ members = [
     "selene-ext/error-models/depolarizing",
     "selene-ext/error-models/simple-leakage",
     "selene-ext/error-models/ideal",
+    "selene-ext/utilities/argreader",
 ]
 
 [workspace.package]

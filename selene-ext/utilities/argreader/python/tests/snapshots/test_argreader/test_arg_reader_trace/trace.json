@@ -1,0 +1,60 @@
+{
+  "events": [
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 0
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBjYXNpbmdfaXNfbG9nYXJpdGhtaWMKdmFsdWU6IHRydWUK"
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 1
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBudW1fc3B1cnZpbmdfYmVhcmluZ3MKdmFsdWU6IDIK"
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 2
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBzaWRlX2Z1bWJsaW5nCnZhbHVlOiAtNAo="
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 3
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBtYWduZXRvX3JlbHVjdGFuY2UKdmFsdWU6IDAuMDEyNQo="
+        }
+      }
+    }
+  ]
+}

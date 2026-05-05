@@ -781,6 +781,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "selene-utility-argreader"
+version = "0.2.15"
+dependencies = [
+ "anyhow",
+ "bytesize",
+ "cc",
+ "quest-sys",
+ "selene-core",
+ "serde",
+ "serde_yml",
+ "sysinfo",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"

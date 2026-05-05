@@ -1,0 +1,28 @@
+[package]
+name = "selene-utility-argreader"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "selene_argreader_plugin"
+path = "rust/lib.rs"
+doctest = false
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"
+
+[build-dependencies]
+cc = { version="1.2" }
+
+[dependencies]
+anyhow = { workspace = true }
+quest-sys = {version = "0.16"}
+selene-core = { path = "../../../selene-core" }
+sysinfo = { version = "0.35" }
+bytesize = { version = "2.3" }
+serde = { version = "1.0", features = ["derive"] }
+serde_yml = "0.0.12"
+
+[lints]
+workspace = true

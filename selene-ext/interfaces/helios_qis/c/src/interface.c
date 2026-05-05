@@ -425,3 +425,11 @@ void simulate_delay(uint64_t delay_ns) {
     unwrap(selene_simulate_delay(selene_instance, delay_ns));
     DIAGNOSTIC("   [done]\n");
 }
+void log_utility_call(uint64_t tag, void* data, uint64_t data_len) {
+    DIAGNOSTIC("log_utility_call(%" PRIu64 ", %p, %" PRIu64 ")\n", tag, data, data_len);
+    DIAGNOSTIC("Data:\n");
+    for (uint64_t i = 0; i < data_len; ++i) {
+        DIAGNOSTIC("   %02X ", ((uint8_t*)data)[i]);
+    }
+    unwrap(selene_log_utility_call(selene_instance, tag, data, data_len));
+}

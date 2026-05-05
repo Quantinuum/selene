@@ -85,6 +85,7 @@ packages = [
   "selene-ext/simulators/quantum-replay/python/selene_quantum_replay_plugin",
   "selene-ext/simulators/quest/python/selene_quest_plugin",
   "selene-ext/simulators/stim/python/selene_stim_plugin",
+  "selene-ext/utilities/argreader/python/selene_argreader_plugin",
 ]
 
 [tool.uv]
@@ -142,6 +143,8 @@ known_first_party = [
   "selene_quantum_replay_plugin",
   "selene_quest_plugin",
   "selene_stim_plugin",
+  # Utilities
+  "selene_argreader_plugin",
 ]
 extend_exclude = [
   "target",

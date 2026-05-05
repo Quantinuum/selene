@@ -658,6 +658,41 @@ pub unsafe extern "C" fn selene_custom_runtime_call(
     with_instance_u64(instance, |instance| instance.custom_runtime_call(tag, data))
 }
 
+/// Utilities can use `selene_log_custom_call` to log their activity through
+/// Selene traces.
+///
+/// For example, consider a custom utility that allows the user program
+/// to invoke a call to some function `foo(x: u64) -> u64`, by definining
+/// it as a symbol that gets linked in when the utility is provided to
+/// `selene_sim.build()`.
+///
+/// If `foo` invokes an opaque call to the runtime to trigger runtime-specific
+/// functionality, then a selene run with tracing enabled will log it as a normal
+/// Custom call. However, if `foo` has entirely classical behaviour (e.g. it
+/// calculates a SHA256 sum, or makes a HTTP request, or plays a sound, etc.)
+/// then it may not interact through libselene at all, and will not get logged.
+/// By calling `on_utility_call` by the FFI-exposed function, the utility plugin
+/// has the opportunity to log the foo call as a Custom operation, in any format
+/// it chooses.
+///
+/// It is recommended that a utility's python frontend provides a way to decode
+/// the logged data back in a human-readable format, so that a user scanning the
+/// trace can easily understand what utility functions are being called and the
+/// arguments to them.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_log_utility_call(
+    instance: *mut SeleneInstance,
+    tag: u64,
+    data: *const u8,
+    data_length: u64,
+) -> VoidResult {
+    let data = unsafe { std::slice::from_raw_parts(data, data_length as usize) };
+    with_instance_void(instance, |instance| {
+        instance.emulator.log_custom_call(tag, data);
+        Ok(())
+    })
+}
+
 /// Simulates a delay by notifying the runtime of a period of inactivity. This may be used by utility plugins to
 /// emulate a classical process taking some period of time, allowing the runtime to acknowledge the time spent
 /// when providing timing information for subsequent batches, which in turn allows time-based noise modelling to
