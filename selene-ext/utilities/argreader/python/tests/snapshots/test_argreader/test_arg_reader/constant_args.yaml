@@ -10,6 +10,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -22,6 +50,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -34,6 +90,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -46,6 +130,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -58,6 +170,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -70,6 +210,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -82,6 +250,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -94,6 +290,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -106,6 +330,34 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
 - - !!python/tuple
     - casing_is_logarithmic
     - 1
@@ -118,3 +370,31 @@
   - !!python/tuple
     - magneto_reluctance
     - 0.0125
+  - !!python/tuple
+    - cardinal_grammeters
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - marzelvane_sizes
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - tremie_pipe_lengths
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - encabulation_extents
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5

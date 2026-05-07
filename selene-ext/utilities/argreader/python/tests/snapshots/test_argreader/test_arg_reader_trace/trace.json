@@ -55,6 +55,62 @@
           "data": "a2V5OiBtYWduZXRvX3JlbHVjdGFuY2UKdmFsdWU6IDAuMDEyNQo="
         }
       }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 4
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBjYXJkaW5hbF9ncmFtbWV0ZXJzCnZhbHVlOgotIGZhbHNlCi0gdHJ1ZQotIHRydWUKLSB0cnVlCi0gdHJ1ZQo="
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 5
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBtYXJ6ZWx2YW5lX3NpemVzCnZhbHVlOgotIDgKLSAyCi0gNQotIDQKLSAxCg=="
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 6
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiB0cmVtaWVfcGlwZV9sZW5ndGhzCnZhbHVlOgotIDEwCi0gMjAKLSAxNQotIC0yNQotIDMwCg=="
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 7
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "OpaquePayload",
+          "tag": 43859750371,
+          "data": "a2V5OiBlbmNhYnVsYXRpb25fZXh0ZW50cwp2YWx1ZToKLSAwLjAKLSAwLjEyNQotIDAuMjUKLSAwLjM3NQotIDAuNQo="
+        }
+      }
     }
   ]
 }
