@@ -2,7 +2,6 @@ import subprocess
 import shutil
 import sys
 import os
-import tomllib
 from packaging.tags import sys_tags
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
@@ -125,10 +124,9 @@ class CargoAddonBuild:
     def _discover_manifests(self) -> list[Path]:
         manifests = []
         for manifest in Path(self.hook.root).glob("selene-ext/*/*/Cargo.toml"):
-            with manifest.open("rb") as f:
-                data = tomllib.load(f)
-            metadata = data.get("package", {}).get("metadata", {})
-            selene = metadata.get("selene", {})
+            metadata = self._get_metadata(manifest)
+            package = metadata["packages"][0]
+            selene = (package.get("metadata") or {}).get("selene", {})
             if selene.get("build_after_helios_interface"):
                 manifests.append(manifest)
         return manifests
