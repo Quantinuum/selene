@@ -2,6 +2,7 @@ import subprocess
 import shutil
 import sys
 import os
+import tomllib
 from packaging.tags import sys_tags
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
@@ -12,16 +13,6 @@ class CargoWorkspaceBuild:
     def __init__(self, hook: "BundleBuildHook") -> None:
         self.hook = hook
         self.metadata = self._get_metadata()
-        self.deferred_packages = self._get_deferred_packages()
-
-    def _get_deferred_packages(self) -> list[str]:
-        packages = []
-        for package in self.metadata["packages"]:
-            metadata = package.get("metadata") or {}
-            selene = metadata.get("selene", {})
-            if selene.get("build_after_helios_interface"):
-                packages.append(package["name"])
-        return packages
 
     def _get_metadata(self):
         p = subprocess.Popen(
@@ -67,39 +58,18 @@ class CargoWorkspaceBuild:
             )
             sys.exit(1)
 
-    def build_initial(self):
+    def build_all(self):
         self.hook.app.display_mini_header("Building cargo workspace")
-        args = [
-            "cargo",
-            "build",
-            "--workspace",
-            "--release",
-            "--locked",
-        ]
-        for package in self.deferred_packages:
-            args.extend(["--exclude", package])
-        self._run_build(args)
-        self.hook.app.display_success("Cargo build completed successfully")
-
-    def build_deferred(self):
-        if not self.deferred_packages:
-            return
-        self.hook.app.display_mini_header("Building deferred cargo packages")
-        env = os.environ.copy()
-        env["SELENE_HELIOS_QIS_LIB_DIR"] = str(
-            Path(self.hook.root)
-            / "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin/_dist/lib"
+        self._run_build(
+            [
+                "cargo",
+                "build",
+                "--workspace",
+                "--release",
+                "--locked",
+            ]
         )
-        args = [
-            "cargo",
-            "build",
-            "--release",
-            "--locked",
-        ]
-        for package in self.deferred_packages:
-            args.extend(["-p", package])
-        self._run_build(args, env=env)
-        self.hook.app.display_success("Deferred cargo build completed successfully")
+        self.hook.app.display_success("Cargo build completed successfully")
 
     def extract_libs(self):
         release_dir = self.hook.get_cargo_release_dir()
@@ -147,6 +117,147 @@ class CargoWorkspaceBuild:
                         shutil.copy(lib_path, destination)
 
 
+class CargoAddonBuild:
+    def __init__(self, hook: "BundleBuildHook") -> None:
+        self.hook = hook
+        self.manifests = self._discover_manifests()
+
+    def _discover_manifests(self) -> list[Path]:
+        manifests = []
+        for manifest in Path(self.hook.root).glob("selene-ext/*/*/Cargo.toml"):
+            with manifest.open("rb") as f:
+                data = tomllib.load(f)
+            metadata = data.get("package", {}).get("metadata", {})
+            selene = metadata.get("selene", {})
+            if selene.get("build_after_helios_interface"):
+                manifests.append(manifest)
+        return manifests
+
+    def _get_release_dir(self, manifest: Path) -> Path:
+        target = os.environ.get("CARGO_BUILD_TARGET")
+        target_dir = manifest.parent / "target"
+        if target:
+            return target_dir / target / "release"
+        return target_dir / "release"
+
+    def _get_metadata(self, manifest: Path) -> dict:
+        p = subprocess.Popen(
+            [
+                "cargo",
+                "metadata",
+                "--no-deps",
+                "--manifest-path",
+                str(manifest),
+            ],
+            cwd=self.hook.root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = p.communicate()
+        if p.returncode != 0:
+            self.hook.app.display_error(
+                f"Cargo metadata command failed with return code {p.returncode}"
+            )
+            self.hook.app.display_error(stderr.decode("utf-8"))
+            sys.exit(1)
+        return json.loads(stdout)
+
+    def build_all(self):
+        if not self.manifests:
+            return
+        env = os.environ.copy()
+        env["SELENE_HELIOS_QIS_LIB_DIR"] = str(
+            Path(self.hook.root)
+            / "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin/_dist/lib"
+        )
+        for manifest in self.manifests:
+            self.hook.app.display_mini_header(
+                f"Building cargo addon {manifest.parent.name}"
+            )
+            p = subprocess.Popen(
+                [
+                    "cargo",
+                    "build",
+                    "--manifest-path",
+                    str(manifest),
+                    "--release",
+                    "--locked",
+                ],
+                cwd=self.hook.root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                env=env,
+            )
+            assert p.stdout is not None
+            for line in p.stdout:
+                line_str = line.decode("utf-8").strip()
+                if "finished" in line_str.lower():
+                    self.hook.app.display_info(line_str)
+                elif "error" in line_str.lower():
+                    self.hook.app.display_error(line_str)
+                else:
+                    self.hook.app.display_info(line_str)
+            p.wait()
+            if p.returncode != 0:
+                self.hook.app.display_error(
+                    f"Cargo addon build failed with return code {p.returncode}"
+                )
+                sys.exit(1)
+            self.hook.app.display_success(
+                f"Cargo addon build completed successfully: {manifest.parent.name}"
+            )
+
+    def extract_libs(self):
+        for manifest in self.manifests:
+            metadata = self._get_metadata(manifest)
+            release_dir = self._get_release_dir(manifest)
+            assert release_dir.exists()
+            for package in metadata["packages"]:
+                for target in package["targets"]:
+                    if "cdylib" not in target["kind"]:
+                        continue
+                    self.hook.app.display_info(
+                        f"Found addon cdylib target: {target['name']}"
+                    )
+                    lib_name = target["name"]
+                    lib_filenames = {
+                        "darwin": [f"lib{lib_name}.dylib"],
+                        "linux": [f"lib{lib_name}.so"],
+                        "win32": [f"{lib_name}.dll", f"lib{lib_name}.dll.a"],
+                    }[sys.platform]
+                    assert all(
+                        (release_dir / file).exists() for file in lib_filenames
+                    ), (
+                        f"Compiled library for {lib_name} not found in {release_dir}. "
+                        f"Expected to find {','.join(lib_filenames)}."
+                    )
+
+                    cargo_toml_path = Path(package["manifest_path"])
+                    python_path = cargo_toml_path.parent / "python"
+                    subdirs = filter(lambda x: x.is_dir(), python_path.iterdir())
+                    subdirs = filter(
+                        lambda x: x.name != "test" and x.name != "tests", subdirs
+                    )
+                    subdirs = filter(lambda x: "pycache" not in x.name, subdirs)
+                    subdirs = filter(lambda x: not x.name.endswith("egg-info"), subdirs)
+                    subdirs = filter(lambda x: not x.name.startswith("."), subdirs)
+                    subdirs_list = list(subdirs)
+                    assert len(subdirs_list) == 1, (
+                        f"Multiple python directories found in {python_path} - "
+                        " hatch_build.py can't tell where the build artifacts should go."
+                    )
+                    subdir = subdirs_list[0]
+                    destination = subdir / "_dist/lib"
+                    destination.mkdir(parents=True, exist_ok=True)
+                    for filename in lib_filenames:
+                        lib_path = release_dir / filename
+                        if lib_path.exists():
+                            self.hook.app.display_info(
+                                f"Copying {lib_path} to {destination}"
+                            )
+                            shutil.copy(lib_path, destination)
+
+
 class BundleBuildHook(BuildHookInterface):
     def get_cargo_release_dir(self) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")
@@ -158,11 +269,13 @@ class BundleBuildHook(BuildHookInterface):
 
     def initialize(self, version: str, build_data: dict) -> None:
         cargo_runner = CargoWorkspaceBuild(self)
-        cargo_runner.build_initial()
+        cargo_runner.build_all()
+        cargo_runner.extract_libs()
         self.build_selene_c_interface()
         self.build_helios_qis()
-        cargo_runner.build_deferred()
-        cargo_runner.extract_libs()
+        addon_runner = CargoAddonBuild(self)
+        addon_runner.build_all()
+        addon_runner.extract_libs()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():
