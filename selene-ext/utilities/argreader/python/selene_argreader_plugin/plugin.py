@@ -38,7 +38,6 @@ class ArgReaderPlugin(Utility):
                 link_path = Path(__file__).parent / "_dist/lib/"
                 return [
                     "-luserenv",
-                    "-lws2_32",
                     f"-L{link_path}",
                     "-lselene_argreader_plugin",
                 ]

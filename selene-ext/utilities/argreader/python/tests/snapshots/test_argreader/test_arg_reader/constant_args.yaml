@@ -1,398 +1,398 @@
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25
       - 0.375
       - 0.5
 - - !!python/tuple
-    - casing_is_logarithmic
+    - input_bool
     - 1
   - !!python/tuple
-    - num_spurving_bearings
+    - input_u64
     - 2
   - !!python/tuple
-    - side_fumbling
+    - input_i64
     - -4
   - !!python/tuple
-    - magneto_reluctance
+    - input_f64
     - 0.0125
   - !!python/tuple
-    - cardinal_grammeters
+    - input_bool_array
     - - 0
       - 1
       - 1
       - 1
       - 1
   - !!python/tuple
-    - marzelvane_sizes
+    - input_u64_array
     - - 8
       - 2
       - 5
       - 4
       - 1
   - !!python/tuple
-    - tremie_pipe_lengths
+    - input_i64_array
     - - 10
       - 20
       - 15
       - -25
       - 30
   - !!python/tuple
-    - encabulation_extents
+    - input_f64_array
     - - 0.0
       - 0.125
       - 0.25

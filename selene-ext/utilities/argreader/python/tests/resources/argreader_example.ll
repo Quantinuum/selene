@@ -36,25 +36,25 @@ declare void @argreader_get_i64_array(i64*, i64*, i64) local_unnamed_addr
 declare void @argreader_get_f64_array(double*, i64*, i64) local_unnamed_addr
 
 
-; labels for argument fetching
-@bool_label = private constant [22 x i8] c"casing_is_logarithmic\00"
-@u64_label = private constant [22 x i8] c"num_spurving_bearings\00"
-@i64_label = private constant [14 x i8] c"side_fumbling\00"
-@f64_label = private constant [19 x i8] c"magneto_reluctance\00"
-@bool_array_label = private constant [20 x i8] c"cardinal_grammeters\00"
-@u64_array_label = private constant [17 x i8] c"marzelvane_sizes\00"
-@i64_array_label = private constant [20 x i8] c"tremie_pipe_lengths\00"
-@f64_array_label = private constant [21 x i8] c"encabulation_extents\00"
+; labels for argument fetching (first byte encodes length)
+@bool_label = private constant [11 x i8] c"\0Ainput_bool"
+@u64_label = private constant [10 x i8] c"\09input_u64"
+@i64_label = private constant [10 x i8] c"\09input_i64"
+@f64_label = private constant [10 x i8] c"\09input_f64"
+@bool_array_label = private constant [17 x i8] c"\10input_bool_array"
+@u64_array_label = private constant [16 x i8] c"\0Finput_u64_array"
+@i64_array_label = private constant [16 x i8] c"\0Finput_i64_array"
+@f64_array_label = private constant [16 x i8] c"\0Finput_f64_array"
 
-; tags for printing
-@bool_tag = private constant [32 x i8] c"\1fUSER:BOOL:casing_is_logarithmic"
-@u64_tag = private constant [31 x i8] c"\1eUSER:INT:num_spurving_bearings"
-@i64_tag = private constant [23 x i8] c"\16USER:INT:side_fumbling"
-@f64_tag = private constant [30 x i8] c"\1dUSER:FLOAT:magneto_reluctance"
-@bool_array_tag = private constant [33 x i8] c"\20USER:BOOLARR:cardinal_grammeters"
-@u64_array_tag = private constant [29 x i8] c"\1cUSER:INTARR:marzelvane_sizes"
-@i64_array_tag = private constant [32 x i8] c"\1fUSER:INTARR:tremie_pipe_lengths"
-@f64_array_tag = private constant [35 x i8] c"\22USER:FLOATARR:encabulation_extents"
+; tags for printing (first byte encodes length)
+@bool_tag = private constant [21 x i8] c"\14USER:BOOL:input_bool"
+@u64_tag = private constant [19 x i8] c"\12USER:INT:input_u64"
+@i64_tag = private constant [19 x i8] c"\12USER:INT:input_i64"
+@f64_tag = private constant [21 x i8] c"\14USER:FLOAT:input_f64"
+@bool_array_tag = private constant [30 x i8] c"\1DUSER:BOOLARR:input_bool_array"
+@u64_array_tag = private constant [28 x i8] c"\1BUSER:INTARR:input_u64_array"
+@i64_array_tag = private constant [28 x i8] c"\1BUSER:INTARR:input_i64_array"
+@f64_array_tag = private constant [30 x i8] c"\1DUSER:FLOATARR:input_f64_array"
 
 
 define private void @main_inner() unnamed_addr {
