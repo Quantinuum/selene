@@ -107,11 +107,7 @@ struct selene_string_t parse_c_string(char const* str) {
 
 SeleneInstance* selene_instance = 0;
 
-// defined by hybrid user program compiler
-extern uint64_t qmain(uint64_t);
-
-// The entrypoint of the resulting executable
-int main(int argc, char** argv) {
+int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     DIAGNOSTIC("selene_init() with args:\n");
     for (int i = 0; i < argc; ++i) {
         DIAGNOSTIC("   %d: %s\n", i, argv[i]);
@@ -143,7 +139,7 @@ int main(int argc, char** argv) {
         }
         int error_code = setjmp(user_program_jmpbuf);
         if (error_code == 0) {
-            qmain(0);
+            entrypoint(0);
         } else {
             // error_code >= 1000 means that the program should stop entirely,
             // error_code < 1000 means the shot stops but the next one is allowed
@@ -156,6 +152,7 @@ int main(int argc, char** argv) {
         }
     }
     selene_exit(selene_instance);
+    return 0;
 }
 
 uint64_t ___qalloc() {

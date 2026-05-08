@@ -12,25 +12,44 @@ set(base_name "helios_selene_interface")
 
 function(build_helios_interface log_level suffix)
 
-    set(target_name "${base_name}${suffix}")
+    set(runtime_target "${base_name}_runtime${suffix}")
+    set(launcher_target "${base_name}_launcher${suffix}")
 
-    add_library(${target_name} STATIC src/interface.c)
-    set_target_properties(${target_name} PROPERTIES
+    add_library(${runtime_target} SHARED src/interface.c)
+    set_target_properties(${runtime_target} PROPERTIES
         POSITION_INDEPENDENT_CODE ON
         C_STANDARD 11
     )
-    target_compile_definitions(${target_name} PRIVATE SELENE_LOG_LEVEL=${log_level})
-    target_include_directories(${target_name} PRIVATE "${selene_include_dirs}")
-    target_include_directories(${target_name} PUBLIC
+    target_compile_definitions(${runtime_target} PRIVATE SELENE_LOG_LEVEL=${log_level})
+    target_include_directories(${runtime_target} PRIVATE "${selene_include_dirs}")
+    target_include_directories(${runtime_target} PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     )
+    target_link_libraries(${runtime_target} PRIVATE Selene::Selene)
     if(MSVC)
-        target_compile_options(${target_name} PRIVATE /TC /Zl) # compile as C, not C++
+        target_compile_options(${runtime_target} PRIVATE /TC /Zl)
     endif()
 
-    install(TARGETS ${target_name}
+    add_library(${launcher_target} STATIC src/main.c)
+    set_target_properties(${launcher_target} PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        C_STANDARD 11
+    )
+    target_include_directories(${launcher_target} PRIVATE "${selene_include_dirs}")
+    target_include_directories(${launcher_target} PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+    )
+    target_link_libraries(${launcher_target} PUBLIC ${runtime_target})
+    if(MSVC)
+        target_compile_options(${launcher_target} PRIVATE /TC /Zl)
+    endif()
+
+    install(TARGETS ${runtime_target} ${launcher_target}
             EXPORT HeliosSeleneInterface
+            RUNTIME DESTINATION lib
+            LIBRARY DESTINATION lib
             ARCHIVE DESTINATION lib
             INCLUDES DESTINATION include
     )

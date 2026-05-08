@@ -17,7 +17,10 @@ class ArgReaderPlugin(Utility):
             case "Darwin":
                 return lib_dir / f"lib{lib_name}.dylib"
             case "Windows":
-                return lib_dir / f"{lib_name}.dll"
+                import_lib = lib_dir / f"lib{lib_name}.dll.a"
+                if import_lib.exists():
+                    return import_lib
+                return lib_dir / f"{lib_name}.lib"
             case system:
                 raise RuntimeError(f"Unsupported platform: {system}")
 

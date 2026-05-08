@@ -12,10 +12,16 @@ class CargoWorkspaceBuild:
     def __init__(self, hook: "BundleBuildHook") -> None:
         self.hook = hook
         self.metadata = self._get_metadata()
+        self.deferred_packages = self._get_deferred_packages()
 
-    def run(self):
-        self.build_all()
-        self.extract_libs()
+    def _get_deferred_packages(self) -> list[str]:
+        packages = []
+        for package in self.metadata["packages"]:
+            metadata = package.get("metadata") or {}
+            selene = metadata.get("selene", {})
+            if selene.get("build_after_helios_interface"):
+                packages.append(package["name"])
+        return packages
 
     def _get_metadata(self):
         p = subprocess.Popen(
@@ -37,35 +43,63 @@ class CargoWorkspaceBuild:
             sys.exit(1)
         return json.loads(stdout)
 
-    def build_all(self):
-        self.hook.app.display_mini_header("Building cargo workspace")
+    def _run_build(self, args: list[str], env: dict[str, str] | None = None):
         p = subprocess.Popen(
-            [
-                "cargo",
-                "build",
-                "--workspace",
-                "--release",
-                "--locked",
-            ],
+            args,
             cwd=self.hook.root,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=env,
         )
+        assert p.stdout is not None
         for line in p.stdout:
-            line = line.decode("utf-8").strip()
-            if "Finished" in line:
-                self.hook.app.display_info(line)
-            elif "error" in line:
-                self.hook.app.display_error(line)
+            line_str = line.decode("utf-8").strip()
+            if "finished" in line_str.lower():
+                self.hook.app.display_info(line_str)
+            elif "error" in line_str.lower():
+                self.hook.app.display_error(line_str)
             else:
-                self.hook.app.display_info(line)
+                self.hook.app.display_info(line_str)
         p.wait()
         if p.returncode != 0:
             self.hook.app.display_error(
                 f"Cargo build failed with return code {p.returncode}"
             )
             sys.exit(1)
+
+    def build_initial(self):
+        self.hook.app.display_mini_header("Building cargo workspace")
+        args = [
+            "cargo",
+            "build",
+            "--workspace",
+            "--release",
+            "--locked",
+        ]
+        for package in self.deferred_packages:
+            args.extend(["--exclude", package])
+        self._run_build(args)
         self.hook.app.display_success("Cargo build completed successfully")
+
+    def build_deferred(self):
+        if not self.deferred_packages:
+            return
+        self.hook.app.display_mini_header("Building deferred cargo packages")
+        env = os.environ.copy()
+        env["SELENE_HELIOS_QIS_LIB_DIR"] = str(
+            Path(self.hook.root)
+            / "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin/_dist/lib"
+        )
+        args = [
+            "cargo",
+            "build",
+            "--release",
+            "--locked",
+        ]
+        for package in self.deferred_packages:
+            args.extend(["-p", package])
+        self._run_build(args, env=env)
+        self.hook.app.display_success("Deferred cargo build completed successfully")
 
     def extract_libs(self):
         release_dir = self.hook.get_cargo_release_dir()
@@ -124,9 +158,11 @@ class BundleBuildHook(BuildHookInterface):
 
     def initialize(self, version: str, build_data: dict) -> None:
         cargo_runner = CargoWorkspaceBuild(self)
-        cargo_runner.run()
+        cargo_runner.build_initial()
         self.build_selene_c_interface()
         self.build_helios_qis()
+        cargo_runner.build_deferred()
+        cargo_runner.extract_libs()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():

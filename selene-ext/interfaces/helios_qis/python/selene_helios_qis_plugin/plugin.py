@@ -22,11 +22,10 @@ class HeliosInterface(QuantumInterface):
 
     @property
     def library_file(self):
-        # two libraries are currently provided: one for normal runs,
-        # and one for diagnostic runs. The latter prints quantum calls
-        # to stderr, and can be selected by setting the diagnostic_mode
-        # attribute to True.
-        lib_name = "helios_selene_interface"
+        # The Helios interface is now split into a static launcher and a shared
+        # runtime. The planner links the launcher into the final executable and
+        # adds the shared runtime separately.
+        lib_name = "helios_selene_interface_launcher"
         match self.log_level:
             case LogLevel.QUIET:
                 lib_name += ""

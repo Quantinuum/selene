@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <inttypes.h>
 #include <helios_qis/cl_types.h>
 
@@ -26,8 +27,7 @@
 
 
 
-// The entrypoint of the resulting executable
-EXPORT int main(int argc, char** argv);
+EXPORT int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t));
 
 EXPORT uint64_t ___qalloc();
 EXPORT void ___qfree(uint64_t q);
