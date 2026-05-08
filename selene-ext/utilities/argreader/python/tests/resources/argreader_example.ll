@@ -27,13 +27,13 @@ declare void @___inc_future_refcount(i64) local_unnamed_addr
 
 ; arg reader plugin functions
 declare i8 @argreader_get_bool(i8*) local_unnamed_addr
-declare i64 @argreader_get_u64(i64*) local_unnamed_addr
-declare i64 @argreader_get_i64(i64*) local_unnamed_addr
-declare double @argreader_get_f64(double*) local_unnamed_addr
-declare void @argreader_get_bool_array(i8*, i64*, i64) local_unnamed_addr
-declare void @argreader_get_u64_array(i64*, i64*, i64) local_unnamed_addr
-declare void @argreader_get_i64_array(i64*, i64*, i64) local_unnamed_addr
-declare void @argreader_get_f64_array(double*, i64*, i64) local_unnamed_addr
+declare i64 @argreader_get_u64(i8*) local_unnamed_addr
+declare i64 @argreader_get_i64(i8*) local_unnamed_addr
+declare double @argreader_get_f64(i8*) local_unnamed_addr
+declare void @argreader_get_bool_array(i8*, i8*, i64) local_unnamed_addr
+declare void @argreader_get_u64_array(i8*, i64*, i64) local_unnamed_addr
+declare void @argreader_get_i64_array(i8*, i64*, i64) local_unnamed_addr
+declare void @argreader_get_f64_array(i8*, double*, i64) local_unnamed_addr
 
 
 ; labels for argument fetching (first byte encodes length)
