@@ -1,3 +1,6 @@
+#ifndef SELENE_SIM_H
+#define SELENE_SIM_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -285,3 +288,5 @@ struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instanc
  * by calling this function (e.g. in interactive mode)
  */
 struct selene_void_result_t selene_write_metadata(struct SeleneInstance *instance);
+
+#endif  /* SELENE_SIM_H */

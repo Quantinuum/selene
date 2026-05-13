@@ -1,15 +1,21 @@
+import enum
 import platform
 from dataclasses import dataclass
 from pathlib import Path
 
-from selene_core import QuantumInterface, BuildPlanner
-from selene_base_qis_plugin import BaseQISInterface, LogLevel
+from selene_core import QuantumInterface
 
-from . import build
+
+class LogLevel(enum.Enum):
+    """Enum for log levels."""
+
+    QUIET = 0
+    DEBUG = 1
+    DIAGNOSTIC = 2
 
 
 @dataclass
-class HeliosInterface(QuantumInterface):
+class BaseQISInterface(QuantumInterface):
     log_level: LogLevel = LogLevel.QUIET
 
     @property
@@ -17,15 +23,10 @@ class HeliosInterface(QuantumInterface):
         return [Path(__file__).parent / "_dist/lib/"]
 
     @property
-    def dependencies(self):
-        return [BaseQISInterface(log_level=self.log_level)]
-
-    @property
     def library_file(self):
-        # The Helios interface is now split into a static launcher and a shared
-        # runtime. The planner links the launcher into the final executable and
-        # adds the shared runtime separately.
-        lib_name = "helios_selene_interface_runtime"
+        lib_name = "qis_interface"
+
+        lib_name = "base_qis_selene_interface"
         match self.log_level:
             case LogLevel.QUIET:
                 lib_name += ""
@@ -45,7 +46,3 @@ class HeliosInterface(QuantumInterface):
                 return lib_dir / f"{lib_name}.lib"
             case _:
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
-
-    def register_build_steps(self, planner: BuildPlanner):
-        planner.add_step(build.SeleneCompileHUGRToLLVMIRStringStep)
-        planner.add_step(build.SeleneCompileHUGRToLLVMBitcodeStringStep)

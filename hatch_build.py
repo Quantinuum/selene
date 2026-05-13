@@ -164,6 +164,10 @@ class CargoAddonBuild:
         if not self.manifests:
             return
         env = os.environ.copy()
+        env["SELENE_BASE_QIS_LIB_DIR"] = str(
+            Path(self.hook.root)
+            / "selene-ext/interfaces/base_qis/python/selene_base_qis_plugin/_dist/lib"
+        )
         env["SELENE_HELIOS_QIS_LIB_DIR"] = str(
             Path(self.hook.root)
             / "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin/_dist/lib"
@@ -270,6 +274,7 @@ class BundleBuildHook(BuildHookInterface):
         cargo_runner.build_all()
         cargo_runner.extract_libs()
         self.build_selene_c_interface()
+        self.build_base_qis()
         self.build_helios_qis()
         addon_runner = CargoAddonBuild(self)
         addon_runner.build_all()
@@ -461,18 +466,32 @@ class BundleBuildHook(BuildHookInterface):
 
         self.app.display_success("C interface build completed successfully")
 
-    def build_helios_qis(self):
-        self.app.display_mini_header("Building Helios QIS")
-        helios_qis_dir = Path(self.root) / "selene-ext/interfaces/helios_qis"
-        cmake_source_dir = helios_qis_dir / "c"
-        cmake_build_dir = Path(self.root) / "target" / "helios_qis_build"
+    def build_base_qis(self):
+        self.app.display_mini_header("Building base QIS")
+        base_qis_dir = Path(self.root) / "selene-ext/interfaces/base_qis"
+        cmake_source_dir = base_qis_dir / "c"
+        cmake_build_dir = Path(self.root) / "target" / "base_qis_build"
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
-        dist_dir = helios_qis_dir / "python/selene_helios_qis_plugin/_dist"
+        dist_dir = base_qis_dir / "python/selene_base_qis_plugin/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
         selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+        local_dist_lib_dir = dist_dir / "lib"
+        local_selene_dist_lib_dir = selene_sim_dist_dir / "lib"
+        local_relative_path = os.path.relpath(
+            local_selene_dist_lib_dir.resolve(), local_dist_lib_dir.resolve()
+        )
+        local_rpath = (
+            "$ORIGIN"
+            if local_relative_path == "."
+            else f"$ORIGIN/{local_relative_path}"
+        )
+        installed_rpath = "$ORIGIN/../../../selene_sim/_dist/lib"
+        rpath = f"{local_rpath}:{installed_rpath}"
         cmake_configure_cmd = [
             "cmake",
+            "-DCMAKE_INSTALL_LIBDIR=lib",
             f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+            f"-DCMAKE_INSTALL_RPATH={rpath}",
             "-DCMAKE_BUILD_TYPE=Release",
             f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
             f"{cmake_source_dir}",
@@ -486,6 +505,114 @@ class BundleBuildHook(BuildHookInterface):
             ]
 
         try:
+            subprocess.run(
+                cmake_configure_cmd,
+                cwd=cmake_build_dir,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            if b"is different than the directory" not in e.stderr:
+                self.app.display_error(f"cmake failed: {e.stderr.decode()}")
+                sys.exit(1)
+            try:
+                # existing build dir is incompatible, delete and retry
+                shutil.rmtree(cmake_build_dir)
+                cmake_build_dir.mkdir()
+                subprocess.run(
+                    cmake_configure_cmd,
+                    cwd=cmake_build_dir,
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                self.app.display_error(f"cmake failed: {e.stderr.decode()}")
+                sys.exit(1)
+
+        try:
+            subprocess.run(
+                [
+                    "cmake",
+                    "--build",
+                    ".",
+                    "--target",
+                    "install",
+                    "--config",
+                    "Release",
+                ],
+                check=True,
+                cwd=cmake_build_dir,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            self.app.display_error(f"cmake build failed: {e.stderr.decode()}")
+            sys.exit(1)
+
+        self.app.display_success("Base QIS build completed successfully")
+
+    def build_helios_qis(self):
+        self.app.display_mini_header("Building Helios QIS")
+        helios_qis_dir = Path(self.root) / "selene-ext/interfaces/helios_qis"
+        cmake_source_dir = helios_qis_dir / "c"
+        cmake_build_dir = Path(self.root) / "target" / "helios_qis_build"
+        cmake_build_dir.mkdir(parents=True, exist_ok=True)
+        dist_dir = helios_qis_dir / "python/selene_helios_qis_plugin/_dist"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+        base_qis_dist_dir = (
+            Path(self.root)
+            / "selene-ext/interfaces/base_qis/python/selene_base_qis_plugin/_dist"
+        )
+        # when running in the source directory, we're building to:
+        local_dist_lib_dir = dist_dir / "lib"
+        # and we need to give it an rpath to point to selene's lib directory
+        local_selene_dist_lib_dir = selene_sim_dist_dir / "lib"
+        # so the rpath for local runs should be
+        local_relative_path = os.path.relpath(
+            local_selene_dist_lib_dir.resolve(), local_dist_lib_dir.resolve()
+        )
+        local_rpath = (
+            "$ORIGIN"
+            if local_relative_path == "."
+            else f"$ORIGIN/{local_relative_path}"
+        )
+
+        local_base_qis_relative_path = os.path.relpath(
+            base_qis_dist_dir / "lib", local_dist_lib_dir.resolve()
+        )
+        local_rpath += f":$ORIGIN/{local_base_qis_relative_path}"
+
+        # but when running in an installed python environment, then
+        # selene_sim and selene_helios_qis_plugin are actually siblings within
+        # site-packages, so we need the path from
+        # $site-packages/selene_helios_qis_plugin/_dist/lib
+        # to
+        # $site-packages/selene_sim/_dist/_lib
+        # which is
+        installed_rpath = "$ORIGIN/../../../selene_sim/_dist/lib:$ORIGIN/../../../selene_base_qis/_dist/lib"
+
+        rpath = f"{local_rpath}:{installed_rpath}"
+        cmake_configure_cmd = [
+            "cmake",
+            "-DCMAKE_INSTALL_LIBDIR=lib",
+            f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+            f"-DCMAKE_INSTALL_RPATH={rpath}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir};{base_qis_dist_dir}",
+            f"{cmake_source_dir}",
+        ]
+        if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
+            cmake_configure_cmd = [
+                cmake_configure_cmd[0],
+                "-G",
+                "MinGW Makefiles",
+                *cmake_configure_cmd[1:],
+            ]
+
+        try:
+            self.app.display_info(
+                f"Running cmake configure: {' '.join(cmake_configure_cmd)}"
+            )
             subprocess.run(
                 cmake_configure_cmd,
                 cwd=cmake_build_dir,

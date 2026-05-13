@@ -302,43 +302,7 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
         if build_ctx.verbose:
             print("Linking helios object file with shared Helios runtime")
 
-        interface_path = build_ctx.deps[0].path
-        lib_dir = interface_path.parent
-        stem = interface_path.stem
-        if stem.startswith("lib"):
-            stem = stem[3:]
-        if stem.startswith("helios_selene_interface_launcher"):
-            suffix = stem.removeprefix("helios_selene_interface_launcher")
-        else:
-            suffix = stem.removeprefix("helios_selene_interface")
-        match platform.system():
-            case "Linux":
-                runtime_link = (
-                    lib_dir / f"libhelios_selene_interface_runtime{suffix}.so"
-                )
-                launcher = lib_dir / f"libhelios_selene_interface_launcher{suffix}.a"
-            case "Darwin":
-                runtime_link = (
-                    lib_dir / f"libhelios_selene_interface_runtime{suffix}.dylib"
-                )
-                launcher = lib_dir / f"libhelios_selene_interface_launcher{suffix}.a"
-            case "Windows":
-                runtime_link = (
-                    lib_dir / f"libhelios_selene_interface_runtime{suffix}.dll.a"
-                )
-                if not runtime_link.exists():
-                    runtime_link = (
-                        lib_dir / f"helios_selene_interface_runtime{suffix}.lib"
-                    )
-                launcher = lib_dir / f"libhelios_selene_interface_launcher{suffix}.a"
-                if not launcher.exists():
-                    launcher = lib_dir / f"helios_selene_interface_launcher{suffix}.lib"
-            case _:
-                raise RuntimeError(f"Unsupported OS: {platform.system()}")
-
         link_flags = ["-lc"]
-        libraries = [launcher, runtime_link]
-        library_search_dirs = [runtime_link.parent]
         try:
             from selene_sim import dist_dir as selene_dist
         except ImportError:
@@ -346,9 +310,10 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
                 "Selene simulation library not found. Please install selene_sim."
             )
         selene_lib_dir = selene_dist / "lib"
-        library_search_dirs.append(selene_lib_dir)
+        library_search_dirs = [selene_lib_dir]
+        libraries = []
 
-        for dep in build_ctx.deps[1:]:
+        for dep in build_ctx.deps:
             link_flags.extend(dep.link_flags)
             library_search_dirs.extend(dep.library_search_dirs)
             libraries.append(dep.path)
