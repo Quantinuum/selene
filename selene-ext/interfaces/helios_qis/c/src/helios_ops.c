@@ -107,6 +107,7 @@ uint64_t get_tc() {
     DIAGNOSTIC("get_tc()\n");
     uint64_t result = unwrap(selene_get_tc(selene_instance));
     DIAGNOSTIC("   result: %" PRIu64 "\n", result);
+    return result;
 }
 void setup(uint64_t time_cursor) {
     DIAGNOSTIC("setup(%" PRIu64 ")\n", time_cursor);
