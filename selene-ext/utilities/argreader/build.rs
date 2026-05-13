@@ -15,7 +15,7 @@ fn main() {
     }
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    println!("cargo:rustc-link-lib=dylib=base_qis_selene_interface");
+    println!("cargo:rustc-link-lib=dylib=base_qis_selene_interface_logging_off");
     println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/../../../selene_base_qis_plugin/_dist/lib")
 }
 
