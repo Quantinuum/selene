@@ -26,14 +26,14 @@ class BaseQISInterface(QuantumInterface):
     def library_file(self):
         lib_name = "qis_interface"
 
-        lib_name = "base_qis_selene_interface"
+        lib_name = "base_qis_selene_interface_logging_"
         match self.log_level:
             case LogLevel.QUIET:
-                lib_name += ""
+                lib_name += "off"
             case LogLevel.DEBUG:
-                lib_name += "_debug"
+                lib_name += "debug"
             case LogLevel.DIAGNOSTIC:
-                lib_name += "_diagnostic"
+                lib_name += "diagnostic"
             case _:
                 raise ValueError("Invalid log level")
         lib_dir = Path(__file__).parent / "_dist/lib/"

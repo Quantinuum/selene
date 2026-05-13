@@ -318,6 +318,9 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
             library_search_dirs.extend(dep.library_search_dirs)
             libraries.append(dep.path)
 
+        for search_dir in library_search_dirs:
+            link_flags.append(f"-L{search_dir}")
+
         zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
         zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
