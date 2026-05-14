@@ -92,12 +92,6 @@ uint64_t ___read_future_uint(uint64_t r) {
     return result;
 }
 
-uint64_t get_current_shot() {
-    DIAGNOSTIC("get_current_shot()\n");
-    uint64_t result = unwrap(selene_get_current_shot(selene_instance));
-    DIAGNOSTIC("   result: %" PRIu64 "\n", result);
-    return result;
-}
 void set_tc(uint64_t time_cursor) {
     DIAGNOSTIC("set_tc(%" PRIu64 ")\n", time_cursor);
     unwrap(selene_set_tc(selene_instance, time_cursor));

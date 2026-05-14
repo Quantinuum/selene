@@ -589,7 +589,7 @@ class BundleBuildHook(BuildHookInterface):
         # to
         # $site-packages/selene_sim/_dist/_lib
         # which is
-        installed_rpath = "$ORIGIN/../../../selene_sim/_dist/lib:$ORIGIN/../../../selene_base_qis/_dist/lib"
+        installed_rpath = "$ORIGIN/../../../selene_sim/_dist/lib:$ORIGIN/../../../selene_base_qis_plugin/_dist/lib"
 
         rpath = f"{local_rpath}:{installed_rpath}"
         cmake_configure_cmd = [
