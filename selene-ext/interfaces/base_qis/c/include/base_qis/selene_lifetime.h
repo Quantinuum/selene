@@ -4,6 +4,6 @@
 #include <selene/selene.h>
 #include <base_qis/macros.h>
 
-extern SeleneInstance* selene_instance;
+EXPORT extern SeleneInstance* selene_instance;
 
 #endif
