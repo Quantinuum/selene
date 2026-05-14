@@ -3,8 +3,9 @@
 
 #include <selene/selene.h>
 #include <base_qis/cl_types.h>
+#include <base_qis/macros.h>
 
-struct selene_string_t parse_cl_string(cl_string str);
-struct selene_string_t parse_c_string(char const* str);
+EXPORT struct selene_string_t parse_cl_string(cl_string str);
+EXPORT struct selene_string_t parse_c_string(char const* str);
 
 #endif
