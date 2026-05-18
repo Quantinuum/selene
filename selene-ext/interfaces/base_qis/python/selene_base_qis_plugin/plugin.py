@@ -43,6 +43,6 @@ class BaseQISInterface(QuantumInterface):
             case "Darwin":
                 return lib_dir / f"lib{lib_name}.dylib"
             case "Windows":
-                return lib_dir / f"{lib_name}.dll.a"
+                return lib_dir / f"lib{lib_name}.dll.a"
             case _:
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
