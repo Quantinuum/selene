@@ -24,8 +24,6 @@ class BaseQISInterface(QuantumInterface):
 
     @property
     def library_file(self):
-        lib_name = "qis_interface"
-
         lib_name = "base_qis_selene_interface_logging_"
         match self.log_level:
             case LogLevel.QUIET:
