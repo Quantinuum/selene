@@ -1,12 +1,3 @@
-import platform
-from dataclasses import dataclass
-from pathlib import Path
-
-from selene_core import QuantumInterface, BuildPlanner
-from selene_base_qis_plugin import BaseQISInterface, LogLevel
-
-from . import build
-
 """
 The Helios QIS interface is split into two conceptual parts.
 
@@ -46,6 +37,15 @@ utilising the base QIS interface, we support utilities that depend on
 wider QIS functionality (e.g. that depend on getting the current shot
 index) without tying to specific QIS implementations.
 """
+
+import platform
+from dataclasses import dataclass
+from pathlib import Path
+
+from selene_core import QuantumInterface, BuildPlanner
+from selene_base_qis_plugin import BaseQISInterface, LogLevel
+
+from . import build
 
 
 @dataclass

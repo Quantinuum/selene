@@ -20,11 +20,7 @@ crate-type = ["cdylib"]
 panic = "abort"
 
 [dependencies]
-anyhow = "1.0"
-quest-sys = {version = "0.16"}
 selene-core = { path = "../../../selene-core" }
-sysinfo = { version = "0.35" }
-bytesize = { version = "2.3" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yml = "0.0.12"
 

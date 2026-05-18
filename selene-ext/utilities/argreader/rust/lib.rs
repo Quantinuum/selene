@@ -3,6 +3,11 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::{fs, io};
 
+/// When logging via selene's log_utility_call function,
+/// we pass this identifying tag so we can recognise the
+/// call in the selene trace and handle it appropriately.
+const ARGREADER_LOGGING_TAG: u64 = 0xA13613EADE130746;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(untagged)]
 enum InputRecord {
@@ -44,6 +49,7 @@ impl RunInputs {
 
 thread_local! {
     pub static INPUTS: RefCell<Option<RunInputs>> = const{ RefCell::new(None) };
+    pub static SHOT_INPUT_CACHE: RefCell<Option<(u64, ShotInputs)>> = const{ RefCell::new(None) };
 }
 
 unsafe extern "C" {
@@ -69,7 +75,6 @@ fn selene_panic(message: String) -> ! {
     unsafe { panic_str(60001, message.as_ptr()) }
 }
 fn log(key: &str, value: &InputRecord) {
-    let tag: u64 = 0xA363EADE3;
     let entry = LogEntry {
         key: key.to_string(),
         value: value.clone(),
@@ -83,7 +88,7 @@ fn log(key: &str, value: &InputRecord) {
     });
     let data = yaml.into_bytes();
     unsafe {
-        log_utility_call(tag, data.as_ptr(), data.len() as u64);
+        log_utility_call(ARGREADER_LOGGING_TAG, data.as_ptr(), data.len() as u64);
     }
 }
 
@@ -113,6 +118,9 @@ fn get_key(key_ptr: *const u8) -> String {
     // As with result() calls and panic() calls, the format of the key starts with
     // byte providing the length of the string that follows.
     unsafe {
+        if key_ptr.is_null() {
+            selene_panic("Received null pointer for runtime argument key".to_string());
+        }
         let length = *key_ptr;
         let string_start = key_ptr.add(1);
         let slice = std::slice::from_raw_parts(string_start, length as usize);
@@ -123,32 +131,62 @@ fn get_key(key_ptr: *const u8) -> String {
     }
 }
 
-unsafe fn value_helper(key: *const u8) -> InputRecord {
-    let key = get_key(key);
+unsafe fn value_helper(key: &String) -> InputRecord {
     if INPUTS.with(|cell| cell.borrow().is_none()) {
         init();
     }
-    INPUTS.with(|cell| {
-        let binding = cell.borrow();
-        let current_shot = unsafe { get_current_shot() };
-        let shot_inputs = binding.as_ref().unwrap().get_inputs_for_shot(current_shot);
-        if shot_inputs.is_none() {
-            selene_panic(format!(
-                "No runtime arguments provided for shot {current_shot} (0-indexed)"
-            ));
+
+    let current_shot = unsafe { get_current_shot() };
+
+    // If we have cached inputs for the current shot, use them. Otherwise, look them up and cache
+    // them.
+    let shot_inputs = SHOT_INPUT_CACHE.with(|cache_cell| {
+        let cached = cache_cell.borrow();
+
+        if let Some((cached_shot, cached_inputs)) = cached.as_ref() && *cached_shot == current_shot {
+            return cached_inputs.clone();
         }
-        if let Some(record) = shot_inputs.unwrap().records.get(&key) {
-            log(&key, record);
-            record.clone()
-        } else {
-            selene_panic(format!("Missing runtime argument '{key}'"));
-        }
-    })
+
+        drop(cached);
+
+        let shot_inputs = INPUTS.with(|cell| {
+            let inputs = cell.borrow();
+
+            inputs
+                .as_ref()
+                .expect("runtime inputs should be initialised")
+                .get_inputs_for_shot(current_shot)
+                .unwrap_or_else(|| {
+                    selene_panic(format!(
+                        "No runtime arguments provided for shot {current_shot} (0-indexed)"
+                    ))
+                })
+                .clone()
+        });
+
+        *cache_cell.borrow_mut() = Some((current_shot, shot_inputs.clone()));
+
+        shot_inputs
+    });
+
+    let record = shot_inputs.records.get(key).unwrap_or_else(|| {
+        selene_panic(format!("Missing runtime argument '{key}'"))
+    });
+
+    log(key, record);
+
+    record.clone()
 }
 
+/// Get a boolean runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided pointer must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::Bool(value) => value,
         InputRecord::U64(value) => {
             if value == 0 {
@@ -156,7 +194,6 @@ pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
             } else if value == 1 {
                 true
             } else {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean value, but received the unsigned integer {value} which is not 0 or 1",
                 ));
@@ -168,7 +205,6 @@ pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
             } else if value == 1 {
                 true
             } else {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean value, but received the integer {value} which is not 0 or 1",
                 ));
@@ -180,14 +216,12 @@ pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
             } else if value == 1.0 {
                 true
             } else {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean value, but received the float {value} which is not 0.0 or 1.0",
                 ));
             }
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' expects a boolean value, but received the non-boolean value {value:?}"
             ));
@@ -195,13 +229,18 @@ pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
     }
 }
 
+/// Get a u64 runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided pointer must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_u64(key_ptr: *const u8) -> u64 {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::U64(value) => value,
         InputRecord::I64(value) => {
             if value < 0 {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' has a negative value ({value}), which cannot be converted to an unsigned integer",
                 ));
@@ -210,13 +249,11 @@ pub unsafe extern "C" fn argreader_get_u64(key_ptr: *const u8) -> u64 {
         }
         InputRecord::F64(value) => {
             if value < 0.0 {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' has a negative floating point value ({value}), which cannot be converted to an unsigned integer",
                 ));
             }
             if value.fract() != 0.0 {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' has a non-integral floating point value {value}, which cannot be converted to an unsigned integer",
                 ));
@@ -224,7 +261,6 @@ pub unsafe extern "C" fn argreader_get_u64(key_ptr: *const u8) -> u64 {
             value as u64
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' expects an unsigned integer, but received the non-integer value {value:?}"
             ));
@@ -232,13 +268,18 @@ pub unsafe extern "C" fn argreader_get_u64(key_ptr: *const u8) -> u64 {
     }
 }
 
+/// Get an i64 runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided pointer must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_i64(key_ptr: *const u8) -> i64 {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::I64(value) => value,
         InputRecord::U64(value) => {
             if value > i64::MAX as u64 {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' has an unsigned value {value}, exceeding the maximum value of a signed integer",
                 ));
@@ -247,13 +288,11 @@ pub unsafe extern "C" fn argreader_get_i64(key_ptr: *const u8) -> i64 {
         }
         InputRecord::F64(value) => {
             if value.fract() != 0.0 {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' has the non-integral floating point value {value}, which cannot be converted to an integer",
                 ));
             }
             if value < i64::MIN as f64 || value > i64::MAX as f64 {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' has the floating point value {value}, which exceeds signed integer bounds",
                 ));
@@ -261,7 +300,6 @@ pub unsafe extern "C" fn argreader_get_i64(key_ptr: *const u8) -> i64 {
             value as i64
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' is not an integer: {value:?}"
             ));
@@ -269,14 +307,19 @@ pub unsafe extern "C" fn argreader_get_i64(key_ptr: *const u8) -> i64 {
     }
 }
 
+/// Get an f64 runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided pointer must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_f64(key_ptr: *const u8) -> f64 {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::F64(value) => value,
         InputRecord::U64(value) => value as f64,
         InputRecord::I64(value) => value as f64,
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' is not a floating point number: {value:?}"
             ));
@@ -284,12 +327,20 @@ pub unsafe extern "C" fn argreader_get_f64(key_ptr: *const u8) -> f64 {
     }
 }
 
+/// Get an u64-array runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided key_ptr must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
+///
+/// The provided out_ptr must point to a writable memory region large enough to
+/// hold `len` contiguous u64 values, each represented in 8 bytes in native endian.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *mut u64, len: u64) {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::U64Array(values) => {
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} unsigned integers, but was provided an array {values:?} of length {}",
                     values.len()
@@ -301,14 +352,12 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
         }
         InputRecord::I64Array(values) => {
             if values.iter().any(|&v| v < 0) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' contains negative int values ({values:?}), and thus cannot be converted to an unsigned int array",
                 ));
             }
             let u64_values: Vec<u64> = values.clone().into_iter().map(|v| v as u64).collect();
             if u64_values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} unsigned integers, but was provided an array {values:?} of length {}",
                     values.len()
@@ -320,20 +369,17 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
         }
         InputRecord::F64Array(values) => {
             if values.iter().any(|&v| v < 0.0) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' contains negative floating point values ({values:?}), and thus cannot be converted to an unsigned int array",
                 ));
             }
             if values.iter().any(|&v| v.fract() != 0.0) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' contains non-integral floating point values ({values:?}), and thus cannot be converted to an unsigned int array",
                 ));
             }
             let u64_values: Vec<u64> = values.clone().into_iter().map(|v| v as u64).collect();
             if u64_values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} unsigned integers, but was provided an array {values:?} of length {}",
                     values.len()
@@ -344,7 +390,6 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
             }
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' expects an array of {len} integers, but received the value {value:?}"
             ));
@@ -352,9 +397,19 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
     }
 }
 
+/// Get an i64-array runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided key_ptr must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
+///
+/// The provided out_ptr must point to a writable memory region large enough to
+/// hold `len` contiguous i64 values, each of which will be represented in 8
+/// bytes in two's complement format, native endian.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *mut i64, len: u64) {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::I64Array(values) => {
             if values.len() != len as usize {
                 let key = get_key(key_ptr);
@@ -369,13 +424,11 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
         }
         InputRecord::U64Array(values) => {
             if values.iter().any(|&v| v > i64::MAX as u64) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' contains unsigned int values which exceed the max value of signed ints ({values:?}), and thus cannot be converted to an int array",
                 ));
             }
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} integers, but was provided an array {values:?} of length {}",
                     values.len()
@@ -388,7 +441,6 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
         }
         InputRecord::F64Array(values) => {
             if values.iter().any(|&v| v.fract() != 0.0) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' contains non-integral floating point numbers ({values:?}), and thus cannot be converted to an int array",
                 ));
@@ -397,14 +449,12 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
                 .iter()
                 .any(|&v| v < i64::MIN as f64 || v > i64::MAX as f64)
             {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' contains floating point values which exceed signed integer bounds ({values:?})), which cannot be converted to an int array",
                 ));
             }
             let i64_values: Vec<i64> = values.clone().into_iter().map(|v| v as i64).collect();
             if i64_values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} integers, but was provided an array {values:?} of length {}",
                     values.len()
@@ -415,7 +465,6 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
             }
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' expects an array of {len} integers, but received the value {value:?}"
             ));
@@ -423,12 +472,21 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
     }
 }
 
+/// Get an f64-array runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided key_ptr must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
+///
+/// The provided out_ptr must point to a writable memory region large enough to
+/// hold `len` contiguous f64 values, each of which will be represented in 8 bytes
+/// in IEEE 754 double-precision format, native endian.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *mut f64, len: u64) {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::F64Array(values) => {
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} floats, but was provided an array {values:?} of length {}",
                     values.len()
@@ -441,7 +499,6 @@ pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *m
         InputRecord::U64Array(values) => {
             let f64_values: Vec<f64> = values.clone().into_iter().map(|v| v as f64).collect();
             if f64_values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} floats, but was provided an array {values:?} of length {}",
                     values.len()
@@ -454,7 +511,6 @@ pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *m
         InputRecord::I64Array(values) => {
             let f64_values: Vec<f64> = values.clone().into_iter().map(|v| v as f64).collect();
             if f64_values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects an array of {len} floats, but was provided an array {values:?} of length {}",
                     values.len()
@@ -465,7 +521,6 @@ pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *m
             }
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' expects an array of {len} floating point values, but received the value {value:?}"
             ));
@@ -473,16 +528,25 @@ pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *m
     }
 }
 
+/// Get an bool-array runtime argument for the current shot given a CL-string key.
+///
+/// # Safety
+/// The provided key_ptr must point to a valid CL string, with the char
+/// at the pointer providing the length of the UTF-8 string that follows it.
+///
+/// The provided out_ptr must point to a writable memory region large enough to
+/// hold `len` contiguous boolean values, each of which represented by a byte
+/// with value 0 for false, 1 for true.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_bool_array(
     key_ptr: *const u8,
     out_ptr: *mut bool,
     len: u64,
 ) {
-    match unsafe { value_helper(key_ptr) } {
+    let key = get_key(key_ptr);
+    match unsafe { value_helper(&key) } {
         InputRecord::BoolArray(values) => {
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array of length {len}, but received an array {values:?} of length {}",
                     values.len()
@@ -494,14 +558,12 @@ pub unsafe extern "C" fn argreader_get_bool_array(
         }
         InputRecord::I64Array(values) => {
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array of length {len}, but received an array {values:?} of length {}",
                     values.len()
                 ));
             }
             if values.iter().any(|&v| v != 0 && v != 1) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array, but received the integer array {values:?} which contains non-boolean values",
                 ));
@@ -513,14 +575,12 @@ pub unsafe extern "C" fn argreader_get_bool_array(
         }
         InputRecord::U64Array(values) => {
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array of length {len}, but received an array {values:?} of length {}",
                     values.len()
                 ));
             }
             if values.iter().any(|&v| v != 0 && v != 1) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array, but received the unsigned integer array {values:?} which contains non-boolean values",
                 ));
@@ -532,14 +592,12 @@ pub unsafe extern "C" fn argreader_get_bool_array(
         }
         InputRecord::F64Array(values) => {
             if values.len() != len as usize {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array of length {len}, but received an array {values:?} of length {}",
                     values.len()
                 ));
             }
             if values.iter().any(|&v| v != 0.0 && v != 1.0) {
-                let key = get_key(key_ptr);
                 selene_panic(format!(
                     "Runtime argument '{key}' expects a boolean array, but received the float array {values:?} which contains non-boolean values",
                 ));
@@ -550,7 +608,6 @@ pub unsafe extern "C" fn argreader_get_bool_array(
             }
         }
         value => {
-            let key = get_key(key_ptr);
             selene_panic(format!(
                 "Runtime argument '{key}' expects a boolean array of length {len}, but received the value {value:?}"
             ));

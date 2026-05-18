@@ -108,7 +108,7 @@ struct selene_void_result_t selene_local_barrier(struct SeleneInstance *instance
  * Selene traces.
  *
  * For example, consider a custom utility that allows the user program
- * to invoke a call to some function `foo(x: u64) -> u64`, by definining
+ * to invoke a call to some function `foo(x: u64) -> u64`, by defining
  * it as a symbol that gets linked in when the utility is provided to
  * `selene_sim.build()`.
  *
@@ -117,9 +117,9 @@ struct selene_void_result_t selene_local_barrier(struct SeleneInstance *instance
  * Custom call. However, if `foo` has entirely classical behaviour (e.g. it
  * calculates a SHA256 sum, or makes a HTTP request, or plays a sound, etc.)
  * then it may not interact through libselene at all, and will not get logged.
- * By calling `on_utility_call` by the FFI-exposed function, the utility plugin
- * has the opportunity to log the foo call as a Custom operation, in any format
- * it chooses.
+ * By calling `selene_log_utility_call` by the FFI-exposed function, the utility
+ * plugin has the opportunity to log the foo call as a Custom operation, in any
+ * format it chooses.
  *
  * It is recommended that a utility's python frontend provides a way to decode
  * the logged data back in a human-readable format, so that a user scanning the
