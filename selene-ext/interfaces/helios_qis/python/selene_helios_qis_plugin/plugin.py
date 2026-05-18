@@ -47,7 +47,7 @@ class HeliosInterface(QuantumInterface):
             case "Darwin":
                 return lib_dir / f"lib{lib_name}.a"
             case "Windows":
-                return lib_dir / f"{lib_name}.lib"
+                return lib_dir / f"lib{lib_name}.a"
             case _:
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
