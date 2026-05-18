@@ -261,6 +261,24 @@ class CargoAddonBuild:
 
 
 class BundleBuildHook(BuildHookInterface):
+    def target_is_windows(self) -> bool:
+        return sys.platform == "win32" or os.environ.get(
+            "CARGO_BUILD_TARGET", ""
+        ).endswith("windows-gnu")
+
+    def target_is_windows_gnu(self) -> bool:
+        return os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu")
+
+    def runtime_origin(self) -> str:
+        if sys.platform == "darwin":
+            return "@loader_path"
+        return "$ORIGIN"
+
+    def install_rpath_arg(self, rpaths: list[str]) -> list[str]:
+        if self.target_is_windows():
+            return []
+        return [f"-DCMAKE_INSTALL_RPATH={';'.join(rpaths)}"]
+
     def get_cargo_release_dir(self) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")
         if target:
@@ -480,23 +498,21 @@ class BundleBuildHook(BuildHookInterface):
         local_relative_path = os.path.relpath(
             local_selene_dist_lib_dir.resolve(), local_dist_lib_dir.resolve()
         )
+        origin = self.runtime_origin()
         local_rpath = (
-            "$ORIGIN"
-            if local_relative_path == "."
-            else f"$ORIGIN/{local_relative_path}"
+            origin if local_relative_path == "." else f"{origin}/{local_relative_path}"
         )
-        installed_rpath = "$ORIGIN/../../../selene_sim/_dist/lib"
-        rpath = f"{local_rpath}:{installed_rpath}"
+        installed_rpath = f"{origin}/../../../selene_sim/_dist/lib"
         cmake_configure_cmd = [
             "cmake",
             "-DCMAKE_INSTALL_LIBDIR=lib",
             f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
-            f"-DCMAKE_INSTALL_RPATH={rpath}",
+            *self.install_rpath_arg([local_rpath, installed_rpath]),
             "-DCMAKE_BUILD_TYPE=Release",
             f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
             f"{cmake_source_dir}",
         ]
-        if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
+        if self.target_is_windows_gnu():
             cmake_configure_cmd = [
                 cmake_configure_cmd[0],
                 "-G",
@@ -571,16 +587,15 @@ class BundleBuildHook(BuildHookInterface):
         local_relative_path = os.path.relpath(
             local_selene_dist_lib_dir.resolve(), local_dist_lib_dir.resolve()
         )
+        origin = self.runtime_origin()
         local_rpath = (
-            "$ORIGIN"
-            if local_relative_path == "."
-            else f"$ORIGIN/{local_relative_path}"
+            origin if local_relative_path == "." else f"{origin}/{local_relative_path}"
         )
 
         local_base_qis_relative_path = os.path.relpath(
-            base_qis_dist_dir / "lib", local_dist_lib_dir.resolve()
+            (base_qis_dist_dir / "lib").resolve(), local_dist_lib_dir.resolve()
         )
-        local_rpath += f":$ORIGIN/{local_base_qis_relative_path}"
+        local_base_qis_rpath = f"{origin}/{local_base_qis_relative_path}"
 
         # but when running in an installed python environment, then
         # selene_sim and selene_helios_qis_plugin are actually siblings within
@@ -589,19 +604,25 @@ class BundleBuildHook(BuildHookInterface):
         # to
         # $site-packages/selene_sim/_dist/_lib
         # which is
-        installed_rpath = "$ORIGIN/../../../selene_sim/_dist/lib:$ORIGIN/../../../selene_base_qis_plugin/_dist/lib"
-
-        rpath = f"{local_rpath}:{installed_rpath}"
+        installed_selene_rpath = f"{origin}/../../../selene_sim/_dist/lib"
+        installed_base_qis_rpath = f"{origin}/../../../selene_base_qis_plugin/_dist/lib"
         cmake_configure_cmd = [
             "cmake",
             "-DCMAKE_INSTALL_LIBDIR=lib",
             f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
-            f"-DCMAKE_INSTALL_RPATH={rpath}",
+            *self.install_rpath_arg(
+                [
+                    local_rpath,
+                    local_base_qis_rpath,
+                    installed_selene_rpath,
+                    installed_base_qis_rpath,
+                ]
+            ),
             "-DCMAKE_BUILD_TYPE=Release",
             f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir};{base_qis_dist_dir}",
             f"{cmake_source_dir}",
         ]
-        if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
+        if self.target_is_windows_gnu():
             cmake_configure_cmd = [
                 cmake_configure_cmd[0],
                 "-G",

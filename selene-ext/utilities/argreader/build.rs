@@ -15,8 +15,37 @@ fn main() {
     }
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    println!("cargo:rustc-link-lib=dylib=base_qis_selene_interface_logging_off");
-    println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/../../../selene_base_qis_plugin/_dist/lib")
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    if target_os == "windows" && target_env == "gnu" {
+        let import_lib = lib_dir.join("libbase_qis_selene_interface_logging_off.dll.a");
+        if !import_lib.exists() {
+            panic!(
+                "Base QIS import library not found: {}",
+                import_lib.display()
+            );
+        }
+        // MinGW link order matters for import libraries. Cargo places native
+        // rustc-link-lib entries before Rust objects for cdylibs, so pass the
+        // import library as a final linker argument instead.
+        println!("cargo:rustc-link-arg={}", import_lib.display());
+    } else {
+        println!("cargo:rustc-link-lib=dylib=base_qis_selene_interface_logging_off");
+    }
+
+    match target_os.as_str() {
+        "linux" => {
+            println!(
+                "cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/../../../selene_base_qis_plugin/_dist/lib"
+            );
+        }
+        "macos" => {
+            println!(
+                "cargo:rustc-link-arg=-Wl,-rpath,@loader_path/../../../selene_base_qis_plugin/_dist/lib"
+            );
+        }
+        _ => {}
+    }
 }
 
 fn default_base_lib_dir() -> PathBuf {
