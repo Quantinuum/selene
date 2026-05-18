@@ -88,7 +88,6 @@ void print_float_arr(cl_string tag, uint64_t _unused, struct cl_array* arr) {
     for (uint64_t i = 0; i < length; ++i) {
         DIAGNOSTIC("   %" PRIu64 ": %f\n", i, array[i]);
     }
-    fprintf(stderr, "selene instance: %p\n", selene_instance);
     unwrap(selene_print_f64_array(selene_instance, parse_cl_string(tag), array, length));
     DIAGNOSTIC("   [done]\n");
 }
