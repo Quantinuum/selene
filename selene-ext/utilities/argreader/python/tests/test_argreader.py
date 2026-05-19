@@ -52,7 +52,7 @@ def test_arg_reader(snapshot):
 
     odd_shot_args = {
         "input_bool": True,
-        "input_u64": 2,
+        "input_u64": 1,
         "input_i64": -4,
         "input_f64": 0.0125,
         "input_bool_array": [False, True, True, True, True],

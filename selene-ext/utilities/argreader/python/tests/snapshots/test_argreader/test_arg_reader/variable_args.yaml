@@ -43,7 +43,7 @@
     - 1
   - !!python/tuple
     - input_u64
-    - 2
+    - 1
   - !!python/tuple
     - input_i64
     - -4
@@ -123,7 +123,7 @@
     - 1
   - !!python/tuple
     - input_u64
-    - 2
+    - 1
   - !!python/tuple
     - input_i64
     - -4
@@ -203,7 +203,7 @@
     - 1
   - !!python/tuple
     - input_u64
-    - 2
+    - 1
   - !!python/tuple
     - input_i64
     - -4
@@ -283,7 +283,7 @@
     - 1
   - !!python/tuple
     - input_u64
-    - 2
+    - 1
   - !!python/tuple
     - input_i64
     - -4
@@ -363,7 +363,7 @@
     - 1
   - !!python/tuple
     - input_u64
-    - 2
+    - 1
   - !!python/tuple
     - input_i64
     - -4

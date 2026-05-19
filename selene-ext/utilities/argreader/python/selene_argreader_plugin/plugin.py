@@ -17,10 +17,7 @@ class ArgReaderPlugin(Utility):
             case "Darwin":
                 return lib_dir / f"lib{lib_name}.dylib"
             case "Windows":
-                import_lib = lib_dir / f"lib{lib_name}.dll.a"
-                if import_lib.exists():
-                    return import_lib
-                return lib_dir / f"{lib_name}.lib"
+                return lib_dir / f"lib{lib_name}.dll.a"
             case system:
                 raise RuntimeError(f"Unsupported platform: {system}")
 
@@ -30,19 +27,9 @@ class ArgReaderPlugin(Utility):
 
     @property
     def link_flags(self) -> list[str]:
-        match platform.system():
-            case "Linux":
-                link_path = Path(__file__).parent / "_dist/lib/"
-                return ["-lgcc_s", f"-L{link_path}", "-lselene_argreader_plugin"]
-            case "Darwin":
-                link_path = Path(__file__).parent / "_dist/lib/"
-                return [f"-L{link_path}", "-lselene_argreader_plugin"]
-            case "Windows":
-                link_path = Path(__file__).parent / "_dist/lib/"
-                return [
-                    "-luserenv",
-                    f"-L{link_path}",
-                    "-lselene_argreader_plugin",
-                ]
-            case system:
-                raise RuntimeError(f"Unsupported platform: {system}")
+        if platform.system() == "Windows":
+            return [
+                "-luserenv",
+            ]
+        else:
+            return []
