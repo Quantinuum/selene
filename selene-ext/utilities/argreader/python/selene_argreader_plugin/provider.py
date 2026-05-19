@@ -78,11 +78,17 @@ class ArgProvider(AbstractContextManager):
             )
 
     def __enter__(self) -> "ArgProvider":
-        # write args to a new temporary file
-        with tempfile.NamedTemporaryFile("w", delete=False) as f:
-            self._file_path = f.name
-            yaml.dump(self.run_inputs, f)
-            os.environ["SELENE_ARGREADER_INPUT_FILE"] = f.name
+        # write args to a new temporary file; clean up on failure so we don't leak it
+        tmp = tempfile.NamedTemporaryFile("w", delete=False, suffix=".yaml")
+        try:
+            yaml.dump(self.run_inputs, tmp)
+        except Exception:
+            tmp.close()
+            os.remove(tmp.name)
+            raise
+        tmp.close()
+        self._file_path = tmp.name
+        os.environ["SELENE_ARGREADER_INPUT_FILE"] = tmp.name
         return self
 
     def __exit__(
@@ -91,6 +97,9 @@ class ArgProvider(AbstractContextManager):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        del os.environ["SELENE_ARGREADER_INPUT_FILE"]
-        if self._file_path is not None:
-            os.remove(self._file_path)
+        try:
+            os.environ.pop("SELENE_ARGREADER_INPUT_FILE", None)
+            if self._file_path is not None:
+                os.remove(self._file_path)
+        finally:
+            self._file_path = None
