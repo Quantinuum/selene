@@ -1,5 +1,10 @@
-#include <string.h>
 #include <base_qis/string_utils.h>
+
+
+#include <string.h> // strlen
+#include <selene/selene.h> // selene_string_t
+#include <base_qis/cl_types.h> // cl_string
+
 
 struct selene_string_t parse_cl_string(cl_string str) {
     uint8_t length = str[0];

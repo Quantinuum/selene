@@ -1,18 +1,8 @@
-/**
- * This file defines a shim for running Selene with a compiled
- * program for the Helios Quantum Instruction Set.
- *
- * The user's program is expected to have a `qmain` function.
- * This is invoked on each shot, and the calls it makes are
- * routed to the selene library.
- */
-
-#include <stdlib.h>
-
-#include <selene/selene.h>
 #include <base_qis/heap.h>
 
-#include "logging.h"
+#include <stdlib.h> // malloc, free
+
+#include "logging.h" // DIAGNOSTIC
 
 void* heap_alloc(size_t size) {
     DIAGNOSTIC("heap_alloc(%zu)\n", size);

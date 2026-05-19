@@ -1,5 +1,5 @@
-#ifndef HELIOS_QIS_HEAP_H
-#define HELIOS_QIS_HEAP_H
+#ifndef BASE_QIS_HEAP_H
+#define BASE_QIS_HEAP_H
 
 #include <stdint.h>
 #include <stdbool.h>

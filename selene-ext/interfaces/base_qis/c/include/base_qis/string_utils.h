@@ -1,5 +1,5 @@
-#ifndef SELENE_STRING_UTILS_H
-#define SELENE_STRING_UTILS_H
+#ifndef BASE_QIS_STRING_UTILS_H
+#define BASE_QIS_STRING_UTILS_H
 
 #include <selene/selene.h>
 #include <base_qis/cl_types.h>

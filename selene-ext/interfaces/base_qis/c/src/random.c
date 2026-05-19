@@ -1,10 +1,10 @@
-#include <stdint.h>
-
 #include <base_qis/random.h>
-#include <base_qis/selene_lifetime.h>
-#include <base_qis/unwrap.h>
 
-#include "logging.h"
+#include <selene/selene.h> // selene_random_ functions
+#include <base_qis/selene_lifetime.h> // selene_instance
+#include <base_qis/unwrap.h> // unwrap
+
+#include "logging.h" // DIAGNOSTIC
 
 void random_seed(uint64_t seed) {
     DIAGNOSTIC("random_seed(%" PRIu64 ")\n", seed);

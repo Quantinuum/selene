@@ -1,10 +1,11 @@
 /**
- * This file defines a shim for running Selene with a compiled
- * program for the Helios Quantum Instruction Set.
+ * This file provides the main entrypoint for a QIS-based Selene run,
+ * given an entrypoint function to call. It loads the selene configuration,
+ * reads the number of shots, and runs them in a loop.
  *
- * The user's program is expected to have a `qmain` function.
- * This is invoked on each shot, and the calls it makes are
- * routed to the selene library.
+ * The user function is wrapped in a panic handler, such that it will always
+ * return with a result indicating whether it exited early (via panic) or not,
+ * and if so, with what error code.
  */
 
 #include <stdint.h>

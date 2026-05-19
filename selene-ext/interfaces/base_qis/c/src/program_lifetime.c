@@ -2,6 +2,7 @@
 #include <base_qis/program_lifetime.h>
 
 #ifdef USER_PROGRAM_THREADING
+#include <threads.h>
 #define context_attrs thread_local
 #else
 #define context_attrs
@@ -18,9 +19,9 @@ struct user_program_result_t user_program_wrapper(
     user_program_t user_program,
     uint64_t arg
 ){
-    uint32_t error_code = setjmp(program_context.program_end);
+    int jump_code = setjmp(program_context.program_end);
     user_program_result_t result = {0};
-    if(error_code == 0){
+    if(jump_code == 0){
         uint64_t program_return = user_program(arg);
         result.exited_early = false;
         result.result_or_error_code = program_return;

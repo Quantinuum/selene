@@ -1,5 +1,5 @@
-#ifndef SELENE_HELIOS_QIS_PROGRAM_LIFETIME_H
-#define SELENE_HELIOS_QIS_PROGRAM_LIFETIME_H
+#ifndef BASE_QIS_PROGRAM_LIFETIME_H
+#define BASE_QIS_PROGRAM_LIFETIME_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -19,4 +19,4 @@ EXPORT user_program_result_t user_program_wrapper(
 
 EXPORT void early_exit(uint32_t error_code);
 
-#endif //SELENE_HELIOS_QIS_PROGRAM_LIFETIME_H
+#endif

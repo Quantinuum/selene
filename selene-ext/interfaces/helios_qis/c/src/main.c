@@ -1,8 +1,8 @@
-#include <stdint.h>
+#include <stdint.h> // uint64_t
 
-#include <helios_qis/interface.h>
+#include <helios_qis/interface.h> // selene_helios_run
 
-// defined by hybrid user program compiler
+// compiled user program entrypoint
 extern uint64_t qmain(uint64_t);
 
 int main(int argc, char** argv) {

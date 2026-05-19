@@ -1,5 +1,5 @@
-#ifndef HELIOS_QIS_PRINT_H
-#define HELIOS_QIS_PRINT_H
+#ifndef BASE_QIS_PRINT_H
+#define BASE_QIS_PRINT_H
 
 #include <stdint.h>
 #include <base_qis/cl_types.h>

@@ -1,5 +1,7 @@
 #include <base_qis/unwrap.h>
-#include <base_qis/program_lifetime.h>
+
+#include <selene/selene.h> // selene_T_result_t structs
+#include <base_qis/program_lifetime.h> // early_exit
 
 uint64_t unwrap_u64(struct selene_u64_result_t result){
     if (result.error_code != 0) {

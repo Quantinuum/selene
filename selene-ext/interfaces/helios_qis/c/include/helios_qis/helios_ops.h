@@ -7,7 +7,7 @@
 #include <base_qis/macros.h>
 
 
-EXPORT uint64_t ___qalloc();
+EXPORT uint64_t ___qalloc(void);
 EXPORT void ___qfree(uint64_t q);
 EXPORT void ___rxy(uint64_t q, double theta, double phi);
 EXPORT void ___rzz(uint64_t q1, uint64_t q2, double theta);
@@ -23,8 +23,8 @@ EXPORT void ___barrier(uint64_t* qubits, uint64_t qubits_len);
 EXPORT void ___sleep(uint64_t* qubits, uint64_t qubits_len, uint64_t sleep_time);
 EXPORT uint64_t ___read_future_uint(uint64_t r);
 EXPORT void set_tc(uint64_t time_cursor);
-EXPORT uint64_t get_tc();
+EXPORT uint64_t get_tc(void);
 EXPORT void setup(uint64_t time_cursor);
-EXPORT uint64_t teardown();
+EXPORT uint64_t teardown(void);
 
-#endif // HELIOS_QIS_HELIOS_SPECIFIC_INTERFACE_H
+#endif

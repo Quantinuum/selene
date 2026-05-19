@@ -116,36 +116,26 @@ class CargoWorkspaceBuild:
                         shutil.copy(lib_path, destination)
 
 
-class CargoAddonBuild:
+class UtilitiesBuild:
     def __init__(self, hook: "BundleBuildHook") -> None:
         self.hook = hook
-        self.manifests = self._discover_manifests()
+        self.utilities = list(Path(self.hook.root).glob("selene-ext/utilities/*/"))
 
-    def _discover_manifests(self) -> list[Path]:
-        manifests = []
-        for manifest in Path(self.hook.root).glob("selene-ext/*/*/Cargo.toml"):
-            metadata = self._get_metadata(manifest)
-            package = metadata["packages"][0]
-            selene = (package.get("metadata") or {}).get("selene", {})
-            if selene.get("build_after_helios_interface"):
-                manifests.append(manifest)
-        return manifests
-
-    def _get_release_dir(self, manifest: Path) -> Path:
+    def _get_release_dir(self, utility_root: Path) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")
-        target_dir = manifest.parent / "target"
+        target_dir = utility_root / "target"
         if target:
             return target_dir / target / "release"
         return target_dir / "release"
 
-    def _get_metadata(self, manifest: Path) -> dict:
+    def _get_metadata(self, utility_root: Path) -> dict:
         p = subprocess.Popen(
             [
                 "cargo",
                 "metadata",
                 "--no-deps",
                 "--manifest-path",
-                str(manifest),
+                str(utility_root / "Cargo.toml"),
             ],
             cwd=self.hook.root,
             stdout=subprocess.PIPE,
@@ -161,7 +151,7 @@ class CargoAddonBuild:
         return json.loads(stdout)
 
     def build_all(self):
-        if not self.manifests:
+        if not self.utilities:
             return
         env = os.environ.copy()
         env["SELENE_BASE_QIS_LIB_DIR"] = str(
@@ -172,16 +162,14 @@ class CargoAddonBuild:
             Path(self.hook.root)
             / "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin/_dist/lib"
         )
-        for manifest in self.manifests:
-            self.hook.app.display_mini_header(
-                f"Building cargo addon {manifest.parent.name}"
-            )
+        for utility in self.utilities:
+            self.hook.app.display_mini_header(f"Building utility {utility}")
             p = subprocess.Popen(
                 [
                     "cargo",
                     "build",
                     "--manifest-path",
-                    str(manifest),
+                    str(utility / "Cargo.toml"),
                     "--release",
                     "--locked",
                 ],
@@ -202,17 +190,17 @@ class CargoAddonBuild:
             p.wait()
             if p.returncode != 0:
                 self.hook.app.display_error(
-                    f"Cargo addon build failed with return code {p.returncode}"
+                    f"Utility build failed with return code {p.returncode}"
                 )
                 sys.exit(1)
             self.hook.app.display_success(
-                f"Cargo addon build completed successfully: {manifest.parent.name}"
+                f"Utility build completed successfully: {utility}"
             )
 
     def extract_libs(self):
-        for manifest in self.manifests:
-            metadata = self._get_metadata(manifest)
-            release_dir = self._get_release_dir(manifest)
+        for utility in self.utilities:
+            metadata = self._get_metadata(utility)
+            release_dir = self._get_release_dir(utility)
             assert release_dir.exists()
             for package in metadata["packages"]:
                 for target in package["targets"]:
@@ -294,9 +282,9 @@ class BundleBuildHook(BuildHookInterface):
         self.build_selene_c_interface()
         self.build_base_qis()
         self.build_helios_qis()
-        addon_runner = CargoAddonBuild(self)
-        addon_runner.build_all()
-        addon_runner.extract_libs()
+        utilities_builder = UtilitiesBuild(self)
+        utilities_builder.build_all()
+        utilities_builder.extract_libs()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():

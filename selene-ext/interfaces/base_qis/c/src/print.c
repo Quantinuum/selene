@@ -1,24 +1,10 @@
-/**
- * This file defines a shim for running Selene with a compiled
- * program for the Helios Quantum Instruction Set.
- *
- * The user's program is expected to have a `qmain` function.
- * This is invoked on each shot, and the calls it makes are
- * routed to the selene library.
- */
-#include <stdint.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
-#include <selene/selene.h>
-#include <base_qis/program_lifetime.h>
-#include <base_qis/selene_lifetime.h>
 #include <base_qis/print.h>
-#include <base_qis/unwrap.h>
-#include <base_qis/string_utils.h>
-#include "logging.h"
+
+#include <selene/selene.h> // selene_print functions
+#include <base_qis/selene_lifetime.h> // selene_instance
+#include <base_qis/unwrap.h> // unwrap
+#include <base_qis/string_utils.h> // parse_cl_string
+#include "logging.h" // DIAGNOSTIC
 
 void print_bool(cl_string tag, uint64_t _unused, char value) {
     DIAGNOSTIC("print_bool(\"%.*s\", %02X)\n", tag[0], tag+1, value);

@@ -1,11 +1,11 @@
-#include <selene/selene.h>
 #include <base_qis/debug.h>
-#include <base_qis/selene_lifetime.h>
-#include <base_qis/program_lifetime.h>
-#include <base_qis/unwrap.h>
-#include <base_qis/string_utils.h>
 
-#include "logging.h"
+#include <selene/selene.h>            // selene_dump_state
+#include <base_qis/selene_lifetime.h> // selene_instance
+#include <base_qis/unwrap.h>          // unwrap
+#include <base_qis/string_utils.h>    // parse_cl_string
+
+#include "logging.h" // DIAGNOSTIC
 
 void print_state_result(cl_string tag, uint64_t _unused, struct cl_array* qubits) {
     uint64_t* qubits_ptr = qubits->u64s;

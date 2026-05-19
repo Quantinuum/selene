@@ -7,4 +7,4 @@
 
 EXPORT int selene_helios_run(int argc, char** argv, user_program_t entrypoint);
 
-#endif // HELIOS_QIS_INTERFACE_H
+#endif

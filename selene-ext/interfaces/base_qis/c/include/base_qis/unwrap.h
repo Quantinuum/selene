@@ -1,5 +1,5 @@
-#ifndef HELIOS_QIS_UNWRAP_H
-#define HELIOS_QIS_UNWRAP_H
+#ifndef BASE_QIS_UNWRAP_H
+#define BASE_QIS_UNWRAP_H
 
 #include <stdint.h>
 #include <selene/selene.h>

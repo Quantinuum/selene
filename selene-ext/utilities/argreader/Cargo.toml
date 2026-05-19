@@ -7,9 +7,6 @@ authors = ["Jake Arkinstall <jake.arkinstall@quantinuum.com>"]
 repository = "https://github.com/quantinuum/selene"
 license = "Apache-2.0"
 
-[package.metadata.selene]
-build_after_helios_interface = true
-
 [lib]
 name = "selene_argreader_plugin"
 path = "rust/lib.rs"

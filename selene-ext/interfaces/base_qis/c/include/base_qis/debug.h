@@ -1,5 +1,5 @@
-#ifndef HELIOS_QIS_DEBUG_H
-#define HELIOS_QIS_DEBUG_H
+#ifndef BASE_QIS_DEBUG_H
+#define BASE_QIS_DEBUG_H
 
 #include <stdint.h>
 
@@ -12,4 +12,4 @@ EXPORT void print_state_result(
     struct cl_array* qubits
 );
 
-#endif // HELIOS_QIS_DEBUG_H
+#endif
