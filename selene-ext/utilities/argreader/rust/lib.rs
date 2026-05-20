@@ -552,8 +552,10 @@ pub unsafe extern "C" fn argreader_get_bool_array(
                     values.len()
                 ));
             }
-            unsafe {
-                std::ptr::copy_nonoverlapping(values.as_ptr(), out_ptr, values.len());
+            for (idx, value) in values.iter().enumerate() {
+                unsafe {
+                    out_ptr.add(idx).write(*value);
+                }
             }
         }
         InputRecord::I64Array(values) => {
