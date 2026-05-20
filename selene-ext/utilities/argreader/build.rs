@@ -9,7 +9,7 @@ fn main() {
         .unwrap_or_else(default_base_lib_dir);
     if !lib_dir.exists() {
         panic!(
-            "Helios interface runtime directory not found: {}. Build the Helios QIS interface first or set SELENE_BASE_QIS_LIB_DIR.",
+            "Base QIS interface runtime directory not found: {}. Build the Base QIS interface first or set SELENE_BASE_QIS_LIB_DIR.",
             lib_dir.display()
         );
     }
