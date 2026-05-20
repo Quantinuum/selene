@@ -7,7 +7,13 @@ include(GNUInstallDirs)
 add_library(Selene INTERFACE)
 
 # Absolute path to Rust-built library
-set(selene_lib "${CMAKE_INSTALL_PREFIX}/lib/libselene.so")
+if(WIN32)
+    set(selene_lib "${CMAKE_INSTALL_PREFIX}/lib/libselene.dll.a")
+elseif(APPLE)
+    set(selene_lib "${CMAKE_INSTALL_PREFIX}/lib/libselene.dylib")
+else()
+    set(selene_lib "${CMAKE_INSTALL_PREFIX}/lib/libselene.so")
+endif()
 
 # Populate properties
 target_include_directories(Selene INTERFACE

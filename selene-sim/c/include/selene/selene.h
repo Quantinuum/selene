@@ -1,3 +1,6 @@
+#ifndef SELENE_SIM_H
+#define SELENE_SIM_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -99,6 +102,34 @@ struct selene_void_result_t selene_local_barrier(struct SeleneInstance *instance
                                                  const uint64_t *qubit_ids,
                                                  uint64_t qubit_ids_length,
                                                  uint64_t sleep_time);
+
+/**
+ * Utilities can use `selene_log_utility_call` to log their activity through
+ * Selene traces.
+ *
+ * For example, consider a custom utility that allows the user program
+ * to invoke a call to some function `foo(x: u64) -> u64`, by defining
+ * it as a symbol that gets linked in when the utility is provided to
+ * `selene_sim.build()`.
+ *
+ * If `foo` invokes an opaque call to the runtime to trigger runtime-specific
+ * functionality, then a selene run with tracing enabled will log it as a normal
+ * Custom call. However, if `foo` has entirely classical behaviour (e.g. it
+ * calculates a SHA256 sum, or makes a HTTP request, or plays a sound, etc.)
+ * then it may not interact through libselene at all, and will not get logged.
+ * By calling `selene_log_utility_call` by the FFI-exposed function, the utility
+ * plugin has the opportunity to log the foo call as a Custom operation, in any
+ * format it chooses.
+ *
+ * It is recommended that a utility's python frontend provides a way to decode
+ * the logged data back in a human-readable format, so that a user scanning the
+ * trace can easily understand what utility functions are being called and the
+ * arguments to them.
+ */
+struct selene_void_result_t selene_log_utility_call(struct SeleneInstance *instance,
+                                                    uint64_t tag,
+                                                    const uint8_t *data,
+                                                    uint64_t data_length);
 
 struct selene_void_result_t selene_on_shot_end(struct SeleneInstance *instance);
 
@@ -257,3 +288,5 @@ struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instanc
  * by calling this function (e.g. in interactive mode)
  */
 struct selene_void_result_t selene_write_metadata(struct SeleneInstance *instance);
+
+#endif  /* SELENE_SIM_H */

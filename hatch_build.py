@@ -13,10 +13,6 @@ class CargoWorkspaceBuild:
         self.hook = hook
         self.metadata = self._get_metadata()
 
-    def run(self):
-        self.build_all()
-        self.extract_libs()
-
     def _get_metadata(self):
         p = subprocess.Popen(
             [
@@ -37,34 +33,41 @@ class CargoWorkspaceBuild:
             sys.exit(1)
         return json.loads(stdout)
 
-    def build_all(self):
-        self.hook.app.display_mini_header("Building cargo workspace")
+    def _run_build(self, args: list[str], env: dict[str, str] | None = None):
         p = subprocess.Popen(
-            [
-                "cargo",
-                "build",
-                "--workspace",
-                "--release",
-                "--locked",
-            ],
+            args,
             cwd=self.hook.root,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=env,
         )
+        assert p.stdout is not None
         for line in p.stdout:
-            line = line.decode("utf-8").strip()
-            if "Finished" in line:
-                self.hook.app.display_info(line)
-            elif "error" in line:
-                self.hook.app.display_error(line)
+            line_str = line.decode("utf-8").strip()
+            if "finished" in line_str.lower():
+                self.hook.app.display_info(line_str)
+            elif "error" in line_str.lower():
+                self.hook.app.display_error(line_str)
             else:
-                self.hook.app.display_info(line)
+                self.hook.app.display_info(line_str)
         p.wait()
         if p.returncode != 0:
             self.hook.app.display_error(
                 f"Cargo build failed with return code {p.returncode}"
             )
             sys.exit(1)
+
+    def build_all(self):
+        self.hook.app.display_mini_header("Building cargo workspace")
+        self._run_build(
+            [
+                "cargo",
+                "build",
+                "--workspace",
+                "--release",
+                "--locked",
+            ]
+        )
         self.hook.app.display_success("Cargo build completed successfully")
 
     def extract_libs(self):
@@ -113,7 +116,157 @@ class CargoWorkspaceBuild:
                         shutil.copy(lib_path, destination)
 
 
+class UtilitiesBuild:
+    def __init__(self, hook: "BundleBuildHook") -> None:
+        self.hook = hook
+        self.utilities = list(Path(self.hook.root).glob("selene-ext/utilities/*/"))
+
+    def _get_release_dir(self, utility_root: Path) -> Path:
+        target = os.environ.get("CARGO_BUILD_TARGET")
+        target_dir = utility_root / "target"
+        if target:
+            return target_dir / target / "release"
+        return target_dir / "release"
+
+    def _get_metadata(self, utility_root: Path) -> dict:
+        p = subprocess.Popen(
+            [
+                "cargo",
+                "metadata",
+                "--no-deps",
+                "--manifest-path",
+                str(utility_root / "Cargo.toml"),
+            ],
+            cwd=self.hook.root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = p.communicate()
+        if p.returncode != 0:
+            self.hook.app.display_error(
+                f"Cargo metadata command failed with return code {p.returncode}"
+            )
+            self.hook.app.display_error(stderr.decode("utf-8"))
+            sys.exit(1)
+        return json.loads(stdout)
+
+    def build_all(self):
+        if not self.utilities:
+            return
+        env = os.environ.copy()
+        env["SELENE_BASE_QIS_LIB_DIR"] = str(
+            Path(self.hook.root)
+            / "selene-ext/interfaces/base_qis/python/selene_base_qis_plugin/_dist/lib"
+        )
+        env["SELENE_HELIOS_QIS_LIB_DIR"] = str(
+            Path(self.hook.root)
+            / "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin/_dist/lib"
+        )
+        for utility in self.utilities:
+            self.hook.app.display_mini_header(f"Building utility {utility}")
+            p = subprocess.Popen(
+                [
+                    "cargo",
+                    "build",
+                    "--manifest-path",
+                    str(utility / "Cargo.toml"),
+                    "--release",
+                    "--locked",
+                ],
+                cwd=self.hook.root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                env=env,
+            )
+            assert p.stdout is not None
+            for line in p.stdout:
+                line_str = line.decode("utf-8").strip()
+                if "finished" in line_str.lower():
+                    self.hook.app.display_info(line_str)
+                elif "error" in line_str.lower():
+                    self.hook.app.display_error(line_str)
+                else:
+                    self.hook.app.display_info(line_str)
+            p.wait()
+            if p.returncode != 0:
+                self.hook.app.display_error(
+                    f"Utility build failed with return code {p.returncode}"
+                )
+                sys.exit(1)
+            self.hook.app.display_success(
+                f"Utility build completed successfully: {utility}"
+            )
+
+    def extract_libs(self):
+        for utility in self.utilities:
+            metadata = self._get_metadata(utility)
+            release_dir = self._get_release_dir(utility)
+            assert release_dir.exists()
+            for package in metadata["packages"]:
+                for target in package["targets"]:
+                    if "cdylib" not in target["kind"]:
+                        continue
+                    self.hook.app.display_info(
+                        f"Found addon cdylib target: {target['name']}"
+                    )
+                    lib_name = target["name"]
+                    lib_filenames = {
+                        "darwin": [f"lib{lib_name}.dylib"],
+                        "linux": [f"lib{lib_name}.so"],
+                        "win32": [f"{lib_name}.dll", f"lib{lib_name}.dll.a"],
+                    }[sys.platform]
+                    assert all(
+                        (release_dir / file).exists() for file in lib_filenames
+                    ), (
+                        f"Compiled library for {lib_name} not found in {release_dir}. "
+                        f"Expected to find {','.join(lib_filenames)}."
+                    )
+
+                    cargo_toml_path = Path(package["manifest_path"])
+                    python_path = cargo_toml_path.parent / "python"
+                    subdirs = filter(lambda x: x.is_dir(), python_path.iterdir())
+                    subdirs = filter(
+                        lambda x: x.name != "test" and x.name != "tests", subdirs
+                    )
+                    subdirs = filter(lambda x: "pycache" not in x.name, subdirs)
+                    subdirs = filter(lambda x: not x.name.endswith("egg-info"), subdirs)
+                    subdirs = filter(lambda x: not x.name.startswith("."), subdirs)
+                    subdirs_list = list(subdirs)
+                    assert len(subdirs_list) == 1, (
+                        f"Multiple python directories found in {python_path} - "
+                        " hatch_build.py can't tell where the build artifacts should go."
+                    )
+                    subdir = subdirs_list[0]
+                    destination = subdir / "_dist/lib"
+                    destination.mkdir(parents=True, exist_ok=True)
+                    for filename in lib_filenames:
+                        lib_path = release_dir / filename
+                        if lib_path.exists():
+                            self.hook.app.display_info(
+                                f"Copying {lib_path} to {destination}"
+                            )
+                            shutil.copy(lib_path, destination)
+
+
 class BundleBuildHook(BuildHookInterface):
+    def target_is_windows(self) -> bool:
+        return sys.platform == "win32" or os.environ.get(
+            "CARGO_BUILD_TARGET", ""
+        ).endswith("windows-gnu")
+
+    def target_is_windows_gnu(self) -> bool:
+        return os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu")
+
+    def runtime_origin(self) -> str:
+        if sys.platform == "darwin":
+            return "@loader_path"
+        return "$ORIGIN"
+
+    def install_rpath_arg(self, rpaths: list[str]) -> list[str]:
+        if self.target_is_windows():
+            return []
+        return [f"-DCMAKE_INSTALL_RPATH={';'.join(rpaths)}"]
+
     def get_cargo_release_dir(self) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")
         if target:
@@ -124,9 +277,14 @@ class BundleBuildHook(BuildHookInterface):
 
     def initialize(self, version: str, build_data: dict) -> None:
         cargo_runner = CargoWorkspaceBuild(self)
-        cargo_runner.run()
+        cargo_runner.build_all()
+        cargo_runner.extract_libs()
         self.build_selene_c_interface()
+        self.build_base_qis()
         self.build_helios_qis()
+        utilities_builder = UtilitiesBuild(self)
+        utilities_builder.build_all()
+        utilities_builder.extract_libs()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():
@@ -314,6 +472,88 @@ class BundleBuildHook(BuildHookInterface):
 
         self.app.display_success("C interface build completed successfully")
 
+    def build_base_qis(self):
+        self.app.display_mini_header("Building base QIS")
+        base_qis_dir = Path(self.root) / "selene-ext/interfaces/base_qis"
+        cmake_source_dir = base_qis_dir / "c"
+        cmake_build_dir = Path(self.root) / "target" / "base_qis_build"
+        cmake_build_dir.mkdir(parents=True, exist_ok=True)
+        dist_dir = base_qis_dir / "python/selene_base_qis_plugin/_dist"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+        local_dist_lib_dir = dist_dir / "lib"
+        local_selene_dist_lib_dir = selene_sim_dist_dir / "lib"
+        local_relative_path = os.path.relpath(
+            local_selene_dist_lib_dir.resolve(), local_dist_lib_dir.resolve()
+        )
+        origin = self.runtime_origin()
+        local_rpath = (
+            origin if local_relative_path == "." else f"{origin}/{local_relative_path}"
+        )
+        installed_rpath = f"{origin}/../../../selene_sim/_dist/lib"
+        cmake_configure_cmd = [
+            "cmake",
+            "-DCMAKE_INSTALL_LIBDIR=lib",
+            f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+            *self.install_rpath_arg([local_rpath, installed_rpath]),
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
+            f"{cmake_source_dir}",
+        ]
+        if self.target_is_windows_gnu():
+            cmake_configure_cmd = [
+                cmake_configure_cmd[0],
+                "-G",
+                "MinGW Makefiles",
+                *cmake_configure_cmd[1:],
+            ]
+
+        try:
+            subprocess.run(
+                cmake_configure_cmd,
+                cwd=cmake_build_dir,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            if b"is different than the directory" not in e.stderr:
+                self.app.display_error(f"cmake failed: {e.stderr.decode()}")
+                sys.exit(1)
+            try:
+                # existing build dir is incompatible, delete and retry
+                shutil.rmtree(cmake_build_dir)
+                cmake_build_dir.mkdir()
+                subprocess.run(
+                    cmake_configure_cmd,
+                    cwd=cmake_build_dir,
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                self.app.display_error(f"cmake failed: {e.stderr.decode()}")
+                sys.exit(1)
+
+        try:
+            subprocess.run(
+                [
+                    "cmake",
+                    "--build",
+                    ".",
+                    "--target",
+                    "install",
+                    "--config",
+                    "Release",
+                ],
+                check=True,
+                cwd=cmake_build_dir,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            self.app.display_error(f"cmake build failed: {e.stderr.decode()}")
+            sys.exit(1)
+
+        self.app.display_success("Base QIS build completed successfully")
+
     def build_helios_qis(self):
         self.app.display_mini_header("Building Helios QIS")
         helios_qis_dir = Path(self.root) / "selene-ext/interfaces/helios_qis"
@@ -323,14 +563,54 @@ class BundleBuildHook(BuildHookInterface):
         dist_dir = helios_qis_dir / "python/selene_helios_qis_plugin/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
         selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
+        base_qis_dist_dir = (
+            Path(self.root)
+            / "selene-ext/interfaces/base_qis/python/selene_base_qis_plugin/_dist"
+        )
+        # when running in the source directory, we're building to:
+        local_dist_lib_dir = dist_dir / "lib"
+        # and we need to give it an rpath to point to selene's lib directory
+        local_selene_dist_lib_dir = selene_sim_dist_dir / "lib"
+        # so the rpath for local runs should be
+        local_relative_path = os.path.relpath(
+            local_selene_dist_lib_dir.resolve(), local_dist_lib_dir.resolve()
+        )
+        origin = self.runtime_origin()
+        local_rpath = (
+            origin if local_relative_path == "." else f"{origin}/{local_relative_path}"
+        )
+
+        local_base_qis_relative_path = os.path.relpath(
+            (base_qis_dist_dir / "lib").resolve(), local_dist_lib_dir.resolve()
+        )
+        local_base_qis_rpath = f"{origin}/{local_base_qis_relative_path}"
+
+        # but when running in an installed python environment, then
+        # selene_sim and selene_helios_qis_plugin are actually siblings within
+        # site-packages, so we need the path from
+        # $site-packages/selene_helios_qis_plugin/_dist/lib
+        # to
+        # $site-packages/selene_sim/_dist/_lib
+        # which is
+        installed_selene_rpath = f"{origin}/../../../selene_sim/_dist/lib"
+        installed_base_qis_rpath = f"{origin}/../../../selene_base_qis_plugin/_dist/lib"
         cmake_configure_cmd = [
             "cmake",
+            "-DCMAKE_INSTALL_LIBDIR=lib",
             f"-DCMAKE_INSTALL_PREFIX={dist_dir}",
+            *self.install_rpath_arg(
+                [
+                    local_rpath,
+                    local_base_qis_rpath,
+                    installed_selene_rpath,
+                    installed_base_qis_rpath,
+                ]
+            ),
             "-DCMAKE_BUILD_TYPE=Release",
-            f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir}",
+            f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir};{base_qis_dist_dir}",
             f"{cmake_source_dir}",
         ]
-        if os.environ.get("CARGO_BUILD_TARGET", "").endswith("windows-gnu"):
+        if self.target_is_windows_gnu():
             cmake_configure_cmd = [
                 cmake_configure_cmd[0],
                 "-G",
@@ -339,6 +619,9 @@ class BundleBuildHook(BuildHookInterface):
             ]
 
         try:
+            self.app.display_info(
+                f"Running cmake configure: {' '.join(cmake_configure_cmd)}"
+            )
             subprocess.run(
                 cmake_configure_cmd,
                 cwd=cmake_build_dir,

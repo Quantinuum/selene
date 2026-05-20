@@ -11,7 +11,7 @@ from ..utils import invoke_zig
 from ..symbols import get_symbols_from_object, get_symbols_from_llvm, SymbolTable
 from ..planner import BuildPlanner
 
-from .selene import SeleneObjectFileKind, SeleneExecutableKind
+from .selene import SeleneExecutableKind
 
 
 def _match_helios_qis(symbol_table: SymbolTable) -> bool:
@@ -274,158 +274,67 @@ class HeliosObjectFileToHeliosObjectStringStep(Step):
         return cls._make_artifact(content)
 
 
-class HeliosObjectFileToSeleneObjectFileStep_Linux(Step):
+class HeliosObjectFileToSeleneExecutableStep(Step):
     """
-    Link helios object with interface + utility shared libs to rebind
-    to the selene interface and fill in any missing libraries.
+    Link helios object with the shared Helios runtime and any shared utilities.
     """
 
     input_kind = HeliosObjectFileKind
-    output_kind = SeleneObjectFileKind
+    output_kind = SeleneExecutableKind
 
     @classmethod
     def get_cost(cls, build_ctx: BuildCtx) -> float:
-        """
-        Rule out this step for non-linux platforms.
-        """
-        if platform.system() == "Linux":
-            return 100
-        else:
-            return float("inf")
+        return 90
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.selene.o"
-        lib_paths = [d.path for d in build_ctx.deps]
+
+        match platform.system():
+            case "Linux":
+                executable_filename = "program.selene.x"
+            case "Darwin":
+                executable_filename = "program.selene.x"
+            case "Windows":
+                executable_filename = "program.selene.exe"
+            case _:
+                raise RuntimeError(f"Unsupported OS: {platform.system()}")
+        out_path = build_ctx.artifact_dir / executable_filename
         if build_ctx.verbose:
-            print("Linking helios object file with dependencies")
+            print("Linking helios object file with shared Helios runtime")
+
+        link_flags = ["-lc"]
+        try:
+            from selene_sim import dist_dir as selene_dist
+        except ImportError:
+            raise ImportError(
+                "Selene simulation library not found. Please install selene_sim."
+            )
+        selene_lib_dir = selene_dist / "lib"
+        library_search_dirs = [selene_lib_dir]
+        libraries = []
+
+        for dep in build_ctx.deps:
+            link_flags.extend(dep.link_flags)
+            library_search_dirs.extend(dep.library_search_dirs)
+            libraries.append(dep.path)
+
+        for search_dir in library_search_dirs:
+            link_flags.append(f"-L{search_dir}")
+
         zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
         zig_cache_dir.mkdir(exist_ok=True)
         invoke_zig(
-            "cc",
-            "-r",
+            "build-exe",
+            f"-femit-bin={out_path}",
             input_artifact.resource,
-            *lib_paths,
-            "-o",
-            out_path,
+            *libraries,
+            *link_flags,
             verbose=build_ctx.verbose,
             cache_dir=zig_cache_dir,
         )
-        return cls._make_artifact(out_path)
-
-
-class HeliosObjectFileToSeleneExecutableStep_Windows(Step):
-    """
-    Link helios object with the interface shim, utilities, and selene core library to create the final executable.
-    """
-
-    input_kind = HeliosObjectFileKind
-    output_kind = SeleneExecutableKind
-
-    @classmethod
-    def get_cost(cls, build_ctx: BuildCtx) -> float:
-        """
-        Rule out this step for non-windows platforms.
-        """
-        if platform.system() == "Windows":
-            return 100
-        else:
-            return float("inf")
-
-    @classmethod
-    def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.selene.exe"
-        if build_ctx.verbose:
-            print("Linking helios object file with dependencies")
-
-        try:
-            from selene_sim import dist_dir as selene_dist
-        except ImportError:
-            raise ImportError(
-                "Selene simulation library not found. Please install selene_sim."
-            )
-
-        selene_lib_dir = selene_dist / "lib"
-        selene_lib = selene_lib_dir / "libselene.dll.a"
-        link_flags = ["-lc"]
-        libraries = [selene_lib]
-        library_search_dirs = [selene_lib_dir]
-        for dep in build_ctx.deps:
-            link_flags.extend(dep.link_flags)
-            library_search_dirs.extend(dep.library_search_dirs)
-            libraries.append(dep.path)
-
-        if build_ctx.verbose:
-            print("Linking selene object file with selene core library")
-        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
-        zig_cache_dir.mkdir(exist_ok=True)
-        invoke_zig(
-            "build-exe",
-            f"-femit-bin={out_path}",
-            input_artifact.resource,
-            *libraries,
-            *link_flags,
-            cache_dir=zig_cache_dir,
-        )
-        return cls._make_artifact(
+        return Artifact(
             out_path,
-            metadata={"library_search_dirs": library_search_dirs},
-        )
-
-
-class HeliosObjectFileToSeleneExecutableStep_Darwin(Step):
-    """
-    Link helios object with the interface shim, utilities, and selene core library to create the final executable.
-    """
-
-    input_kind = HeliosObjectFileKind
-    output_kind = SeleneExecutableKind
-
-    @classmethod
-    def get_cost(cls, build_ctx: BuildCtx) -> float:
-        """
-        Rule out this step for non-Darwin platforms.
-        """
-        if platform.system() == "Darwin":
-            return 100
-        else:
-            return float("inf")
-
-    @classmethod
-    def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        out_path = build_ctx.artifact_dir / "program.selene.x"
-        if build_ctx.verbose:
-            print("Linking helios object file with dependencies")
-        try:
-            from selene_sim import dist_dir as selene_dist
-        except ImportError:
-            raise ImportError(
-                "Selene simulation library not found. Please install selene_sim."
-            )
-        selene_lib_dir = selene_dist / "lib"
-        selene_lib = selene_lib_dir / "libselene.dylib"
-        link_flags = ["-lc"]
-        libraries = [selene_lib]
-        library_search_dirs = [selene_lib_dir]
-        for dep in build_ctx.deps:
-            link_flags.extend(dep.link_flags)
-            library_search_dirs.extend(dep.library_search_dirs)
-            libraries.append(dep.path)
-
-        if build_ctx.verbose:
-            print("Linking selene object file with selene core library")
-        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
-        zig_cache_dir.mkdir(exist_ok=True)
-        invoke_zig(
-            "build-exe",
-            f"-femit-bin={out_path}",
-            input_artifact.resource,
-            *libraries,
-            *link_flags,
-            cache_dir=zig_cache_dir,
-        )
-        return cls._make_artifact(
-            out_path,
+            SeleneExecutableKind,
             metadata={"library_search_dirs": library_search_dirs},
         )
 
@@ -443,6 +352,4 @@ def register_helios_builtins(planner: BuildPlanner) -> None:
     planner.add_step(HeliosLLVMBitcodeFileToHeliosObjectFileStep)
     planner.add_step(HeliosObjectStringToHeliosObjectFileStep)
     planner.add_step(HeliosObjectFileToHeliosObjectStringStep)
-    planner.add_step(HeliosObjectFileToSeleneObjectFileStep_Linux)
-    planner.add_step(HeliosObjectFileToSeleneExecutableStep_Windows)
-    planner.add_step(HeliosObjectFileToSeleneExecutableStep_Darwin)
+    planner.add_step(HeliosObjectFileToSeleneExecutableStep)

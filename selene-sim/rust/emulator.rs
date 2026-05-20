@@ -91,27 +91,23 @@ impl Emulator {
     }
     pub fn user_issued_rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
         self.runtime.rxy_gate(q0, theta, phi)?;
-        //self.user_program_metrics.increment_rxy();
         self.event_hooks
             .on_user_call(&Operation::RXY(q0, theta, phi));
         self.process_runtime()
     }
     pub fn user_issued_rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
         self.runtime.rzz_gate(q0, q1, theta)?;
-        //self.user_program_metrics.increment_rzz();
         self.event_hooks
             .on_user_call(&Operation::RZZ(q0, q1, theta));
         self.process_runtime()
     }
     pub fn user_issued_rz(&mut self, q0: u64, theta: f64) -> Result<()> {
         self.runtime.rz_gate(q0, theta)?;
-        //self.user_program_metrics.increment_rz();
         self.event_hooks.on_user_call(&Operation::RZ(q0, theta));
         self.process_runtime()
     }
     pub fn user_issued_reset(&mut self, q0: u64) -> Result<()> {
         self.runtime.reset(q0)?;
-        //self.user_program_metrics.increment_reset();
         self.event_hooks.on_user_call(&Operation::Reset(q0));
         self.process_runtime()
     }
@@ -177,9 +173,16 @@ impl Emulator {
     }
 
     pub fn custom_runtime_call(&mut self, tag: u64, data: &[u8]) -> Result<u64> {
+        self.event_hooks
+            .on_user_call(&Operation::Custom(tag, data.to_vec()));
         let result = self.runtime.custom_call(tag, data)?;
         self.process_runtime()?;
         Ok(result)
+    }
+
+    pub fn log_custom_call(&mut self, tag: u64, data: &[u8]) {
+        self.event_hooks
+            .on_user_call(&Operation::Custom(tag, data.to_vec()))
     }
 
     pub fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
