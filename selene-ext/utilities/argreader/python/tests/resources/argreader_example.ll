@@ -14,7 +14,7 @@ declare i64 @___lazy_measure(i64) local_unnamed_addr
 declare void @___qfree(i64) local_unnamed_addr
 declare i1 @___read_future_bool(i64) local_unnamed_addr
 declare void @print_bool(i8*, i64, i1) local_unnamed_addr
-declare void @print_bool_arr(i8*, i64, i1) local_unnamed_addr
+declare void @print_bool_arr(i8*, i64, ptr) local_unnamed_addr
 declare void @print_uint(i8*, i64, i64) local_unnamed_addr
 declare void @print_uint_arr(ptr, i64, ptr) local_unnamed_addr
 declare void @print_int(i8*, i64, i64) local_unnamed_addr

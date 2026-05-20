@@ -86,6 +86,10 @@ class ArgProvider(AbstractContextManager):
             raise RuntimeError(
                 "SELENE_ARGREADER_INPUT_FILE is already set; nested or concurrent ArgProvider contexts are not supported"
             )
+        if self.run_inputs is None:
+            raise RuntimeError(
+                "No arguments have been set; call set_constant_args or set_variable_args first"
+            )
         # write args to a new temporary file; clean up on failure so we don't leak it
         tmp = tempfile.NamedTemporaryFile("w", delete=False, suffix=".yaml")
         try:

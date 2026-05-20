@@ -18,8 +18,15 @@ def test_arg_reader(snapshot):
     instance = build(llvm_file, utilities=[ArgReaderPlugin()])
 
     arg_provider = ArgProvider()
+    # If we don't provide arguments, the provider will panic on entry:
+    with pytest.raises(RuntimeError, match="No arguments have been set"):
+        with arg_provider:
+            result = list(
+                list(r)
+                for r in instance.run_shots(n_qubits=1, n_shots=1, simulator=Coinflip())
+            )
+
     # We can set constant arguments that apply for every shot
-    #
     arg_provider.set_constant_args(
         input_bool=True,
         input_u64=2,
