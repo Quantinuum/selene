@@ -78,6 +78,14 @@ class ArgProvider(AbstractContextManager):
             )
 
     def __enter__(self) -> "ArgProvider":
+        if self._file_path is not None:
+            raise RuntimeError(
+                "ArgProvider context is already active; nested or re-entrant use is not supported"
+            )
+        if "SELENE_ARGREADER_INPUT_FILE" in os.environ:
+            raise RuntimeError(
+                "SELENE_ARGREADER_INPUT_FILE is already set; nested or concurrent ArgProvider contexts are not supported"
+            )
         # write args to a new temporary file; clean up on failure so we don't leak it
         tmp = tempfile.NamedTemporaryFile("w", delete=False, suffix=".yaml")
         try:
