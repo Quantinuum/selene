@@ -658,7 +658,7 @@ pub unsafe extern "C" fn selene_custom_runtime_call(
     with_instance_u64(instance, |instance| instance.custom_runtime_call(tag, data))
 }
 
-/// Utilities can use `selene_log_custom_call` to log their activity through
+/// Utilities can use `selene_log_utility_call` to log their activity through
 /// Selene traces.
 ///
 /// For example, consider a custom utility that allows the user program

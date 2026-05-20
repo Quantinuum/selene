@@ -104,7 +104,7 @@ struct selene_void_result_t selene_local_barrier(struct SeleneInstance *instance
                                                  uint64_t sleep_time);
 
 /**
- * Utilities can use `selene_log_custom_call` to log their activity through
+ * Utilities can use `selene_log_utility_call` to log their activity through
  * Selene traces.
  *
  * For example, consider a custom utility that allows the user program

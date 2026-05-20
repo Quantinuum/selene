@@ -49,7 +49,7 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     bool do_continue = true;
     for(uint64_t current_shot = 0; do_continue && (current_shot < n_shots.value); ++current_shot){
         DIAGNOSTIC("Starting shot %" PRIu64 "\n", current_shot);
-        DIAGNOSTIC("----------------------------");
+        DIAGNOSTIC("----------------------------\n");
         void_result = selene_on_shot_start(selene_instance, current_shot);
         if (void_result.error_code != 0) {
             fprintf(stderr, "Error starting shot %" PRIu64 ": error code %" PRIu32 "\n", current_shot, void_result.error_code);
