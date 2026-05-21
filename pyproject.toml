@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
-  "selene-core~=0.2.9", # x-release-please-version
+  "selene-core~=0.2.10", # x-release-please-version
   "selene-hugr-qis-compiler~=0.2.6",
   "tqdm>=4.67.1",
 ]
