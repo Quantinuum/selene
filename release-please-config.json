@@ -22,8 +22,9 @@
                 },
                 {
                     "type": "toml",
-                    "path": "/Cargo.lock",
+                    "path": "/**/Cargo.lock",
                     "jsonpath": "$.package[?(@.name.value=='selene-core')].version"
+                    "glob": true
                 },
                 {
                     "type": "toml",
@@ -31,19 +32,8 @@
                     "jsonpath": "$.package[?(@.name.value=='selene-core')].version"
                 },
                 {
-                    "type": "toml",
-                    "path": "examples/error_model/Cargo.lock",
-                    "jsonpath": "$.package[?(@.name.value=='selene-core')].version"
-                },
-                {
-                    "type": "toml",
-                    "path": "examples/simulator/Cargo.lock",
-                    "jsonpath": "$.package[?(@.name.value=='selene-core')].version"
-                },
-                {
-                    "type": "toml",
-                    "path": "examples/runtime/Cargo.lock",
-                    "jsonpath": "$.package[?(@.name.value=='selene-core')].version"
+                    "type": "generic",
+                    "path": "/pyproject.toml"
                 }
             ]
         },
