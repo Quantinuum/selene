@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.16](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.15...selene-sim-v0.2.16) (2026-05-22)
+
+
+### Features
+
+* Make interfaces shared, add ArgReader ([#171](https://github.com/Quantinuum/selene/issues/171)) ([143e742](https://github.com/Quantinuum/selene/commit/143e742d1a5912dd8c92f44dd31a69f462ac3c88))
+
 ## [0.2.15](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.14...selene-sim-v0.2.15) (2026-04-28)
 
 
