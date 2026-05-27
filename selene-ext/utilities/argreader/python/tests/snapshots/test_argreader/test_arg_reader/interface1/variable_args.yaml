@@ -1,0 +1,400 @@
+- - !!python/tuple
+    - input_bool
+    - 0
+  - !!python/tuple
+    - input_u64
+    - 4
+  - !!python/tuple
+    - input_i64
+    - 2
+  - !!python/tuple
+    - input_f64
+    - 0.025
+  - !!python/tuple
+    - input_bool_array
+    - - 1
+      - 0
+      - 1
+      - 1
+      - 0
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.25
+      - 0.5
+      - 0.75
+      - 1.0
+- - !!python/tuple
+    - input_bool
+    - 1
+  - !!python/tuple
+    - input_u64
+    - 1
+  - !!python/tuple
+    - input_i64
+    - -4
+  - !!python/tuple
+    - input_f64
+    - 0.0125
+  - !!python/tuple
+    - input_bool_array
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - -10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
+- - !!python/tuple
+    - input_bool
+    - 0
+  - !!python/tuple
+    - input_u64
+    - 4
+  - !!python/tuple
+    - input_i64
+    - 2
+  - !!python/tuple
+    - input_f64
+    - 0.025
+  - !!python/tuple
+    - input_bool_array
+    - - 1
+      - 0
+      - 1
+      - 1
+      - 0
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.25
+      - 0.5
+      - 0.75
+      - 1.0
+- - !!python/tuple
+    - input_bool
+    - 1
+  - !!python/tuple
+    - input_u64
+    - 1
+  - !!python/tuple
+    - input_i64
+    - -4
+  - !!python/tuple
+    - input_f64
+    - 0.0125
+  - !!python/tuple
+    - input_bool_array
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - -10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
+- - !!python/tuple
+    - input_bool
+    - 0
+  - !!python/tuple
+    - input_u64
+    - 4
+  - !!python/tuple
+    - input_i64
+    - 2
+  - !!python/tuple
+    - input_f64
+    - 0.025
+  - !!python/tuple
+    - input_bool_array
+    - - 1
+      - 0
+      - 1
+      - 1
+      - 0
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.25
+      - 0.5
+      - 0.75
+      - 1.0
+- - !!python/tuple
+    - input_bool
+    - 1
+  - !!python/tuple
+    - input_u64
+    - 1
+  - !!python/tuple
+    - input_i64
+    - -4
+  - !!python/tuple
+    - input_f64
+    - 0.0125
+  - !!python/tuple
+    - input_bool_array
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - -10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
+- - !!python/tuple
+    - input_bool
+    - 0
+  - !!python/tuple
+    - input_u64
+    - 4
+  - !!python/tuple
+    - input_i64
+    - 2
+  - !!python/tuple
+    - input_f64
+    - 0.025
+  - !!python/tuple
+    - input_bool_array
+    - - 1
+      - 0
+      - 1
+      - 1
+      - 0
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.25
+      - 0.5
+      - 0.75
+      - 1.0
+- - !!python/tuple
+    - input_bool
+    - 1
+  - !!python/tuple
+    - input_u64
+    - 1
+  - !!python/tuple
+    - input_i64
+    - -4
+  - !!python/tuple
+    - input_f64
+    - 0.0125
+  - !!python/tuple
+    - input_bool_array
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - -10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5
+- - !!python/tuple
+    - input_bool
+    - 0
+  - !!python/tuple
+    - input_u64
+    - 4
+  - !!python/tuple
+    - input_i64
+    - 2
+  - !!python/tuple
+    - input_f64
+    - 0.025
+  - !!python/tuple
+    - input_bool_array
+    - - 1
+      - 0
+      - 1
+      - 1
+      - 0
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - 10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.25
+      - 0.5
+      - 0.75
+      - 1.0
+- - !!python/tuple
+    - input_bool
+    - 1
+  - !!python/tuple
+    - input_u64
+    - 1
+  - !!python/tuple
+    - input_i64
+    - -4
+  - !!python/tuple
+    - input_f64
+    - 0.0125
+  - !!python/tuple
+    - input_bool_array
+    - - 0
+      - 1
+      - 1
+      - 1
+      - 1
+  - !!python/tuple
+    - input_u64_array
+    - - 8
+      - 2
+      - 5
+      - 4
+      - 1
+  - !!python/tuple
+    - input_i64_array
+    - - -10
+      - 20
+      - 15
+      - -25
+      - 30
+  - !!python/tuple
+    - input_f64_array
+    - - 0.0
+      - 0.125
+      - 0.25
+      - 0.375
+      - 0.5

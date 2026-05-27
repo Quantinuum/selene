@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.16](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.15...selene-sim-v0.2.16) (2026-05-22)
+
+
+### Features
+
+* Make interfaces shared, add ArgReader ([#171](https://github.com/Quantinuum/selene/issues/171)) ([143e742](https://github.com/Quantinuum/selene/commit/143e742d1a5912dd8c92f44dd31a69f462ac3c88))
+
+## [0.2.15](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.14...selene-sim-v0.2.15) (2026-04-28)
+
+
+### Features
+
+* Use SeleneStartupError for errors before shot_start ([#170](https://github.com/Quantinuum/selene/issues/170)) ([85c2907](https://github.com/Quantinuum/selene/commit/85c290767ec5f8dd50b8fcb7f17da8766c89cf58))
+
+
+### Bug Fixes
+
+* make qir-qis optional and stabilize CI ([#164](https://github.com/Quantinuum/selene/issues/164)) ([e52c0b2](https://github.com/Quantinuum/selene/commit/e52c0b2b30a5f227943477857ca1f0175ae6a2d5))
+
 ## [0.2.14](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.13...selene-sim-v0.2.14) (2026-04-21)
 
 

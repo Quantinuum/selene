@@ -16,7 +16,6 @@ dependencies = [
   "pydantic>=2.12.5",
   "pydot>=4.0.0",
   "pyyaml~=6.0",
-  "qir-qis>=0.1.2,<0.1.4",
   "typing_extensions>=4",
   "ziglang~=0.13",
 ]
@@ -28,6 +27,11 @@ repository = "https://github.com/quantinuum/selene/selene-core"
 [build-system]
 requires = ["hatchling", "pydantic>=2.12.5"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "qir-qis~=0.1.6",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ['python/selene_core']

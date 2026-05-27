@@ -19,12 +19,18 @@ class LibDep:
     library_search_dirs: list[Path] = field(default_factory=list)
 
     @classmethod
-    def from_plugin(cls, plugin) -> Self:
-        return cls(
-            path=plugin.library_file,
-            link_flags=plugin.link_flags,
-            library_search_dirs=plugin.library_search_dirs,
-        )
+    def from_plugin(cls, plugin) -> list[Self]:
+        result = [
+            cls(
+                path=plugin.library_file,
+                link_flags=plugin.link_flags,
+                library_search_dirs=plugin.library_search_dirs,
+            )
+        ]
+        if hasattr(plugin, "dependencies"):
+            for dep in plugin.dependencies:
+                result.extend(cls.from_plugin(dep))
+        return result
 
 
 @dataclass

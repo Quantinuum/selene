@@ -10,7 +10,7 @@ from hugr.qsystem.result import QsysResult
 from selene_sim import ClassicalReplay, Coinflip, Quest, Stim, SimpleLeakageErrorModel
 from selene_sim.build import build
 from selene_sim.event_hooks import CircuitExtractor, MetricStore, MeasurementExtractor
-from selene_sim.exceptions import SelenePanicError, SeleneRuntimeError
+from selene_sim.exceptions import SelenePanicError, SeleneStartupError
 
 
 def test_no_results(compiled_guppy):
@@ -616,7 +616,7 @@ def test_corrupted_plugin(compiled_guppy):
     runner = build(llvm_file)
 
     with pytest.raises(
-        SeleneRuntimeError, match=r"Failed to load runtime plugin"
+        SeleneStartupError, match=r"Failed to load runtime plugin"
     ) as exception_info:
         shots = QsysResult(
             runner.run_shots(
