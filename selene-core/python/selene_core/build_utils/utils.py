@@ -2,6 +2,7 @@
 
 import platform
 import sys
+import shutil
 from pathlib import Path
 import os
 
@@ -52,6 +53,7 @@ def invoke_zig(
     handle_triple: bool = True,
     verbose: bool = False,
     cache_dir: Path | None = None,
+    emit_debug: bool = False,
 ) -> None:
     """
     Invoke zig with the given arguments, after conversion to strings.
@@ -67,6 +69,8 @@ def invoke_zig(
         target_triple = get_target_triple()
         if target_triple is not None:
             args_str += ["-target", target_triple]
+    if emit_debug:
+        args_str += ["-g"]
     argv = [sys.executable, "-m", "ziglang"] + args_str
     if verbose:
         print(f"zig command: {' '.join(argv)}")
@@ -84,3 +88,21 @@ def invoke_zig(
         raise RuntimeError(
             f"zig command failed:\n  Command: {' '.join(argv)}\n  Error: {stderr.decode()}"
         )
+
+
+def invoke_dsymutil(bin_path: Path, verbose: bool = False):
+    util_path = shutil.which("dsymutil")
+    if util_path is None:
+        raise RuntimeError(
+            "Could not find `dsymutil` on PATH. "
+            "This tool is required when building with `emit_debug` on MacOS. "
+            "You can get it by installing Xcode or the Xcode command line tools."
+        )
+
+    import subprocess
+
+    argv = [util_path, str(bin_path)]
+    if verbose:
+        print(f"dsymutil command: {' '.join(argv)}")
+    outs = None if verbose else subprocess.DEVNULL
+    subprocess.run(argv, check=True, stdout=outs, stderr=outs)

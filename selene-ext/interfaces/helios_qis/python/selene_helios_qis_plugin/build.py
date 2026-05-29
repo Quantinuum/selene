@@ -49,7 +49,10 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
                 "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
                 " is required for building. Please install it via pip."
             )
-        ir = compile_to_llvm_ir(input_artifact.resource)
+        emit_debug = build_ctx.cfg.get("emit_debug", False)
+        if emit_debug and build_ctx.verbose:
+            print("Debug info emission enabled")
+        ir = compile_to_llvm_ir(input_artifact.resource, emit_debug=emit_debug)
         return cls._make_artifact(ir)
 
 
@@ -82,5 +85,8 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
                 "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
                 " is required for building. Please install it via pip."
             )
-        bitcode = compile_to_bitcode(input_artifact.resource)
+        emit_debug = build_ctx.cfg.get("emit_debug", False)
+        if emit_debug and build_ctx.verbose:
+            print("Debug info emission enabled")
+        bitcode = compile_to_bitcode(input_artifact.resource, emit_debug=emit_debug)
         return cls._make_artifact(bitcode)

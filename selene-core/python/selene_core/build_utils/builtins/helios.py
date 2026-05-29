@@ -7,7 +7,7 @@ from ..types import (
     Artifact,
     Step,
 )
-from ..utils import invoke_zig
+from ..utils import invoke_zig, invoke_dsymutil
 from ..symbols import get_symbols_from_object, get_symbols_from_llvm, SymbolTable
 from ..planner import BuildPlanner
 
@@ -199,6 +199,7 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         out_path = build_ctx.artifact_dir / "program.helios.o"
+        emit_debug = build_ctx.cfg.get("emit_debug", False)
         if build_ctx.verbose:
             print(f"Compiling LLVM IR to Helios-QIS object: {out_path}")
         zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
@@ -211,6 +212,7 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
             out_path,
             verbose=build_ctx.verbose,
             cache_dir=zig_cache_dir,
+            emit_debug=emit_debug,
         )
         return cls._make_artifact(out_path)
 
@@ -226,6 +228,7 @@ class HeliosLLVMBitcodeFileToHeliosObjectFileStep(Step):
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         out_path = build_ctx.artifact_dir / "program.helios.o"
+        emit_debug = build_ctx.cfg.get("emit_debug", False)
         if build_ctx.verbose:
             print(f"Compiling LLVM Bitcode to Helios-QIS object: {out_path}")
         zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
@@ -236,7 +239,9 @@ class HeliosLLVMBitcodeFileToHeliosObjectFileStep(Step):
             input_artifact.resource,
             "-o",
             out_path,
+            verbose=build_ctx.verbose,
             cache_dir=zig_cache_dir,
+            emit_debug=emit_debug,
         )
         return cls._make_artifact(out_path)
 
@@ -288,7 +293,6 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-
         match platform.system():
             case "Linux":
                 executable_filename = "program.selene.x"
@@ -301,6 +305,8 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
         out_path = build_ctx.artifact_dir / executable_filename
         if build_ctx.verbose:
             print("Linking helios object file with shared Helios runtime")
+
+        emit_debug = build_ctx.cfg.get("emit_debug", False)
 
         link_flags = ["-lc"]
         try:
@@ -332,6 +338,11 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
             verbose=build_ctx.verbose,
             cache_dir=zig_cache_dir,
         )
+        # MacOS requires an extra step to get debug info for a compiled program
+        # This step generates a .dSYM file with the same file stem next to the binary
+        if emit_debug and platform.system() == "Darwin":
+            invoke_dsymutil(out_path, verbose=build_ctx.verbose)
+
         return Artifact(
             out_path,
             SeleneExecutableKind,
