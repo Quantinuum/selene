@@ -24,6 +24,17 @@ class RuntimeSource(BaseModel):
 # but instead controls a simulator directly.
 
 
+class SrcLocation(BaseModel):
+    function_name: str
+    file_name: str
+    line: int | None
+    column: int | None
+
+
+class GateMetadata(BaseModel):
+    frames: list[SrcLocation]
+
+
 class AbstractEvent(BaseModel):
     model_config = ConfigDict(
         use_enum_values=True,
@@ -39,16 +50,19 @@ class GateEvent(AbstractEvent):
     gate_name: str
     params: list[float | int | bool] = Field(default_factory=list)
     predicates: list[PredicateResult] = Field(default_factory=list)
+    metadata: GateMetadata | None = None
 
 
 class MeasurementEvent(AbstractEvent):
     kind: Literal["Measurement"] = "Measurement"
     qubit: int
+    metadata: GateMetadata | None = None
 
 
 class ResetEvent(AbstractEvent):
     kind: Literal["Reset"] = "Reset"
     qubit: int
+    metadata: GateMetadata | None = None
 
 
 class OpaquePayload(AbstractEvent):
