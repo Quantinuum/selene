@@ -1,0 +1,24 @@
+[package]
+name = "selene-utility-argreader"
+version = "0.2.15"
+edition = "2024"
+rust-version = "1.94"
+authors = ["Jake Arkinstall <jake.arkinstall@quantinuum.com>"]
+repository = "https://github.com/quantinuum/selene"
+license = "Apache-2.0"
+
+[lib]
+name = "selene_argreader_plugin"
+path = "rust/lib.rs"
+doctest = false
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+selene-core = { path = "../../../selene-core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_yml = "0.0.12"
+
+[workspace]

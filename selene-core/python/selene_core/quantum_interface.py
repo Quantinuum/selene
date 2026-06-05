@@ -28,6 +28,15 @@ class QuantumInterface(ABC):
         pass
 
     @property
+    def dependencies(self) -> list["QuantumInterface"]:
+        """
+        Returns a list of other quantum interfaces that this interface depends on.
+        This can be used to ensure that all necessary interfaces are included
+        when building the final executable.
+        """
+        return []
+
+    @property
     def link_flags(self) -> list[str]:
         """
         Returns the flags to be used when linking the interface against the selene

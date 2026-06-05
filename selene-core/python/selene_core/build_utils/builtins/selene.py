@@ -96,7 +96,7 @@ class SeleneObjectFileToSeleneObjectStringStep(Step):
         return cls._make_artifact(content)
 
 
-class SeleneObjectToSeleneExecutable(Step):
+class SeleneObjectToSeleneExecutableStep(Step):
     """
     Link selene object with selene core library to create the final executable.
     """
@@ -159,4 +159,4 @@ def register_selene_builtins(planner: BuildPlanner) -> None:
     planner.add_kind(SeleneObjectStringKind)
     planner.add_step(SeleneObjectStringToSeleneObjectFileStep)
     planner.add_step(SeleneObjectFileToSeleneObjectStringStep)
-    planner.add_step(SeleneObjectToSeleneExecutable)
+    planner.add_step(SeleneObjectToSeleneExecutableStep)

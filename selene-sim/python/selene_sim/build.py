@@ -63,11 +63,11 @@ def _collect_libdeps(
     if interface is None:
         from selene_helios_qis_plugin import HeliosInterface
 
-        interface = HeliosInterface()
-    deps = [LibDep.from_plugin(interface)]
+    interface = interface or HeliosInterface()
+    deps = LibDep.from_plugin(interface)
     interface.register_build_steps(planner)
     for u in utilities or []:
-        deps.append(LibDep.from_plugin(u))
+        deps.extend(LibDep.from_plugin(u))
     return deps
 
 

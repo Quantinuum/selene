@@ -11,7 +11,7 @@ from ..planner import BuildPlanner
 from .selene import (
     SeleneExecutableKind,
     SeleneObjectFileKind,
-    SeleneObjectToSeleneExecutable,
+    SeleneObjectToSeleneExecutableStep,
     register_selene_builtins,
 )
 
@@ -25,9 +25,7 @@ from .helios import (
     LLVMIRStringToLLVMIRFileStep,
     HeliosLLVMIRFileToHeliosObjectFileStep,
     HeliosLLVMBitcodeFileToHeliosObjectFileStep,
-    HeliosObjectFileToSeleneObjectFileStep_Linux,
-    HeliosObjectFileToSeleneExecutableStep_Windows,
-    HeliosObjectFileToSeleneExecutableStep_Darwin,
+    HeliosObjectFileToSeleneExecutableStep,
     register_helios_builtins,
 )
 
@@ -41,9 +39,7 @@ from .sol import (
     SolLLVMIRStringToSolLLVMIRFileStep,
     SolLLVMIRFileToSolObjectFileStep,
     SolLLVMBitcodeFileToSolObjectFileStep,
-    SolObjectFileToSeleneObjectFileStep_Linux,
-    SolObjectFileToSeleneExecutableStep_Windows,
-    SolObjectFileToSeleneExecutableStep_Darwin,
+    SolObjectFileToSeleneExecutableStep,
     register_sol_builtins,
 )
 
@@ -144,7 +140,6 @@ def register_builtins(planner: BuildPlanner):
 __all__ = [
     "SeleneExecutableKind",
     "SeleneObjectFileKind",
-    "SeleneObjectToSeleneExecutable",
     "HeliosLLVMIRStringKind",
     "HeliosLLVMIRFileKind",
     "HeliosLLVMBitcodeStringKind",
@@ -154,20 +149,7 @@ __all__ = [
     "LLVMIRStringToLLVMIRFileStep",
     "HeliosLLVMIRFileToHeliosObjectFileStep",
     "HeliosLLVMBitcodeFileToHeliosObjectFileStep",
-    "HeliosObjectFileToSeleneObjectFileStep_Linux",
-    "HeliosObjectFileToSeleneExecutableStep_Windows",
-    "HeliosObjectFileToSeleneExecutableStep_Darwin",
-    "QIRIRFileKind",
-    "QIRIRStringKind",
-    "QIRBitcodeFileKind",
-    "QIRBitcodeStringKind",
-    "QIRIRStringToQIRIRFileStep",
-    "QIRIRFileToQIRIRStringStep",
-    "QIRBitcodeStringToQIRBitcodeFileStep",
-    "QIRBitcodeFileToQIRBitcodeStringStep",
-    "QIRIRFileToQIRBitcodeFileStep",
-    "QIRBitcodeFileToQIRBitcodeStringStep",
-    "QIRBitcodeStringToHeliosBitcodeStringStep",
+    "HeliosObjectFileToSeleneExecutableStep",
     "SolLLVMIRStringKind",
     "SolLLVMIRFileKind",
     "SolLLVMBitcodeStringKind",
@@ -177,8 +159,7 @@ __all__ = [
     "SolLLVMIRStringToSolLLVMIRFileStep",
     "SolLLVMIRFileToSolObjectFileStep",
     "SolLLVMBitcodeFileToSolObjectFileStep",
-    "SolObjectFileToSeleneObjectFileStep_Linux",
-    "SolObjectFileToSeleneExecutableStep_Windows",
-    "SolObjectFileToSeleneExecutableStep_Darwin",
+    "SolObjectFileToSeleneExecutableStep",
+    "SeleneObjectToSeleneExecutableStep",
     "register_builtins",
 ] + additional_exports

@@ -1,4 +1,6 @@
+import importlib
 from pathlib import Path
+from functools import lru_cache
 from typing import Any
 
 from .helios import HeliosLLVMBitcodeStringKind, _match_helios_qis
@@ -6,7 +8,36 @@ from ..planner import BuildPlanner
 from ..types import ArtifactKind, Step, BuildCtx, Artifact
 from ..symbols import get_symbols_from_llvm
 
-from qir_qis import get_entry_attributes, qir_ll_to_bc, qir_to_qis, validate_qir
+
+@lru_cache
+def _load_qir_qis() -> Any:
+    try:
+        return importlib.import_module("qir_qis")
+    except ModuleNotFoundError as exc:
+        if exc.name == "qir_qis":
+            raise ModuleNotFoundError(
+                "QIR support requires the optional `qir-qis` dependency.",
+                name="qir_qis",
+            ) from exc
+        raise ModuleNotFoundError(
+            f"Failed to import optional `qir-qis` dependency because module "
+            f"`{exc.name}` is missing.",
+            name=exc.name,
+        ) from exc
+
+
+def _get_entry_attributes(bitcode: bytes) -> dict[str, Any]:
+    try:
+        qir_qis = _load_qir_qis()
+    except ModuleNotFoundError as exc:
+        if exc.name != "qir_qis":
+            raise
+        return {}
+    return qir_qis.get_entry_attributes(bitcode)
+
+
+def get_entry_attributes(bitcode: bytes) -> dict[str, Any]:
+    return _get_entry_attributes(bitcode)
 
 
 def _matches_qir_ir(text: str) -> bool:
@@ -33,7 +64,7 @@ def _matches_qir_bitcode(bitcode: bytes) -> bool:
         return False
     if _match_helios_qis(symbols):
         return False
-    return bool(get_entry_attributes(bitcode))
+    return bool(_load_qir_qis().get_entry_attributes(bitcode))
 
 
 class QIRIRFileKind(ArtifactKind):
@@ -176,7 +207,7 @@ class QIRIRFileToQIRBitcodeFileStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        result = qir_ll_to_bc(input_artifact.resource.read_text())
+        result = _load_qir_qis().qir_ll_to_bc(input_artifact.resource.read_text())
         out_path = build_ctx.artifact_dir / "input.bc"
         out_path.write_bytes(result)
         return cls._make_artifact(out_path)
@@ -196,8 +227,9 @@ class QIRBitcodeStringToHeliosBitcodeStringStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-        validate_qir(input_artifact.resource)
-        result = qir_to_qis(input_artifact.resource)
+        qir_qis = _load_qir_qis()
+        qir_qis.validate_qir(input_artifact.resource)
+        result = qir_qis.qir_to_qis(input_artifact.resource)
         return cls._make_artifact(result)
 
 

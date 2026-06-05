@@ -104,7 +104,7 @@ the name of the crate you want to build. Likewise, to test a specific create, yo
 To build all python wheels using `just`, run:
 
 ```bash
-uv run just build-wheels
+just build-wheels
 ```
 
 Alternatively you can use `uv sync`.
@@ -117,7 +117,14 @@ into a `_dist` directory for each python package.
 To enter a python development environment with all plugins initialised, run
 
 ```bash
-uv run just develop
+just develop
+```
+
+Before pushing, you can run the full local equivalent of the `Nitpicks`
+workflow with:
+
+```bash
+just nitpicks
 ```
 
 ### Running tests
@@ -127,12 +134,19 @@ tests from guppy through to simulation. They require the libraries to be built a
 either as installed in the python environment or locally by activating the python development
 environment.
 
-Python tests can be invoked using:
+Run the standard Python and Rust test suites with:
 
 ```bash
-uv run pytest
+just test-py
+just test-rs
 ```
 
 When users develop their own plugins, it is likely that they will want to write isolated
 tests of their plugins. We aim to provide a framework for comprehensive testing of plugins
 in future.
+
+If you change the Rust interfaces or shipped C headers, regenerate the bindings with:
+
+```bash
+just generate-bindings
+```

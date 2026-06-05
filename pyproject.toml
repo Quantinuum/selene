@@ -52,12 +52,12 @@ test = [
   "pytest-snapshot~=0.9.0",
   "pytest>=8.3.5",
   "pytket~=2.16",
+  "qir-qis~=0.1.6",
 ]
 dev = [
   "hugr~=0.16.0",
   "mypy>=1.14.1",
   "ruff>=0.8.0",
-  "qir-qis~=0.1.2",
   "types-pyyaml>=6.0.12.20250402",
   { include-group = "test" },
 ]
@@ -80,6 +80,7 @@ packages = [
   "selene-ext/error-models/depolarizing/python/selene_depolarizing_error_model_plugin",
   "selene-ext/error-models/ideal/python/selene_ideal_error_model_plugin",
   "selene-ext/error-models/simple-leakage/python/selene_simple_leakage_error_model_plugin",
+  "selene-ext/interfaces/base_qis/python/selene_base_qis_plugin",
   "selene-ext/interfaces/helios_qis/python/selene_helios_qis_plugin",
   "selene-ext/interfaces/sol_qis/python/selene_sol_qis_plugin",
   "selene-ext/runtimes/simple/python/selene_simple_runtime_plugin",
@@ -89,6 +90,7 @@ packages = [
   "selene-ext/simulators/quantum-replay/python/selene_quantum_replay_plugin",
   "selene-ext/simulators/quest/python/selene_quest_plugin",
   "selene-ext/simulators/stim/python/selene_stim_plugin",
+  "selene-ext/utilities/argreader/python/selene_argreader_plugin",
 ]
 
 [tool.uv]
@@ -108,6 +110,7 @@ cache-keys = [
   { file = "selene-ext/*/*/c_interface/**/*.h" },
   { file = "selene-ext/*/*/c_interface/**/CMakeLists.txt" },
   { file = "selene-ext/*/*/rust/**/*.rs" },
+  { file = "selene-ext/**/build.rs" },
   { file = "selene-ext/**/Cargo.toml" },
   { file = "selene-ext/**/Cargo.lock" },
   { file = "selene-core/rust/**/*.rs" },
@@ -135,6 +138,7 @@ known_first_party = [
   "selene_ideal_error_model_plugin",
   "selene_simple_leakage_error_model_plugin",
   # Interfaces
+  "selene_base_qis_plugin",
   "selene_helios_qis_plugin",
   # Runtimes
   "selene_simple_runtime_plugin",
@@ -145,6 +149,8 @@ known_first_party = [
   "selene_quantum_replay_plugin",
   "selene_quest_plugin",
   "selene_stim_plugin",
+  # Utilities
+  "selene_argreader_plugin",
 ]
 extend_exclude = ["target", "selene-core/python/selene_core"]
 
@@ -220,9 +226,6 @@ before-test = '''
 '''
 [tool.cibuildwheel.macos]
 environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "11.0" }
-before-all = [
-    'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile default -y',
-]
 before-test = [
     'uv pip install ./selene-core'
 ]

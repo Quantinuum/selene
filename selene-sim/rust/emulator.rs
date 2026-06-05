@@ -309,10 +309,18 @@ impl Emulator {
         }
     }
     pub fn custom_runtime_call(&mut self, tag: u64, data: &[u8]) -> Result<u64> {
+        self.event_hooks
+            .on_user_call(&Operation::Custom(tag, data.to_vec()));
         let result = self.runtime.custom_call(tag, data)?;
         self.process_runtime()?;
         Ok(result)
     }
+
+    pub fn log_custom_call(&mut self, tag: u64, data: &[u8]) {
+        self.event_hooks
+            .on_user_call(&Operation::Custom(tag, data.to_vec()))
+    }
+
     pub fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
         self.runtime.simulate_delay(delay_ns)?;
         self.event_hooks

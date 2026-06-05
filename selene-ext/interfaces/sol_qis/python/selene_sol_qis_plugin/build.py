@@ -20,9 +20,6 @@ except ImportError:
     HAS_HUGR_QIS_COMPILER = False
 
 
-# Steps
-
-
 class SeleneCompileHUGRToLLVMIRStringStep(Step):
     """
     Convert a HUGR file to LLVM IR text (.ll)
@@ -40,8 +37,8 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-ir"
         ):
-            return 101
-        return 103
+            return 98
+        return 100
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
@@ -52,7 +49,7 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
                 "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
                 " is required for building. Please install it via pip."
             )
-        ir = compile_to_llvm_ir(input_artifact.resource, platform="sol")
+        ir = compile_to_llvm_ir(input_artifact.resource)
         return cls._make_artifact(ir)
 
 
@@ -73,8 +70,8 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
             "build_method" in build_ctx.cfg
             and build_ctx.cfg["build_method"] == "via-llvm-bitcode"
         ):
-            return 101
-        return 102  # weakly preferred over IR string
+            return 98
+        return 99  # weakly preferred over IR string
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
@@ -85,5 +82,5 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
                 "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
                 " is required for building. Please install it via pip."
             )
-        bitcode = compile_to_bitcode(input_artifact.resource, platform="sol")
+        bitcode = compile_to_bitcode(input_artifact.resource)
         return cls._make_artifact(bitcode)
