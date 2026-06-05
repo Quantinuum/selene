@@ -20,7 +20,7 @@ def test_repetition(snapshot, compiled_guppy):
             qubits = array(qubit() for _ in range(5))
             for i in range(len(qubits)):
                 h(qubits[i])
-            bits = measure_array(qubits)
+            bits = array(m.read() for m in measure_array(qubits))
             result("a", bits[0])
             result("b", bits[1])
             result("c", bits[2])

@@ -25,7 +25,7 @@ def test_timeout(compiled_guppy):
             while True:
                 q0: qubit = qubit()
                 h(q0)
-                result("r", measure(q0))
+                result("r", measure(q0).read())
         """
     )
 

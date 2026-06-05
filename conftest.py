@@ -55,16 +55,20 @@ SUPPORTED_QIS_PLATFORMS = [
 ]
 
 
-def _compile_inline_guppy_source_to_hugr_bytes(guppy_source: str) -> bytes:
+def _compile_inline_guppy_source_to_hugr_bytes(guppy_source: str, *, emit_debug: bool = False) -> bytes:
     # check if guppy is installed
     if importlib.util.find_spec("guppylang") is None:
         raise RuntimeError(
             "Guppy is not installed. Please install guppylang to compile inline guppy source."
         )
 
+    debug_preamble = ""
+    if emit_debug:
+        debug_preamble = "from guppylang_internals.debug_mode import turn_on_debug_mode; turn_on_debug_mode()\n"
+
     # This executes trusted inline source defined in this repository's test files.
     standalone_file = f"""
-{guppy_source}
+{debug_preamble}{guppy_source}
 
 from pathlib import Path
 compiled_hugr = main.compile()
@@ -87,7 +91,7 @@ output_file.write_bytes(compiled_hugr.to_bytes())
 
 
 def _compile_hugr_to_llvm_ir_for_target(
-    hugr_bytes: bytes, qis_platform: str, target: str
+    hugr_bytes: bytes, qis_platform: str, target: str, *, emit_debug: bool = False
 ) -> str:
     try:
         from selene_hugr_qis_compiler import compile_to_llvm_ir
@@ -96,7 +100,7 @@ def _compile_hugr_to_llvm_ir_for_target(
             "--compile-guppy requires selene_hugr_qis_compiler and guppylang to be installed."
         ) from exc
 
-    return compile_to_llvm_ir(hugr_bytes, platform=qis_platform, target_triple=target)
+    return compile_to_llvm_ir(hugr_bytes, platform=qis_platform, target_triple=target, emit_debug=emit_debug)
 
 
 def _hash_guppy(guppy_source: str) -> str:
@@ -104,11 +108,11 @@ def _hash_guppy(guppy_source: str) -> str:
 
 
 def _compile_inline_guppy_source_to_llvm_ir(
-    guppy_source: str, *, qis_platform: str, target: str
+    guppy_source: str, *, qis_platform: str, target: str, emit_debug: bool = False
 ) -> str:
-    hugr_bytes = _compile_inline_guppy_source_to_hugr_bytes(guppy_source)
+    hugr_bytes = _compile_inline_guppy_source_to_hugr_bytes(guppy_source, emit_debug=emit_debug)
     return _compile_hugr_to_llvm_ir_for_target(
-        hugr_bytes, qis_platform=qis_platform, target=target
+        hugr_bytes, qis_platform=qis_platform, target=target, emit_debug=emit_debug
     )
 
 
@@ -119,6 +123,7 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
         program_name: str,
         guppy_source: str,
         qis_platform: str = "helios",
+        with_debug_info: bool = False,
     ) -> Path | bytes:
         test_name = request.node.name
         test_path = Path(request.node.fspath)
@@ -126,10 +131,13 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
         resources_dir = (
             test_path.parent / "resources" / "from_guppy" / test_path.stem / test_name
         )
+        # Debug builds are stored with a "-debug" infix so they don't collide with
+        # non-debug builds of the same program.
+        debug_infix = "-debug" if with_debug_info else ""
         platform_file = (
-            resources_dir / f"{program_name}-{qis_platform}-{get_platform_suffix()}.ll"
+            resources_dir / f"{program_name}{debug_infix}-{qis_platform}-{get_platform_suffix()}.ll"
         )
-        sha_file = resources_dir / f"{program_name}.sha256"
+        sha_file = resources_dir / f"{program_name}{debug_infix}.sha256"
         input_sha256 = _hash_guppy(guppy_source)
 
         if compile_guppy:
@@ -138,10 +146,13 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
             for qis_platform_it in SUPPORTED_QIS_PLATFORMS:
                 for target in SUPPORTED_TARGETS:
                     llvm_ir = _compile_inline_guppy_source_to_llvm_ir(
-                        guppy_source, qis_platform=qis_platform_it, target=target
+                        guppy_source,
+                        qis_platform=qis_platform_it,
+                        target=target,
+                        emit_debug=with_debug_info,
                     )
                     (
-                        resources_dir / f"{program_name}-{qis_platform_it}-{target}.ll"
+                        resources_dir / f"{program_name}{debug_infix}-{qis_platform_it}-{target}.ll"
                     ).write_text(llvm_ir)
         else:
             if not sha_file.exists():

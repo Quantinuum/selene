@@ -5,6 +5,22 @@ target triple = "x86_64-apple-darwin"
 
 @"e_No more qu.3B2EEBF0.0" = private constant [47 x i8] c".EXIT:INT:No more qubits available to allocate."
 
+define void @__hugr__.__main__.main.1() local_unnamed_addr {
+alloca_block:
+  %qalloc.i = tail call i64 @___qalloc()
+  %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
+  br i1 %not_max.not.not.i, label %cond_17_case_0.i, label %__hugr__.__tk2_sol_qalloc.13.exit
+
+cond_17_case_0.i:                                 ; preds = %alloca_block
+  tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
+  unreachable
+
+__hugr__.__tk2_sol_qalloc.13.exit:                ; preds = %alloca_block
+  tail call void @___reset(i64 %qalloc.i)
+  tail call void @___qfree(i64 %qalloc.i)
+  ret void
+}
+
 declare void @___qfree(i64) local_unnamed_addr
 
 declare i64 @___qalloc() local_unnamed_addr

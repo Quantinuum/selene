@@ -57,10 +57,10 @@
   - 0
 - !!python/tuple
   - METRICS:INT:post_runtime:custom_op_batch_count
-  - 0
+  - 11
 - !!python/tuple
   - METRICS:INT:post_runtime:custom_op_individual_count
-  - 0
+  - 11
 - !!python/tuple
   - METRICS:INT:post_runtime:measure_batch_count
   - 4

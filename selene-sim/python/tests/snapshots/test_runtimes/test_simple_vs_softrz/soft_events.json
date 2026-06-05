@@ -196,6 +196,49 @@
   {
     "source": "Source.USER",
     "operation": {
+      "op": "Rxy",
+      "qubit": 2,
+      "theta": -1.5707963267948966,
+      "phi": 1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 1,
+      "qubit1": 2,
+      "theta": 1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 1,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 2,
+      "theta": 1.5707963267948966,
+      "phi": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 2,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
       "op": "FutureRead",
       "qubit": 0
     }
@@ -428,49 +471,6 @@
     "operation": {
       "op": "FutureRead",
       "qubit": 0
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rzz",
-      "qubit0": 1,
-      "qubit1": 2,
-      "theta": 1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 2,
-      "theta": -1.5707963267948966
     }
   },
   {

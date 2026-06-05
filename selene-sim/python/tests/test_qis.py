@@ -125,7 +125,10 @@ def test_simulate_delay():
 
     optimiser_output = helios_circuit_extractor.shots[0].get_optimiser_output()
 
-    assert optimiser_output == [
+    # Filter out CustomOperation entries (debug info ops) — this test checks gate
+    # timing, not backtrace metadata.
+    gate_output = [op for op in optimiser_output if op["op"] != "CustomOperation"]
+    assert gate_output == [
         {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
         {"op": "Reset", "qubit": 0},
         {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
@@ -140,6 +143,10 @@ def test_simulate_delay():
     all_output = list(helios_circuit_extractor.shots[0])
     all_output_serialised = []
     for item in all_output:
+        # Skip debug info custom ops emitted by the runtime — this test checks
+        # gate structure and timing, not backtrace metadata.
+        if item.operation.to_dict().get("op") == "CustomOperation":
+            continue
         all_output_serialised.append(
             {"source": str(item.source), "operation": item.operation.to_dict()}
         )

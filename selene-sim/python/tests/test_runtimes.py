@@ -25,9 +25,9 @@ def test_simple_vs_softrz(snapshot, compiled_guppy):
             h(q1)
             cx(q0, q1)
             cx(q1, q2)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            result("c0", measure(q0).read())
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
         """
     )
 

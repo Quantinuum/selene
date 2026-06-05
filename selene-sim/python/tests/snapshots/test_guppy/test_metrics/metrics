@@ -1,8 +1,8 @@
 emulator:
   shot_number: 0
 post_runtime:
-  custom_op_batch_count: 0
-  custom_op_individual_count: 0
+  custom_op_batch_count: 23
+  custom_op_individual_count: 23
   measure_batch_count: 3
   measure_individual_count: 3
   measure_leaked_batch_count: 0

@@ -23,7 +23,7 @@ def test_batching_behaviour(snapshot, compiled_guppy):
                 for j in range(8-i-1):
                     crz(qs[i], qs[8-j-1], pi/(2**i))
             h(qs[7])
-            result("measurements", measure_array(qs))
+            result("measurements", array(m.read() for m in measure_array(qs)))
         """
     )
 
