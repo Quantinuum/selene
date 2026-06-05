@@ -81,7 +81,7 @@ class CustomOperation(Operation):
         pass
 
     def to_dict(self) -> dict:
-        return {"op": "CustomOperation", "tag": self.tag, "data": self.data}
+        return {"op": "CustomOperation", "tag": self.tag, "data": self.data.hex()}
 
     @staticmethod
     def from_iterator(it: Iterator):

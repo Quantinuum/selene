@@ -12,6 +12,7 @@ dependencies = [
   # note: llvmlite 0.45.1 is the last version to support x86_64 macOS.
   "llvmlite==0.45.1; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "llvmlite~=0.47; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "msgpack>=1.0",
   "networkx>=2.6,<4",
   "pydantic>=2.12.5",
   "pydot>=4.0.0",

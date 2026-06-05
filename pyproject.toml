@@ -115,6 +115,9 @@ cache-keys = [
   { file = "selene-ext/**/Cargo.lock" },
   { file = "selene-core/rust/**/*.rs" },
 ]
+override-dependencies = [
+    "hugr @ ${PROJECT_ROOT}/../hugr/hugr-py",
+]
 
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process

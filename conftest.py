@@ -55,7 +55,9 @@ SUPPORTED_QIS_PLATFORMS = [
 ]
 
 
-def _compile_inline_guppy_source_to_hugr_bytes(guppy_source: str, *, emit_debug: bool = False) -> bytes:
+def _compile_inline_guppy_source_to_hugr_bytes(
+    guppy_source: str, *, emit_debug: bool = False
+) -> bytes:
     # check if guppy is installed
     if importlib.util.find_spec("guppylang") is None:
         raise RuntimeError(
@@ -100,7 +102,9 @@ def _compile_hugr_to_llvm_ir_for_target(
             "--compile-guppy requires selene_hugr_qis_compiler and guppylang to be installed."
         ) from exc
 
-    return compile_to_llvm_ir(hugr_bytes, platform=qis_platform, target_triple=target, emit_debug=emit_debug)
+    return compile_to_llvm_ir(
+        hugr_bytes, platform=qis_platform, target_triple=target, emit_debug=emit_debug
+    )
 
 
 def _hash_guppy(guppy_source: str) -> str:
@@ -110,7 +114,9 @@ def _hash_guppy(guppy_source: str) -> str:
 def _compile_inline_guppy_source_to_llvm_ir(
     guppy_source: str, *, qis_platform: str, target: str, emit_debug: bool = False
 ) -> str:
-    hugr_bytes = _compile_inline_guppy_source_to_hugr_bytes(guppy_source, emit_debug=emit_debug)
+    hugr_bytes = _compile_inline_guppy_source_to_hugr_bytes(
+        guppy_source, emit_debug=emit_debug
+    )
     return _compile_hugr_to_llvm_ir_for_target(
         hugr_bytes, qis_platform=qis_platform, target=target, emit_debug=emit_debug
     )
@@ -135,7 +141,8 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
         # non-debug builds of the same program.
         debug_infix = "-debug" if with_debug_info else ""
         platform_file = (
-            resources_dir / f"{program_name}{debug_infix}-{qis_platform}-{get_platform_suffix()}.ll"
+            resources_dir
+            / f"{program_name}{debug_infix}-{qis_platform}-{get_platform_suffix()}.ll"
         )
         sha_file = resources_dir / f"{program_name}{debug_infix}.sha256"
         input_sha256 = _hash_guppy(guppy_source)
@@ -152,7 +159,8 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
                         emit_debug=with_debug_info,
                     )
                     (
-                        resources_dir / f"{program_name}{debug_infix}-{qis_platform_it}-{target}.ll"
+                        resources_dir
+                        / f"{program_name}{debug_infix}-{qis_platform_it}-{target}.ll"
                     ).write_text(llvm_ir)
         else:
             if not sha_file.exists():

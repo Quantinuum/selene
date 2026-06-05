@@ -13,5 +13,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow.workspace = true
+backtrace = "0.3"
 clap.workspace = true
 selene-core = { path = "../../../selene-core" }
