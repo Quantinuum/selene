@@ -143,24 +143,6 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                         theta,
                     });
                 }
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => {
-                    self.maybe_leak(qubit_id_1)?;
-                    self.maybe_leak(qubit_id_2)?;
-                    self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    pending.push(Operation::TK2Gate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        alpha,
-                        beta,
-                        gamma,
-                    });
-                }
                 Operation::RPPGate {
                     qubit_id_1,
                     qubit_id_2,

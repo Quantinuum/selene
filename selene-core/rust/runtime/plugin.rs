@@ -61,14 +61,6 @@ pub struct RuntimePluginDescriptorV1 {
         theta: f64,
     ) -> Errno,
     pub rz_gate_fn: unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, theta: f64) -> Errno,
-    pub tk2_gate_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno,
     pub rpp_gate_fn: unsafe extern "C" fn(
         handle: RuntimeInstance,
         qubit0: u64,
@@ -156,14 +148,6 @@ pub struct RuntimePluginInterface {
         theta: f64,
     ) -> Errno,
     rz_gate_fn: unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, theta: f64) -> Errno,
-    tk2_gate_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno,
     rpp_gate_fn: unsafe extern "C" fn(
         handle: RuntimeInstance,
         qubit0: u64,
@@ -253,7 +237,6 @@ impl RuntimePluginInterface {
             rxy_gate_fn: descriptor.rxy_gate_fn,
             rzz_gate_fn: descriptor.rzz_gate_fn,
             rz_gate_fn: descriptor.rz_gate_fn,
-            tk2_gate_fn: descriptor.tk2_gate_fn,
             rpp_gate_fn: descriptor.rpp_gate_fn,
             measure_fn: descriptor.measure_fn,
             measure_leaked_fn: descriptor.measure_leaked_fn,
@@ -409,29 +392,6 @@ impl RuntimeInterface for RuntimePlugin {
                 (self.interface.rpp_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta, phi)
             },
             || anyhow!("RuntimePlugin: rpp_gate failed"),
-        )
-    }
-
-    fn tk2_gate(
-        &mut self,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.interface.tk2_gate_fn)(
-                    self.instance,
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                )
-            },
-            || anyhow!("RuntimePlugin: tk2_gate failed"),
         )
     }
 

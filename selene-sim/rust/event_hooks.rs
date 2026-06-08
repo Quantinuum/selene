@@ -17,7 +17,6 @@ pub enum Operation {
     RZZ(u64, u64, f64),
     RZ(u64, f64),
     RPP(u64, u64, f64, f64),
-    TK2(u64, u64, f64, f64, f64),
     Reset(u64),
     MeasureRequest(u64),
     MeasureLeakedRequest(u64),
@@ -50,13 +49,6 @@ impl Operation {
                 theta,
                 phi,
             } => Operation::RPP(*qubit_id_1, *qubit_id_2, *theta, *phi),
-            selene_core::runtime::Operation::TK2Gate {
-                qubit_id_1,
-                qubit_id_2,
-                alpha,
-                beta,
-                gamma,
-            } => Operation::TK2(*qubit_id_1, *qubit_id_2, *alpha, *beta, *gamma),
             selene_core::runtime::Operation::RZGate { qubit_id, theta } => {
                 Operation::RZ(*qubit_id, *theta)
             }
@@ -95,13 +87,6 @@ impl Operation {
                 theta,
                 phi,
             } => Operation::RPP(*qubit_id_1, *qubit_id_2, *theta, *phi),
-            selene_core::runtime::Operation::TK2Gate {
-                qubit_id_1,
-                qubit_id_2,
-                alpha,
-                beta,
-                gamma,
-            } => Operation::TK2(*qubit_id_1, *qubit_id_2, *alpha, *beta, *gamma),
             selene_core::runtime::Operation::RZGate { qubit_id, theta } => {
                 Operation::RZ(*qubit_id, *theta)
             }

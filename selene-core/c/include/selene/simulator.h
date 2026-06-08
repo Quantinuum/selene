@@ -72,12 +72,6 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
                         uint64_t qubit0,
                         uint64_t qubit1,
                         double theta);
-  SeleneErrno (*tk2_fn)(SeleneSimulatorInstance handle,
-                        uint64_t qubit0,
-                        uint64_t qubit1,
-                        double alpha,
-                        double beta,
-                        double gamma);
   SeleneErrno (*rpp_fn)(SeleneSimulatorInstance handle,
                         uint64_t qubit0,
                         uint64_t qubit1,

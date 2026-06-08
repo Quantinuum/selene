@@ -98,7 +98,6 @@ enum Operation {
     Rz(u64, f64),
     Rxy(u64, f64, f64),
     Rzz(u64, u64, f64),
-    Tk2(u64, u64, f64, f64, f64),
     Rpp(u64, u64, f64, f64),
     Reset(u64),
     Measure(u64),
@@ -137,15 +136,6 @@ impl EngineState {
                     qubit_id: *q,
                     theta: *theta,
                     phi: *phi - self.qubit_phases[*q as usize],
-                });
-            }
-            Operation::Tk2(q0, q1, alpha, beta, gamma) => {
-                self.apply_void(SimulatorOperation::TK2Gate {
-                    qubit_id_1: *q0,
-                    qubit_id_2: *q1,
-                    alpha: *alpha,
-                    beta: *beta,
-                    gamma: *gamma,
                 });
             }
             Operation::Rpp(q0, q1, theta, phi) => {
@@ -317,17 +307,6 @@ impl TestFramework {
     }
     pub fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> &mut Self {
         self.add_operation(Operation::Rzz(qubit1, qubit2, theta));
-        self
-    }
-    pub fn tk2(
-        &mut self,
-        qubit1: u64,
-        qubit2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> &mut Self {
-        self.add_operation(Operation::Tk2(qubit1, qubit2, alpha, beta, gamma));
         self
     }
     pub fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> &mut Self {

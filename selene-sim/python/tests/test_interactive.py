@@ -1,6 +1,8 @@
 from math import pi
 from pathlib import Path
 import pytest
+
+# pytest.skip(allow_module_level=True)
 import tempfile
 
 import numpy as np

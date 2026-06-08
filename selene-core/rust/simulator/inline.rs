@@ -31,7 +31,6 @@ pub fn borrowed_simulator_interface(
             rxy_fn: BorrowedSimulatorBridge::rxy,
             rz_fn: BorrowedSimulatorBridge::rz,
             rzz_fn: BorrowedSimulatorBridge::rzz,
-            tk2_fn: BorrowedSimulatorBridge::tk2,
             rpp_fn: BorrowedSimulatorBridge::rpp,
             measure_fn: BorrowedSimulatorBridge::measure,
             postselect_fn: BorrowedSimulatorBridge::postselect,
@@ -123,32 +122,6 @@ impl BorrowedSimulatorBridge {
                     Ok(())
                 } else {
                     anyhow::bail!("RZZ unexpectedly produced results")
-                }
-            })
-        })
-    }
-    unsafe extern "C" fn tk2(
-        instance: SimulatorInstance,
-        q1: u64,
-        q2: u64,
-        a: f64,
-        b: f64,
-        c: f64,
-    ) -> Errno {
-        result_to_errno("BorrowedSimulatorBridge: tk2 failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::TK2Gate {
-                        qubit_id_1: q1,
-                        qubit_id_2: q2,
-                        alpha: a,
-                        beta: b,
-                        gamma: c,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("TK2 unexpectedly produced results")
                 }
             })
         })
@@ -272,7 +245,6 @@ impl SimulatorFFIAdapter {
                 rxy_fn: Self::rxy,
                 rz_fn: Self::rz,
                 rzz_fn: Self::rzz,
-                tk2_fn: Self::tk2,
                 rpp_fn: Self::rpp,
                 measure_fn: Self::measure,
                 postselect_fn: Self::postselect,
@@ -372,33 +344,6 @@ impl SimulatorFFIAdapter {
                     Ok(())
                 } else {
                     anyhow::bail!("RZZ unexpectedly produced results")
-                }
-            })
-        })
-    }
-
-    unsafe extern "C" fn tk2(
-        instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno {
-        result_to_errno("SimulatorFFIAdapter: tk2 failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::TK2Gate {
-                        qubit_id_1: qubit1,
-                        qubit_id_2: qubit2,
-                        alpha,
-                        beta,
-                        gamma,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("TK2 unexpectedly produced results")
                 }
             })
         })
@@ -540,14 +485,6 @@ pub struct SimulatorOperationInterface<'a> {
         qubit2: u64,
         theta: f64,
     ) -> Errno,
-    pub tk2_fn: unsafe extern "C" fn(
-        instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno,
     pub rpp_fn: unsafe extern "C" fn(
         instance: SimulatorInstance,
         qubit1: u64,
@@ -584,7 +521,6 @@ impl SimulatorOperationInterface<'_> {
             rxy_fn: self.rxy_fn,
             rz_fn: self.rz_fn,
             rzz_fn: self.rzz_fn,
-            tk2_fn: self.tk2_fn,
             rpp_fn: self.rpp_fn,
             measure_fn: self.measure_fn,
             postselect_fn: self.postselect_fn,

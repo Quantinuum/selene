@@ -41,16 +41,6 @@ pub struct SimulatorPluginDescriptorV1 {
             theta: f64,
         ) -> Errno,
     >,
-    pub tk2_fn: Option<
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            alpha: f64,
-            beta: f64,
-            gamma: f64,
-        ) -> Errno,
-    >,
     pub rpp_fn: Option<
         unsafe extern "C" fn(
             handle: SimulatorInstance,
@@ -118,16 +108,6 @@ pub struct SimulatorPluginInterface {
             qubit0: u64,
             qubit1: u64,
             theta: f64,
-        ) -> Errno,
-    >,
-    tk2_fn: Option<
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            alpha: f64,
-            beta: f64,
-            gamma: f64,
         ) -> Errno,
     >,
     rpp_fn: Option<
@@ -219,7 +199,6 @@ impl SimulatorPluginInterface {
             rxy_fn: descriptor.rxy_fn,
             rz_fn: descriptor.rz_fn,
             rzz_fn: descriptor.rzz_fn,
-            tk2_fn: descriptor.tk2_fn,
             rpp_fn: descriptor.rpp_fn,
             measure_fn: descriptor.measure_fn,
             postselect_fn: descriptor.postselect_fn,
@@ -283,19 +262,6 @@ impl SimulatorPlugin {
         check_errno(
             unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
             || anyhow!("SimulatorPlugin({}): rpp failed", &self.interface.name),
-        )
-    }
-
-    fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        let Some(tk2_fn) = self.interface.tk2_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the TK2 gate",
-                &self.interface.name
-            );
-        };
-        check_errno(
-            unsafe { tk2_fn(self.instance, qubit1, qubit2, alpha, beta, gamma) },
-            || anyhow!("SimulatorPlugin({}): tk2 failed", &self.interface.name),
         )
     }
 
@@ -382,13 +348,6 @@ impl SimulatorInterface for SimulatorPlugin {
                     qubit_id_2,
                     theta,
                 } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => self.tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?,
                 Operation::RPPGate {
                     qubit_id_1,
                     qubit_id_2,

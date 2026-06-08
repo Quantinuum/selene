@@ -35,7 +35,6 @@ impl ErrorModelInterface for IdealErrorModel {
                 | Operation::RZZGate { .. }
                 | Operation::RZGate { .. }
                 | Operation::Measure { .. }
-                | Operation::TK2Gate { .. }
                 | Operation::RPPGate { .. }
                 | Operation::Reset { .. } => pending.push(op),
                 Operation::MeasureLeaked {

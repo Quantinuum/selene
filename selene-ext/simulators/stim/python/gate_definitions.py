@@ -47,12 +47,6 @@ def rpp_gate(theta, phi) -> Circuit:
     return circ
 
 
-def tk2_gate(alpha, beta, gamma) -> Circuit:
-    circ = Circuit(2)
-    circ.TK2(alpha, beta, gamma, 0, 1)
-    return circ
-
-
 def analyse_span(name, gate, start_angle, end_angle, num_points, dim=1) -> None:
     """Return a list of gates for a range of angles where a clifford sequence is found."""
     print(f"-------------- {name} --------------")
@@ -85,4 +79,3 @@ if __name__ == "__main__":
     analyse_span("rxy", rxy_gate, 0, 2, 16, dim=2)
     analyse_span("rzz", rzz_gate, 0, 2, 16, dim=1)
     analyse_span("rpp", rpp_gate, 0, 2, 16, dim=2)
-    analyse_span("tk2", tk2_gate, 0, 2, 16, dim=3)

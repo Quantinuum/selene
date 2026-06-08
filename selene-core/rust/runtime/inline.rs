@@ -44,7 +44,6 @@ impl RuntimeFFIAdapter {
                 rzz_gate_fn: Self::rzz_gate,
                 rz_gate_fn: Self::rz_gate,
                 rpp_gate_fn: Self::rpp_gate,
-                tk2_gate_fn: Self::tk2_gate,
                 measure_fn: Self::measure,
                 measure_leaked_fn: Self::measure_leaked,
                 reset_fn: Self::reset,
@@ -96,7 +95,6 @@ impl RuntimeFFIAdapter {
                     rxy_fn,
                     rz_fn,
                     rpp_fn,
-                    tk2_fn,
                     ..
                 } = ops.interface;
                 if let Some(timing) = batch.runtime_source() {
@@ -121,7 +119,9 @@ impl RuntimeFFIAdapter {
                             qubit_id,
                             theta,
                             phi,
-                        } => rxy_fn(ops.instance, *qubit_id, *theta, *phi),
+                        } => {
+                            rxy_fn(ops.instance, *qubit_id, *theta, *phi);
+                        }
                         Operation::RZGate { qubit_id, theta } => {
                             rz_fn(ops.instance, *qubit_id, *theta)
                         }
@@ -136,20 +136,6 @@ impl RuntimeFFIAdapter {
                             theta,
                             phi,
                         } => rpp_fn(ops.instance, *qubit_id_1, *qubit_id_2, *theta, *phi),
-                        Operation::TK2Gate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            alpha,
-                            beta,
-                            gamma,
-                        } => tk2_fn(
-                            ops.instance,
-                            *qubit_id_1,
-                            *qubit_id_2,
-                            *alpha,
-                            *beta,
-                            *gamma,
-                        ),
                         Operation::Custom { custom_tag, data } => custom_fn(
                             ops.instance,
                             *custom_tag,
@@ -265,21 +251,6 @@ impl RuntimeFFIAdapter {
         result_to_errno("RuntimeFFIAdapter: rpp_gate failed", unsafe {
             Self::with_runtime(instance, |runtime| {
                 runtime.rpp_gate(qubit0, qubit1, theta, phi)
-            })
-        })
-    }
-
-    unsafe extern "C" fn tk2_gate(
-        instance: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno {
-        result_to_errno("RuntimeFFIAdapter: tk2_gate failed", unsafe {
-            Self::with_runtime(instance, |runtime| {
-                runtime.tk2_gate(qubit0, qubit1, alpha, beta, gamma)
             })
         })
     }
@@ -442,7 +413,6 @@ pub struct RuntimeOperationInterface<'a> {
     pub rzz_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64, f64) -> Errno,
     pub rz_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, f64) -> Errno,
     pub rpp_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64, f64, f64) -> Errno,
-    pub tk2_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64, f64, f64, f64) -> Errno,
     pub measure_fn: unsafe extern "C" fn(RuntimeInstance, u64, *mut u64) -> Errno,
     pub measure_leaked_fn: unsafe extern "C" fn(RuntimeInstance, u64, *mut u64) -> Errno,
     pub reset_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,

@@ -91,13 +91,6 @@ pub enum Operation {
         theta: f64,
         phi: f64,
     },
-    TK2Gate {
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    },
 }
 
 impl Operation {
@@ -118,11 +111,6 @@ impl Operation {
                 ..
             }
             | Operation::RPPGate {
-                qubit_id_1,
-                qubit_id_2,
-                ..
-            }
-            | Operation::TK2Gate {
                 qubit_id_1,
                 qubit_id_2,
                 ..

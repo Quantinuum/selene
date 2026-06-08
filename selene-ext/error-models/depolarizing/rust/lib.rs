@@ -273,22 +273,6 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                         theta,
                     });
                 }
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => {
-                    pending.extend(self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?);
-                    pending.push(Operation::TK2Gate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        alpha,
-                        beta,
-                        gamma,
-                    });
-                }
                 Operation::RPPGate {
                     qubit_id_1,
                     qubit_id_2,

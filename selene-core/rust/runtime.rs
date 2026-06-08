@@ -216,29 +216,6 @@ impl RuntimeInterface for Runtime {
         )
     }
 
-    fn tk2_gate(
-        &mut self,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.handle.interface.tk2_gate_fn)(
-                    self.handle.instance,
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                )
-            },
-            || anyhow!("Runtime: tk2_gate failed"),
-        )
-    }
-
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {
         let mut result = 0;
         check_errno(

@@ -92,26 +92,6 @@ impl BatchBuilder {
         )
     }
 
-    unsafe extern "C" fn tk2(
-        interface: RuntimeGetOperationInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::TK2Gate {
-                qubit_id_1,
-                qubit_id_2,
-                alpha,
-                beta,
-                gamma,
-            },
-        )
-    }
-
     unsafe extern "C" fn measure(
         interface: RuntimeGetOperationInstance,
         qubit_id: u64,
@@ -179,7 +159,6 @@ impl BatchBuilder {
                 rxy_fn: Self::rxy,
                 rz_fn: Self::rz,
                 rpp_fn: Self::rpp,
-                tk2_fn: Self::tk2,
             },
         }
     }
@@ -208,7 +187,6 @@ pub struct RuntimeGetOperationInterface {
     pub rxy_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64, f64),
     pub rz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64),
     pub rpp_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
-    pub tk2_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64, f64),
 }
 
 #[derive(Default)]
@@ -235,7 +213,6 @@ impl BatchExtractor {
             rxy_fn,
             rz_fn,
             rpp_fn,
-            tk2_fn,
             ..
         } = output.interface;
         if let Some(timing) = batch.runtime_source() {
@@ -277,22 +254,6 @@ impl BatchExtractor {
                     theta,
                     phi,
                 } => unsafe { rpp_fn(output.instance, *qubit_id_1, *qubit_id_2, *theta, *phi) },
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => unsafe {
-                    tk2_fn(
-                        output.instance,
-                        *qubit_id_1,
-                        *qubit_id_2,
-                        *alpha,
-                        *beta,
-                        *gamma,
-                    )
-                },
                 Operation::Custom { custom_tag, data } => {
                     let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                     unsafe { custom_fn(output.instance, *custom_tag, ptr, len) }

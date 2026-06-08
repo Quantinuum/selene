@@ -93,12 +93,6 @@ typedef struct RuntimeGetOperationInterface {
                  uint64_t,
                  double,
                  double);
-  void (*tk2_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double,
-                 double,
-                 double);
 } RuntimeGetOperationInterface;
 
 typedef struct RuntimeGetOperationHandle {
@@ -135,12 +129,6 @@ typedef struct SimulatorOperationInterface {
                         uint64_t qubit1,
                         uint64_t qubit2,
                         double theta);
-  SeleneErrno (*tk2_fn)(SeleneSimulatorInstance instance,
-                        uint64_t qubit1,
-                        uint64_t qubit2,
-                        double alpha,
-                        double beta,
-                        double gamma);
   SeleneErrno (*rpp_fn)(SeleneSimulatorInstance instance,
                         uint64_t qubit1,
                         uint64_t qubit2,

@@ -361,44 +361,6 @@ class Rpp(Operation):
 
 
 @dataclass
-class Tk2(Operation):
-    qubit0: int
-    qubit1: int
-    alpha: float
-    beta: float
-    gamma: float
-
-    def append_to_circuit(self, circuit: "pytket.Circuit"):
-        assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.TK2(
-            angle0=self.alpha / math.pi,
-            angle1=self.beta / math.pi,
-            angle2=self.gamma / math.pi,
-            qubit0=self.qubit0,
-            qubit1=self.qubit1,
-        )
-
-    def to_dict(self) -> dict:
-        return {
-            "op": "Tk2",
-            "qubit0": self.qubit0,
-            "qubit1": self.qubit1,
-            "alpha": self.alpha,
-            "beta": self.beta,
-            "gamma": self.gamma,
-        }
-
-    @staticmethod
-    def from_iterator(it: Iterator):
-        qubit0 = next(it)
-        qubit1 = next(it)
-        alpha = next(it)
-        beta = next(it)
-        gamma = next(it)
-        return Tk2(qubit0=qubit0, qubit1=qubit1, alpha=alpha, beta=beta, gamma=gamma)
-
-
-@dataclass
 class Postselect(Operation):
     qubit: int
     target: bool
@@ -435,8 +397,8 @@ class Instruction:
     operation: Operation
     duration_ns: int | None = None
 
-    def to_dict(self) -> dict:
-        result = {
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
             "source": str(self.source),
             "operation": self.operation.to_dict(),
         }
@@ -503,8 +465,6 @@ class Instruction:
             case 14:
                 operation = Rpp.from_iterator(it)
             case 15:
-                operation = Tk2.from_iterator(it)
-            case 16:
                 operation = Postselect.from_iterator(it)
         if operation is None:
             raise ValueError(f"Unknown instruction operation index {operation_idx}")
@@ -676,22 +636,6 @@ class ShotInstructions:
                             index=user_program_event_index,
                         )
                         user_program_event_index += 1
-                    case Tk2(
-                        qubit0=qubit0,
-                        qubit1=qubit1,
-                        alpha=alpha,
-                        beta=beta,
-                        gamma=gamma,
-                    ):
-                        trace.add_user_program_event(
-                            GateEvent(
-                                gate_name="Tk2",
-                                qubits=[qubit0, qubit1],
-                                params=[alpha, beta, gamma],
-                            ),
-                            index=user_program_event_index,
-                        )
-                        user_program_event_index += 1
                     case Reset(qubit=qubit):
                         trace.add_user_program_event(
                             ResetEvent(qubit=qubit), index=user_program_event_index
@@ -778,22 +722,6 @@ class ShotInstructions:
                             start_time_ns,
                             end_time_ns,
                         )
-                    case Tk2(
-                        qubit0=qubit0,
-                        qubit1=qubit1,
-                        alpha=alpha,
-                        beta=beta,
-                        gamma=gamma,
-                    ):
-                        trace.add_runtime_event(
-                            GateEvent(
-                                gate_name="Tk2",
-                                qubits=[qubit0, qubit1],
-                                params=[alpha, beta, gamma],
-                            ),
-                            start_time_ns,
-                            end_time_ns,
-                        )
                     case CustomOperation(tag=tag, data=data):
                         trace.add_runtime_event(
                             CustomEvent(payload=OpaquePayload(tag=tag, data=data)),
@@ -863,22 +791,6 @@ class ShotInstructions:
                                 gate_name="Rpp",
                                 qubits=[qubit0, qubit1],
                                 params=[theta, phi],
-                            ),
-                            index=error_model_event_index,
-                        )
-                        error_model_event_index += 1
-                    case Tk2(
-                        qubit0=qubit0,
-                        qubit1=qubit1,
-                        alpha=alpha,
-                        beta=beta,
-                        gamma=gamma,
-                    ):
-                        trace.add_error_model_event(
-                            GateEvent(
-                                gate_name="Tk2",
-                                qubits=[qubit0, qubit1],
-                                params=[alpha, beta, gamma],
                             ),
                             index=error_model_event_index,
                         )
@@ -971,23 +883,6 @@ class ShotInstructions:
                                 gate_name="Rpp",
                                 qubits=[qubit0, qubit1],
                                 params=[theta, phi],
-                            ),
-                            index=simulator_event_index,
-                            duration_ns=duration_ns,
-                        )
-                        simulator_event_index += 1
-                    case Tk2(
-                        qubit0=qubit0,
-                        qubit1=qubit1,
-                        alpha=alpha,
-                        beta=beta,
-                        gamma=gamma,
-                    ):
-                        trace.add_simulator_event(
-                            GateEvent(
-                                gate_name="Tk2",
-                                qubits=[qubit0, qubit1],
-                                params=[alpha, beta, gamma],
                             ),
                             index=simulator_event_index,
                             duration_ns=duration_ns,

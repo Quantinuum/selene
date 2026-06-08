@@ -225,19 +225,6 @@ impl Emulator {
             .on_user_call(&Operation::RPP(q0, q1, theta, phi));
         self.process_runtime()
     }
-    pub fn user_issued_tk2(
-        &mut self,
-        q0: u64,
-        q1: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Result<()> {
-        self.runtime.tk2_gate(q0, q1, alpha, beta, gamma)?;
-        self.event_hooks
-            .on_user_call(&Operation::TK2(q0, q1, alpha, beta, gamma));
-        self.process_runtime()
-    }
     pub fn user_issued_rz(&mut self, q0: u64, theta: f64) -> Result<()> {
         self.runtime.rz_gate(q0, theta)?;
         self.event_hooks.on_user_call(&Operation::RZ(q0, theta));

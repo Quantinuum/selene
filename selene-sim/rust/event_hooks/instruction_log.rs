@@ -98,14 +98,6 @@ impl Instruction {
                 encoder.write(*theta)?;
                 encoder.write(*phi)?;
             }
-            Operation::TK2(qubit1, qubit2, alpha, beta, gamma) => {
-                encoder.write(15u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*qubit2)?;
-                encoder.write(*alpha)?;
-                encoder.write(*beta)?;
-                encoder.write(*gamma)?;
-            }
             Operation::Postselect(qubit1, target_value) => {
                 encoder.write(16u64)?;
                 encoder.write(*qubit1)?;

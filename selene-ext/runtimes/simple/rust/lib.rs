@@ -19,8 +19,6 @@ struct Params {
     #[arg(long)]
     duration_ns_rpp: u64,
     #[arg(long)]
-    duration_ns_tk2: u64,
-    #[arg(long)]
     duration_ns_measure: u64,
     #[arg(long)]
     duration_ns_reset: u64,
@@ -68,7 +66,6 @@ impl SimpleRuntime {
             Operation::RZZGate { .. } => self.params.duration_ns_rzz,
             Operation::RZGate { .. } => self.params.duration_ns_rz,
             Operation::RPPGate { .. } => self.params.duration_ns_rpp,
-            Operation::TK2Gate { .. } => self.params.duration_ns_tk2,
             Operation::Measure { .. } => self.params.duration_ns_measure,
             Operation::Reset { .. } => self.params.duration_ns_reset,
             Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
@@ -92,7 +89,10 @@ impl RuntimeInterface for SimpleRuntime {
     }
     // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
-        Ok(self.operation_queue.pop_front())
+        eprintln!("Getting next operation at time {:?}", self.start);
+        let thing = Ok(self.operation_queue.pop_front());
+        eprintln!("Next operation is {:?}", thing);
+        thing
     }
 
     fn shot_start(&mut self, _shot_id: u64, _seed: u64) -> Result<()> {
@@ -168,35 +168,6 @@ impl RuntimeInterface for SimpleRuntime {
             bail!("Qubit {qubit_id} is not active");
         };
         self.push(Operation::RZGate { qubit_id, theta });
-        Ok(())
-    }
-    fn tk2_gate(
-        &mut self,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Result<()> {
-        if qubit_id_1 >= self.qubits.len() as u64 {
-            bail!("applying tk2 gate to out-of-bounds qubit1 {qubit_id_1}");
-        }
-        if qubit_id_2 >= self.qubits.len() as u64 {
-            bail!("applying tk2 gate to out-of-bounds qubit2 {qubit_id_2}");
-        }
-        let QubitStatus::Active = self.qubits[qubit_id_1 as usize] else {
-            bail!("Qubit {qubit_id_1} is not active");
-        };
-        let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
-            bail!("Qubit {qubit_id_2} is not active");
-        };
-        self.push(Operation::TK2Gate {
-            qubit_id_1,
-            qubit_id_2,
-            alpha,
-            beta,
-            gamma,
-        });
         Ok(())
     }
     fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {

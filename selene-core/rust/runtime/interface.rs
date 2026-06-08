@@ -95,18 +95,6 @@ pub trait RuntimeInterface {
         bail!("RuntimeInterface: The chosen runtime does not support the RPP gate");
     }
 
-    /// Schedule a TK2 gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
-    fn tk2_gate(
-        &mut self,
-        _qubit_id_1: u64,
-        _qubit_id_2: u64,
-        _alpha: f64,
-        _beta: f64,
-        _gamma: f64,
-    ) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the TK2 gate");
-    }
-
     /// Schedule a measurement of allocated qubit `qubit_id`. The plugin should return a
     /// new result index. That result index must have a reference count of 1.
     fn measure(&mut self, qubit_id: u64) -> Result<u64>;

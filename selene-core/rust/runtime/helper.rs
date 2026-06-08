@@ -94,7 +94,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                 let Some(batch) = runtime.get_next_operations()? else {
                     return anyhow::Ok(());
                 };
-
                 let RuntimeGetOperationInterface {
                     measure_fn,
                     measure_leaked_fn,
@@ -105,7 +104,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     rxy_fn,
                     rz_fn,
                     rpp_fn,
-                    tk2_fn,
                     ..
                 } = ops.interface;
                 if let Some(timing) = batch.runtime_source() {
@@ -149,15 +147,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             theta,
                             phi,
                         } => unsafe { rpp_fn(ops.instance, qubit_id_1, qubit_id_2, theta, phi) },
-                        Operation::TK2Gate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            alpha,
-                            beta,
-                            gamma,
-                        } => unsafe {
-                            tk2_fn(ops.instance, qubit_id_1, qubit_id_2, alpha, beta, gamma)
-                        },
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                             unsafe { custom_fn(ops.instance, custom_tag, ptr, len) }
@@ -289,22 +278,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
             "Failed in rpp_gate",
             Self::with_runtime_instance(instance, |runtime| {
                 runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi)
-            }),
-        )
-    }
-
-    pub unsafe fn tk2_gate(
-        instance: RuntimeInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno {
-        result_to_errno(
-            "Failed in tk2_gate",
-            Self::with_runtime_instance(instance, |runtime| {
-                runtime.tk2_gate(qubit_id_1, qubit_id_2, alpha, beta, gamma)
             }),
         )
     }
@@ -734,24 +707,6 @@ macro_rules! export_runtime_plugin {
                 Helper::rpp_gate(instance, qubit_id_1, qubit_id_2, theta, phi)
             }
 
-            /// Instruct the runtime to apply a TK2 gate to the qubits with the given IDs.
-            /// It might not be supported by all runtimes, and an error will be returned
-            /// if it is used on a runtime that does not support it, or if the runtime
-            /// is unable to apply it for any reason.
-            ///
-            /// Note that it is up to the runtime whether or not this gate is applied
-            /// immediately: The runtime might act lazily and apply the gate at a later time.
-            unsafe extern "C" fn selene_runtime_tk2_gate(
-                instance: RuntimeInstance,
-                qubit_id_1: u64,
-                qubit_id_2: u64,
-                alpha: f64,
-                beta: f64,
-                gamma: f64,
-            ) -> i32 {
-                Helper::tk2_gate(instance, qubit_id_1, qubit_id_2, alpha, beta, gamma)
-            }
-
             /// Instruct the runtime that a measurement is to be requested and to write
             /// a reference ID to the result to the `result` pointer.
             ///
@@ -875,7 +830,6 @@ macro_rules! export_runtime_plugin {
                     rxy_gate_fn: selene_runtime_rxy_gate,
                     rzz_gate_fn: selene_runtime_rzz_gate,
                     rz_gate_fn: selene_runtime_rz_gate,
-                    tk2_gate_fn: selene_runtime_tk2_gate,
                     rpp_gate_fn: selene_runtime_rpp_gate,
                     measure_fn: selene_runtime_measure,
                     measure_leaked_fn: selene_runtime_measure_leaked,

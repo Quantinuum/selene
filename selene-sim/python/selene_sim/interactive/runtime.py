@@ -38,15 +38,6 @@ RPP_CB = ctypes.CFUNCTYPE(
     ctypes.c_double,
     ctypes.c_double,
 )
-TK2_CB = ctypes.CFUNCTYPE(
-    None,
-    SeleneRuntimeGetOperationInstance,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_double,
-    ctypes.c_double,
-    ctypes.c_double,
-)
 
 MEASURE_CB = ctypes.CFUNCTYPE(
     None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_uint64
@@ -78,7 +69,13 @@ class SeleneRuntimeGetOperationInterface(ctypes.Structure):
         ("rxy_fn", RXY_CB),
         ("rz_fn", RZ_CB),
         ("rpp_fn", RPP_CB),
-        ("tk2_fn", TK2_CB),
+    ]
+
+
+class SeleneRuntimeGetOperationHandle(ctypes.Structure):
+    _fields_ = [
+        ("instance", SeleneRuntimeGetOperationInstance),
+        ("interface", SeleneRuntimeGetOperationInterface),
     ]
 
 
@@ -122,15 +119,6 @@ class RPPGateOperation:
 
 
 @dataclass
-class TK2GateOperation:
-    qubit_id_a: int
-    qubit_id_b: int
-    alpha: float
-    beta: float
-    gamma: float
-
-
-@dataclass
 class CustomOperation:
     tag: int
     data: bytes
@@ -149,7 +137,6 @@ RuntimeOperation = (
     | RZGateOperation
     | RZZGateOperation
     | RPPGateOperation
-    | TK2GateOperation
     | CustomOperation
     | MeasureLeakedOperation
 )
@@ -287,8 +274,7 @@ RuntimeShotEndFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr)
 RuntimeGetNextOpsFn = ctypes.CFUNCTYPE(
     Errno,
     SeleneRuntimeInstancePtr,
-    SeleneRuntimeGetOperationInstance,
-    ctypes.POINTER(SeleneRuntimeGetOperationInterface),
+    SeleneRuntimeGetOperationHandle,
 )
 RuntimeQallocFn = ctypes.CFUNCTYPE(
     Errno, SeleneRuntimeInstancePtr, ctypes.POINTER(ctypes.c_uint64)
@@ -358,7 +344,6 @@ class RuntimePluginDescriptorV1(ctypes.Structure):
         ("rxy_gate_fn", RuntimeRxyFn),
         ("rzz_gate_fn", RuntimeRzzFn),
         ("rz_gate_fn", RuntimeRzFn),
-        ("tk2_gate_fn", ctypes.c_void_p),
         ("rpp_gate_fn", ctypes.c_void_p),
         ("measure_fn", RuntimeMeasureFn),
         ("measure_leaked_fn", RuntimeMeasureLeakedFn),
@@ -476,8 +461,11 @@ class InteractiveRuntime:
             instance = ctypes.cast(
                 ctypes.pointer(batch_ref), SeleneRuntimeGetOperationInstance
             )
+            handle = SeleneRuntimeGetOperationHandle(
+                instance=instance, interface=OPERATION_BATCH_CALLBACKS
+            )
             if 0 != self._lib.selene_runtime_get_next_operations(
-                self._instance, instance, ctypes.byref(OPERATION_BATCH_CALLBACKS)
+                self._instance, handle
             ):
                 raise RuntimeError("Failed to get next operations from Selene runtime")
             if not batch.invoked:

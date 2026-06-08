@@ -158,27 +158,6 @@ impl SimulatorInterface for Simulator {
                         || anyhow!("Simulator: rzz failed"),
                     )?;
                 }
-                Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => {
-                    check_errno(
-                        unsafe {
-                            (self.handle.interface.tk2_fn)(
-                                self.handle.instance,
-                                qubit_id_1,
-                                qubit_id_2,
-                                alpha,
-                                beta,
-                                gamma,
-                            )
-                        },
-                        || anyhow!("Simulator: tk2 failed"),
-                    )?;
-                }
                 Operation::RPPGate {
                     qubit_id_1,
                     qubit_id_2,

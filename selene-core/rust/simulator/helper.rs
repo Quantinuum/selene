@@ -181,33 +181,6 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
             }),
         )
     }
-    pub unsafe fn tk2(
-        instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno {
-        result_to_errno(
-            "Failed to apply TK2 gate",
-            Self::with_simulator_instance(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::TK2Gate {
-                        qubit_id_1: qubit1,
-                        qubit_id_2: qubit2,
-                        alpha,
-                        beta,
-                        gamma,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("TK2 unexpectedly produced results")
-                }
-            }),
-        )
-    }
     pub unsafe fn rpp(
         instance: SimulatorInstance,
         qubit1: u64,
@@ -293,7 +266,6 @@ macro_rules! crate_to_inline_simulator {
             rxy_fn: crate::selene_simulator_operation_rxy,
             rzz_fn: crate::selene_simulator_operation_rzz,
             rx_fn: crate::selene_simulator_operation_rz,
-            tk2_fn: crate::selene_simulator_operation_tk2,
             rpp_fn: crate::selene_simulator_operation_rpp,
             measure_fn: crate::selene_simulator_operation_measure,
             reset_fn: crate::selene_simulator_operation_reset,
@@ -446,20 +418,6 @@ macro_rules! export_simulator_plugin {
                 Helper::rz(instance, qubit, theta)
             }
 
-            /// Apply a TK2 (aka SU(4)) gate to the qubits at the requested indices,
-            /// with the provided angles. This gate performs the canonical two-qubit
-            /// interaction characterized by the three angles alpha, beta, and gamma.
-            unsafe extern "C" fn selene_simulator_operation_tk2(
-                instance: SimulatorInstance,
-                qubit1: u64,
-                qubit2: u64,
-                alpha: f64,
-                beta: f64,
-                gamma: f64,
-            ) -> i32 {
-                Helper::tk2(instance, qubit1, qubit2, alpha, beta, gamma)
-            }
-
             /// Apply an RPP gate to the qubits at the requested indices, with the
             /// provided angles.
             unsafe extern "C" fn selene_simulator_operation_rpp(
@@ -551,7 +509,6 @@ macro_rules! export_simulator_plugin {
                     rxy_fn: Some(selene_simulator_operation_rxy),
                     rz_fn: Some(selene_simulator_operation_rz),
                     rzz_fn: Some(selene_simulator_operation_rzz),
-                    tk2_fn: Some(selene_simulator_operation_tk2),
                     rpp_fn: Some(selene_simulator_operation_rpp),
                     measure_fn: selene_simulator_operation_measure,
                     postselect_fn: Some(selene_simulator_operation_postselect),

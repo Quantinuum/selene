@@ -121,8 +121,6 @@ struct PostRuntimeMetrics {
     rz_individual_count: u64,
     rpp_individual_count: u64,
     rpp_batch_count: u64,
-    tk2_individual_count: u64,
-    tk2_batch_count: u64,
     total_duration_ns: u64,
 }
 
@@ -132,7 +130,6 @@ impl PostRuntimeMetrics {
         let mut rzz_count = 0;
         let mut rz_count = 0;
         let mut rpp_count = 0;
-        let mut tk2_count = 0;
         let mut measure_count = 0;
         let mut measure_leaked_count = 0;
         let mut reset_count = 0;
@@ -150,9 +147,6 @@ impl PostRuntimeMetrics {
                 }
                 runtime::Operation::RPPGate { .. } => {
                     rpp_count += 1;
-                }
-                runtime::Operation::TK2Gate { .. } => {
-                    tk2_count += 1;
                 }
                 runtime::Operation::Measure { .. } => {
                     measure_count += 1;
@@ -190,10 +184,6 @@ impl PostRuntimeMetrics {
         if rpp_count > 0 {
             self.rpp_batch_count += 1;
             self.rpp_individual_count += rpp_count;
-        }
-        if tk2_count > 0 {
-            self.tk2_batch_count += 1;
-            self.tk2_individual_count += tk2_count;
         }
         if measure_count > 0 {
             self.measure_batch_count += 1;

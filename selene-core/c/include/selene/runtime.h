@@ -83,12 +83,6 @@ typedef struct SeleneRuntimeGetOperationInterface {
                  uint64_t,
                  double,
                  double);
-  void (*tk2_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double,
-                 double,
-                 double);
 } SeleneRuntimeGetOperationInterface;
 
 typedef void *SeleneRuntimeExtractOperationInstance;
@@ -153,12 +147,6 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
   SeleneErrno (*rz_gate_fn)(RuntimeInstance handle,
                             uint64_t qubit,
                             double theta);
-  SeleneErrno (*tk2_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit0,
-                             uint64_t qubit1,
-                             double alpha,
-                             double beta,
-                             double gamma);
   SeleneErrno (*rpp_gate_fn)(RuntimeInstance handle,
                              uint64_t qubit0,
                              uint64_t qubit1,

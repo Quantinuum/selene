@@ -86,7 +86,6 @@ class SimulatorPluginDescriptorV1(ctypes.Structure):
         ("rxy_fn", SimRxyFn),
         ("rz_fn", SimRzFn),
         ("rzz_fn", SimRzzFn),
-        ("tk2_fn", ctypes.c_void_p),
         ("rpp_fn", ctypes.c_void_p),
         ("measure_fn", SimMeasureFn),
         ("postselect_fn", SimPostselectFn),
