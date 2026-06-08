@@ -64,13 +64,13 @@ def _compile_inline_guppy_source_to_hugr_bytes(
             "Guppy is not installed. Please install guppylang to compile inline guppy source."
         )
 
-    debug_preamble = ""
+    preamble = ""
     if emit_debug:
-        debug_preamble = "from guppylang_internals.debug_mode import turn_on_debug_mode; turn_on_debug_mode()\n"
+        preamble = "from guppylang_internals.debug_mode import turn_on_debug_mode; turn_on_debug_mode()\n"
 
     # This executes trusted inline source defined in this repository's test files.
     standalone_file = f"""
-{debug_preamble}{guppy_source}
+{preamble}{guppy_source}
 
 from pathlib import Path
 compiled_hugr = main.compile()

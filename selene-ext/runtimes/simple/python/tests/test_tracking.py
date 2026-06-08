@@ -1,4 +1,4 @@
-"""Tests that backtrace metadata (debug info) is emitted by the simple runtime."""
+"""Tests the backtrace metadata emitted by the simple runtime."""
 
 from textwrap import dedent
 
@@ -69,8 +69,11 @@ def _validate_event_source_location(record):
             )
 
 
-def test_debug_info_emitted(compiled_guppy):
-    """Verify that debug info custom ops are emitted and correctly resolved into gate metadata."""
+def validate_debug_info(llvm_file):
+    """
+    Verify that debug info custom ops are emitted and point to correct-looking source
+    lines. 
+    """
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
