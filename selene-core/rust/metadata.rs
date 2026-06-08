@@ -140,33 +140,30 @@ impl UnresolvedBacktrace {
 }
 
 /// Wire-format representation of a single symbolicated backtrace frame.
+/// Must match the definition of selene_core.trace.SrcLocation
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ResolvedSrcLocation {
     pub function_name: String,
-    pub file_name: String,
-    /// Line number as a string; `"<none>"` when unavailable.
-    pub line: String,
-    /// Column number as a string; `"<none>"` when unavailable.
-    pub column: String,
+    pub file_name: Option<String>,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
 }
 
 impl ResolvedSrcLocation {
     fn from_symbol(sym: &BacktraceSymbol) -> Self {
-        let null_str = "<none>".to_string();
         Self {
+            // an unresolvable symbol name should be rare in properly-generated
+            // binaries, so we just insert a placeholder rather than making it an
+            // Option type.
             function_name: sym
                 .name()
                 .map(|n| n.to_string())
-                .unwrap_or_else(|| null_str.clone()),
+                .unwrap_or("<unknown>".to_string()),
             file_name: sym
                 .filename()
-                .map(|p| p.to_str().expect("path should be UTF-8").to_string())
-                .unwrap_or_else(|| null_str.clone()),
-            line: sym
-                .lineno()
-                .map(|l| l.to_string())
-                .unwrap_or_else(|| null_str.clone()),
-            column: sym.colno().map(|c| c.to_string()).unwrap_or(null_str),
+                .map(|p| p.to_str().expect("path should be UTF-8").to_string()),
+            line: sym.lineno(),
+            column: sym.colno(),
         }
     }
 }

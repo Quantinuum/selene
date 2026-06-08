@@ -42,7 +42,7 @@ class AbstractEvent(BaseModel):
 
 class SrcLocation(BaseModel):
     function_name: str
-    file_name: str
+    file_name: str | None
     line: int | None
     column: int | None
 
