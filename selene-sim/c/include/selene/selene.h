@@ -286,7 +286,6 @@ struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
 struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instance,
                                                   uint64_t delay);
 
-
 /**
  * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.
  *
