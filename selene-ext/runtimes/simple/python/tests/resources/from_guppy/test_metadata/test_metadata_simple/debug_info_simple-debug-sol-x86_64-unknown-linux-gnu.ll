@@ -1,7 +1,7 @@
 ; ModuleID = 'hugr'
 source_filename = "hugr"
-target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-apple-darwin"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
 
 @res_c0.7C14CD6E.0 = private constant [13 x i8] c"\0CUSER:BOOL:c0"
 @res_c1.1F7A6571.0 = private constant [13 x i8] c"\0CUSER:BOOL:c1"
@@ -11,34 +11,34 @@ define void @__hugr__.__main__.main.1() local_unnamed_addr !dbg !4 {
 alloca_block:
   %qalloc.i = tail call i64 @___qalloc(), !dbg !8
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1, !dbg !8
-  br i1 %not_max.not.not.i, label %cond_30_case_0.i, label %__hugr__.__tk2_helios_qalloc.26.exit, !dbg !8
+  br i1 %not_max.not.not.i, label %cond_30_case_0.i, label %__hugr__.__tk2_sol_qalloc.26.exit, !dbg !8
 
 cond_30_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0"), !dbg !8
   unreachable, !dbg !8
 
-__hugr__.__tk2_helios_qalloc.26.exit:             ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.26.exit:                ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i), !dbg !8
-  tail call void @___rxy(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18), !dbg !9
+  tail call void @___rp(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18), !dbg !9
   tail call void @___rz(i64 %qalloc.i, double 0x400921FB54442D18), !dbg !9
   %qalloc.i19 = tail call i64 @___qalloc(), !dbg !10
   %not_max.not.not.i20 = icmp eq i64 %qalloc.i19, -1, !dbg !10
-  br i1 %not_max.not.not.i20, label %cond_44_case_0.i, label %__hugr__.__tk2_helios_qalloc.40.exit, !dbg !10
+  br i1 %not_max.not.not.i20, label %cond_44_case_0.i, label %__hugr__.__tk2_sol_qalloc.40.exit, !dbg !10
 
-cond_44_case_0.i:                                 ; preds = %__hugr__.__tk2_helios_qalloc.26.exit
+cond_44_case_0.i:                                 ; preds = %__hugr__.__tk2_sol_qalloc.26.exit
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0"), !dbg !10
   unreachable, !dbg !10
 
-__hugr__.__tk2_helios_qalloc.40.exit:             ; preds = %__hugr__.__tk2_helios_qalloc.26.exit
+__hugr__.__tk2_sol_qalloc.40.exit:                ; preds = %__hugr__.__tk2_sol_qalloc.26.exit
   tail call void @___reset(i64 %qalloc.i19), !dbg !10
-  tail call void @___rxy(i64 %qalloc.i, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18), !dbg !11
-  tail call void @___rzz(i64 %qalloc.i19, i64 %qalloc.i, double 0x3FF921FB54442D18), !dbg !11
+  tail call void @___rp(i64 %qalloc.i19, double 0x3FF921FB54442D18, double 0x3FF921FB54442D18), !dbg !11
+  tail call void @___rpp(i64 %qalloc.i19, i64 %qalloc.i, double 0x3FF921FB54442D18, double 0.000000e+00), !dbg !11
+  tail call void @___rp(i64 %qalloc.i, double 0xBFF921FB54442D18, double 0.000000e+00), !dbg !11
+  tail call void @___rp(i64 %qalloc.i19, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18), !dbg !11
   tail call void @___rz(i64 %qalloc.i19, double 0xBFF921FB54442D18), !dbg !11
-  tail call void @___rxy(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0x400921FB54442D18), !dbg !11
-  tail call void @___rz(i64 %qalloc.i, double 0xBFF921FB54442D18), !dbg !11
   %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i), !dbg !12
   tail call void @___qfree(i64 %qalloc.i), !dbg !12
-  tail call void @___rxy(i64 %qalloc.i19, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18), !dbg !13
+  tail call void @___rp(i64 %qalloc.i19, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18), !dbg !13
   tail call void @___rz(i64 %qalloc.i19, double 0x400921FB54442D18), !dbg !13
   %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure), !dbg !12
   tail call void @___dec_future_refcount(i64 %lazy_measure), !dbg !12
@@ -68,11 +68,11 @@ declare void @___reset(i64) local_unnamed_addr
 ; Function Attrs: noreturn
 declare void @panic(i32, ptr) local_unnamed_addr #0
 
-declare void @___rxy(i64, double, double) local_unnamed_addr
+declare void @___rp(i64, double, double) local_unnamed_addr
 
 declare void @___rz(i64, double) local_unnamed_addr
 
-declare void @___rzz(i64, i64, double) local_unnamed_addr
+declare void @___rpp(i64, i64, double, double) local_unnamed_addr
 
 define i64 @qmain(i64 %0) local_unnamed_addr !dbg !17 {
 entry:
@@ -94,10 +94,10 @@ attributes #0 = { noreturn }
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
 !1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v0.33.0)-v0.21.12", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
-!2 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmptz9aswsg/temp_guppy_source.py", directory: "file:///Users/george.hodgkins/proj/selene")
+!2 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmp8z5olvm2/temp_guppy_source.py", directory: "file:///Users/george.hodgkins/proj/selene")
 !3 = !{!"mainlib"}
 !4 = distinct !DISubprogram(name: "main", linkageName: "__hugr__.__main__.main.1", scope: null, file: !5, line: 9, type: !6, scopeLine: 10, spFlags: DISPFlagDefinition, unit: !1)
-!5 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmptz9aswsg/temp_guppy_source.py", directory: "")
+!5 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmp8z5olvm2/temp_guppy_source.py", directory: "")
 !6 = !DISubroutineType(types: !7)
 !7 = !{null}
 !8 = !DILocation(line: 10, column: 9, scope: !4)

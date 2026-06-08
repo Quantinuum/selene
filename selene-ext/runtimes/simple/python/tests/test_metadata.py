@@ -74,29 +74,6 @@ def validate_debug_info(llvm_file):
     Verify that debug info custom ops are emitted and point to correct-looking source
     lines. 
     """
-    guppy_source = dedent(
-        """
-        from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, measure, h, cx
-        from guppylang.std.builtins import result
-
-        @guppy
-        def main() -> None:
-            q0 = qubit()
-            q1 = qubit()
-            h(q0)
-            cx(q1, q0)
-            h(q1)
-            result("c0", measure(q0).read())
-            result("c1", measure(q1).read())
-        """
-    )
-
-    llvm_file = compiled_guppy(
-        program_name="debug_info_simple",
-        guppy_source=guppy_source,
-        with_debug_info=True,
-    )
 
     runner = build(llvm_file, emit_debug=True)
     extractor = CircuitExtractor()
@@ -168,3 +145,30 @@ def validate_debug_info(llvm_file):
     # Validate that innermost frames point to correct source operations
     for record in events_with_metadata:
         _validate_event_source_location(record)
+
+def test_metadata_simple(compiled_guppy):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.quantum import qubit, measure, h, cx
+        from guppylang.std.builtins import result
+
+        @guppy
+        def main() -> None:
+            q0 = qubit()
+            q1 = qubit()
+            h(q0)
+            cx(q1, q0)
+            h(q1)
+            result("c0", measure(q0).read())
+            result("c1", measure(q1).read())
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="debug_info_simple",
+        guppy_source=guppy_source,
+        with_debug_info=True,
+    )
+
+    validate_debug_info(llvm_file)

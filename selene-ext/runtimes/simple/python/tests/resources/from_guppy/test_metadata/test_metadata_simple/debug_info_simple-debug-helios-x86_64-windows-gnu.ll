@@ -94,10 +94,10 @@ attributes #0 = { noreturn }
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
 !1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v0.33.0)-v0.21.12", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
-!2 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmpxzeftpez/temp_guppy_source.py", directory: "file:///Users/george.hodgkins/proj/selene")
+!2 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmp17066mxz/temp_guppy_source.py", directory: "file:///Users/george.hodgkins/proj/selene")
 !3 = !{!"mainlib"}
 !4 = distinct !DISubprogram(name: "main", linkageName: "__hugr__.__main__.main.1", scope: null, file: !5, line: 9, type: !6, scopeLine: 10, spFlags: DISPFlagDefinition, unit: !1)
-!5 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmpxzeftpez/temp_guppy_source.py", directory: "")
+!5 = !DIFile(filename: "/var/folders/82/vk9n_rxn0wd8h1hy261fn2480000gp/T/tmp17066mxz/temp_guppy_source.py", directory: "")
 !6 = !DISubroutineType(types: !7)
 !7 = !{null}
 !8 = !DILocation(line: 10, column: 9, scope: !4)
