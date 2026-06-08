@@ -1,3 +1,10 @@
+"""
+Definition of the Selene trace schema.
+
+This file must not depend on the rest of selene-core, so that it can be imported
+standalone to generate the JSON schema (see hatch_build.py).
+"""
+
 from typing import Annotated, Literal, Union, Callable
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,6 +31,15 @@ class RuntimeSource(BaseModel):
 # but instead controls a simulator directly.
 
 
+class AbstractEvent(BaseModel):
+    model_config = ConfigDict(
+        use_enum_values=True,
+        extra="ignore",
+        ser_json_bytes="base64",
+        val_json_bytes="base64",
+    )
+
+
 class SrcLocation(BaseModel):
     function_name: str
     file_name: str
@@ -33,15 +49,6 @@ class SrcLocation(BaseModel):
 
 class GateMetadata(BaseModel):
     frames: list[SrcLocation]
-
-
-class AbstractEvent(BaseModel):
-    model_config = ConfigDict(
-        use_enum_values=True,
-        extra="ignore",
-        ser_json_bytes="base64",
-        val_json_bytes="base64",
-    )
 
 
 class GateEvent(AbstractEvent):

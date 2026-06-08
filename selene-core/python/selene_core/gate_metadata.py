@@ -1,20 +1,21 @@
-"""Trace transformation pass for integrating backtrace debug info into gate metadata.
+"""
+Utilities for working with gate metadata in the Selene trace.
 
-This module is shared by all runtime plugins that emit ``DEBUG_INFO_TAG`` custom
-operations (e.g. ``selene-anduril``, ``selene-simple-runtime``).
+Currently, this metadata includes:
+- Source code location (optionally w/ multiple bt frames)
 """
 
 import msgpack
 
-from selene_core.trace import (
+from .trace import (
     CustomEvent,
     EventRecord,
-    GateEvent,
+    SrcLocation,
     GateMetadata,
+    GateEvent,
     MeasurementEvent,
     OpaquePayload,
     ResetEvent,
-    SrcLocation,
     Trace,
 )
 

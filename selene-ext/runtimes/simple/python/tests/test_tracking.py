@@ -11,12 +11,12 @@ from selene_core.trace import (
     OpaquePayload,
     ResetEvent,
 )
-
-from selene_simple_runtime_plugin import (
-    SimpleRuntimePlugin,
+from selene_core.gate_metadata import (
     DEBUG_INFO_TAG,
     resolve_debug_info,
 )
+
+from selene_simple_runtime_plugin import SimpleRuntimePlugin
 
 ONE_QUBIT_GATES = {
     "h",
