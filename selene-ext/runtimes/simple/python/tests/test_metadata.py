@@ -1,6 +1,13 @@
-"""Tests the backtrace metadata emitted by the simple runtime."""
+"""Tests the backtrace metadata emitted by the simple runtime.
 
-from textwrap import dedent
+These tests do not use the `compile_guppy` fixture because they always need to have
+access to the source code at its compiled location.
+"""
+
+from guppylang.decorator import guppy
+from guppylang.std.quantum import qubit, measure, h, cx
+from guppylang.std.builtins import result
+
 
 from selene_sim import Coinflip, build
 from selene_sim.event_hooks import CircuitExtractor
@@ -69,13 +76,12 @@ def _validate_event_source_location(record):
             )
 
 
-def validate_debug_info(llvm_file):
+def validate_debug_info(hugr):
     """
     Verify that debug info custom ops are emitted and point to correct-looking source
-    lines. 
+    lines.
     """
-
-    runner = build(llvm_file, emit_debug=True)
+    runner = build(hugr, emit_debug=True)
     extractor = CircuitExtractor()
     _results = list(
         runner.run(
@@ -146,29 +152,16 @@ def validate_debug_info(llvm_file):
     for record in events_with_metadata:
         _validate_event_source_location(record)
 
-def test_metadata_simple(compiled_guppy):
-    guppy_source = dedent(
-        """
-        from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, measure, h, cx
-        from guppylang.std.builtins import result
 
-        @guppy
-        def main() -> None:
-            q0 = qubit()
-            q1 = qubit()
-            h(q0)
-            cx(q1, q0)
-            h(q1)
-            result("c0", measure(q0).read())
-            result("c1", measure(q1).read())
-        """
-    )
+def test_metadata_simple():
+    @guppy
+    def main() -> None:
+        q0 = qubit()
+        q1 = qubit()
+        h(q0)
+        cx(q1, q0)
+        h(q1)
+        result("c0", measure(q0).read())
+        result("c1", measure(q1).read())
 
-    llvm_file = compiled_guppy(
-        program_name="debug_info_simple",
-        guppy_source=guppy_source,
-        with_debug_info=True,
-    )
-
-    validate_debug_info(llvm_file)
+    validate_debug_info(main.compile())

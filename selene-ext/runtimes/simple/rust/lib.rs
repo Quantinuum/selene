@@ -9,16 +9,13 @@ use selene_core::{
     utils::MetricValue,
 };
 
-/// Number of frames to skip when capturing a backtrace in the simple runtime.
-/// Skips: `backtrace::trace` closure + `capture_backtrace` + `push` + the gate method itself.
-const FRAME_SKIP: usize = 4;
-/// Number of frames to capture after the skipped frames.
+/// Number of frames to capture at a QIS gate call site.
 const FRAME_CAP: usize = 2;
 
 /// Capture a backtrace at the current call site and serialise it to MessagePack bytes.
 /// Returns `None` if serialisation fails.
 fn capture_backtrace() -> Option<Box<[u8]>> {
-    let mut unresolved = UnresolvedBacktrace::create(FRAME_SKIP, FRAME_CAP);
+    let mut unresolved = UnresolvedBacktrace::create(FRAME_CAP);
     let resolved = ResolvedBacktrace::from_unresolved(&mut unresolved);
     resolved.serialize_msgpack().ok().map(Vec::into_boxed_slice)
 }
