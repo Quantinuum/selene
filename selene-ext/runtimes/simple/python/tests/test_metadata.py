@@ -7,6 +7,7 @@ access to the source code at its compiled location.
 from guppylang.decorator import guppy
 from guppylang.std.quantum import qubit, measure, h, cx
 from guppylang.std.builtins import result
+from guppylang_internals.debug_mode import turn_on_debug_mode, turn_off_debug_mode
 
 
 from selene_sim import Coinflip, build
@@ -49,8 +50,7 @@ def _validate_event_source_location(record):
     """Check that the innermost debug info frame points to a source line consistent
     with the type of operation in the record."""
     frame = record.event.metadata.frames[0]
-    if frame.line is None:
-        return
+    assert frame.line is not None, "frame.line should be populated"
     assert frame.line >= 1, f"frame.line must be >= 1, got {frame.line}"
     with open(frame.file_name) as f:
         lines = f.readlines()
@@ -164,4 +164,7 @@ def test_metadata_simple():
         result("c0", measure(q0).read())
         result("c1", measure(q1).read())
 
-    validate_debug_info(main.compile())
+    turn_on_debug_mode()
+    hugr = main.compile()
+    turn_off_debug_mode()
+    validate_debug_info(hugr)
