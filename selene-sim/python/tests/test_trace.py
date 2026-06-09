@@ -42,4 +42,7 @@ def test_ghz_trace(compiled_guppy, snapshot):
         )
     )
     trace = circuit_extractor.shots[0].get_trace()
+    # we can't perform a snapshot test on the trace with simulator
+    # performance timing included, as each run will differ in exact timing.
+    trace = trace.clear_simulator_perf_timing()
     snapshot.assert_match(trace.model_dump_json(indent=2), "trace.json")

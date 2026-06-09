@@ -1362,7 +1362,7 @@
       "source": {
         "kind": "Simulator",
         "index": 0,
-        "duration_ns": 1027
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1391,7 +1391,7 @@
       "source": {
         "kind": "Simulator",
         "index": 1,
-        "duration_ns": 383
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -1431,7 +1431,7 @@
       "source": {
         "kind": "Simulator",
         "index": 2,
-        "duration_ns": 90
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1463,7 +1463,7 @@
       "source": {
         "kind": "Simulator",
         "index": 3,
-        "duration_ns": 63
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1495,7 +1495,7 @@
       "source": {
         "kind": "Simulator",
         "index": 4,
-        "duration_ns": 43
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1527,7 +1527,7 @@
       "source": {
         "kind": "Simulator",
         "index": 5,
-        "duration_ns": 44
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1556,7 +1556,7 @@
       "source": {
         "kind": "Simulator",
         "index": 6,
-        "duration_ns": 91
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -1596,7 +1596,7 @@
       "source": {
         "kind": "Simulator",
         "index": 7,
-        "duration_ns": 50
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1628,7 +1628,7 @@
       "source": {
         "kind": "Simulator",
         "index": 8,
-        "duration_ns": 43
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1657,7 +1657,7 @@
       "source": {
         "kind": "Simulator",
         "index": 9,
-        "duration_ns": 46
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -1697,7 +1697,7 @@
       "source": {
         "kind": "Simulator",
         "index": 10,
-        "duration_ns": 43
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1729,7 +1729,7 @@
       "source": {
         "kind": "Simulator",
         "index": 11,
-        "duration_ns": 60
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1761,7 +1761,7 @@
       "source": {
         "kind": "Simulator",
         "index": 12,
-        "duration_ns": 43
+        "duration_ns": 0
       },
       "event": {
         "kind": "Reset",
@@ -1809,7 +1809,7 @@
       "source": {
         "kind": "Simulator",
         "index": 13,
-        "duration_ns": 127
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -1865,7 +1865,7 @@
       "source": {
         "kind": "Simulator",
         "index": 14,
-        "duration_ns": 98
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -1921,7 +1921,7 @@
       "source": {
         "kind": "Simulator",
         "index": 15,
-        "duration_ns": 376
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -1977,7 +1977,7 @@
       "source": {
         "kind": "Simulator",
         "index": 16,
-        "duration_ns": 119
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2033,7 +2033,7 @@
       "source": {
         "kind": "Simulator",
         "index": 17,
-        "duration_ns": 83
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2089,7 +2089,7 @@
       "source": {
         "kind": "Simulator",
         "index": 18,
-        "duration_ns": 95
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2145,7 +2145,7 @@
       "source": {
         "kind": "Simulator",
         "index": 19,
-        "duration_ns": 85
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2201,7 +2201,7 @@
       "source": {
         "kind": "Simulator",
         "index": 20,
-        "duration_ns": 71
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2257,7 +2257,7 @@
       "source": {
         "kind": "Simulator",
         "index": 21,
-        "duration_ns": 139
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2313,7 +2313,7 @@
       "source": {
         "kind": "Simulator",
         "index": 22,
-        "duration_ns": 73
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2369,7 +2369,7 @@
       "source": {
         "kind": "Simulator",
         "index": 23,
-        "duration_ns": 70
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2425,7 +2425,7 @@
       "source": {
         "kind": "Simulator",
         "index": 24,
-        "duration_ns": 70
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2481,7 +2481,7 @@
       "source": {
         "kind": "Simulator",
         "index": 25,
-        "duration_ns": 69
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2537,7 +2537,7 @@
       "source": {
         "kind": "Simulator",
         "index": 26,
-        "duration_ns": 70
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2593,7 +2593,7 @@
       "source": {
         "kind": "Simulator",
         "index": 27,
-        "duration_ns": 72
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2649,7 +2649,7 @@
       "source": {
         "kind": "Simulator",
         "index": 28,
-        "duration_ns": 68
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2705,7 +2705,7 @@
       "source": {
         "kind": "Simulator",
         "index": 29,
-        "duration_ns": 69
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2761,7 +2761,7 @@
       "source": {
         "kind": "Simulator",
         "index": 30,
-        "duration_ns": 97
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2817,7 +2817,7 @@
       "source": {
         "kind": "Simulator",
         "index": 31,
-        "duration_ns": 67
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2873,7 +2873,7 @@
       "source": {
         "kind": "Simulator",
         "index": 32,
-        "duration_ns": 49
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2929,7 +2929,7 @@
       "source": {
         "kind": "Simulator",
         "index": 33,
-        "duration_ns": 70
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -2985,7 +2985,7 @@
       "source": {
         "kind": "Simulator",
         "index": 34,
-        "duration_ns": 74
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3041,7 +3041,7 @@
       "source": {
         "kind": "Simulator",
         "index": 35,
-        "duration_ns": 49
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3097,7 +3097,7 @@
       "source": {
         "kind": "Simulator",
         "index": 36,
-        "duration_ns": 80
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3153,7 +3153,7 @@
       "source": {
         "kind": "Simulator",
         "index": 37,
-        "duration_ns": 67
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3209,7 +3209,7 @@
       "source": {
         "kind": "Simulator",
         "index": 38,
-        "duration_ns": 67
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3265,7 +3265,7 @@
       "source": {
         "kind": "Simulator",
         "index": 39,
-        "duration_ns": 70
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3321,7 +3321,7 @@
       "source": {
         "kind": "Simulator",
         "index": 40,
-        "duration_ns": 67
+        "duration_ns": 0
       },
       "event": {
         "kind": "Gate",
@@ -3361,7 +3361,7 @@
       "source": {
         "kind": "Simulator",
         "index": 41,
-        "duration_ns": 2800
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3403,7 +3403,7 @@
       "source": {
         "kind": "Simulator",
         "index": 42,
-        "duration_ns": 119
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3445,7 +3445,7 @@
       "source": {
         "kind": "Simulator",
         "index": 43,
-        "duration_ns": 87
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3487,7 +3487,7 @@
       "source": {
         "kind": "Simulator",
         "index": 44,
-        "duration_ns": 69
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3529,7 +3529,7 @@
       "source": {
         "kind": "Simulator",
         "index": 45,
-        "duration_ns": 98
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3571,7 +3571,7 @@
       "source": {
         "kind": "Simulator",
         "index": 46,
-        "duration_ns": 101
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3613,7 +3613,7 @@
       "source": {
         "kind": "Simulator",
         "index": 47,
-        "duration_ns": 84
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3655,7 +3655,7 @@
       "source": {
         "kind": "Simulator",
         "index": 48,
-        "duration_ns": 67
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3697,7 +3697,7 @@
       "source": {
         "kind": "Simulator",
         "index": 49,
-        "duration_ns": 62
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",
@@ -3739,7 +3739,7 @@
       "source": {
         "kind": "Simulator",
         "index": 50,
-        "duration_ns": 87
+        "duration_ns": 0
       },
       "event": {
         "kind": "Measurement",

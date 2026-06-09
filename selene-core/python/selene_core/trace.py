@@ -162,6 +162,7 @@ class Trace(BaseModel):
         return self.filter(lambda e: isinstance(e.source, SimulatorSource))
 
     def clear_simulator_perf_timing(self) -> "Trace":
+        """Returns a copy of the trace with all simulator event durations set to 0. This is useful for comparing traces while ignoring performance timing differences."""
         return Trace(
             events=[
                 EventRecord(
