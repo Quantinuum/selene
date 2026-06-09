@@ -1,0 +1,3750 @@
+{
+  "events": [
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 1
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 2
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 3
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 4
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 5
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 6
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 7
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 8
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 9
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 10
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 11
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 12
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 13
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 14
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 15
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 16
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 17
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 18
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "QAlloc",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 19
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 20
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 21
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rz",
+        "params": [
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 22
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 23
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          1
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 24
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 25
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 26
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 27
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 28
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 29
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 30
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 31
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 32
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 33
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 34
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 35
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 36
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 37
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 38
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 39
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 40
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 41
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 42
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 43
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 44
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 45
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 46
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 47
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 48
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 49
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 50
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 51
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 52
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 53
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 54
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 55
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 56
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 57
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 58
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7,
+          8
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 59
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 60
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 61
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 62
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 63
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8,
+          9
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 64
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 65
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 66
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rz",
+        "params": [
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 67
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 68
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 69
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 71
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 72
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 73
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 74
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 75
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 76
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 77
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 78
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 79
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 80
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 81
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 82
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 83
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 84
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 85
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 86
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "QFree",
+        "params": [],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 87
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 0,
+        "duration_ns": 1027
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 1
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          3.141592653589793,
+          0.0
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 1,
+        "duration_ns": 383
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          3.141592653589793,
+          0.0
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 2
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 2,
+        "duration_ns": 90
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 3
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 3,
+        "duration_ns": 63
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 4
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 4,
+        "duration_ns": 43
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 5
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 5,
+        "duration_ns": 44
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 6
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          3.141592653589793,
+          0.0
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 6,
+        "duration_ns": 91
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          3.141592653589793,
+          0.0
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 7
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 7,
+        "duration_ns": 50
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 8
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 8,
+        "duration_ns": 43
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 9
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          3.141592653589793,
+          0.0
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 9,
+        "duration_ns": 46
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          3.141592653589793,
+          0.0
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 10
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 10,
+        "duration_ns": 43
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 11
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 11,
+        "duration_ns": 60
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 12
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 12,
+        "duration_ns": 43
+      },
+      "event": {
+        "kind": "Reset",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 13
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 13,
+        "duration_ns": 127
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          -1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 14
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 14,
+        "duration_ns": 98
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          1
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 15
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          1
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 15,
+        "duration_ns": 376
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          0,
+          1
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 16
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 16,
+        "duration_ns": 119
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 17
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 17,
+        "duration_ns": 83
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 18
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 18,
+        "duration_ns": 95
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          1,
+          2
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 19
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 19,
+        "duration_ns": 85
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 20
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 20,
+        "duration_ns": 71
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 21
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 21,
+        "duration_ns": 139
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          2,
+          3
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 22
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 22,
+        "duration_ns": 73
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 23
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 23,
+        "duration_ns": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 24
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 24,
+        "duration_ns": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          3,
+          4
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 25
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 25,
+        "duration_ns": 69
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 26
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 26,
+        "duration_ns": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 27
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 27,
+        "duration_ns": 72
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          4,
+          5
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 28
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 28,
+        "duration_ns": 68
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 29
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 29,
+        "duration_ns": 69
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 30
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 30,
+        "duration_ns": 97
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          5,
+          6
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 31
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 31,
+        "duration_ns": 67
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 32
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 32,
+        "duration_ns": 49
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 33
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 33,
+        "duration_ns": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          6,
+          7
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 34
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 34,
+        "duration_ns": 74
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 35
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 35,
+        "duration_ns": 49
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7,
+          8
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 36
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7,
+          8
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 36,
+        "duration_ns": 80
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          7,
+          8
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 37
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 37,
+        "duration_ns": 67
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 38
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 38,
+        "duration_ns": 67
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          -1.5707963267948966,
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8,
+          9
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 39
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8,
+          9
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 39,
+        "duration_ns": 70
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          8,
+          9
+        ],
+        "gate_name": "Rzz",
+        "params": [
+          1.5707963267948966
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 40
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 40,
+        "duration_ns": 67
+      },
+      "event": {
+        "kind": "Gate",
+        "qubits": [
+          9
+        ],
+        "gate_name": "Rxy",
+        "params": [
+          1.5707963267948966,
+          3.141592653589793
+        ],
+        "predicates": []
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 41
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 41,
+        "duration_ns": 2800
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 88
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 42
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 42,
+        "duration_ns": 119
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 89
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 43
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 43,
+        "duration_ns": 87
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 90
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 44
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 44,
+        "duration_ns": 69
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 91
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 45
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 45,
+        "duration_ns": 98
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 92
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 46
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 46,
+        "duration_ns": 101
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 93
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 47
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 47,
+        "duration_ns": 84
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 94
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 48
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 48,
+        "duration_ns": 67
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 95
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 49
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 49,
+        "duration_ns": 62
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 8
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 96
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 0
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "ErrorModel",
+        "index": 50
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 9
+      }
+    },
+    {
+      "source": {
+        "kind": "Simulator",
+        "index": 50,
+        "duration_ns": 87
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 9
+      }
+    }
+  ]
+}
