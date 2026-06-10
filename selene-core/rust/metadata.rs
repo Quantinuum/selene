@@ -5,13 +5,11 @@
 //! [`ResolvedSrcLocation`] entries suitable for serialisation.
 
 use core::ptr::NonNull;
-use std::ffi::c_void;
 use std::collections::HashMap;
+use std::ffi::c_void;
 
-use backtrace::{Frame, BacktraceFrame, Symbol, BacktraceSymbol, trace, resolve};
-use bumpalo::{
-    Bump, boxed::Box as BumpBox, collections::vec::Vec as BumpVec,
-};
+use backtrace::{BacktraceFrame, BacktraceSymbol, Frame, Symbol, resolve, trace};
+use bumpalo::{Bump, boxed::Box as BumpBox, collections::vec::Vec as BumpVec};
 
 /// Magic tag used to identify `Custom` operations carrying backtrace metadata
 /// in the selene output stream. Consumers should emit a `Custom` op with this
@@ -19,7 +17,7 @@ use bumpalo::{
 pub const DEBUG_INFO_TAG: usize = 0x6fcfc512e44136eb;
 
 // to simplify the allocation story and improve performance, each frame of a backtrace
-// is stored as a NonNull void pointer and later resolved using `backtrace::resolve`. 
+// is stored as a NonNull void pointer and later resolved using `backtrace::resolve`.
 type FrameRef = NonNull<c_void>;
 type BoxedBacktrace<'b> = BumpBox<'b, UnresolvedBacktrace<'b>>;
 
@@ -28,22 +26,21 @@ type BoxedBacktrace<'b> = BumpBox<'b, UnresolvedBacktrace<'b>>;
 /// "Unresolved" refers to the backtrace frames, which are not symbolicated
 /// until [`ResolvedBacktrace::from_unresolved`] is called.
 struct UnresolvedBacktrace<'bump> {
-    pub frames: BumpVec<'bump, FrameRef>
+    pub frames: BumpVec<'bump, FrameRef>,
 }
 
 impl<'bump> UnresolvedBacktrace<'bump> {
     fn new_boxed(alloc: &'bump Bump, capacity: usize) -> BoxedBacktrace<'bump> {
         BumpBox::new_in(
             Self {
-                frames: BumpVec::with_capacity_in(capacity, alloc)
+                frames: BumpVec::with_capacity_in(capacity, alloc),
             },
-            alloc
+            alloc,
         )
     }
 }
 
-
-/// Class which manages backtraces, including efficient allocation and deduplication. 
+/// Class which manages backtraces, including efficient allocation and deduplication.
 #[derive(Default)]
 pub struct BacktraceEngine<'bump> {
     /// Map from backtrace hash to existing backtraces
@@ -58,7 +55,7 @@ pub struct BacktraceEngine<'bump> {
     /// Bump allocator which provides backing memory
     allocator: Bump,
     /// Landing zone for trace data (see capture_backtrace)  
-    staging: Option<BoxedBacktrace<'bump>>
+    staging: Option<BoxedBacktrace<'bump>>,
 }
 
 impl<'bump> BacktraceEngine<'bump> {
@@ -149,30 +146,29 @@ impl<'bump> BacktraceEngine<'bump> {
         // But we cannot safely materialize a `&'bump self`, because rustc is not
         // convinced that Self outlives the Bump. So we do this instead.
         // TODO: make this safe by adding a nested struct
-        let alloc_casted : &'bump Bump = unsafe { &*(&self.allocator as *const Bump) };
+        let alloc_casted: &'bump Bump = unsafe { &*(&self.allocator as *const Bump) };
 
         // Create a new staging object if needed
-        let staging = self.staging.get_or_insert_with(
-            || UnresolvedBacktrace::new_boxed(&alloc_casted, n_capture)
-        );
-        
+        let staging = self
+            .staging
+            .get_or_insert_with(|| UnresolvedBacktrace::new_boxed(alloc_casted, n_capture));
+
         // capture the trace into the staging object
         let mut count = 0;
-        let mut hash : u64 = 0;
+        let mut hash: u64 = 0;
         let limit = n_capture + frame_skip;
-        trace(|frame : &Frame| {
+        trace(|frame: &Frame| {
             if count < frame_skip {
                 count += 1;
                 true
             } else {
                 // TODO: more robust hash
                 let ip = frame.ip();
-                hash = hash ^ (ip as u64);
+                dbg!(ip);
+                hash ^= ip as u64;
                 // SAFETY: the instruction pointer returned by the library must be
                 // non-null
-                staging.frames.push(
-                    unsafe { NonNull::new_unchecked(ip) }
-                );
+                staging.frames.push(unsafe { NonNull::new_unchecked(ip) });
 
                 count += 1;
                 count < limit
@@ -180,9 +176,12 @@ impl<'bump> BacktraceEngine<'bump> {
         });
 
         if count <= frame_skip {
-            panic!("Did not get at least `frame_skip` ({frame_skip}) frames in `capture_backtrace`; \
-                this should not happen if the backtrace is properly calibrated.");
+            panic!(
+                "Did not get at least `frame_skip` ({frame_skip}) frames in `capture_backtrace`; \
+                this should not happen if the backtrace is properly calibrated."
+            );
         }
+        dbg!(hash);
 
         if let Some(existing) = self.existing_traces.get(&hash) {
             // existing entry: return it, keeping the staging object for reuse.
@@ -202,7 +201,7 @@ impl<'bump> Drop for BacktraceEngine<'bump> {
     fn drop(&mut self) {
         for ptr in self.existing_traces.values() {
             // SAFETY: all members of `existing_traces` must be pointers to a valid
-            // value which has not yet been dropped. 
+            // value which has not yet been dropped.
             let _ = unsafe { BumpBox::from_raw(ptr.as_ptr()) };
         }
     }
@@ -248,8 +247,8 @@ impl ResolvedBacktrace {
     /// `input` must have been returned by a `BacktraceEngine` which has not
     /// yet been dropped.
     pub fn from_unresolved(bt_ref: u64) -> Self {
-        let mut ptr = NonNull::new(bt_ref as *mut UnresolvedBacktrace)
-            .expect("`bt_ref` should be nonzero");
+        let mut ptr =
+            NonNull::new(bt_ref as *mut UnresolvedBacktrace).expect("`bt_ref` should be nonzero");
         // SAFETY: `bt_ref` must have been returned by a call to
         // `BacktraceEngine::capture_backtrace` on an engine which has not yet been
         // dropped.
@@ -274,13 +273,12 @@ impl ResolvedBacktrace {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[inline(never)]
-    fn pseudo(engine: &mut BacktraceEngine, n_cap: usize) -> u64 { 
+    fn pseudo(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
         engine.capture_backtrace(n_cap)
     }
 
@@ -297,7 +295,7 @@ mod tests {
 
     #[inline(never)]
     fn cap_synth_backtrace(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
-       selene_pseudo(engine as *mut BacktraceEngine, n_cap)
+        selene_pseudo(engine as *mut BacktraceEngine, n_cap)
     }
 
     #[test]
@@ -314,6 +312,14 @@ mod tests {
     }
 
     #[test]
+    fn test_deduplication() {
+        let mut engine = BacktraceEngine::default();
+        let bt1 = cap_synth_backtrace(&mut engine, 1);
+        let bt2 = cap_synth_backtrace(&mut engine, 1);
+        assert!(bt1 == bt2, "expected backtraces to be deduplicated");
+    }
+
+    #[test]
     fn test_resolved_has_symbols() {
         let mut engine = BacktraceEngine::default();
         let bt_ref = cap_synth_backtrace(&mut engine, 5);
@@ -323,7 +329,10 @@ mod tests {
             "expected at least one resolved frame"
         );
         assert!(
-            resolved.frames.iter().any(|f| f.function_name != "<unknown>"),
+            resolved
+                .frames
+                .iter()
+                .any(|f| f.function_name != "<unknown>"),
             "expected at least one frame with a function name"
         );
     }
