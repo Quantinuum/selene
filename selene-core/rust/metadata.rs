@@ -52,10 +52,11 @@ pub struct BacktraceEngine<'bump> {
     /// saved frame (which should be the QIS call site in the user program).
     /// Automatically set the first time a backtrace is captured.
     frame_skip: Option<usize>,
-    /// Bump allocator which provides backing memory
-    allocator: Bump,
     /// Landing zone for trace data (see capture_backtrace)  
     staging: Option<BoxedBacktrace<'bump>>,
+    // TODO: enforce and remove lifetime hacking
+    /// Bump allocator which provides backing memory. Must be dropped last!
+    allocator: Bump,
 }
 
 impl<'bump> BacktraceEngine<'bump> {
@@ -164,7 +165,6 @@ impl<'bump> BacktraceEngine<'bump> {
             } else {
                 // TODO: more robust hash
                 let ip = frame.ip();
-                dbg!(ip);
                 hash ^= ip as u64;
                 // SAFETY: the instruction pointer returned by the library must be
                 // non-null
@@ -181,7 +181,6 @@ impl<'bump> BacktraceEngine<'bump> {
                 this should not happen if the backtrace is properly calibrated."
             );
         }
-        dbg!(hash);
 
         if let Some(existing) = self.existing_traces.get(&hash) {
             // existing entry: return it, keeping the staging object for reuse.
@@ -190,7 +189,11 @@ impl<'bump> BacktraceEngine<'bump> {
         } else {
             // no existing entry: take the staging object out of `self` and return it as a raw pointer
             let staged_box = self.staging.take().unwrap();
-            BumpBox::into_raw(staged_box) as u64
+            // SAFETY: we ensure self.staging contains an initialized BumpBox on entry
+            // to the function, which guarantees `raw_ptr` is non-null.
+            let raw_ptr = unsafe { NonNull::new_unchecked(BumpBox::into_raw(staged_box)) };
+            let _ = self.existing_traces.insert(hash, raw_ptr);
+            raw_ptr.as_ptr() as u64
         }
     }
 }
@@ -278,8 +281,13 @@ mod tests {
     use super::*;
 
     #[inline(never)]
-    fn pseudo(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
+    fn frame0(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
         engine.capture_backtrace(n_cap)
+    }
+
+    #[inline(never)]
+    fn frame1(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
+        frame0(engine, n_cap)
     }
 
     // this function should match the rules in `is_c_api_sym()`.
@@ -288,14 +296,19 @@ mod tests {
     // this module is not intended for FFI use.
     #[inline(never)]
     #[unsafe(no_mangle)]
-    fn selene_pseudo(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
+    fn selene_frame(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
         let eref = unsafe { &mut *engine };
-        pseudo(eref, n_cap)
+        frame1(eref, n_cap)
+    }
+
+    #[inline(never)]
+    fn frame3(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
+        selene_frame(engine, n_cap)
     }
 
     #[inline(never)]
     fn cap_synth_backtrace(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
-        selene_pseudo(engine as *mut BacktraceEngine, n_cap)
+        frame3(engine, n_cap)
     }
 
     #[test]
