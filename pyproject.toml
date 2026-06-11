@@ -169,10 +169,9 @@ DEP003 = [
   "packaging", # used in build system
 ]
 DEP004 = [
-  "guppylang", # used in tests
-  "hugr",      # used in tests
-  "pytest",    # used in tests
-  "qir_qis",   # used in tests
+  "hugr",    # used in tests
+  "pytest",  # used in tests
+  "qir_qis", # used in tests
 ]
 
 
