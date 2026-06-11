@@ -1494,7 +1494,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "selene-core", editable = "selene-core" },
-    { name = "selene-hugr-qis-compiler", specifier = "~=0.2.6" },
+    { name = "selene-hugr-qis-compiler", specifier = ">=0.2.6,<0.4.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
