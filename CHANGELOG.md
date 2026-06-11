@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.17](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.16...selene-sim-v0.2.17) (2026-06-11)
+
+
+### Features
+
+* Relax selene-hugr-qis-compiler dependency ([#183](https://github.com/Quantinuum/selene/issues/183)) ([e6d8df2](https://github.com/Quantinuum/selene/commit/e6d8df27361298949b9fa75bcff6c0cb63457c1f))
+
 ## [0.2.16](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.15...selene-sim-v0.2.16) (2026-05-22)
 
 
