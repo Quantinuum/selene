@@ -12,12 +12,8 @@ dependencies = [
   "pyyaml>=6.0.2",
   "selene-core~=0.3.0a0",
   "tqdm>=4.67.1",
-  # temporarily an optional dependency until a release provides the lowerings we need.
-  # CI doesn't make use of the compiler, so this is only needed when using local
-  # compilations. For this I recommend a uv pip install on a wheel generated from a PR
-  # with the relevant changes.
-  #
-  #"selene-hugr-qis-compiler~=0.2.6", 
+  # TODO: decide if we want this as a formal dependency or not
+  #"selene-hugr-qis-compiler~=0.3.0", 
 ]
 authors = [
   { name = "Jake Arkinstall", email = "jake.arkinstall@quantinuum.com" },
@@ -55,7 +51,6 @@ test = [
   "qir-qis~=0.1.6",
 ]
 dev = [
-  "guppylang>=0.2.0",
   "hugr~=0.16.0",
   "mypy>=1.14.1",
   "ruff>=0.8.0",
@@ -171,7 +166,6 @@ DEP003 = [
   "packaging", # used in build system
 ]
 DEP004 = [
-  "guppylang", # used in tests
   "hugr",      # used in tests
   "pytest",    # used in tests
   "qir_qis",   # used in tests

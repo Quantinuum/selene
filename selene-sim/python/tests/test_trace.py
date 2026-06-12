@@ -10,7 +10,7 @@ def test_ghz_trace(compiled_guppy, snapshot):
         """
         from guppylang.decorator import guppy
         from guppylang.std.builtins import array, result
-        from guppylang.std.quantum import qubit, h, cx, measure_array
+        from guppylang.std.quantum import qubit, h, cx, measure_array, collect_measurements
 
         @guppy
         def main() -> None:
@@ -18,7 +18,7 @@ def test_ghz_trace(compiled_guppy, snapshot):
             h(qs[0])
             for i in range(9):
                 cx(qs[i], qs[i+1])
-            result("outcomes", measure_array(qs))
+            result("outcomes", collect_measurements(measure_array(qs)))
         """
     )
 

@@ -7,17 +7,17 @@ target triple = "aarch64-apple-darwin"
 @res_initial_st.8DE11473.0 = private constant [25 x i8] c"\18USER:STATE:initial_state"
 @"e_No more qu.3B2EEBF0.0" = private constant [47 x i8] c".EXIT:INT:No more qubits available to allocate."
 
-define internal fastcc void @__hugr__.__main__.main.1() unnamed_addr {
+define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_23_case_0.i, label %__hugr__.__tk2_qalloc.19.exit
+  br i1 %not_max.not.not.i, label %cond_23_case_0.i, label %__hugr__.__tk2_sol_qalloc.19.exit
 
 cond_23_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_qalloc.19.exit:                    ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.19.exit:                ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
   %0 = tail call ptr @heap_alloc(i64 8)
   %1 = tail call ptr @heap_alloc(i64 8)
@@ -29,11 +29,11 @@ __hugr__.__tk2_qalloc.19.exit:                    ; preds = %alloca_block
   %4 = icmp eq i64 %3, 0
   br i1 %4, label %__barray_mask_check_not_borrowed.exit, label %mask_block_err.i
 
-mask_block_err.i:                                 ; preds = %__hugr__.__tk2_qalloc.19.exit
+mask_block_err.i:                                 ; preds = %__hugr__.__tk2_sol_qalloc.19.exit
   tail call void @panic(i32 1002, ptr nonnull @"e_Some array.A77EF32E.0")
   unreachable
 
-__barray_mask_check_not_borrowed.exit:            ; preds = %__hugr__.__tk2_qalloc.19.exit
+__barray_mask_check_not_borrowed.exit:            ; preds = %__hugr__.__tk2_sol_qalloc.19.exit
   %out_arr_alloca = alloca <{ i32, i32, ptr, ptr }>, align 8
   %y_ptr = getelementptr inbounds nuw i8, ptr %out_arr_alloca, i64 4
   %arr_ptr = getelementptr inbounds nuw i8, ptr %out_arr_alloca, i64 8
@@ -68,7 +68,7 @@ declare void @___reset(i64) local_unnamed_addr
 define i64 @qmain(i64 %0) local_unnamed_addr {
 entry:
   tail call void @setup(i64 %0)
-  tail call fastcc void @__hugr__.__main__.main.1()
+  tail call void @__hugr__.__main__.main.1()
   %1 = tail call i64 @teardown()
   ret i64 %1
 }

@@ -89,10 +89,7 @@ impl RuntimeInterface for SimpleRuntime {
     }
     // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
-        eprintln!("Getting next operation at time {:?}", self.start);
-        let thing = Ok(self.operation_queue.pop_front());
-        eprintln!("Next operation is {:?}", thing);
-        thing
+        Ok(self.operation_queue.pop_front())
     }
 
     fn shot_start(&mut self, _shot_id: u64, _seed: u64) -> Result<()> {

@@ -174,9 +174,9 @@ def test_quantum_replay_state(simulator_plugin, first_measurement, compiled_gupp
             h(q0)
             cx(q0, q1)
             state_result("entangled_state", q0, q1)
-            result("c0", measure(q0))
+            result("c0", measure(q0).read())
             state_result("post_measurement_state", q1)
-            result("c1", measure(q1))
+            result("c1", measure(q1).read())
         """
     )
 

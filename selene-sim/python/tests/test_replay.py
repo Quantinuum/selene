@@ -29,7 +29,7 @@ def test_recursive_condition(compiled_guppy):
         def recursive_condition() -> None:
             q = qubit()
             h(q)
-            outcome = measure(q)
+            outcome = measure(q).read()
             result("c", outcome)
             if outcome:
                 recursive_condition()
@@ -120,10 +120,10 @@ def test_quantum_replay(underlying_simulator_class, compiled_guppy):
             cx(q2, q3)
             # at this stage, the state should be a superposition
             # of |0011> and |1100>
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
-            result("c3", measure(q3))
+            result("c0", measure(q0).read())
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
+            result("c3", measure(q3).read())
             # this the results should either be (0,0,1,1) or (1,1,0,0)
             # we can use quantum replay to verify this.
         """

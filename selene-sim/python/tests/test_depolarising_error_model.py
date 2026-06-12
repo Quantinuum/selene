@@ -34,8 +34,8 @@ def test_measurement_error(snapshot, compiled_guppy):
             q2: qubit = qubit()
             h(q1)
             h(q2)
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
         """
     )
     llvm_file = compiled_guppy(
@@ -179,8 +179,8 @@ def test_init_error(snapshot, compiled_guppy):
             q1: qubit = qubit()
             q2: qubit = qubit()
             # note: no gates
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
         """
     )
     llvm_file = compiled_guppy(
@@ -278,8 +278,8 @@ def test_1q_error(snapshot, compiled_guppy):
             # they aren't affected by q1 errors
             cx(q1, q2)
             cx(q1, q2)
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
         """
     )
     llvm_file = compiled_guppy(
@@ -375,8 +375,8 @@ def test_2q_error(snapshot, compiled_guppy):
             # some self-cancelling 2q gates - should be impacted by error
             cx(q1, q2)
             cx(q1, q2)
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
         """
     )
     llvm_file = compiled_guppy(

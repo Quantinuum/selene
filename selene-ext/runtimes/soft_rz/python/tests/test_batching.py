@@ -20,7 +20,7 @@ def test_batching_behaviour(snapshot, compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, measure_array, h, cx, x, crz
+        from guppylang.std.quantum import qubit, measure_array, h, cx, x, crz, collect_measurements
         from guppylang.std.builtins import result, array
         from guppylang.std.angles import pi
 
@@ -33,7 +33,7 @@ def test_batching_behaviour(snapshot, compiled_guppy):
                 for j in range(8-i-1):
                     crz(qs[i], qs[8-j-1], pi/(2**i))
             h(qs[7])
-            result("measurements", measure_array(qs))
+            result("measurements", collect_measurements(measure_array(qs)))
         """
     )
 

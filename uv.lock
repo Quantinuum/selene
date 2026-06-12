@@ -96,22 +96,6 @@ wheels = [
 ]
 
 [[package]]
-name = "guppylang"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "graphviz" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/73/b6/a102f9644e53dd0b1ec88f75c4f372290ecf304fe39475297b4e4f225c88/guppylang-0.2.0.tar.gz", hash = "sha256:e80d7be0156f23177ac9faa11c48790e62cb8424387cb4424428d3017b886e60", size = 83116, upload-time = "2024-04-11T10:00:56.207Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/13/c11d69b1cca9ed95ea19ffeface1d82b8860b81de9c47550006604bbf90d/guppylang-0.2.0-py3-none-any.whl", hash = "sha256:7867defc327dc00a04f1cb5b059eca3db6b253d2573945b44d179d7cd11e557e", size = 102993, upload-time = "2024-04-11T10:00:53.94Z" },
-]
-
-[[package]]
 name = "hugr"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1297,7 +1281,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "guppylang" },
     { name = "hugr" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1324,7 +1307,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "guppylang", specifier = ">=0.2.0" },
     { name = "hugr", specifier = "~=0.16.0" },
     { name = "mypy", specifier = ">=1.14.1" },
     { name = "pytest", specifier = ">=8.3.5" },

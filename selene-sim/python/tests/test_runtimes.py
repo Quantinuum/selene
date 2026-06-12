@@ -20,24 +20,23 @@ def test_simple_vs_softrz(snapshot, compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, measure, h, cx, x
+        from guppylang.std.quantum import qubit, measure_array, h, cx, x
         from guppylang.std.builtins import result
 
         @guppy
         def main() -> None:
-            q0: qubit = qubit()
-            q1: qubit = qubit()
-            q2: qubit = qubit()
-            x(q0)
-            x(q1)
-            cx(q0, q1)
-            h(q0)
-            h(q1)
-            cx(q0, q1)
-            cx(q1, q2)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            qs = array(qubit() for _ in range(3))
+            x(qs[0])
+            x(qs[1])
+            cx(qs[0], qs[1])
+            h(qs[0])
+            h(qs[1])
+            cx(qs[0], qs[1])
+            cx(qs[1], qs[2])
+            ms = measure_array(qs)
+            result("c0", ms[0].read())
+            result("c1", ms[1].read())
+            result("c2", ms[2].read())
         """
     )
 

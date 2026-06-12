@@ -1010,69 +1010,69 @@ target triple = "aarch64-apple-darwin"
 @e_Frozenarra.36077F52.0 = private constant [41 x i8] c"(EXIT:INT:Frozenarray index out of bounds"
 @"e_No more qu.3B2EEBF0.0" = private constant [47 x i8] c".EXIT:INT:No more qubits available to allocate."
 
-define internal fastcc void @__hugr__.__main__.main.1() unnamed_addr {
+define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %shot = tail call i64 @get_current_shot()
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_62_case_0.i, label %__hugr__.__tk2_qalloc.67.exit
+  br i1 %not_max.not.not.i, label %cond_62_case_0.i, label %__hugr__.__tk2_sol_qalloc.67.exit
 
 cond_62_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_qalloc.67.exit:                    ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.67.exit:                ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
   %0 = icmp ult i64 %shot, 1000
-  br i1 %0, label %"__hugr__.$frozenarray.__getitem__.5$$t(static_array(float64)).83.exit", label %cond_88_case_0.i
+  br i1 %0, label %"__hugr__.$frozenarray.__getitem__.1$$e(static_array(float64)).83.exit", label %cond_88_case_0.i
 
-cond_88_case_0.i:                                 ; preds = %__hugr__.__tk2_qalloc.67.exit
+cond_88_case_0.i:                                 ; preds = %__hugr__.__tk2_sol_qalloc.67.exit
   tail call void @panic(i32 1001, ptr nonnull @e_Frozenarra.36077F52.0)
   unreachable
 
-"__hugr__.$frozenarray.__getitem__.5$$t(static_array(float64)).83.exit": ; preds = %__hugr__.__tk2_qalloc.67.exit
+"__hugr__.$frozenarray.__getitem__.1$$e(static_array(float64)).83.exit": ; preds = %__hugr__.__tk2_sol_qalloc.67.exit
   %1 = getelementptr inbounds nuw { i64, [0 x ptr] }, ptr @"sa.static_pyarray.%tmp1004.150c532c.0", i64 0, i32 1, i64 %shot
   %2 = load ptr, ptr %1, align 8
   %3 = load i64, ptr %2, align 4
   %.not = icmp eq i64 %3, 0
-  br i1 %.not, label %cond_103_case_0.i, label %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit"
+  br i1 %.not, label %cond_103_case_0.i, label %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit"
 
-cond_103_case_0.i:                                ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(static_array(float64)).83.exit"
+cond_103_case_0.i:                                ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(static_array(float64)).83.exit"
   tail call void @panic(i32 1001, ptr nonnull @e_Frozenarra.36077F52.0)
   unreachable
 
-"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit": ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(static_array(float64)).83.exit"
+"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit": ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(static_array(float64)).83.exit"
   %4 = getelementptr inbounds nuw i8, ptr %2, i64 8
   %5 = load double, ptr %4, align 8
   %.not52 = icmp eq i64 %3, 1
-  br i1 %.not52, label %cond_103_case_0.i48, label %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit49"
+  br i1 %.not52, label %cond_103_case_0.i48, label %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit49"
 
-cond_103_case_0.i48:                              ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit"
+cond_103_case_0.i48:                              ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit"
   tail call void @panic(i32 1001, ptr nonnull @e_Frozenarra.36077F52.0)
   unreachable
 
-"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit49": ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit"
+"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit49": ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit"
   %6 = getelementptr inbounds nuw i8, ptr %2, i64 16
   %7 = load double, ptr %6, align 8
   %8 = icmp ugt i64 %3, 2
-  br i1 %8, label %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit51", label %cond_103_case_0.i50
+  br i1 %8, label %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit51", label %cond_103_case_0.i50
 
-cond_103_case_0.i50:                              ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit49"
+cond_103_case_0.i50:                              ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit49"
   tail call void @panic(i32 1001, ptr nonnull @e_Frozenarra.36077F52.0)
   unreachable
 
-"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit51": ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit49"
+"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit51": ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit49"
   %9 = getelementptr inbounds nuw i8, ptr %2, i64 24
   %10 = load double, ptr %9, align 8
   %11 = tail call double @llvm.fabs.f64(double %10)
   %12 = fcmp ueq double %11, 0x7FF0000000000000
   br i1 %12, label %13, label %14
 
-13:                                               ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit51"
+13:                                               ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit51"
   tail call void @panic(i32 1001, ptr nonnull @e_tket.rotat.20D0216B.0)
   unreachable
 
-14:                                               ; preds = %"__hugr__.$frozenarray.__getitem__.5$$t(float64).98.exit51"
+14:                                               ; preds = %"__hugr__.$frozenarray.__getitem__.1$$e(float64).98.exit51"
   %15 = tail call double @llvm.fabs.f64(double %7)
   %16 = fcmp ueq double %15, 0x7FF0000000000000
   br i1 %16, label %17, label %18
@@ -1152,7 +1152,7 @@ declare void @___rz(i64, double) local_unnamed_addr
 define i64 @qmain(i64 %0) local_unnamed_addr {
 entry:
   tail call void @setup(i64 %0)
-  tail call fastcc void @__hugr__.__main__.main.1()
+  tail call void @__hugr__.__main__.main.1()
   %1 = tail call i64 @teardown()
   ret i64 %1
 }
