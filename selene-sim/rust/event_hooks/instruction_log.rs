@@ -1,10 +1,11 @@
 use crate::event_hooks::{EventHook, Operation};
 use selene_core::encoder::{OutputStream, OutputStreamError};
-use selene_core::runtime::{self, BatchOperation};
+use selene_core::runtime::BatchOperation;
 
 pub struct Instruction {
     pub source: Source,
     pub operation: Operation,
+    pub duration_ns: Option<u64>,
 }
 #[derive(Clone)]
 #[repr(u64)]
@@ -12,12 +13,16 @@ pub enum Source {
     UserProgram = 0,
     RuntimeOptimiser = 1,
     ErrorModel = 2,
+    Simulator = 3,
 }
 
 impl Instruction {
     pub fn write(&self, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
         let source_id: u64 = self.source.clone() as u64;
         encoder.write(source_id)?;
+        if let Some(duration_ns) = self.duration_ns {
+            encoder.write(duration_ns)?;
+        }
         match &self.operation {
             Operation::BatchStart(start_time, duration) => {
                 encoder.write(0u64)?;
@@ -93,13 +98,10 @@ impl Instruction {
                 encoder.write(*theta)?;
                 encoder.write(*phi)?;
             }
-            Operation::TK2(qubit1, qubit2, alpha, beta, gamma) => {
-                encoder.write(15u64)?;
+            Operation::Postselect(qubit1, target_value) => {
+                encoder.write(16u64)?;
                 encoder.write(*qubit1)?;
-                encoder.write(*qubit2)?;
-                encoder.write(*alpha)?;
-                encoder.write(*beta)?;
-                encoder.write(*gamma)?;
+                encoder.write(*target_value)?;
             }
         }
         Ok(())
@@ -116,56 +118,40 @@ impl EventHook for InstructionLog {
         self.entries.push(Instruction {
             source: Source::UserProgram,
             operation: operation.clone(),
+            duration_ns: None,
         });
     }
     fn on_runtime_batch(&mut self, batch: &BatchOperation) {
-        let start = u64::from(batch.start());
-        let duration = u64::from(batch.duration());
-        self.entries.push(Instruction {
-            source: Source::RuntimeOptimiser,
-            operation: Operation::BatchStart(start, duration),
-        });
-        for op in batch.iter_ops() {
-            let operation = match op {
-                runtime::Operation::Reset { qubit_id } => Operation::Reset(*qubit_id),
-                runtime::Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => Operation::RXY(*qubit_id, *theta, *phi),
-                runtime::Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => Operation::RZZ(*qubit_id_1, *qubit_id_2, *theta),
-                runtime::Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => Operation::RPP(*qubit_id_1, *qubit_id_2, *theta, *phi),
-                runtime::Operation::TK2Gate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    alpha,
-                    beta,
-                    gamma,
-                } => Operation::TK2(*qubit_id_1, *qubit_id_2, *alpha, *beta, *gamma),
-                runtime::Operation::RZGate { qubit_id, theta } => Operation::RZ(*qubit_id, *theta),
-                runtime::Operation::Measure { qubit_id, .. } => Operation::FutureRead(*qubit_id),
-                runtime::Operation::MeasureLeaked { qubit_id, .. } => {
-                    Operation::FutureRead(*qubit_id)
-                }
-                runtime::Operation::Custom { custom_tag, data } => {
-                    Operation::Custom(*custom_tag as u64, data.to_vec())
-                }
-                &_ => todo!(),
-            };
+        if let Some(timing) = batch.runtime_source() {
+            let start = u64::from(timing.start());
+            let duration = u64::from(timing.duration());
             self.entries.push(Instruction {
                 source: Source::RuntimeOptimiser,
-                operation,
+                operation: Operation::BatchStart(start, duration),
+                duration_ns: None,
             });
         }
+        for op in batch.iter_ops() {
+            self.entries.push(Instruction {
+                source: Source::RuntimeOptimiser,
+                operation: Operation::from_runtime_operation(op),
+                duration_ns: None,
+            });
+        }
+    }
+    fn on_error_model_output(&mut self, operation: &Operation) {
+        self.entries.push(Instruction {
+            source: Source::ErrorModel,
+            operation: operation.clone(),
+            duration_ns: None,
+        });
+    }
+    fn on_simulator_call(&mut self, operation: &Operation, duration_ns: u64) {
+        self.entries.push(Instruction {
+            source: Source::Simulator,
+            operation: operation.clone(),
+            duration_ns: Some(duration_ns),
+        });
     }
     fn write(
         &mut self,

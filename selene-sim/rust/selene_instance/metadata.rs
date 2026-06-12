@@ -3,9 +3,9 @@ use anyhow::Result;
 use selene_core::encoder::OutputStreamError;
 use selene_core::error_model::ErrorModelInterface;
 use selene_core::runtime::RuntimeInterface;
+use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
 
-use crate::event_hooks::EventHook;
 use crate::selene_instance::SeleneInstance;
 
 impl SeleneInstance {
@@ -57,8 +57,7 @@ impl SeleneInstance {
         }
         // Write the metrics from the simulator plugin
         for nth_metric in 0u8..255u8 {
-            let maybe_simulator_metric =
-                self.emulator.error_model.get_simulator_metric(nth_metric)?;
+            let maybe_simulator_metric = self.emulator.simulator.get_metric(nth_metric)?;
             let Some((tag, value)) = maybe_simulator_metric else {
                 break;
             };

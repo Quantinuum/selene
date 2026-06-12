@@ -5,13 +5,13 @@
 use super::{
     ErrorModelInterface,
     interface::ErrorModelInterfaceFactory,
-    plugin::{
-        Errno, ErrorModelInstance, ErrorModelSetResultInstance, ErrorModelSetResultInterface,
-    },
+    plugin::{Errno, ErrorModelInstance, ErrorModelSetResultHandle, ErrorModelSetResultInterface},
 };
-use crate::runtime::plugin::{
-    BatchBuilder, RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
+use crate::operation::plugin::{
+    BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
 };
+use crate::simulator::Simulator;
+use crate::simulator::inline::SimulatorHandle;
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 use std::{ffi, mem, sync::Arc};
 
@@ -51,9 +51,6 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
         n_qubits: u64,
         error_model_argc: u32,
         error_model_argv: *const *const ffi::c_char,
-        simulator_plugin: *const ffi::c_char,
-        simulator_argc: u32,
-        simulator_argv: *const *const ffi::c_char,
     ) -> Errno {
         if instance.is_null() {
             eprintln!("cannot initialize error model plugin: provided instance is null");
@@ -65,20 +62,10 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
             v.extend(unsafe { convert_cargs_to_strings(error_model_argc, error_model_argv) });
             v
         };
-        let simulator_args: Vec<String> =
-            unsafe { convert_cargs_to_strings(simulator_argc, simulator_argv) }.collect();
-
         result_to_errno(
             "Failed to initialize the error model plugin",
             self.factory()
-                .init(
-                    n_qubits,
-                    error_model_args.as_ref(),
-                    &unsafe { std::ffi::CStr::from_ptr(simulator_plugin) }
-                        .to_str()
-                        .unwrap(),
-                    simulator_args.as_ref(),
-                )
+                .init(n_qubits, error_model_args.as_ref())
                 .map(|runtime| unsafe {
                     *instance = Self::into_error_model_instance(runtime);
                 }),
@@ -96,13 +83,10 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
         instance: ErrorModelInstance,
         shot_id: u64,
         error_model_seed: u64,
-        simulator_seed: u64,
     ) -> Errno {
         result_to_errno(
             format!("Failed to start shot {shot_id}"),
-            Self::with_error_model_instance(instance, |e| {
-                e.shot_start(shot_id, error_model_seed, simulator_seed)
-            }),
+            Self::with_error_model_instance(instance, |e| e.shot_start(shot_id, error_model_seed)),
         )
     }
     pub unsafe fn shot_end(instance: ErrorModelInstance) -> Errno {
@@ -112,53 +96,32 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
         )
     }
 
-    pub unsafe fn dump_simulator_state(
-        instance: ErrorModelInstance,
-        filename: *const ffi::c_char,
-        qubits: *const u64,
-        qubits_length: u64,
-    ) -> Errno {
-        result_to_errno(
-            "Failed to dump the simulator state",
-            Self::with_error_model_instance(instance, |e| {
-                let qubits = unsafe { std::slice::from_raw_parts(qubits, qubits_length as usize) };
-                e.dump_simulator_state(
-                    &std::path::PathBuf::from(
-                        unsafe { std::ffi::CStr::from_ptr(filename) }
-                            .to_str()
-                            .unwrap(),
-                    ),
-                    qubits,
-                )
-            }),
-        )
-    }
-
     pub unsafe fn handle_operations(
         instance: ErrorModelInstance,
-        extract_ops_instance: RuntimeExtractOperationInstance,
-        extract_ops_interface: *const RuntimeExtractOperationInterface,
-        result_instance: ErrorModelSetResultInstance,
-        result_interface: *const ErrorModelSetResultInterface,
+        batch: RuntimeExtractOperationHandle,
+        simulator: SimulatorHandle<'static>,
+        result: ErrorModelSetResultHandle,
     ) -> Errno {
         result_to_errno(
             "Failed to handle operations",
             Self::with_error_model_instance(instance, |error_model| unsafe {
                 let mut batch_builder: BatchBuilder = BatchBuilder::default();
-                let (builder_instance, builder_interface) = batch_builder.runtime_get_operation();
-                let RuntimeExtractOperationInterface { extract_fn, .. } = &*extract_ops_interface;
-                extract_fn(extract_ops_instance, builder_instance, builder_interface);
-                let results = error_model.handle_operations(batch_builder.finish())?;
+                let builder = batch_builder.runtime_get_operation();
+                let RuntimeExtractOperationInterface { extract_fn, .. } = batch.interface;
+                extract_fn(batch, builder);
+                let mut simulator = Simulator::from_raw_parts(simulator);
+                let results =
+                    error_model.handle_operations(batch_builder.finish(), &mut simulator)?;
                 let ErrorModelSetResultInterface {
                     set_bool_result_fn,
                     set_u64_result_fn,
                     ..
-                } = &*result_interface;
+                } = result.interface;
                 for bool_result in results.bool_results {
-                    set_bool_result_fn(result_instance, bool_result.result_id, bool_result.value);
+                    set_bool_result_fn(result.instance, bool_result.result_id, bool_result.value);
                 }
                 for u64_result in results.u64_results {
-                    set_u64_result_fn(result_instance, u64_result.result_id, u64_result.value);
+                    set_u64_result_fn(result.instance, u64_result.result_id, u64_result.value);
                 }
                 anyhow::Ok(())
             }),
@@ -176,25 +139,6 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
             "Failed to get metric",
             Self::with_error_model_instance(instance, |runtime| {
                 let Some((tag, metric)) = runtime.get_metric(nth_metric)? else {
-                    return anyhow::Ok(1);
-                };
-                unsafe { metric.write_raw(tag, tag_ptr, datatype_ptr, data_ptr) }
-                Ok(0)
-            }),
-        )
-    }
-
-    pub unsafe fn get_simulator_metric(
-        instance: ErrorModelInstance,
-        nth_metric: u8,
-        tag_ptr: *mut ffi::c_char,
-        datatype_ptr: *mut u8,
-        data_ptr: *mut u64,
-    ) -> Errno {
-        result_of_errno_to_errno(
-            "Failed to get metric",
-            Self::with_error_model_instance(instance, |runtime| {
-                let Some((tag, metric)) = runtime.get_simulator_metric(nth_metric)? else {
                     return anyhow::Ok(1);
                 };
                 unsafe { metric.write_raw(tag, tag_ptr, datatype_ptr, data_ptr) }
@@ -224,13 +168,15 @@ macro_rules! export_error_model_plugin {
                 error_model::{
                     ErrorModelInterfaceFactory,
                     plugin::{
-                        Errno, ErrorModelInstance, ErrorModelSetResultInstance,
+                        Errno, ErrorModelInstance, ErrorModelPluginDescriptorV1,
+                        ErrorModelSetResultHandle, ErrorModelSetResultInstance,
                         ErrorModelSetResultInterface,
                     },
                     version::CURRENT_API_VERSION,
                 },
-                runtime::plugin::{
-                    BatchBuilder, RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
+                operation::plugin::{
+                    BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInstance,
+                    RuntimeExtractOperationInterface,
                 },
             };
 
@@ -244,29 +190,6 @@ macro_rules! export_error_model_plugin {
                 fn _assert_impl<T: ErrorModelInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
-
-            /// The API version comprises four unsigned 8-bit integers:
-            ///     - reserved: 8 bits (must be 0)
-            ///     - major: 8 bits
-            ///     - minor: 8 bits
-            ///     - patch: 8 bits
-            ///
-            /// Selene maintains its own API version for the error model
-            /// and is updated upon changes to the API depending on how
-            /// breaking the changes are. Selene is also responsible for
-            /// validating the API version of the plugin against its own
-            /// version.
-            ///
-            /// The plans for this validation are a work-in-progress, but
-            /// currently selene will reject any plugin that has a different
-            /// major or minor version than the current Selene version, or with
-            /// a reserved field that is not 0.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_get_api_version() -> u64 {
-                // The API version is defined in the version module
-                // and is used to check compatibility between the plugin and the runtime.
-                CURRENT_API_VERSION.into()
-            }
 
             /// When Selene is initialised, it is provided with some default arguments
             /// (the maximum number of qubits, the path to a simulator plugin to use, etc)
@@ -285,15 +208,11 @@ macro_rules! export_error_model_plugin {
             /// within their python implementations. They should also define how those
             /// parameters are converted to an argv list to be passed to their compiled
             /// counterparts.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_init(
+            unsafe extern "C" fn selene_error_model_init(
                 instance: *mut ErrorModelInstance,
                 n_qubits: u64,
                 error_model_argc: u32,
                 error_model_argv: *const *const c_char,
-                simulator_plugin: *const c_char,
-                simulator_argc: u32,
-                simulator_argv: *const *const c_char,
             ) -> Errno {
                 use std::cell::OnceCell;
                 use std::sync::Mutex;
@@ -307,16 +226,12 @@ macro_rules! export_error_model_plugin {
                         n_qubits,
                         error_model_argc,
                         error_model_argv,
-                        simulator_plugin,
-                        simulator_argc,
-                        simulator_argv,
                     )
             }
 
             /// This function is called when Selene is exiting, and it is responsible for
             /// cleaning up any resources that the error model plugin has allocated.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_exit(
+            unsafe extern "C" fn selene_error_model_exit(
                 instance: ErrorModelInstance,
             ) -> Errno {
                 Helper::exit(instance)
@@ -330,14 +245,12 @@ macro_rules! export_error_model_plugin {
             /// As the error model currently owns the simulator, the simulator_seed is also
             /// provided to allow the error model to seed the simulator's RNG. This should
             /// result in a call to the simulator's shot_start function.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_shot_start(
+            unsafe extern "C" fn selene_error_model_shot_start(
                 instance: ErrorModelInstance,
                 shot_id: u64,
                 error_model_seed: u64,
-                simulator_seed: u64,
             ) -> Errno {
-                Helper::shot_start(instance, shot_id, error_model_seed, simulator_seed)
+                Helper::shot_start(instance, shot_id, error_model_seed)
             }
 
             /// This function is called at the end of a shot, and it is responsible for
@@ -346,8 +259,7 @@ macro_rules! export_error_model_plugin {
             /// this function will usually be followed either by a call to
             /// `selene_error_model_shot_start` to prepare for the following shot, or by
             /// a call to `selene_error_model_exit` to shut down the instance.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_shot_end(
+            unsafe extern "C" fn selene_error_model_shot_end(
                 instance: ErrorModelInstance,
             ) -> Errno {
                 Helper::shot_end(instance)
@@ -366,50 +278,13 @@ macro_rules! export_error_model_plugin {
             /// Likewise, as the results of the operations are also in the form of a container,
             /// we provide an ErrorModelSetResultInterface that allows the error model to set
             /// the results of the measurements in the runtime.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_handle_operations(
+            unsafe extern "C" fn selene_error_model_handle_operations(
                 instance: ErrorModelInstance,
-                extract_ops_instance: RuntimeExtractOperationInstance,
-                extract_ops_interface: *const RuntimeExtractOperationInterface,
-                result_instance: ErrorModelSetResultInstance,
-                result_interface: *const ErrorModelSetResultInterface,
+                batch: RuntimeExtractOperationHandle,
+                simulator: selene_core::simulator::inline::SimulatorHandle<'static>,
+                result: ErrorModelSetResultHandle,
             ) -> Errno {
-                Helper::handle_operations(
-                    instance,
-                    extract_ops_instance,
-                    extract_ops_interface,
-                    result_instance,
-                    result_interface,
-                )
-            }
-
-            /// This function is called to dump the current state of the simulator to a file.
-            /// This is niche functionality and any error model that 'wraps' the simulator state
-            /// in a non-trivial manner (such that the underlying simulator state is not reflective
-            /// of the state itself, e.g. in the case of leakage) should return an error from this
-            /// function, as the simulator state is not meaningful in that case.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_dump_simulator_state(
-                instance: ErrorModelInstance,
-                filename: *const c_char,
-                qubits: *const u64,
-                qubits_length: u64,
-            ) -> Errno {
-                Helper::dump_simulator_state(instance, filename, qubits, qubits_length)
-            }
-
-            /// This is a passthrough function to the simulator's get_metric function. The
-            /// error model should invoke the simulator's metric function directly unless it
-            /// has reason to modify the output in some way.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_get_simulator_metrics(
-                instance: ErrorModelInstance,
-                nth_metric: u8,
-                tag_ptr: *mut c_char,
-                datatype_ptr: *mut u8,
-                data_ptr: *mut u64,
-            ) -> Errno {
-                Helper::get_simulator_metric(instance, nth_metric, tag_ptr, datatype_ptr, data_ptr)
+                Helper::handle_operations(instance, batch, simulator, result)
             }
 
             /// This function is called to get a metric from the error model. When the time comes
@@ -430,7 +305,7 @@ macro_rules! export_error_model_plugin {
             ///
             /// For example:
             /// ```c
-            /// void selene_error_model_get_simulator_metrics(
+            /// void selene_error_model_get_metrics(
             ///     SomeInstance* instance,
             ///     uint8_t nth_metric,
             ///     char* tag,
@@ -458,8 +333,7 @@ macro_rules! export_error_model_plugin {
             ///     }
             ///     return 1; // no metric written, end of metrics.
             /// }
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_error_model_get_metrics(
+            unsafe extern "C" fn selene_error_model_get_metrics(
                 instance: ErrorModelInstance,
                 nth_metric: u8,
                 tag_ptr: *mut c_char,
@@ -467,6 +341,26 @@ macro_rules! export_error_model_plugin {
                 data_ptr: *mut u64,
             ) -> Errno {
                 Helper::get_metric(instance, nth_metric, tag_ptr, datatype_ptr, data_ptr)
+            }
+
+            selene_core::export_plugin_descriptor_v1!(
+                selene_error_model_plugin_descriptor_v1,
+                ErrorModelPluginDescriptorV1,
+                CURRENT_API_VERSION.as_u64(),
+                {
+                    init_fn: selene_error_model_init,
+                    exit_fn: Some(selene_error_model_exit),
+                    shot_start_fn: selene_error_model_shot_start,
+                    shot_end_fn: selene_error_model_shot_end,
+                    handle_operations_fn: selene_error_model_handle_operations,
+                    get_metrics_fn: Some(selene_error_model_get_metrics),
+                }
+            );
+
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_error_model_get_plugin_descriptor_v1(
+            ) -> *const ErrorModelPluginDescriptorV1 {
+                &raw const selene_error_model_plugin_descriptor_v1
             }
         }
     };

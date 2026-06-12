@@ -10,7 +10,9 @@
 // as giving their real/imaginary parts for simplicity. The outputs are provided
 // in the comments within the implementation of each gate within this source file.
 use anyhow::{Result, anyhow, bail};
+use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -94,6 +96,54 @@ impl SimulatorInterface for QuestSimulator {
         Ok(())
     }
 
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+                _ => {}
+            }
+        }
+        Ok(results)
+    }
+    fn postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
+        self.do_postselect(q0, target_value)
+    }
+    fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+        self.do_get_metric(nth_metric)
+    }
+    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+        self.do_dump_state(file, qubits)
+    }
+}
+
+impl QuestSimulator {
     fn rz(&mut self, q0: u64, theta: f64) -> Result<()> {
         if q0 >= self.n_qubits {
             Err(anyhow!(
@@ -199,119 +249,6 @@ impl SimulatorInterface for QuestSimulator {
         }
     }
 
-    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        if q0 >= self.n_qubits || q1 >= self.n_qubits {
-            Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        } else {
-            // As provided in the accompanying gate_definitions.py, here is the matrix for TK2:
-            //
-            // Real part:
-            //
-            // ⎡   ⎛γ⎞    ⎛α - β⎞                                             ⎛γ⎞    ⎛α - β⎞⎤
-            // ⎢cos⎜─⎟⋅cos⎜─────⎟           0                  0          -sin⎜─⎟⋅sin⎜─────⎟⎥
-            // ⎢   ⎝2⎠    ⎝  2  ⎠                                             ⎝2⎠    ⎝  2  ⎠⎥
-            // ⎢                                                                            ⎥
-            // ⎢                       ⎛γ⎞    ⎛α + β⎞     ⎛γ⎞    ⎛α + β⎞                    ⎥
-            // ⎢        0           cos⎜─⎟⋅cos⎜─────⎟  sin⎜─⎟⋅sin⎜─────⎟          0         ⎥
-            // ⎢                       ⎝2⎠    ⎝  2  ⎠     ⎝2⎠    ⎝  2  ⎠                    ⎥
-            // ⎢                                                                            ⎥
-            // ⎢                       ⎛γ⎞    ⎛α + β⎞     ⎛γ⎞    ⎛α + β⎞                    ⎥
-            // ⎢        0           sin⎜─⎟⋅sin⎜─────⎟  cos⎜─⎟⋅cos⎜─────⎟          0         ⎥
-            // ⎢                       ⎝2⎠    ⎝  2  ⎠     ⎝2⎠    ⎝  2  ⎠                    ⎥
-            // ⎢                                                                            ⎥
-            // ⎢    ⎛γ⎞    ⎛α - β⎞                                           ⎛γ⎞    ⎛α - β⎞ ⎥
-            // ⎢-sin⎜─⎟⋅sin⎜─────⎟          0                  0          cos⎜─⎟⋅cos⎜─────⎟ ⎥
-            // ⎣    ⎝2⎠    ⎝  2  ⎠                                           ⎝2⎠    ⎝  2  ⎠ ⎦
-            //
-            // Imaginary part:
-            //
-            //
-            // ⎡    ⎛γ⎞    ⎛α - β⎞                                              ⎛α - β⎞    ⎛γ⎞⎤
-            // ⎢-sin⎜─⎟⋅cos⎜─────⎟          0                   0           -sin⎜─────⎟⋅cos⎜─⎟⎥
-            // ⎢    ⎝2⎠    ⎝  2  ⎠                                              ⎝  2  ⎠    ⎝2⎠⎥
-            // ⎢                                                                              ⎥
-            // ⎢                       ⎛γ⎞    ⎛α + β⎞       ⎛α + β⎞    ⎛γ⎞                    ⎥
-            // ⎢        0           sin⎜─⎟⋅cos⎜─────⎟   -sin⎜─────⎟⋅cos⎜─⎟          0         ⎥
-            // ⎢                       ⎝2⎠    ⎝  2  ⎠       ⎝  2  ⎠    ⎝2⎠                    ⎥
-            // ⎢                                                                              ⎥
-            // ⎢                        ⎛α + β⎞    ⎛γ⎞     ⎛γ⎞    ⎛α + β⎞                     ⎥
-            // ⎢        0           -sin⎜─────⎟⋅cos⎜─⎟  sin⎜─⎟⋅cos⎜─────⎟           0         ⎥
-            // ⎢                        ⎝  2  ⎠    ⎝2⎠     ⎝2⎠    ⎝  2  ⎠                     ⎥
-            // ⎢                                                                              ⎥
-            // ⎢    ⎛α - β⎞    ⎛γ⎞                                              ⎛γ⎞    ⎛α - β⎞⎥
-            // ⎢-sin⎜─────⎟⋅cos⎜─⎟          0                   0           -sin⎜─⎟⋅cos⎜─────⎟⎥
-            // ⎣    ⎝  2  ⎠    ⎝2⎠                                              ⎝2⎠    ⎝  2  ⎠⎦
-
-            let cos_g_2 = (gamma / 2.0).cos();
-            let sin_g_2 = (gamma / 2.0).sin();
-
-            let cos_a_2_minus_b_2 = (alpha / 2.0 - beta / 2.0).cos();
-            let sin_a_2_minus_b_2 = (alpha / 2.0 - beta / 2.0).sin();
-            let cos_a_2_plus_b_2 = (alpha / 2.0 + beta / 2.0).cos();
-            let sin_a_2_plus_b_2 = (alpha / 2.0 + beta / 2.0).sin();
-
-            let u = quest_sys::ComplexMatrix4 {
-                real: [
-                    [
-                        cos_g_2 * cos_a_2_minus_b_2,
-                        0.0,
-                        0.0,
-                        -sin_g_2 * sin_a_2_minus_b_2,
-                    ],
-                    [
-                        0.0,
-                        cos_g_2 * cos_a_2_plus_b_2,
-                        sin_g_2 * sin_a_2_plus_b_2,
-                        0.0,
-                    ],
-                    [
-                        0.0,
-                        sin_g_2 * sin_a_2_plus_b_2,
-                        cos_g_2 * cos_a_2_plus_b_2,
-                        0.0,
-                    ],
-                    [
-                        -sin_g_2 * sin_a_2_minus_b_2,
-                        0.0,
-                        0.0,
-                        cos_g_2 * cos_a_2_minus_b_2,
-                    ],
-                ],
-                imag: [
-                    [
-                        -sin_g_2 * cos_a_2_minus_b_2,
-                        0.0,
-                        0.0,
-                        -sin_a_2_minus_b_2 * cos_g_2,
-                    ],
-                    [
-                        0.0,
-                        sin_g_2 * cos_a_2_plus_b_2,
-                        -sin_a_2_plus_b_2 * cos_g_2,
-                        0.0,
-                    ],
-                    [
-                        0.0,
-                        -sin_a_2_plus_b_2 * cos_g_2,
-                        sin_g_2 * cos_a_2_plus_b_2,
-                        0.0,
-                    ],
-                    [
-                        -sin_a_2_minus_b_2 * cos_g_2,
-                        0.0,
-                        0.0,
-                        -sin_g_2 * cos_a_2_minus_b_2,
-                    ],
-                ],
-            };
-            unsafe { quest_sys::twoQubitUnitary(self.qureg, q0 as c_int, q1 as c_int, u) };
-            Ok(())
-        }
-    }
-
     fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
         if q0 >= self.n_qubits {
             Err(anyhow!(
@@ -390,7 +327,7 @@ impl SimulatorInterface for QuestSimulator {
         }
     }
 
-    fn postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
+    fn do_postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
         if q0 >= self.n_qubits {
             Err(anyhow!(
                 "Postselect(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
@@ -435,7 +372,7 @@ impl SimulatorInterface for QuestSimulator {
             Ok(())
         }
     }
-    fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+    fn do_get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         match nth_metric {
             0 => Ok(Some((
                 "cumulative_postselect_probability".to_string(),
@@ -444,7 +381,7 @@ impl SimulatorInterface for QuestSimulator {
             _ => Ok(None),
         }
     }
-    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+    fn do_dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
         let handle = std::fs::File::create(file)?;
         let mut writer = std::io::BufWriter::new(handle);
         writer.write_all(b"selene-quest")?;

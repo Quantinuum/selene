@@ -43,7 +43,7 @@ impl ExampleRuntime {
     }
 
     pub fn push(&mut self, op: Operation) {
-        self.operation_queue.push_back(BatchOperation::new(
+        self.operation_queue.push_back(BatchOperation::runtime(
             vec![op],
             self.start,
             Default::default(),

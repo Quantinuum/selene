@@ -140,6 +140,8 @@ def test_simulate_delay():
     all_output = list(helios_circuit_extractor.shots[0])
     all_output_serialised = []
     for item in all_output:
+        if str(item.source) not in {"Source.USER", "Source.OPTIMISER"}:
+            continue
         all_output_serialised.append(
             {"source": str(item.source), "operation": item.operation.to_dict()}
         )

@@ -7,7 +7,9 @@ mod tests;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -89,6 +91,56 @@ impl SimulatorInterface for StimSimulator {
         Ok(())
     }
 
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+                _ => {}
+            }
+        }
+        Ok(results)
+    }
+    fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
+        self.do_postselect(qubit, target_value)
+    }
+
+    fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+        self.do_get_metric(nth_metric)
+    }
+
+    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+        self.do_dump_state(file, qubits)
+    }
+}
+
+impl StimSimulator {
     fn rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
         // We can represent the rxy gate as a sequence of clifford
         // operations for certain combinations of theta and phi. These
@@ -438,178 +490,6 @@ impl SimulatorInterface for StimSimulator {
         Ok(())
     }
 
-    fn tk2(&mut self, q0: u64, q1: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        if q0 >= self.n_qubits || q1 >= self.n_qubits {
-            return Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ));
-        }
-        let q0_u32: u32 = q0.try_into().unwrap();
-        let q1_u32: u32 = q1.try_into().unwrap();
-        let Some(approx_alpha) = self.get_approximate_quadrant(alpha) else {
-            return Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is not representable in stabiliser form. Alpha must be an (approximate) multiple of pi/2 for Clifford operations."
-            ));
-        };
-        let Some(approx_beta) = self.get_approximate_quadrant(beta) else {
-            return Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is not representable in stabiliser form. Beta must be an (approximate) multiple of pi/2 for Clifford operations."
-            ));
-        };
-        let Some(approx_gamma) = self.get_approximate_quadrant(gamma) else {
-            return Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}, alpha={alpha}, beta={beta}, gamma={gamma}) is not representable in stabiliser form. Gamma must be an (approximate) multiple of pi/2 for Clifford operations."
-            ));
-        };
-
-        // We can represent the tk2 gate as a sequence of clifford operations for certain combinations of alpha, beta, and gamma,
-        // all being in quadrants (multiples of pi/2). The operation depends on the relative quadrants of alpha, beta, and gamma as follows:
-        // +====================================================================+
-        // | Alpha | Beta  | Gamma  |           Operation                       | notes
-        // +-------+-------+--------+-------------------------------------------+
-        // |   a   |   a   |   a    |                                           |
-        // |   a   |   a   | a+pi/2 | CZ(1,0);S(0);S(1);                        |
-        // |   a   |   a   | a+pi   | Z(0);Z(1)                                 |
-        // |   a   |   a   | a+3pi/2| CZ(1,0);Sdg(0);Sdg(1)                     |
-        // |   a   | a+pi/2|   a    | V(1);CY(1,0);H(0);X(0);Vdg(1);H(1);X(1);  |
-        // |   a   | a+pi/2| a+pi/2 | H(1);CX(1,0);Vdg(0);H(1);Vdg(1);          |
-        // |   a   | a+pi/2| a+pi   | V(1);CY(1,0);H(0);Y(0);Vdg(1);H(1);Y(1);  |
-        // |   a   | a+pi/2| a+3pi/2| H(1);CX(1,0);V(0);Y(0);H(1);V(1);Y(1);    |
-        // |   a   | a+pi  |   a    | Y(0);Y(1);                                |
-        // |   a   | a+pi  | a+pi/2 | CZ(1,0);S(0);S(1);                        |
-        // |   a   | a+pi  | a+pi   | X(0);X(1);                                |
-        // |   a   | a+pi  | a+3pi/2| CZ(1,0);S(0);S(1);Z(0);Z(1);              |
-        // |   a   |a+3pi/2|   a    | V(1);CY(1,0);H(0);Z(0);Vdg(1);H(1);Z(1);  |
-        // |   a   |a+3pi/2| a+pi/2 | H(1);CX(1,0);V(0);Z(0);H(1);V(1);Z(1);    |
-        // |   a   |a+3pi/2| a+pi   | V(1);CY(1,0);H(0);Vdg(1);H(1);            |
-        // |   a   |a+3pi/2| a+3pi/2| H(1);CX(1,0);V(0);H(1);V(1);              |
-        // +====================================================================+
-        // Note that as the operation depends only on the relative angle, we can shift them all
-        // to make alpha the reference (subtract alpha from all angles) without changing the operation:
-        match (approx_beta - approx_alpha, approx_gamma - approx_alpha) {
-            (Quadrant::Zero, Quadrant::Zero) => {
-                // Identity operation, do nothing.
-            }
-            (Quadrant::Zero, Quadrant::FracPi2) => {
-                // CZ(1,0);S(0);S(1);
-                self.simulator.cz(q1_u32, q0_u32);
-                self.simulator.sqrt_z(q0_u32);
-                self.simulator.sqrt_z(q1_u32);
-            }
-            (Quadrant::Zero, Quadrant::Pi) => {
-                // Z(0);Z(1)
-                self.simulator.z(q0_u32);
-                self.simulator.z(q1_u32);
-            }
-            (Quadrant::Zero, Quadrant::Frac3Pi2) => {
-                // CZ(1,0);Sdg(0);Sdg(1)
-                self.simulator.cz(q1_u32, q0_u32);
-                self.simulator.sqrt_z_dag(q0_u32);
-                self.simulator.sqrt_z_dag(q1_u32);
-            }
-            (Quadrant::FracPi2, Quadrant::Zero) => {
-                // V(1);CY(1,0);H(0);X(0);Vdg(1);H(1);X(1);
-                self.simulator.sqrt_x(q1_u32);
-                self.simulator.cy(q1_u32, q0_u32);
-                self.simulator.h(q0_u32);
-                self.simulator.x(q0_u32);
-                self.simulator.sqrt_x_dag(q1_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.x(q1_u32);
-            }
-            (Quadrant::FracPi2, Quadrant::FracPi2) => {
-                // H(1);CX(1,0);Vdg(0);H(1);Vdg(1);
-                self.simulator.h(q1_u32);
-                self.simulator.cx(q1_u32, q0_u32);
-                self.simulator.sqrt_x_dag(q0_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.sqrt_x_dag(q1_u32);
-            }
-            (Quadrant::FracPi2, Quadrant::Pi) => {
-                // V(1);CY(1,0);H(0);Y(0);Vdg(1);H(1);Y(1);
-                self.simulator.sqrt_x(q1_u32);
-                self.simulator.cy(q1_u32, q0_u32);
-                self.simulator.h(q0_u32);
-                self.simulator.y(q0_u32);
-                self.simulator.sqrt_x_dag(q1_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.y(q1_u32);
-            }
-            (Quadrant::FracPi2, Quadrant::Frac3Pi2) => {
-                // H(1);CX(1,0);V(0);Y(0);H(1);V(1);Y(1);
-                self.simulator.h(q1_u32);
-                self.simulator.cx(q1_u32, q0_u32);
-                self.simulator.sqrt_x(q0_u32);
-                self.simulator.y(q0_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.sqrt_x(q1_u32);
-                self.simulator.y(q1_u32);
-            }
-            (Quadrant::Pi, Quadrant::Zero) => {
-                // Y(0);Y(1);
-                self.simulator.y(q0_u32);
-                self.simulator.y(q1_u32);
-            }
-            (Quadrant::Pi, Quadrant::FracPi2) => {
-                // CZ(1,0);S(0);S(1);
-                self.simulator.cz(q1_u32, q0_u32);
-                self.simulator.sqrt_x(q0_u32);
-                self.simulator.sqrt_x(q1_u32);
-            }
-            (Quadrant::Pi, Quadrant::Pi) => {
-                // X(0);X(1);
-                self.simulator.x(q0_u32);
-                self.simulator.x(q1_u32);
-            }
-            (Quadrant::Pi, Quadrant::Frac3Pi2) => {
-                // CZ(1,0);S(0);S(1);Z(0);Z(1);
-                self.simulator.cz(q1_u32, q0_u32);
-                self.simulator.sqrt_z_dag(q0_u32);
-                self.simulator.sqrt_z_dag(q1_u32);
-                self.simulator.y(q0_u32);
-                self.simulator.y(q1_u32);
-            }
-            (Quadrant::Frac3Pi2, Quadrant::Zero) => {
-                // V(1);CY(1,0);H(0);Z(0);Vdg(1);H(1);Z(1);
-                self.simulator.sqrt_x(q1_u32);
-                self.simulator.cy(q1_u32, q0_u32);
-                self.simulator.h(q0_u32);
-                self.simulator.z(q0_u32);
-                self.simulator.sqrt_x_dag(q1_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.z(q1_u32);
-            }
-            (Quadrant::Frac3Pi2, Quadrant::FracPi2) => {
-                // H(1);CX(1,0);V(0);Z(0);H(1);V(1);Z(1);
-                self.simulator.h(q1_u32);
-                self.simulator.cx(q1_u32, q0_u32);
-                self.simulator.sqrt_x(q0_u32);
-                self.simulator.z(q0_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.sqrt_x(q1_u32);
-                self.simulator.z(q1_u32);
-            }
-            (Quadrant::Frac3Pi2, Quadrant::Pi) => {
-                // V(1);CY(1,0);H(0);Vdg(1);H(1);
-                self.simulator.sqrt_x(q1_u32);
-                self.simulator.cy(q1_u32, q0_u32);
-                self.simulator.h(q0_u32);
-                self.simulator.sqrt_x_dag(q1_u32);
-                self.simulator.h(q1_u32);
-            }
-            (Quadrant::Frac3Pi2, Quadrant::Frac3Pi2) => {
-                // H(1);CX(1,0);V(0);H(1);V(1);
-                self.simulator.h(q1_u32);
-                self.simulator.cx(q1_u32, q0_u32);
-                self.simulator.sqrt_x(q0_u32);
-                self.simulator.h(q1_u32);
-                self.simulator.sqrt_x(q1_u32);
-            }
-        }
-        Ok(())
-    }
-
     fn measure(&mut self, qubit: u64) -> Result<bool> {
         if qubit >= self.n_qubits {
             Err(anyhow!(
@@ -622,7 +502,7 @@ impl SimulatorInterface for StimSimulator {
         }
     }
 
-    fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
+    fn do_postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
         if qubit >= self.n_qubits {
             Err(anyhow!(
                 "Postselect(qubit={qubit}, target_value={target_value}) is out of bounds. q0 must be less than the number of qubits ({}).",
@@ -654,11 +534,11 @@ impl SimulatorInterface for StimSimulator {
         }
     }
 
-    fn get_metric(&mut self, _nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+    fn do_get_metric(&mut self, _nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         Ok(None)
     }
 
-    fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+    fn do_dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
         let handle = std::fs::File::create(file)?;
         let mut writer = std::io::BufWriter::new(handle);
         writer.write_all(b"selene-stim")?;

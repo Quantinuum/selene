@@ -49,7 +49,7 @@ class SeleneCompileHUGRToLLVMIRStringStep(Step):
                 "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
                 " is required for building. Please install it via pip."
             )
-        ir = compile_to_llvm_ir(input_artifact.resource)
+        ir = compile_to_llvm_ir(input_artifact.resource, platform="sol")
         return cls._make_artifact(ir)
 
 
@@ -82,5 +82,5 @@ class SeleneCompileHUGRToLLVMBitcodeStringStep(Step):
                 "selene-hugr-qis-compiler with appropriate support for multiple QIS targets"
                 " is required for building. Please install it via pip."
             )
-        bitcode = compile_to_bitcode(input_artifact.resource)
+        bitcode = compile_to_bitcode(input_artifact.resource, platform="sol")
         return cls._make_artifact(bitcode)

@@ -57,9 +57,42 @@ impl ExampleErrorModel {
     }
     fn flip_qubit(&mut self, qubit_id: u64) -> Result<()> {
         // Flip the qubit in the computational basis
-        self.simulator.rxy(qubit_id, std::f64::consts::PI, 0.0)?;
+        self.apply_simulator_void(Operation::RXYGate {
+            qubit_id,
+            theta: std::f64::consts::PI,
+            phi: 0.0,
+        })?;
         self.stats.flips_induced += 1;
         Ok(())
+    }
+
+    fn apply_simulator_void(&mut self, operation: Operation) -> Result<()> {
+        let results = self
+            .simulator
+            .handle_operations(BatchOperation::error_model(vec![operation]))?;
+        if results.bool_results.is_empty() && results.u64_results.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "ExampleErrorModel: simulator unexpectedly produced results for a non-measurement operation"
+            ))
+        }
+    }
+
+    fn measure_simulator(&mut self, qubit_id: u64) -> Result<bool> {
+        let results = self
+            .simulator
+            .handle_operations(BatchOperation::error_model(vec![Operation::Measure {
+                qubit_id,
+                result_id: 0,
+            }]))?;
+        if results.u64_results.is_empty() && results.bool_results.len() == 1 {
+            Ok(results.bool_results[0].value)
+        } else {
+            Err(anyhow!(
+                "ExampleErrorModel: simulator returned an unexpected measurement result shape"
+            ))
+        }
     }
 }
 
@@ -92,7 +125,11 @@ impl ErrorModelInterface for ExampleErrorModel {
                     let theta = self.mutate_angle(theta);
                     let phi = self.mutate_angle(phi);
                     // Apply the RXY gate
-                    self.simulator.rxy(qubit_id, theta, phi)?;
+                    self.apply_simulator_void(Operation::RXYGate {
+                        qubit_id,
+                        theta,
+                        phi,
+                    })?;
                     // randomly flip the qubit in the computational basis
                     if self.should_flip() {
                         self.flip_qubit(qubit_id)?;
@@ -138,7 +175,11 @@ impl ErrorModelInterface for ExampleErrorModel {
                         _ => {}
                     }
                     if !leaked_1 && !leaked_2 {
-                        self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
+                        self.apply_simulator_void(Operation::RZZGate {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                        })?;
                         // randomly flip both qubits in the computational basis
                         if self.should_flip() {
                             self.flip_qubit(qubit_id_1)?;
@@ -152,7 +193,7 @@ impl ErrorModelInterface for ExampleErrorModel {
                     // randomly mutate theta
                     let theta = self.mutate_angle(theta);
                     // apply the RZ gate
-                    self.simulator.rz(qubit_id, theta)?;
+                    self.apply_simulator_void(Operation::RZGate { qubit_id, theta })?;
                     // randomly flip the qubit in the computational basis
                     if self.should_flip() {
                         self.flip_qubit(qubit_id)?;
@@ -172,7 +213,7 @@ impl ErrorModelInterface for ExampleErrorModel {
                     } else {
                         // A measurement has been requested.
                         // We need to perform the measurement and store the result.
-                        let true_measurement = self.simulator.measure(qubit_id)?;
+                        let true_measurement = self.measure_simulator(qubit_id)?;
                         // But wait! Let's randomly flip the measurement result with a small
                         // probability.
                         if self.should_flip() {
@@ -195,7 +236,7 @@ impl ErrorModelInterface for ExampleErrorModel {
                     } else {
                         // A measurement has been requested.
                         // We need to perform the measurement and store the result.
-                        let true_measurement = self.simulator.measure(qubit_id)?;
+                        let true_measurement = self.measure_simulator(qubit_id)?;
                         // But wait! Let's randomly flip the measurement result with a small
                         // probability.
                         if self.should_flip() {
@@ -210,7 +251,7 @@ impl ErrorModelInterface for ExampleErrorModel {
                 Operation::Reset { qubit_id } => {
                     // A reset has been requested.
                     self.leakage_map[qubit_id as usize] = false; // Reset leakage state
-                    self.simulator.reset(qubit_id)?;
+                    self.apply_simulator_void(Operation::Reset { qubit_id })?;
                     // So ideally it is in |0> now. Let's flip it with a small probability.
                     if self.should_flip() {
                         self.flip_qubit(qubit_id)?;
@@ -250,23 +291,6 @@ impl ErrorModelInterface for ExampleErrorModel {
                 Err(anyhow!("Selene requested an out of bounds metric: {}", nth_metric))
             }
         }
-    }
-
-    fn get_simulator_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
-        // We passively forward the request for simulator metrics to the underlying simulator.
-        self.simulator.get_metric(nth_metric)
-    }
-
-    fn dump_simulator_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
-        // We passively forward the request to dump the simulator state to the underlying
-        // simulator. As this error model isn't manipulating the simulator state beyond
-        // immediate flips and gate mutations, this is fine.
-        //
-        // If instead we were managing some extension of simulator state, e.g. leaked qubits
-        // or accumulated phase through the error model, we should not support state dumping
-        // unless we have considered the consequences of reporting potentially incorrect state
-        // to the end user.
-        self.simulator.dump_state(file, qubits)
     }
 }
 

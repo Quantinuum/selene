@@ -43,22 +43,17 @@ def test_flip_some(compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.builtins import result
-        from guppylang.std.quantum import qubit, x, measure
+        from guppylang.std.builtins import array, result
+        from guppylang.std.quantum import qubit, x, measure_array, collect_measurements
 
         @guppy
         def main() -> None:
-            q0: qubit = qubit()
-            q1: qubit = qubit()
-            q2: qubit = qubit()
-            q3: qubit = qubit()
-            x(q0)
-            x(q2)
-            x(q3)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
-            result("c3", measure(q3))
+            qs = array(qubit() for _ in range(4))
+            x(qs[0])
+            x(qs[2])
+            x(qs[3])
+            ms = measure_array(qs)
+            result("cs", collect_measurements(ms))
         """
     )
 
@@ -67,27 +62,22 @@ def test_flip_some(compiled_guppy):
         guppy_source=guppy_source,
     )
     runner = build(llvm_file)
-    expected = {"c0": 1, "c1": 0, "c2": 1, "c3": 1}
+    expected = [1, 0, 1, 1]
     # run the simulation on Quest and Stim
     for simulator in [Quest(), Stim()]:
         got = dict(runner.run(simulator, verbose=True, n_qubits=4))
-        assert got == expected, f"{simulator}: expected {expected}, got {got}"
+        assert got["cs"] == expected, f"{simulator}: expected {expected}, got {got}"
 
     # the coinflip simulator should reliably produce identical results across platforms.
     # note that a change in the runtime optimiser might reorder the evaluation of measurements,
     # resulting in a permutation.
     got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4))
-    assert got == {
-        "c0": 1,
-        "c1": 0,
-        "c2": 0,
-        "c3": 1,
-    }, f"Coinflip test: expected {expected}, got {got}"
+    assert got["cs"] == [1, 0, 0, 1], f"Coinflip test: expected {expected}, got {got}"
     # and the replay simulator should produce the same results as the input.
     # for this program this results in trivial behaviour, but it's useful to
     # verify the basics.
     # the input is a list (over shots) of lists (over measurements) of bools
-    replay_measurements = [[c == 1 for c in got.values()]]
+    replay_measurements = [[c == 1 for c in got["cs"]]]
     got_replay = dict(
         runner.run(
             ClassicalReplay(measurements=replay_measurements),
@@ -103,7 +93,7 @@ def test_print_array(compiled_guppy):
         """
         from guppylang.decorator import guppy
         from guppylang.std.builtins import array, result
-        from guppylang.std.quantum import qubit, x, measure_array
+        from guppylang.std.quantum import qubit, x, measure_array, collect_measurements
 
         @guppy
         def main() -> None:
@@ -113,7 +103,7 @@ def test_print_array(compiled_guppy):
             x(qs[3])
             x(qs[9])
             cs = measure_array(qs)
-            result("cs", cs)
+            result("cs", collect_measurements(cs))
             result("is", array(i for i in range(100)))
             result("fs", array(i * 0.0625 for i in range(100)))
         """
@@ -154,7 +144,7 @@ def test_exit(compiled_guppy):
         def main() -> None:
             q = qubit()
             h(q)
-            outcome = measure(q)
+            outcome = measure(q).read()
             if outcome:
                 exit("Postselection failed", 42)
             result("c", outcome)
@@ -213,7 +203,7 @@ def test_panic(compiled_guppy):
         def main() -> None:
             q = qubit()
             h(q)
-            outcome = measure(q)
+            outcome = measure(q).read()
             if outcome:
                 panic("Postselection failed")
             result("c", outcome)
@@ -245,7 +235,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
         from guppylang.decorator import guppy
         from guppylang.std.builtins import array, result
         from guppylang.std.qsystem import measure_leaked
-        from guppylang.std.quantum import qubit, h, cx, measure_array
+        from guppylang.std.quantum import qubit, h, cx, measure_array, collect_measurements
 
 
         @guppy
@@ -261,7 +251,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
                 result("head_leaked", 1)
             else:
                 result("head", hl.to_result().unwrap())
-            result("tail", measure_array(tail))
+            result("tail", collect_measurements(measure_array(tail)))
         """
     )
 
@@ -294,7 +284,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
         from guppylang.decorator import guppy
         from guppylang.std.builtins import array, result
         from guppylang.std.qsystem import measure_leaked
-        from guppylang.std.quantum import qubit, h, cx, measure_array
+        from guppylang.std.quantum import qubit, h, cx, measure_array, collect_measurements
 
 
         @guppy
@@ -311,7 +301,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
                 result("head_leaked", 1)
             else:
                 result("head", hl.to_result().unwrap())
-            result("tail", measure_array(tail))
+            result("tail", collect_measurements(measure_array(tail)))
         """
     )
     cx_within_tail_llvm_file = compiled_guppy(
@@ -362,7 +352,7 @@ def test_rus(compiled_guppy):
                 tdg(a)
                 cx(b, a)
                 t(a)
-                if not measure(a):
+                if not measure(a).read():
                     # First part failed; try again
                     discard(b)
                     continue
@@ -371,7 +361,7 @@ def test_rus(compiled_guppy):
                 z(q)
                 cx(q, b)
                 t(b)
-                if measure(b):
+                if measure(b).read():
                     # Success, we are done
                     break
 
@@ -382,7 +372,7 @@ def test_rus(compiled_guppy):
         def main() -> None:
             q = qubit()
             rus(q)
-            result("result", measure(q))
+            result("result", measure(q).read())
         """
     )
 
@@ -534,19 +524,16 @@ def test_sim_restriction(compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.builtins import result
-        from guppylang.std.quantum import qubit, h, toffoli, measure
+        from guppylang.std.builtins import result, array
+        from guppylang.std.quantum import qubit, h, toffoli, measure_array, collect_measurements
 
         @guppy
         def main() -> None:
-            q0: qubit = qubit()
-            q1: qubit = qubit()
-            q2: qubit = qubit()
-            h(q0)
-            toffoli(q0, q1, q2)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            qs = array(qubit() for _ in range(3))
+            h(qs[0])
+            toffoli(qs[0], qs[1], qs[2])
+            ms = measure_array(qs)
+            result("cs", collect_measurements(ms))
         """
     )
 
@@ -604,7 +591,7 @@ def test_corrupted_plugin(compiled_guppy):
         def main() -> None:
             q0: qubit = qubit()
             h(q0)
-            result("c0", measure(q0))
+            result("c0", measure(q0).read())
         """
     )
 
@@ -630,23 +617,20 @@ def test_corrupted_plugin(compiled_guppy):
 
 
 def test_metrics(snapshot, compiled_guppy):
+
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.builtins import result
-        from guppylang.std.quantum import qubit, h, toffoli, measure
-
+        from guppylang.std.builtins import result, array
+        from guppylang.std.quantum import qubit, h, toffoli, measure_array, collect_measurements
 
         @guppy
         def main() -> None:
-            q0: qubit = qubit()
-            q1: qubit = qubit()
-            q2: qubit = qubit()
-            h(q0)
-            toffoli(q0, q1, q2)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            qs = array(qubit() for _ in range(3))
+            h(qs[0])
+            toffoli(qs[0], qs[1], qs[2])
+            ms = measure_array(qs)
+            result("cs", collect_measurements(ms))
         """
     )
     llvm_file = compiled_guppy(
@@ -694,10 +678,10 @@ def test_metrics_on_exit(snapshot, compiled_guppy):
             q2: qubit = qubit()
             h(q0)
             toffoli(q0, q1, q2)
-            result("c0", measure(q0))
+            result("c0", measure(q0).read())
             exit("Testing exit with metrics", 0)
-            result("c1", measure(q1))
-            result("c2", measure(q2))
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
         """
     )
     llvm_file = compiled_guppy(
@@ -746,18 +730,18 @@ def test_circuit_output(compiled_guppy):
         def main() -> None:
             q0: qubit = qubit()
             h(q0)
-            c0 = measure(q0)
+            c0 = measure(q0).read()
             result("c0", c0)
             if c0:
                 q1: qubit = qubit()
                 h(q1)
                 c1 = measure(q1)
-                result("c1", c1)
+                result("c1", c1.read())
                 if c1:
                     q2: qubit = qubit()
                     h(q2)
                     c2 = measure(q2)
-                    result("c2", c2)
+                    result("c2", c2.read())
         """
     )
 
@@ -838,7 +822,7 @@ def test_measurement_output(compiled_guppy):
             q3 = qubit()
 
             x(q0)
-            if measure(q0):
+            if measure(q0).read():
                 x(q1)
                 cx(q1, q2)
                 z(q3)
@@ -847,14 +831,14 @@ def test_measurement_output(compiled_guppy):
                 cz(q1, q2)
                 x(q3)
 
-            if measure(q1):
-                result("q2", measure(q2))
+            if measure(q1).read():
+                result("q2", measure(q2).read())
                 q3r = measure_leaked(q3).to_result()
                 result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
             else:
                 q2r = measure_leaked(q2).to_result()
                 result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
-                result("q3", measure(q3))
+                result("q3", measure(q3).read())
         """
     )
 
@@ -894,7 +878,7 @@ def test_measurement_output_multishot(compiled_guppy):
             q3 = qubit()
 
             x(q0)
-            if measure(q0):
+            if measure(q0).read():
                 x(q1)
                 cx(q1, q2)
                 z(q3)
@@ -903,14 +887,14 @@ def test_measurement_output_multishot(compiled_guppy):
                 cz(q1, q2)
                 x(q3)
 
-            if measure(q1):
-                result("q2", measure(q2))
+            if measure(q1).read():
+                result("q2", measure(q2).read())
                 q3r = measure_leaked(q3).to_result()
                 result("q3", 2 if q3r.is_nothing() else 1 if q3r.unwrap() else 0)
             else:
                 q2r = measure_leaked(q2).to_result()
                 result("q2", 2 if q2r.is_nothing() else 1 if q2r.unwrap() else 0)
-                result("q3", measure(q3))
+                result("q3", measure(q3).read())
         """
     )
 
@@ -964,7 +948,7 @@ def test_cy(compiled_guppy):
                 # if a is |1> the y gate will undo the cy
                 cy(a, b)
                 y(b)
-                ar = array(measure(a), measure(b))
+                ar = array(measure(a).read(), measure(b).read())
                 result(basis, ar)
         """
     )
@@ -1018,7 +1002,7 @@ def test_cz(compiled_guppy):
             a, b = qubit(), qubit()
             subc(a, b)
             subc(a, b)
-            ar = array(measure(a), measure(b))
+            ar = array(measure(a).read(), measure(b).read())
             result("c", ar)
         """
     )

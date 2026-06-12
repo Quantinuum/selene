@@ -1,11 +1,13 @@
 from math import pi
 from pathlib import Path
 import pytest
+
+# pytest.skip(allow_module_level=True)
 import tempfile
 
 import numpy as np
 
-from selene_sim import Quest, SoftRZRuntime, SimpleRuntime
+from selene_sim import DepolarizingErrorModel, Quest, SoftRZRuntime, SimpleRuntime
 from selene_sim.interactive import (
     InteractiveFullStack,
     InteractiveSimulator,
@@ -118,6 +120,71 @@ def test_interactive_full_stack_event_hooks():
     output = extractor.get_optimiser_output()
     batches = [e for e in output if e["op"] == "BatchStart"]
     assert len(batches) == 18
+    error_model_output = extractor.get_error_model_output()
+    expected_error_model_output = []
+    for entry in output:
+        if entry["op"] == "BatchStart":
+            continue
+        if entry["op"] == "FutureRead":
+            expected_error_model_output.append(
+                {"op": "MeasureRequest", "qubit": entry["qubit"]}
+            )
+        else:
+            expected_error_model_output.append(entry)
+    assert error_model_output == expected_error_model_output
+    simulator_output = extractor.get_simulator_output()
+    assert [
+        {key: value for key, value in entry.items() if key != "duration_ns"}
+        for entry in simulator_output
+    ] == error_model_output
+    assert all(
+        isinstance(entry["duration_ns"], int) and entry["duration_ns"] >= 0
+        for entry in simulator_output
+    )
+
+
+def test_interactive_full_stack_error_model_io():
+    from selene_sim.event_hooks import CircuitExtractor
+
+    hook = CircuitExtractor()
+    s = InteractiveFullStack(
+        simulator=Quest(random_seed=1234),
+        error_model=DepolarizingErrorModel(
+            random_seed=5678,
+            p_init=1,
+            p_meas=0,
+            p_1q=0,
+            p_2q=0,
+        ),
+        n_qubits=1,
+        event_hook=hook,
+    )
+    q = s.qalloc()
+    s.reset(q)
+    s.measure(q)
+
+    instructions = hook.shots[0]
+    assert instructions.get_error_model_input() == [
+        {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
+        {"op": "Reset", "qubit": 0},
+        {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
+        {"op": "FutureRead", "qubit": 0},
+    ]
+
+    error_model_output = instructions.get_error_model_output()
+    assert error_model_output[0] == {"op": "Reset", "qubit": 0}
+    assert error_model_output[1]["op"] in {"Rxy", "Rz"}
+    assert error_model_output[2] == {"op": "MeasureRequest", "qubit": 0}
+
+    simulator_output = instructions.get_simulator_output()
+    assert [
+        {key: value for key, value in entry.items() if key != "duration_ns"}
+        for entry in simulator_output
+    ] == error_model_output
+    assert all(
+        isinstance(entry["duration_ns"], int) and entry["duration_ns"] >= 0
+        for entry in simulator_output
+    )
 
 
 def test_interactive_simulator():
@@ -174,19 +241,18 @@ def test_interactive_simulator():
 
 
 def test_interactive_runtime_simple():
+    # The simple runtime flushes on each quantum operation.
     r = InteractiveRuntime(runtime=SimpleRuntime(), n_qubits=10)
     qubits = [r.qalloc() for _ in range(10)]
-    # The simple runtime flushes on each quantum operation.
-    operations = r.get_operations()
-    assert len(operations) == 0  # An alloc doesn't correspond to a physical operation
+    # An alloc doesn't correspond to a physical operation
+    assert len(r.get_operations()) == 0
     future_refs = []
     for qubit in qubits:
         r.reset(qubit)
         r.rxy(qubit, pi, 0)
         future_refs.append(r.measure(qubit))
-        assert (
-            len(r.get_operations()) == 3
-        )  # Each of reset, rxy and measure should have caused a flush of operations
+        # Each of reset, rxy and measure should have caused a flush of operations
+        assert len(r.get_operations()) == 3
 
     r.force_result(
         future_refs[0]
@@ -221,3 +287,7 @@ def test_interactive_runtime_softrz():
     # Forcing the final future should cause the reset, rxy and measure of all remaining qubits to be emitted.
     r.force_result(future_refs[-1])
     assert len(r.get_operations()) == 27
+
+
+if __name__ == "__main__":
+    test_interactive_runtime_simple()

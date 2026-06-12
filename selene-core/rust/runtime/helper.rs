@@ -4,12 +4,13 @@
 //! See `selene-simple-runtime-plugin` for a fully worked example.
 use std::{ffi, mem, sync::Arc};
 
+use crate::operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface};
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 
 use super::{
     Operation, RuntimeInterface,
     interface::RuntimeInterfaceFactory,
-    plugin::{Errno, RuntimeGetOperationInstance, RuntimeGetOperationInterface, RuntimeInstance},
+    plugin::{Errno, RuntimeInstance},
 };
 
 #[derive(Default)]
@@ -85,8 +86,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     }
     pub unsafe fn get_next_operations(
         instance: RuntimeInstance,
-        goi: RuntimeGetOperationInstance,
-        callbacks: *const RuntimeGetOperationInterface,
+        ops: RuntimeGetOperationHandle,
     ) -> Errno {
         result_to_errno(
             "Failed in get_next_operations",
@@ -94,8 +94,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                 let Some(batch) = runtime.get_next_operations()? else {
                     return anyhow::Ok(());
                 };
-
-                let (start, duration) = (batch.start(), batch.duration());
                 let RuntimeGetOperationInterface {
                     measure_fn,
                     measure_leaked_fn,
@@ -106,50 +104,52 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     rxy_fn,
                     rz_fn,
                     rpp_fn,
-                    tk2_fn,
                     ..
-                } = unsafe { &*callbacks };
-                unsafe { set_batch_time_fn(goi, start.into(), duration.into()) };
+                } = ops.interface;
+                if let Some(timing) = batch.runtime_source() {
+                    unsafe {
+                        set_batch_time_fn(
+                            ops.instance,
+                            timing.start().into(),
+                            timing.duration().into(),
+                        )
+                    };
+                }
                 for op in batch {
                     match op {
                         Operation::Measure {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_fn(goi, qubit_id, result_id) },
+                        } => unsafe { measure_fn(ops.instance, qubit_id, result_id) },
                         Operation::MeasureLeaked {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_leaked_fn(goi, qubit_id, result_id) },
-                        Operation::Reset { qubit_id } => unsafe { reset_fn(goi, qubit_id) },
+                        } => unsafe { measure_leaked_fn(ops.instance, qubit_id, result_id) },
+                        Operation::Reset { qubit_id } => unsafe {
+                            reset_fn(ops.instance, qubit_id)
+                        },
                         Operation::RZGate { qubit_id, theta } => unsafe {
-                            rz_fn(goi, qubit_id, theta)
+                            rz_fn(ops.instance, qubit_id, theta)
                         },
                         Operation::RXYGate {
                             qubit_id,
                             theta,
                             phi,
-                        } => unsafe { rxy_fn(goi, qubit_id, theta, phi) },
+                        } => unsafe { rxy_fn(ops.instance, qubit_id, theta, phi) },
                         Operation::RZZGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
-                        } => unsafe { rzz_fn(goi, qubit_id_1, qubit_id_2, theta) },
+                        } => unsafe { rzz_fn(ops.instance, qubit_id_1, qubit_id_2, theta) },
                         Operation::RPPGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
                             phi,
-                        } => unsafe { rpp_fn(goi, qubit_id_1, qubit_id_2, theta, phi) },
-                        Operation::TK2Gate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            alpha,
-                            beta,
-                            gamma,
-                        } => unsafe { tk2_fn(goi, qubit_id_1, qubit_id_2, alpha, beta, gamma) },
+                        } => unsafe { rpp_fn(ops.instance, qubit_id_1, qubit_id_2, theta, phi) },
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
-                            unsafe { custom_fn(goi, custom_tag, ptr, len) }
+                            unsafe { custom_fn(ops.instance, custom_tag, ptr, len) }
                         }
                     }
                 }
@@ -278,22 +278,6 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
             "Failed in rpp_gate",
             Self::with_runtime_instance(instance, |runtime| {
                 runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi)
-            }),
-        )
-    }
-
-    pub unsafe fn tk2_gate(
-        instance: RuntimeInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Errno {
-        result_to_errno(
-            "Failed in tk2_gate",
-            Self::with_runtime_instance(instance, |runtime| {
-                runtime.tk2_gate(qubit_id_1, qubit_id_2, alpha, beta, gamma)
             }),
         )
     }
@@ -460,11 +444,11 @@ macro_rules! export_runtime_plugin {
         mod _plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
-                plugin::{
-                    Errno, RuntimeGetOperationInstance, RuntimeGetOperationInterface,
-                    RuntimeInstance,
-                },
+                plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
                 version::CURRENT_API_VERSION,
+            };
+            use selene_core::operation::plugin::{
+                RuntimeGetOperationHandle, RuntimeGetOperationInstance, RuntimeGetOperationInterface,
             };
 
             use std::cell::LazyCell;
@@ -478,27 +462,6 @@ macro_rules! export_runtime_plugin {
                 fn _assert_impl<F: RuntimeInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
-
-            /// The API version comprises four unsigned 8-bit integers:
-            ///     - reserved: 8 bits (must be 0)
-            ///     - major: 8 bits
-            ///     - minor: 8 bits
-            ///     - patch: 8 bits
-            ///
-            /// Selene maintains its own API version for the runtime API
-            /// and is updated upon changes to the API depending on how
-            /// breaking the changes are. Selene is also responsible for
-            /// validating the API version of the plugin against its own
-            /// version.
-            ///
-            /// The plans for this validation are a work-in-progress, but
-            /// currently selene will reject any plugin that has a different
-            /// major or minor version than the current Selene version, or with
-            /// a reserved field that is not 0.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_api_version() -> u64 {
-                CURRENT_API_VERSION.into()
-            }
 
             /// When Selene is initialised, it is provided with a default argument
             /// (the maximum number of qubits) and some custom arguments for the runtime.
@@ -516,8 +479,7 @@ macro_rules! export_runtime_plugin {
             /// within their python implementations. They should also define how those
             /// parameters are converted to an argv list to be passed to their compiled
             /// counterparts.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_init(
+            unsafe extern "C" fn selene_runtime_init(
                 instance: *mut RuntimeInstance,
                 n_qubits: u64,
                 start: u64,
@@ -536,8 +498,7 @@ macro_rules! export_runtime_plugin {
 
             /// This function is called when Selene is exiting, and it is responsible for
             /// cleaning up any resources that the runtime plugin has allocated.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_exit(instance: RuntimeInstance) -> i32 {
+            unsafe extern "C" fn selene_runtime_exit(instance: RuntimeInstance) -> i32 {
                 Helper::exit(instance)
             }
 
@@ -547,8 +508,7 @@ macro_rules! export_runtime_plugin {
             /// used by the plugin is seeded with this value. Most runtimes will not require
             /// randomness at all, but it is viable that some sorting algorithms or other
             /// non-deterministic algorithms may make use of it.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_shot_start(
+            unsafe extern "C" fn selene_runtime_shot_start(
                 instance: RuntimeInstance,
                 shot_id: u64,
                 seed: u64,
@@ -562,12 +522,7 @@ macro_rules! export_runtime_plugin {
             /// this function will usually be followed either by a call to
             /// `selene_runtime_shot_start` to prepare for the following shot, or by
             /// a call to `selene_runtime_exit` to shut down the instance.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_shot_end(
-                instance: RuntimeInstance,
-                shot_id: u64,
-                seed: u64, // TODO: this is unused and will be removed in the next API release
-            ) -> i32 {
+            unsafe extern "C" fn selene_runtime_shot_end(instance: RuntimeInstance) -> i32 {
                 Helper::shot_end(instance)
             }
 
@@ -586,8 +541,7 @@ macro_rules! export_runtime_plugin {
             /// runtime, and it can effectively bypass Selene. Selene will nonetheless perform
             /// a call to get the next operations immediately afterwards such that any required
             /// operations are still performed.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_custom_call(
+            unsafe extern "C" fn selene_runtime_custom_call(
                 instance: RuntimeInstance,
                 tag: u64,
                 data: *const c_void,
@@ -602,8 +556,7 @@ macro_rules! export_runtime_plugin {
             /// taking some period of time, allowing the runtime to acknowledge the time spent
             /// when providing timing information for subsequent batches, which in turn allows
             /// time-based noise modelling to account for additional idling.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_simulate_delay(
+            unsafe extern "C" fn selene_runtime_simulate_delay(
                 instance: RuntimeInstance,
                 delay_ns: u64,
             ) -> Errno {
@@ -618,21 +571,18 @@ macro_rules! export_runtime_plugin {
             /// Sometimes the runtime may wish to provide extra "Custom" operations that might
             /// be understood by the error model, or might be useful for the user to extract
             /// through the CircuitExtractor for interpretation.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_next_operations(
+            unsafe extern "C" fn selene_runtime_get_next_operations(
                 instance: RuntimeInstance,
-                goi: RuntimeGetOperationInstance,
-                callbacks: *const RuntimeGetOperationInterface,
+                ops: RuntimeGetOperationHandle,
             ) -> Errno {
-                Helper::get_next_operations(instance, goi, callbacks)
+                Helper::get_next_operations(instance, ops)
             }
 
             /// This function is called to retrieve any metrics that the runtime is willing
             /// to provide, e.g. the number of operations left in its internal queue, the number
             /// of qubits allocated, etc. An example of exposing metrics is provided in the
             /// error model documentation.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_metrics(
+            unsafe extern "C" fn selene_runtime_get_metrics(
                 instance: RuntimeInstance,
                 nth_metric: u8,
                 tag_ptr: *mut c_char,
@@ -653,8 +603,7 @@ macro_rules! export_runtime_plugin {
             /// - If the runtime is unable to allocate a qubit for any other reason, such
             ///   as an internal error, it should return a non-zero error code.
             ///
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_qalloc(
+            unsafe extern "C" fn selene_runtime_qalloc(
                 instance: RuntimeInstance,
                 result: *mut u64,
             ) -> i32 {
@@ -666,8 +615,7 @@ macro_rules! export_runtime_plugin {
             /// If the qubit is successfully freed, return 0.
             /// If the qubit ID is invalid or the runtime is unable to free the qubit for any
             /// reason, return a non-zero error code.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_qfree(
+            unsafe extern "C" fn selene_runtime_qfree(
                 instance: RuntimeInstance,
                 qubit_id: u64,
             ) -> i32 {
@@ -676,8 +624,7 @@ macro_rules! export_runtime_plugin {
 
             /// Instruct the runtime to enforce a local optimisation barrier on the provided
             /// qubits.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_local_barrier(
+            unsafe extern "C" fn selene_runtime_local_barrier(
                 instance: RuntimeInstance,
                 qubits: *const u64,
                 qubits_len: u64,
@@ -687,8 +634,7 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Instruct the runtime to enforce a global optimisation barrier.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_global_barrier(
+            unsafe extern "C" fn selene_runtime_global_barrier(
                 instance: RuntimeInstance,
                 sleep_ns: u64,
             ) -> i32 {
@@ -703,8 +649,7 @@ macro_rules! export_runtime_plugin {
             /// Note that it is up to the runtime whether or not this gate is applied immediately:
             /// The runtime might act lazily and apply the gate at a later time when an observable
             /// outcome is requested.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_rxy_gate(
+            unsafe extern "C" fn selene_runtime_rxy_gate(
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 theta: f64,
@@ -720,8 +665,7 @@ macro_rules! export_runtime_plugin {
             ///
             /// Note that it is up to the runtime whether or not this gate is applied
             /// immediately: The runtime might act lazily and apply the gate at a later time.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_rzz_gate(
+            unsafe extern "C" fn selene_runtime_rzz_gate(
                 instance: RuntimeInstance,
                 qubit_id_1: u64,
                 qubit_id_2: u64,
@@ -738,8 +682,7 @@ macro_rules! export_runtime_plugin {
             /// Note that it is up to the runtime whether or not this gate is applied
             /// immediately: The runtime might act lazily and apply the gate at a later time.
             /// It might not apply it at all, as RZ may be elided in code.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_rz_gate(
+            unsafe extern "C" fn selene_runtime_rz_gate(
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 theta: f64,
@@ -754,8 +697,7 @@ macro_rules! export_runtime_plugin {
             ///
             /// Note that it is up to the runtime whether or not this gate is applied
             /// immediately: The runtime might act lazily and apply the gate at a later time.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_rpp_gate(
+            unsafe extern "C" fn selene_runtime_rpp_gate(
                 instance: RuntimeInstance,
                 qubit_id_1: u64,
                 qubit_id_2: u64,
@@ -765,25 +707,6 @@ macro_rules! export_runtime_plugin {
                 Helper::rpp_gate(instance, qubit_id_1, qubit_id_2, theta, phi)
             }
 
-            /// Instruct the runtime to apply a TK2 gate to the qubits with the given IDs.
-            /// It might not be supported by all runtimes, and an error will be returned
-            /// if it is used on a runtime that does not support it, or if the runtime
-            /// is unable to apply it for any reason.
-            ///
-            /// Note that it is up to the runtime whether or not this gate is applied
-            /// immediately: The runtime might act lazily and apply the gate at a later time.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_tk2_gate(
-                instance: RuntimeInstance,
-                qubit_id_1: u64,
-                qubit_id_2: u64,
-                alpha: f64,
-                beta: f64,
-                gamma: f64,
-            ) -> i32 {
-                Helper::tk2_gate(instance, qubit_id_1, qubit_id_2, alpha, beta, gamma)
-            }
-
             /// Instruct the runtime that a measurement is to be requested and to write
             /// a reference ID to the result to the `result` pointer.
             ///
@@ -791,8 +714,7 @@ macro_rules! export_runtime_plugin {
             /// result itself. Instead, it is providing a reference ID that can be used later
             /// to retrieve the measurement result if it is available. This allows for queuing up
             /// several measurements to be performed at once, then reading the results one by one.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_measure(
+            unsafe extern "C" fn selene_runtime_measure(
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 result: *mut u64,
@@ -804,8 +726,7 @@ macro_rules! export_runtime_plugin {
             /// capabilities to provide leakage information, and to write a reference ID
             /// to the result to the `result` pointer. This result is a u64, packed with
             /// appropriate information for the additional capabilities.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_measure_leaked(
+            unsafe extern "C" fn selene_runtime_measure_leaked(
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 result: *mut u64,
@@ -816,8 +737,7 @@ macro_rules! export_runtime_plugin {
             /// Instruct the runtime to reset a qubit to the |0> state with the given ID.
             /// Note that it is up to the runtime whether or not this reset is applied immediately.
             /// It may wait until it is required, e.g. another gate is applied to the qubit.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_reset(
+            unsafe extern "C" fn selene_runtime_reset(
                 instance: RuntimeInstance,
                 qubit_id: u64,
             ) -> i32 {
@@ -826,8 +746,7 @@ macro_rules! export_runtime_plugin {
 
             /// Instruct the runtime to force a result with the given ID to be made available, e.g.
             /// that a measurement must be performed now if it has not been performed yet.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_force_result(
+            unsafe extern "C" fn selene_runtime_force_result(
                 instance: RuntimeInstance,
                 result_id: u64,
             ) -> i32 {
@@ -835,8 +754,7 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Read a bool result from the runtime.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_bool_result(
+            unsafe extern "C" fn selene_runtime_get_bool_result(
                 instance: RuntimeInstance,
                 result_id: u64,
                 result: *mut i8,
@@ -845,8 +763,7 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Read a u64 result from the runtime.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_u64_result(
+            unsafe extern "C" fn selene_runtime_get_u64_result(
                 instance: RuntimeInstance,
                 result_id: u64,
                 result: *mut u64,
@@ -858,8 +775,7 @@ macro_rules! export_runtime_plugin {
             /// result might flush a measurement operation (amongst other things) to Selene for the
             /// error model and simulator to act upon. set_bool_result is used by Selene to provide
             /// the result back to the runtime for later reporting to the user program.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_set_bool_result(
+            unsafe extern "C" fn selene_runtime_set_bool_result(
                 instance: RuntimeInstance,
                 result_id: u64,
                 result: bool,
@@ -871,8 +787,7 @@ macro_rules! export_runtime_plugin {
             /// result might flush a measurement operation (amongst other things) to Selene for the
             /// error model and simulator to act upon. set_bool_result is used by Selene to provide
             /// the result back to the runtime for later reporting to the user program.
-            #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_set_u64_result(
+            unsafe extern "C" fn selene_runtime_set_u64_result(
                 instance: RuntimeInstance,
                 result_id: u64,
                 result: u64,
@@ -881,7 +796,6 @@ macro_rules! export_runtime_plugin {
             }
 
             /// Increment the reference count of a future ID.
-            #[unsafe(no_mangle)]
             unsafe extern "C" fn selene_runtime_increment_future_refcount(
                 instance: RuntimeInstance,
                 future_ref: u64,
@@ -891,12 +805,51 @@ macro_rules! export_runtime_plugin {
 
             /// Decrement the reference count of a future ID. If the reference count reaches
             /// 0, nothing should be waiting upon it and it is considered ready to be deallocated.
-            #[unsafe(no_mangle)]
             unsafe extern "C" fn selene_runtime_decrement_future_refcount(
                 instance: RuntimeInstance,
                 future_ref: u64,
             ) -> Errno {
                 Helper::decrement_future_refcount(instance, future_ref)
+            }
+
+            selene_core::export_plugin_descriptor_v1!(
+                selene_runtime_plugin_descriptor_v1,
+                RuntimePluginDescriptorV1,
+                CURRENT_API_VERSION.as_u64(),
+                {
+                    init_fn: selene_runtime_init,
+                    exit_fn: Some(selene_runtime_exit),
+                    get_next_operations_fn: selene_runtime_get_next_operations,
+                    shot_start_fn: selene_runtime_shot_start,
+                    shot_end_fn: selene_runtime_shot_end,
+                    get_metrics_fn: Some(selene_runtime_get_metrics),
+                    qalloc_fn: selene_runtime_qalloc,
+                    qfree_fn: selene_runtime_qfree,
+                    local_barrier_fn: selene_runtime_local_barrier,
+                    global_barrier_fn: selene_runtime_global_barrier,
+                    rxy_gate_fn: selene_runtime_rxy_gate,
+                    rzz_gate_fn: selene_runtime_rzz_gate,
+                    rz_gate_fn: selene_runtime_rz_gate,
+                    rpp_gate_fn: selene_runtime_rpp_gate,
+                    measure_fn: selene_runtime_measure,
+                    measure_leaked_fn: selene_runtime_measure_leaked,
+                    reset_fn: selene_runtime_reset,
+                    force_result_fn: selene_runtime_force_result,
+                    get_bool_result_fn: selene_runtime_get_bool_result,
+                    get_u64_result_fn: selene_runtime_get_u64_result,
+                    set_bool_result_fn: selene_runtime_set_bool_result,
+                    set_u64_result_fn: selene_runtime_set_u64_result,
+                    increment_future_refcount_fn: selene_runtime_increment_future_refcount,
+                    decrement_future_refcount_fn: selene_runtime_decrement_future_refcount,
+                    custom_call_fn: Some(selene_runtime_custom_call),
+                    simulate_delay_fn: Some(selene_runtime_simulate_delay),
+                }
+            );
+
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v1(
+            ) -> *const RuntimePluginDescriptorV1 {
+                &raw const selene_runtime_plugin_descriptor_v1
             }
         }
     };

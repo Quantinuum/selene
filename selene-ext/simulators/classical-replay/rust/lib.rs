@@ -1,6 +1,8 @@
 use anyhow::{Result, anyhow};
 use clap::Parser;
+use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -32,37 +34,7 @@ pub struct ClassicalReplaySimulator {
     all_shot_measurements: Vec<Vec<bool>>,
 }
 
-impl SimulatorInterface for ClassicalReplaySimulator {
-    fn exit(&mut self) -> Result<()> {
-        Ok(())
-    }
-    fn shot_start(&mut self, shot_id: u64, _seed: u64) -> Result<()> {
-        // Ensure the shot ID corresponds to a set of provided measurements.
-        if shot_id >= self.all_shot_measurements.len() as u64 {
-            return Err(anyhow!(
-                "Shot ID {shot_id} is out of bounds. The number of shots is {}.",
-                self.all_shot_measurements.len()
-            ));
-        }
-
-        self.current_shot = shot_id;
-        self.current_shot_measurements = self.all_shot_measurements[shot_id as usize].clone();
-        self.next_measurement_index = 0;
-        Ok(())
-    }
-    fn shot_end(&mut self) -> Result<()> {
-        // Ensure all measurements have been performed for the current shot.
-        if self.next_measurement_index < self.current_shot_measurements.len() {
-            return Err(anyhow!(
-                "Not all measurements have been performed for shot {}.",
-                self.current_shot
-            ));
-        }
-        self.current_shot_measurements.clear();
-        self.next_measurement_index = 0;
-        Ok(())
-    }
-
+impl ClassicalReplaySimulator {
     fn rxy(&mut self, q0: u64, _theta: f64, _phi: f64) -> Result<()> {
         if q0 < self.n_qubits {
             Ok(())
@@ -107,17 +79,6 @@ impl SimulatorInterface for ClassicalReplaySimulator {
         }
     }
 
-    fn tk2(&mut self, q0: u64, q1: u64, _alpha: f64, _beta: f64, _gamma: f64) -> Result<()> {
-        if q0 < self.n_qubits && q1 < self.n_qubits {
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "TK2(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
-                self.n_qubits
-            ))
-        }
-    }
-
     fn measure(&mut self, q0: u64) -> Result<bool> {
         if q0 >= self.n_qubits {
             Err(anyhow!(
@@ -146,6 +107,76 @@ impl SimulatorInterface for ClassicalReplaySimulator {
             Ok(())
         }
     }
+}
+
+impl SimulatorInterface for ClassicalReplaySimulator {
+    fn exit(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn shot_start(&mut self, shot_id: u64, _seed: u64) -> Result<()> {
+        // Ensure the shot ID corresponds to a set of provided measurements.
+        if shot_id >= self.all_shot_measurements.len() as u64 {
+            return Err(anyhow!(
+                "Shot ID {shot_id} is out of bounds. The number of shots is {}.",
+                self.all_shot_measurements.len()
+            ));
+        }
+
+        self.current_shot = shot_id;
+        self.current_shot_measurements = self.all_shot_measurements[shot_id as usize].clone();
+        self.next_measurement_index = 0;
+        Ok(())
+    }
+    fn shot_end(&mut self) -> Result<()> {
+        // Ensure all measurements have been performed for the current shot.
+        if self.next_measurement_index < self.current_shot_measurements.len() {
+            return Err(anyhow!(
+                "Not all measurements have been performed for shot {}.",
+                self.current_shot
+            ));
+        }
+        self.current_shot_measurements.clear();
+        self.next_measurement_index = 0;
+        Ok(())
+    }
+
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+                _ => {}
+            }
+        }
+        Ok(results)
+    }
+
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         match nth_metric {
             0 => Ok(Some((

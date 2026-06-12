@@ -8,6 +8,25 @@ target triple = "x86_64-windows-gnu"
 @res_rint2.F0335598.0 = private constant [15 x i8] c"\0EUSER:INT:rint2"
 @res_rfloat2.4DAB941F.0 = private constant [19 x i8] c"\12USER:FLOAT:rfloat2"
 
+define void @__hugr__.__main__.main.1() local_unnamed_addr {
+alloca_block:
+  %shot = tail call i64 @get_current_shot()
+  %0 = add i64 %shot, 42
+  tail call void @random_seed(i64 %0)
+  %rint = tail call i32 @random_int()
+  %rfloat = tail call double @random_float()
+  tail call void @random_advance(i64 -2)
+  %rint9 = tail call i32 @random_int()
+  %rfloat11 = tail call double @random_float()
+  %1 = sext i32 %rint9 to i64
+  %2 = sext i32 %rint to i64
+  tail call void @print_int(ptr nonnull @res_rint.B928E41E.0, i64 13, i64 %2)
+  tail call void @print_float(ptr nonnull @res_rfloat.F0E4DD2C.0, i64 17, double %rfloat)
+  tail call void @print_int(ptr nonnull @res_rint2.F0335598.0, i64 14, i64 %1)
+  tail call void @print_float(ptr nonnull @res_rfloat2.4DAB941F.0, i64 18, double %rfloat11)
+  ret void
+}
+
 declare i64 @get_current_shot() local_unnamed_addr
 
 declare i32 @random_int() local_unnamed_addr
@@ -25,22 +44,9 @@ declare void @random_seed(i64) local_unnamed_addr
 define i64 @qmain(i64 %0) local_unnamed_addr {
 entry:
   tail call void @setup(i64 %0)
-  %shot.i = tail call i64 @get_current_shot()
-  %1 = add i64 %shot.i, 42
-  tail call void @random_seed(i64 %1)
-  %rint.i = tail call i32 @random_int()
-  %rfloat.i = tail call double @random_float()
-  tail call void @random_advance(i64 -2)
-  %rint9.i = tail call i32 @random_int()
-  %rfloat11.i = tail call double @random_float()
-  %2 = sext i32 %rint9.i to i64
-  %3 = sext i32 %rint.i to i64
-  tail call void @print_int(ptr nonnull @res_rint.B928E41E.0, i64 13, i64 %3)
-  tail call void @print_float(ptr nonnull @res_rfloat.F0E4DD2C.0, i64 17, double %rfloat.i)
-  tail call void @print_int(ptr nonnull @res_rint2.F0335598.0, i64 14, i64 %2)
-  tail call void @print_float(ptr nonnull @res_rfloat2.4DAB941F.0, i64 18, double %rfloat11.i)
-  %4 = tail call i64 @teardown()
-  ret i64 %4
+  tail call void @__hugr__.__main__.main.1()
+  %1 = tail call i64 @teardown()
+  ret i64 %1
 }
 
 declare void @setup(i64) local_unnamed_addr

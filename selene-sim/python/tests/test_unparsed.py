@@ -30,10 +30,10 @@ def test_flip_some_unparsed(compiled_guppy):
             x(q0)
             x(q2)
             x(q3)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
-            result("c3", measure(q3))
+            result("c0", measure(q0).read())
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
+            result("c3", measure(q3).read())
         """
     )
 
@@ -69,10 +69,10 @@ def test_flip_some_multishot_unparsed(compiled_guppy):
             x(q0)
             x(q2)
             x(q3)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
-            result("c3", measure(q3))
+            result("c0", measure(q0).read())
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
+            result("c3", measure(q3).read())
         """
     )
 
@@ -113,10 +113,10 @@ def test_flip_some_with_metrics_unparsed(snapshot, compiled_guppy):
             x(q0)
             x(q2)
             x(q3)
-            result("c0", measure(q0))
-            result("c1", measure(q1))
-            result("c2", measure(q2))
-            result("c3", measure(q3))
+            result("c0", measure(q0).read())
+            result("c1", measure(q1).read())
+            result("c2", measure(q2).read())
+            result("c3", measure(q3).read())
         """
     )
     llvm_file = compiled_guppy(
@@ -137,7 +137,7 @@ def test_array_results_unparsed(compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, x, measure_array
+        from guppylang.std.quantum import qubit, x, measure_array, collect_measurements
         from guppylang.std.builtins import result
 
         @guppy
@@ -146,7 +146,7 @@ def test_array_results_unparsed(compiled_guppy):
             for i in range(len(qs)):
                 x(qs[i])
             bs = measure_array(qs)
-            result("bools", bs)
+            result("bools", collect_measurements(bs))
             result("floats", array(1.0 / 2**i for i in range(10)))
             result("ints", array(i for i in range(100)))
         """
@@ -208,7 +208,7 @@ def test_exit_unparsed(compiled_guppy):
         def main() -> None:
             q = qubit()
             h(q)
-            outcome = measure(q)
+            outcome = measure(q).read()
             if outcome:
                 exit("Postselection failed", 42)
             result("c", outcome)
@@ -276,7 +276,7 @@ def test_panic_unparsed(compiled_guppy):
         def main() -> None:
             q = qubit()
             h(q)
-            outcome = measure(q)
+            outcome = measure(q).read()
             if outcome:
                 panic("Postselection failed")
             result("c", outcome)
@@ -321,7 +321,7 @@ def test_infinite_loop_unparsed(compiled_guppy):
             while True:
                 q0: qubit = qubit()
                 h(q0)
-                result("r", measure(q0))
+                result("r", measure(q0).read())
         """
     )
 
@@ -377,7 +377,7 @@ def test_memory_allocation_unparsed(compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, x, measure_array
+        from guppylang.std.quantum import qubit, x, measure_array, collect_measurements
         from guppylang.std.builtins import result
 
         @guppy
@@ -387,7 +387,7 @@ def test_memory_allocation_unparsed(compiled_guppy):
                 if i % 2 == 0:
                     x(qs[i])
             bs = measure_array(qs)
-            result("bools", bs)
+            result("bools", collect_measurements(bs))
         """
     )
 
@@ -453,7 +453,7 @@ def test_corrupted_plugin_unparsed(compiled_guppy):
         def main() -> None:
             q0: qubit = qubit()
             h(q0)
-            result("c0", measure(q0))
+            result("c0", measure(q0).read())
         """
     )
 

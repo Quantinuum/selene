@@ -93,7 +93,7 @@ impl SoftRZRuntime {
                 Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
                 _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
             };
-            self.operation_queue.push_back(BatchOperation::new(
+            self.operation_queue.push_back(BatchOperation::runtime(
                 vec![op],
                 self.start,
                 duration.into(),
@@ -261,18 +261,6 @@ impl RuntimeInterface for SoftRZRuntime {
             phase: phase + theta,
         };
         Ok(())
-    }
-    fn tk2_gate(
-        &mut self,
-        _qubit_id_1: u64,
-        _qubit_id_2: u64,
-        _alpha: f64,
-        _beta: f64,
-        _gamma: f64,
-    ) -> Result<()> {
-        bail!(
-            "The TK2 gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
-        );
     }
     fn rpp_gate(
         &mut self,

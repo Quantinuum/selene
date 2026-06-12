@@ -1,8 +1,9 @@
 use super::{SimulatorAPIVersion, SimulatorInterface, SimulatorInterfaceFactory};
+use crate::error_model::BatchResult;
+use crate::runtime::{BatchOperation, Operation};
 use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
 use anyhow::{Result, anyhow, bail};
 use libloading;
-use ouroboros::self_referencing;
 use std::ffi::OsStr;
 use std::ffi::c_char;
 use std::sync::Arc;
@@ -11,244 +12,135 @@ pub type SimulatorInstance = *mut std::ffi::c_void;
 
 pub type Errno = i32;
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SimulatorPluginDescriptorV1 {
+    pub struct_size: u64,
+    pub api_version: u64,
+    pub get_name_fn: Option<unsafe extern "C" fn() -> *const c_char>,
+    pub init_fn: unsafe extern "C" fn(
+        handle: *mut SimulatorInstance,
+        n_qubits: u64,
+        argc: u32,
+        argv: *const *const c_char,
+    ) -> Errno,
+    pub exit_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
+    pub shot_start_fn:
+        unsafe extern "C" fn(handle: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
+    pub shot_end_fn: unsafe extern "C" fn(handle: SimulatorInstance) -> Errno,
+    pub rxy_fn: Option<
+        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
+    >,
+    pub rz_fn:
+        Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno>,
+    pub rzz_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            qubit0: u64,
+            qubit1: u64,
+            theta: f64,
+        ) -> Errno,
+    >,
+    pub rpp_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            qubit0: u64,
+            qubit1: u64,
+            theta: f64,
+            phi: f64,
+        ) -> Errno,
+    >,
+    pub measure_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    pub postselect_fn: Option<
+        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
+    >,
+    pub reset_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    pub get_metrics_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            nth_metric: u8,
+            tag_out: *mut c_char,
+            datatype_out: *mut u8,
+            value_out: *mut u64,
+        ) -> Errno,
+    >,
+    pub dump_state_fn: unsafe extern "C" fn(
+        handle: SimulatorInstance,
+        file: *const c_char,
+        qubits: *const u64,
+        n_qubits: u64,
+    ) -> Errno,
+}
+
 /// Provides a simulation engine backend that controls a plugin, in the form of a shared object.
-/// The plugin must export the following functions:
-/// - `uint64_t selene_simulator_get_api_version()`
-///    Returns the version of the Selene Simulator API that the plugin is built against.
-///    Represents 4 8-bit numbers: [reserved], major, minor, patch, from most to least
-///    significant byte. [reserved] must be zero. See the 'versioning' section of the plugin
-///    development documentation for further information.
-///
-/// - `int selene_simulator_init(
-///      *void handle_out,  // user settable state
-///      uint64_t n_qubits, // number of qubits to be available
-///      uint32_t argc,     // number of additional arguments
-///      const char **argv  // additional arguments
-///   )`
-///   Called at startup to initialize the plugin. The plugin should return 0 on success, and
-///   non-zero on failure.
-///
-/// - `int selene_simulator_shot_start(void* handle, uint64_t shot_id, uint64_t seed)`
-///   Called at the start of a shot. The plugin should return 0 on success, and non-zero on
-///   failure.
-///
-/// - `int selene_simulator_shot_end(void* handle)`
-///   Called at the end of a shot. The plugin should return 0 on success, and non-zero on
-///   failure.
-///
-/// - `int selene_simulator_operation_rxy(
-///      *void,        // user-set state
-///      uint64_t q0,  // qubit to apply the gate to
-///      double theta, // angle
-///      double phi    // angle
-///    )`
-///    Apply an RXY gate to qubit `q0` with the given angles. Return nonzero on failure.
-///
-/// - `int selene_simulator_operation_rzz(
-///      *void,        // user-set state
-///      uint64_t q0,  // first qubit
-///      uint64_t q1,  // second qubit
-///      double theta  // rotation angle
-///    )`
-///    Apply an RZZ gate between qubits `q0` and `q1` with the given angle. Return nonzero on
-///    failure.
-///
-/// - `int selene_simulator_operation_rz(
-///      *void,        // user-set state
-///      uint64_t q0,  // qubit to apply the gate to
-///      double theta, // angle
-///    )`
-///    Apply an RZ gate to qubit `q0` with the given angle. Return nonzero on failure.
-///
-///
-/// - `int selene_simulator_operation_measure(
-///       *void,      // user-set state
-///       uint64_t q0 // qubit to measure
-///    )`
-///    Measure qubit `q0` and return 0 for false, 1 for true, and any other value for failure.
-///
-/// - `int selene_simulator_operation_postselect(
-///       *void,     // user-set state
-///       uint64_t q0, // qubit to postselect
-///       bool target_value // target value to postselect
-///    )`
-///    Postselect qubit `q0` to the given value. If the postselection is viable and performed,
-///    return 0. If it is not supported in the simulator, or if postselection isn't possible
-///    from the state immediately prior to this operation, return nonzero.
-///
-/// - `int selene_simulator_operation_reset(
-///       *void,     // user-set state
-///       uint64_t q0 // qubit to measure
-///    )`
-///    Reset qubit `q0` to the |0> state. Return nonzero on failure.
-///
-/// - (optional) `int selene_simulator_get_metrics(
-///       *void  // user-set state
-///       uint8_t nth_metric, // index of metric to fetch (called with 0 to 255 until a non-zero
-///       return)
-///       char* tag, // pointer to 256-byte char array to write a tag name (up to 255 chars) into.
-///       u8* datatype // write the datatype here: 0 => bool, 1 => i64, 2 => u64, 3 => f64
-///       u64* data // write the data here
-///    )`
-///    Provide a set of metrics to be written to the output stream. Return zero if a metric
-///    has been written, nonzero if there are no more metrics to write.
-///
-/// - (optional) `int selene_simulator_exit(*void /* user set state */)`
-///    If present, is invoked at the end of the simulation to allow the plugin to clean up.
-///    If the plugin returns a nonzero value, it is considered to be an error. This allows
-///    a plugin to perform post-simulation validation. An example use case is the classical
-///    replay plugin, that replays a sequence of recorded measurements: if at the end of a run,
-///    there are still measurements to replay, the plugin can return an error code to indicate
-///    that it is not a faithful replay.
+/// Plugins should expose a struct of type [SimulatorPluginDescriptorV1] as the symbol
+/// selene_simulator_plugin_descriptor_v1, or a function selene_simulator_get_plugin_descriptor_v1
+/// that returns a pointer to such a struct. The descriptor provides function pointers for the
+/// plugin's implementation of the simulator interface, as well as metadata about the plugin and
+/// the ABI it implements.
 ///
 /// Plugins are used allow implementations of simulation backends to be written and
 /// distributed independently of selene. Users should be cautious about the plugins they use,
 /// as it is possible that mistakes or malicious code could be present in the plugin, and, as
 /// with all external libraries, due dilligence must be done to verify the source and the
 /// trustworthiness of the provider.
-#[self_referencing]
 pub struct SimulatorPluginInterface {
-    lib: libloading::Library,
+    _lib: libloading::Library,
     name: String,
-    version: SimulatorAPIVersion,
-    #[borrows(lib)]
-    #[covariant]
-    init_fn: libloading::Symbol<
-        'this,
-        unsafe extern "C" fn(
-            handle: *mut SimulatorInstance,
-            n_qubits: u64,
-            argc: u32,
-            argv: *const *const c_char,
-        ) -> Errno,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    exit_fn:
-        Option<libloading::Symbol<'this, unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>>,
-    #[borrows(lib)]
-    #[covariant]
-    shot_start_fn: libloading::Symbol<
-        'this,
+    init_fn: unsafe extern "C" fn(
+        handle: *mut SimulatorInstance,
+        n_qubits: u64,
+        argc: u32,
+        argv: *const *const c_char,
+    ) -> Errno,
+    exit_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
+    shot_start_fn:
         unsafe extern "C" fn(handle: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    shot_end_fn:
-        libloading::Symbol<'this, unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
-    #[borrows(lib)]
-    #[covariant]
+    shot_end_fn: unsafe extern "C" fn(handle: SimulatorInstance) -> Errno,
     rxy_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(
-                handle: SimulatorInstance,
-                qubit: u64,
-                theta: f64,
-                phi: f64,
-            ) -> Errno,
-        >,
+        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
     >,
-    #[borrows(lib)]
-    #[covariant]
-    rz_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno,
-        >,
-    >,
-    #[borrows(lib)]
-    #[covariant]
+    rz_fn:
+        Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno>,
     rzz_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(
-                handle: SimulatorInstance,
-                qubit0: u64,
-                qubit1: u64,
-                theta: f64,
-            ) -> Errno,
-        >,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    tk2_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(
-                handle: SimulatorInstance,
-                qubit0: u64,
-                qubit1: u64,
-                alpha: f64,
-                beta: f64,
-                gamma: f64,
-            ) -> Errno,
-        >,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    rpp_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(
-                handle: SimulatorInstance,
-                qubit0: u64,
-                qubit1: u64,
-                theta: f64,
-                phi: f64,
-            ) -> Errno,
-        >,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    measure_fn: libloading::Symbol<
-        'this,
-        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    postselect_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(
-                handle: SimulatorInstance,
-                qubit: u64,
-                target_value: bool,
-            ) -> Errno,
-        >,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    reset_fn: libloading::Symbol<
-        'this,
-        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    get_metrics_fn: Option<
-        libloading::Symbol<
-            'this,
-            unsafe extern "C" fn(
-                handle: SimulatorInstance,
-                nth_metric: u8,
-                tag_out: *mut c_char,
-                datatype_out: *mut u8,
-                value_out: *mut u64,
-            ) -> Errno,
-        >,
-    >,
-    #[borrows(lib)]
-    #[covariant]
-    dump_state_fn: libloading::Symbol<
-        'this,
         unsafe extern "C" fn(
             handle: SimulatorInstance,
-            file: *const c_char,
-            qubits: *const u64,
-            n_qubits: u64,
+            qubit0: u64,
+            qubit1: u64,
+            theta: f64,
         ) -> Errno,
     >,
+    rpp_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            qubit0: u64,
+            qubit1: u64,
+            theta: f64,
+            phi: f64,
+        ) -> Errno,
+    >,
+    measure_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    postselect_fn: Option<
+        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
+    >,
+    reset_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    get_metrics_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            nth_metric: u8,
+            tag_out: *mut c_char,
+            datatype_out: *mut u8,
+            value_out: *mut u64,
+        ) -> Errno,
+    >,
+    dump_state_fn: unsafe extern "C" fn(
+        handle: SimulatorInstance,
+        file: *const c_char,
+        qubits: *const u64,
+        n_qubits: u64,
+    ) -> Errno,
 }
+
 impl SimulatorPluginInterface {
     pub fn new_from_file(plugin_file: impl AsRef<OsStr>) -> Result<Arc<Self>> {
         let lib = unsafe { libloading::Library::new(plugin_file.as_ref()) }.map_err(|e| {
@@ -258,24 +150,34 @@ impl SimulatorPluginInterface {
                 e
             )
         })?;
-        let version: SimulatorAPIVersion = unsafe {
-            if let Ok(func) =
-                lib.get::<unsafe extern "C" fn() -> u64>(b"selene_simulator_get_api_version")
-            {
-                func().into()
-            } else {
-                bail!(
-                    "Failed to load version from simulator at '{}'. The plugin is not compatible with this version of selene.",
-                    plugin_file.as_ref().to_string_lossy(),
-                );
-            }
+        let descriptor = unsafe {
+            lib.get::<SimulatorPluginDescriptorV1>(b"selene_simulator_plugin_descriptor_v1")
+                .ok()
+                .map(|d| *d)
+                .or_else(|| {
+                    lib.get::<unsafe extern "C" fn() -> *const SimulatorPluginDescriptorV1>(
+                        b"selene_simulator_get_plugin_descriptor_v1",
+                    )
+                    .ok()
+                    .and_then(|f| {
+                        let ptr = f();
+                        if ptr.is_null() { None } else { Some(*ptr) }
+                    })
+                })
         };
+        let descriptor = descriptor.ok_or_else(|| {
+            anyhow!(
+                "Simulator plugin '{}' does not expose either selene_simulator_plugin_descriptor_v1 or selene_simulator_get_plugin_descriptor_v1",
+                plugin_file.as_ref().to_string_lossy()
+            )
+        })?;
+        let version: SimulatorAPIVersion = descriptor.api_version.into();
         version.validate()?;
         let name = unsafe {
-            if let Ok(func) =
-                lib.get::<unsafe extern "C" fn() -> *const c_char>(b"selene_simulator_get_name")
-            {
-                func().as_ref().map_or_else(
+            descriptor
+                .get_name_fn
+                .and_then(|f| f().as_ref())
+                .map_or_else(
                     || "Unknown".to_string(),
                     |name| {
                         std::ffi::CStr::from_ptr(name)
@@ -283,41 +185,104 @@ impl SimulatorPluginInterface {
                             .into_owned()
                     },
                 )
-            } else {
-                "Unknown".to_string()
-            }
         };
-        let result = SimulatorPluginInterfaceTryBuilder {
-            lib,
-            version,
-            name,
-            init_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_init") },
-            exit_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_exit").ok()) },
-            shot_start_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_shot_start") },
-            shot_end_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_shot_end") },
-            rxy_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rxy").ok()) },
-            rz_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rz").ok()) },
-            rzz_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rzz").ok()) },
-            tk2_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_tk2").ok()) },
-            rpp_fn_builder: |lib| unsafe { Ok(lib.get(b"selene_simulator_operation_rpp").ok()) },
-            measure_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_operation_measure") },
-            postselect_fn_builder: |lib| unsafe {
-                Ok(lib.get(b"selene_simulator_operation_postselect").ok())
-            },
-            reset_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_operation_reset") },
-            get_metrics_fn_builder: |lib| unsafe {
-                Ok(lib.get(b"selene_simulator_get_metrics").ok())
-            },
-            dump_state_fn_builder: |lib| unsafe { lib.get(b"selene_simulator_dump_state") },
+        if descriptor.struct_size < core::mem::size_of::<SimulatorPluginDescriptorV1>() as u64 {
+            bail!("Simulator plugin descriptor is too small for v1 ABI");
         }
-        .try_build()?;
-        Ok(Arc::new(result))
+        Ok(Arc::new(Self {
+            _lib: lib,
+            name,
+            init_fn: descriptor.init_fn,
+            exit_fn: descriptor.exit_fn,
+            shot_start_fn: descriptor.shot_start_fn,
+            shot_end_fn: descriptor.shot_end_fn,
+            rxy_fn: descriptor.rxy_fn,
+            rz_fn: descriptor.rz_fn,
+            rzz_fn: descriptor.rzz_fn,
+            rpp_fn: descriptor.rpp_fn,
+            measure_fn: descriptor.measure_fn,
+            postselect_fn: descriptor.postselect_fn,
+            reset_fn: descriptor.reset_fn,
+            get_metrics_fn: descriptor.get_metrics_fn,
+            dump_state_fn: descriptor.dump_state_fn,
+        }))
     }
 }
 
 pub struct SimulatorPlugin {
     interface: Arc<SimulatorPluginInterface>,
     instance: SimulatorInstance,
+}
+
+impl SimulatorPlugin {
+    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
+        let Some(rxy_fn) = self.interface.rxy_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RXY gate",
+                &self.interface.name
+            );
+        };
+        check_errno(unsafe { rxy_fn(self.instance, qubit, theta, phi) }, || {
+            anyhow!("SimulatorPlugin({}): rxy failed", &self.interface.name)
+        })
+    }
+
+    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
+        let Some(rz_fn) = self.interface.rz_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RZ gate",
+                &self.interface.name
+            );
+        };
+        check_errno(unsafe { rz_fn(self.instance, qubit, theta) }, || {
+            anyhow!("SimulatorPlugin({}): rz failed", &self.interface.name)
+        })
+    }
+
+    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
+        let Some(rzz_fn) = self.interface.rzz_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RZZ gate",
+                &self.interface.name
+            );
+        };
+        check_errno(
+            unsafe { rzz_fn(self.instance, qubit1, qubit2, theta) },
+            || anyhow!("SimulatorPlugin({}): rzz failed", &self.interface.name),
+        )
+    }
+
+    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
+        let Some(rpp_fn) = self.interface.rpp_fn else {
+            bail!(
+                "SimulatorPlugin({}): The chosen simulator does not support the RPP gate",
+                &self.interface.name
+            );
+        };
+        check_errno(
+            unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
+            || anyhow!("SimulatorPlugin({}): rpp failed", &self.interface.name),
+        )
+    }
+
+    fn measure(&mut self, qubit: u64) -> Result<bool> {
+        let result = unsafe { (self.interface.measure_fn)(self.instance, qubit) };
+        match result {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(anyhow!(
+                "SimulatorPlugin({}): measure failed",
+                &self.interface.name
+            )),
+        }
+    }
+
+    fn reset(&mut self, qubit: u64) -> Result<()> {
+        check_errno(
+            unsafe { (self.interface.reset_fn)(self.instance, qubit) },
+            || anyhow!("SimulatorPlugin({}): reset failed", &self.interface.name),
+        )
+    }
 }
 
 impl SimulatorInterfaceFactory for SimulatorPluginInterface {
@@ -331,7 +296,7 @@ impl SimulatorInterfaceFactory for SimulatorPluginInterface {
         let mut instance = std::ptr::null_mut();
         with_strings_to_cargs(args, |argc, argv| {
             check_errno(
-                unsafe { self.borrow_init_fn()(&mut instance, n_qubits, argc, argv) },
+                unsafe { (self.init_fn)(&mut instance, n_qubits, argc, argv) },
                 || anyhow!("SimulatorPlugin: init failed"),
             )
         })?;
@@ -344,7 +309,7 @@ impl SimulatorInterfaceFactory for SimulatorPluginInterface {
 
 impl SimulatorInterface for SimulatorPlugin {
     fn exit(&mut self) -> Result<()> {
-        let Some(exit_fn) = self.interface.borrow_exit_fn() else {
+        let Some(exit_fn) = self.interface.exit_fn else {
             return Ok(());
         };
         check_errno(unsafe { exit_fn(self.instance) }, || {
@@ -353,118 +318,58 @@ impl SimulatorInterface for SimulatorPlugin {
     }
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
         check_errno(
-            unsafe { self.interface.borrow_shot_start_fn()(self.instance, shot_id, seed) },
+            unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
             || {
                 anyhow!(
                     "SimulatorPlugin({}): shot_start failed",
-                    self.interface.borrow_name()
+                    &self.interface.name
                 )
             },
         )
     }
     fn shot_end(&mut self) -> Result<()> {
         check_errno(
-            unsafe { self.interface.borrow_shot_end_fn()(self.instance) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): shot_end failed",
-                    self.interface.borrow_name()
-                )
-            },
+            unsafe { (self.interface.shot_end_fn)(self.instance) },
+            || anyhow!("SimulatorPlugin({}): shot_end failed", &self.interface.name),
         )
     }
-    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
-        let Some(rxy_fn) = self.interface.borrow_rxy_fn() else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RXY gate",
-                self.interface.borrow_name()
-            );
-        };
-        check_errno(unsafe { rxy_fn(self.instance, qubit, theta, phi) }, || {
-            anyhow!(
-                "SimulatorPlugin({}): rxy failed",
-                self.interface.borrow_name()
-            )
-        })
-    }
-    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
-        let Some(rz_fn) = self.interface.borrow_rz_fn() else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RZ gate",
-                self.interface.borrow_name()
-            );
-        };
-        check_errno(unsafe { rz_fn(self.instance, qubit, theta) }, || {
-            anyhow!(
-                "SimulatorPlugin({}): rz failed",
-                self.interface.borrow_name()
-            )
-        })
-    }
-    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
-        let Some(rzz_fn) = self.interface.borrow_rzz_fn() else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RZZ gate",
-                self.interface.borrow_name()
-            );
-        };
-        check_errno(
-            unsafe { rzz_fn(self.instance, qubit1, qubit2, theta) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): rzz failed",
-                    self.interface.borrow_name()
-                )
-            },
-        )
-    }
-    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
-        let Some(rpp_fn) = self.interface.borrow_rpp_fn() else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RPP gate",
-                self.interface.borrow_name()
-            );
-        };
-        check_errno(
-            unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): rpp failed",
-                    self.interface.borrow_name()
-                )
-            },
-        )
-    }
-    fn tk2(&mut self, qubit1: u64, qubit2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()> {
-        let Some(tk2_fn) = self.interface.borrow_tk2_fn() else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the TK2 gate",
-                self.interface.borrow_name()
-            );
-        };
-        check_errno(
-            unsafe { tk2_fn(self.instance, qubit1, qubit2, alpha, beta, gamma) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): tk2 failed",
-                    self.interface.borrow_name()
-                )
-            },
-        )
-    }
-    fn measure(&mut self, qubit: u64) -> Result<bool> {
-        let result = unsafe { (self.interface.borrow_measure_fn())(self.instance, qubit) };
-        match result {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => Err(anyhow!(
-                "SimulatorPlugin({}): measure failed",
-                self.interface.borrow_name()
-            )),
+    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        let mut results = BatchResult::default();
+        for operation in operations {
+            match operation {
+                Operation::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => self.rxy(qubit_id, theta, phi)?,
+                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
+                Operation::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
+                Operation::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Measure {
+                    qubit_id,
+                    result_id,
+                } => results.set_bool_result(result_id, self.measure(qubit_id)?),
+                Operation::MeasureLeaked {
+                    qubit_id,
+                    result_id,
+                } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
+                Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Custom { .. } => {}
+            }
         }
+        Ok(results)
     }
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
-        let Some(postselect_fn) = self.interface.borrow_postselect_fn() else {
+        let Some(postselect_fn) = self.interface.postselect_fn else {
             bail!("The chosen simulator does not support postselection");
         };
         check_errno(
@@ -472,24 +377,13 @@ impl SimulatorInterface for SimulatorPlugin {
             || {
                 anyhow!(
                     "SimulatorPlugin({}): postselect failed",
-                    self.interface.borrow_name()
-                )
-            },
-        )
-    }
-    fn reset(&mut self, qubit: u64) -> Result<()> {
-        check_errno(
-            unsafe { (self.interface.borrow_reset_fn())(self.instance, qubit) },
-            || {
-                anyhow!(
-                    "SimulatorPlugin({}): reset failed",
-                    self.interface.borrow_name()
+                    &self.interface.name
                 )
             },
         )
     }
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
-        let Some(get_metrics_fn) = self.interface.borrow_get_metrics_fn() else {
+        let Some(get_metrics_fn) = self.interface.get_metrics_fn else {
             return Ok(None);
         };
         read_raw_metric(|tag, data_type, data| unsafe {
@@ -501,14 +395,14 @@ impl SimulatorInterface for SimulatorPlugin {
         let filename = file.to_str().ok_or_else(|| {
             anyhow!(
                 "SimulatorPlugin({}): dump_state failed: invalid filename: {}",
-                self.interface.borrow_name(),
+                &self.interface.name,
                 file.to_string_lossy()
             )
         })?;
         let safe_filename = std::ffi::CString::new(filename).unwrap();
         check_errno(
             unsafe {
-                (self.interface.borrow_dump_state_fn())(
+                (self.interface.dump_state_fn)(
                     self.instance,
                     safe_filename.as_ptr(),
                     qubits.as_ptr(),
@@ -518,7 +412,7 @@ impl SimulatorInterface for SimulatorPlugin {
             || {
                 anyhow!(
                     "SimulatorPlugin({}): dump_state failed",
-                    self.interface.borrow_name()
+                    &self.interface.name
                 )
             },
         )

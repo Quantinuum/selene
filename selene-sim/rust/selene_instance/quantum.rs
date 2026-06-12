@@ -27,18 +27,6 @@ impl SeleneInstance {
             .user_issued_rpp(qubit_id, qubit_id2, theta, phi)
     }
 
-    pub fn tk2(
-        &mut self,
-        qubit_id: u64,
-        qubit_id2: u64,
-        alpha: f64,
-        beta: f64,
-        gamma: f64,
-    ) -> Result<()> {
-        self.emulator
-            .user_issued_tk2(qubit_id, qubit_id2, alpha, beta, gamma)
-    }
-
     pub fn qubit_reset(&mut self, q: u64) -> Result<()> {
         self.emulator.user_issued_reset(q)
     }

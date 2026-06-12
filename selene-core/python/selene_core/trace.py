@@ -18,10 +18,15 @@ class RuntimeSource(BaseModel):
     end_time: int
 
 
-# in future we hope to add ErrorModelSource, so we can keep track of noise.
-# this will require a breaking change, as the error model doesn't presently
-# command the simulator via selene's internals (where logging can be done),
-# but instead controls a simulator directly.
+class ErrorModelSource(BaseModel):
+    kind: Literal["ErrorModel"] = "ErrorModel"
+    index: int
+
+
+class SimulatorSource(BaseModel):
+    kind: Literal["Simulator"] = "Simulator"
+    index: int
+    duration_ns: int
 
 
 class AbstractEvent(BaseModel):
@@ -80,7 +85,7 @@ Event = Annotated[
     Field(discriminator="kind"),
 ]
 Source = Annotated[
-    Union[UserProgramSource, RuntimeSource],
+    Union[UserProgramSource, RuntimeSource, ErrorModelSource, SimulatorSource],
     Field(discriminator="kind"),
 ]
 
@@ -112,6 +117,22 @@ class Trace(BaseModel):
             )
         )
 
+    def add_error_model_event(self, event: Event, index: int):
+        self.events.append(
+            EventRecord(
+                source=ErrorModelSource(index=index),
+                event=event,
+            )
+        )
+
+    def add_simulator_event(self, event: Event, index: int, duration_ns: int):
+        self.events.append(
+            EventRecord(
+                source=SimulatorSource(index=index, duration_ns=duration_ns),
+                event=event,
+            )
+        )
+
     def filter(self, predicate: Callable[[EventRecord], bool]) -> "Trace":
         return Trace(events=list(filter(predicate, self.events)))
 
@@ -133,3 +154,25 @@ class Trace(BaseModel):
 
     def get_user_program_trace(self) -> "Trace":
         return self.filter(lambda e: isinstance(e.source, UserProgramSource))
+
+    def get_error_model_trace(self) -> "Trace":
+        return self.filter(lambda e: isinstance(e.source, ErrorModelSource))
+
+    def get_simulator_trace(self) -> "Trace":
+        return self.filter(lambda e: isinstance(e.source, SimulatorSource))
+
+    def clear_simulator_perf_timing(self) -> "Trace":
+        """Returns a copy of the trace with all simulator event durations set to 0. This is useful for comparing traces while ignoring performance timing differences."""
+        return Trace(
+            events=[
+                EventRecord(
+                    source=(
+                        SimulatorSource(index=record.source.index, duration_ns=0)
+                        if isinstance(record.source, SimulatorSource)
+                        else record.source.model_copy(deep=True)
+                    ),
+                    event=record.event.model_copy(deep=True),
+                )
+                for record in self.events
+            ]
+        )

@@ -1,7 +1,18 @@
 use crate::*;
 use approx::assert_ulps_eq;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use std::sync::Arc;
+
+fn measure(simulator: &mut CoinflipSimulator, qubit_id: u64) -> anyhow::Result<bool> {
+    let results =
+        simulator.handle_operations(BatchOperation::simulator(vec![Operation::Measure {
+            qubit_id,
+            result_id: 0,
+        }]))?;
+    assert!(results.u64_results.is_empty() && results.bool_results.len() == 1);
+    Ok(results.bool_results[0].value)
+}
 #[test]
 fn bias_test() {
     let factory = Arc::new(CoinflipSimulatorFactory);
@@ -38,14 +49,14 @@ fn bias_test() {
     let mut fifty_fifty_alt_trues = 0;
     let mut thirty_seventy_trues = 0;
     for _ in 0..10000 {
-        always_one_trues += always_one.measure(0).unwrap() as u64;
-        always_zero_trues += always_zero.measure(0).unwrap() as u64;
-        fifty_fifty_trues += fifty_fifty.measure(0).unwrap() as u64;
-        fifty_fifty_alt_trues += fifty_fifty_alt.measure(0).unwrap() as u64;
-        thirty_seventy_trues += thirty_seventy.measure(0).unwrap() as u64;
+        always_one_trues += measure(always_one.as_mut(), 0).unwrap() as u64;
+        always_zero_trues += measure(always_zero.as_mut(), 0).unwrap() as u64;
+        fifty_fifty_trues += measure(fifty_fifty.as_mut(), 0).unwrap() as u64;
+        fifty_fifty_alt_trues += measure(fifty_fifty_alt.as_mut(), 0).unwrap() as u64;
+        thirty_seventy_trues += measure(thirty_seventy.as_mut(), 0).unwrap() as u64;
     }
     // Out of bounds check
-    assert!(always_one.measure(10000).is_err());
+    assert!(measure(always_one.as_mut(), 10000).is_err());
 
     assert_eq!(always_one.total_flips, 10000);
     assert_eq!(always_zero.total_flips, 10000);

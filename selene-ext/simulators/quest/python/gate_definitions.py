@@ -66,11 +66,6 @@ def rpp(theta, phi):
     return sp.trigsimp(twin_rz(phi) * rxx(theta) * twin_rz(-phi))
 
 
-def tk2(alpha, beta, gamma):
-    # note: rxx * yy * zz and rzz * ryy * rxx are equal
-    return sp.trigsimp(rxx(alpha) * ryy(beta) * rzz(gamma))
-
-
 def print_summary(name, gate, notes: str | None = None):
     print("======================================================")
     print()
@@ -109,10 +104,8 @@ if __name__ == "__main__":
         rzz(theta) * exp(I * theta / 2)
     )  # Global phase adjustment for consistency with prior versions
     rpp_gate = rpp(theta, phi)
-    tk2_gate = tk2(alpha, beta, gamma)
 
     print_summary(f"rz({theta})", rz_gate)
     print_summary(f"rxy({theta}, {phi})", rxy_gate)
     print_summary(f"rzz({theta})", rzz_gate)
     print_summary(f"rpp({theta}, {phi})", rpp_gate)
-    print_summary(f"tk2({alpha}, {beta}, {gamma})", tk2_gate)

@@ -11,36 +11,36 @@ target triple = "aarch64-unknown-linux-gnu"
 @"e_Array cont.EFA5AC45.0" = private constant [70 x i8] c"EEXIT:INT:Array contains non-borrowed elements and cannot be discarded"
 @"e_No more qu.3B2EEBF0.0" = private constant [47 x i8] c".EXIT:INT:No more qubits available to allocate."
 
-define internal fastcc void @__hugr__.__main__.main.1() unnamed_addr {
+define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %0 = tail call ptr @heap_alloc(i64 16)
   %1 = tail call ptr @heap_alloc(i64 8)
   store i64 -1, ptr %1, align 1
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_222_case_0.i, label %__hugr__.__tk2_qalloc.226.exit
+  br i1 %not_max.not.not.i, label %cond_287_case_0.i, label %__hugr__.__tk2_helios_qalloc.283.exit
 
-cond_222_case_0.i:                                ; preds = %cond_exit_20, %alloca_block
+cond_287_case_0.i:                                ; preds = %cond_exit_20, %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_qalloc.226.exit:                   ; preds = %alloca_block
+__hugr__.__tk2_helios_qalloc.283.exit:            ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
   %2 = load i64, ptr %1, align 4
   %3 = trunc i64 %2 to i1
   br i1 %3, label %cond_exit_20, label %panic.i
 
-panic.i:                                          ; preds = %__barray_check_bounds.exit.1, %__hugr__.__tk2_qalloc.226.exit
+panic.i:                                          ; preds = %__barray_check_bounds.exit.1, %__hugr__.__tk2_helios_qalloc.283.exit
   tail call void @panic(i32 1002, ptr nonnull @"e_Array alre.5A300C2A.0")
   unreachable
 
-cond_exit_20:                                     ; preds = %__hugr__.__tk2_qalloc.226.exit
+cond_exit_20:                                     ; preds = %__hugr__.__tk2_helios_qalloc.283.exit
   %4 = and i64 %2, -2
   store i64 %4, ptr %1, align 4
   store i64 %qalloc.i, ptr %0, align 4
   %qalloc.i.1 = tail call i64 @___qalloc()
   %not_max.not.not.i.1 = icmp eq i64 %qalloc.i.1, -1
-  br i1 %not_max.not.not.i.1, label %cond_222_case_0.i, label %__barray_check_bounds.exit.1
+  br i1 %not_max.not.not.i.1, label %cond_287_case_0.i, label %__barray_check_bounds.exit.1
 
 __barray_check_bounds.exit.1:                     ; preds = %cond_exit_20
   tail call void @___reset(i64 %qalloc.i.1)
@@ -253,7 +253,7 @@ __barray_check_bounds.exit.1.i:                   ; preds = %__barray_mask_borro
   %64 = phi i64 [ %.pre, %__barray_mask_borrow.exit.i ], [ %62, %__barray_mask_return.exit247 ]
   %65 = and i64 %64, 2
   %.not.i = icmp eq i64 %65, 0
-  br i1 %.not.i, label %__barray_mask_borrow.exit.1.i, label %cond_exit_342.i
+  br i1 %.not.i, label %__barray_mask_borrow.exit.1.i, label %cond_exit_199.i
 
 __barray_mask_borrow.exit.1.i:                    ; preds = %__barray_check_bounds.exit.1.i
   %66 = or disjoint i64 %64, 2
@@ -261,16 +261,16 @@ __barray_mask_borrow.exit.1.i:                    ; preds = %__barray_check_boun
   %67 = load i64, ptr %8, align 4
   call void @___qfree(i64 %67)
   %.pre.i = load i64, ptr %1, align 4
-  br label %cond_exit_342.i
+  br label %cond_exit_199.i
 
-cond_exit_342.i:                                  ; preds = %__barray_mask_borrow.exit.1.i, %__barray_check_bounds.exit.1.i
+cond_exit_199.i:                                  ; preds = %__barray_mask_borrow.exit.1.i, %__barray_check_bounds.exit.1.i
   %68 = phi i64 [ %.pre.i, %__barray_mask_borrow.exit.1.i ], [ %64, %__barray_check_bounds.exit.1.i ]
   %69 = or i64 %68, -4
   store i64 %69, ptr %1, align 4
   %70 = icmp eq i64 %69, -1
-  br i1 %70, label %"__hugr__.$guppylang.std.quantum.discard_array$$n(2).298.exit", label %mask_block_err.i.i
+  br i1 %70, label %"__hugr__.guppylang.std.quantum.discard_array$2.157.exit", label %mask_block_err.i.i
 
-mask_block_err.i.i:                               ; preds = %cond_exit_342.i
+mask_block_err.i.i:                               ; preds = %cond_exit_199.i
   call void @panic(i32 1002, ptr nonnull @"e_Array cont.EFA5AC45.0")
   unreachable
 
@@ -282,7 +282,7 @@ __barray_mask_borrow.exit.i:                      ; preds = %__barray_mask_retur
   %.pre = load i64, ptr %1, align 4
   br label %__barray_check_bounds.exit.1.i
 
-"__hugr__.$guppylang.std.quantum.discard_array$$n(2).298.exit": ; preds = %cond_exit_342.i
+"__hugr__.guppylang.std.quantum.discard_array$2.157.exit": ; preds = %cond_exit_199.i
   call void @heap_free(ptr nonnull %0)
   call void @heap_free(ptr nonnull %1)
   ret void
@@ -308,7 +308,7 @@ declare void @___reset(i64) local_unnamed_addr
 define i64 @qmain(i64 %0) local_unnamed_addr {
 entry:
   tail call void @setup(i64 %0)
-  tail call fastcc void @__hugr__.__main__.main.1()
+  tail call void @__hugr__.__main__.main.1()
   %1 = tail call i64 @teardown()
   ret i64 %1
 }

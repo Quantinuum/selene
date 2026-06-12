@@ -33,11 +33,6 @@ void ___rpp(uint64_t q1, uint64_t q2, double theta, double phi) {
     unwrap(selene_rpp(selene_instance, q1, q2, theta, phi));
     DIAGNOSTIC("   [done]\n");
 }
-//void ___rxxyyzz(uint64_t q1, uint64_t q2, double alpha, double beta, double gamma) {
-//    DIAGNOSTIC("___rxxyyzz(%" PRIu64 ", %" PRIu64 ", %f, %f, %f)\n", q1, q2, alpha, beta, gamma);
-//    unwrap(selene_tk2(selene_instance, q1, q2, alpha,  beta, gamma));
-//    DIAGNOSTIC("   [done]\n");
-//}
 void ___reset(uint64_t q) {
     DIAGNOSTIC("___reset(%" PRIu64 ")\n", q);
     unwrap(selene_qubit_reset(selene_instance, q));

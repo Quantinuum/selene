@@ -6,11 +6,21 @@ from selene_sim.backends import Quest, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore, CircuitExtractor, MultiEventHook
 
 
+def _snapshot_instruction_log(shot_instructions):
+    result = []
+    for event in shot_instructions:
+        operation = event.operation.to_dict()
+        if event.duration_ns is not None:
+            operation["duration_ns"] = 0
+        result.append({"source": str(event.source), "operation": operation})
+    return result
+
+
 def test_batching_behaviour(snapshot, compiled_guppy):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
-        from guppylang.std.quantum import qubit, measure_array, h, cx, x, crz
+        from guppylang.std.quantum import qubit, measure_array, h, cx, x, crz, collect_measurements
         from guppylang.std.builtins import result, array
         from guppylang.std.angles import pi
 
@@ -23,7 +33,7 @@ def test_batching_behaviour(snapshot, compiled_guppy):
                 for j in range(8-i-1):
                     crz(qs[i], qs[8-j-1], pi/(2**i))
             h(qs[7])
-            result("measurements", measure_array(qs))
+            result("measurements", collect_measurements(measure_array(qs)))
         """
     )
 
@@ -91,15 +101,12 @@ def test_batching_behaviour(snapshot, compiled_guppy):
             )
 
     for batching, output_instructions in instructions.items():
-        format_friendly = [
-            {"source": str(event.source), "operation": event.operation.to_dict()}
-            for event in output_instructions
-        ]
+        format_friendly = _snapshot_instruction_log(output_instructions)
         snapshot.assert_match(
             json.dumps(format_friendly, indent=2),
             f"instructions_batching_{batching}.json",
         )
-        trace = output_instructions.get_trace()
+        trace = output_instructions.get_trace().clear_simulator_perf_timing()
         snapshot.assert_match(
             trace.model_dump_json(indent=2),
             f"trace_batching_{batching}.json",

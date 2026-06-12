@@ -30,28 +30,26 @@ nitpicks:
     uv run ruff check --config=pyproject.toml
 
 BIND_BUILD := "target/selene-bindings-build"
-PLUGIN_EXPAND := "target/plugin-expand"
-
-generate-plugin-header plugin:
-    mkdir -p {{PLUGIN_EXPAND}}
-    cd selene-core/examples/{{plugin}} && cargo expand > ../../../{{PLUGIN_EXPAND}}/{{plugin}}.rs
-    cbindgen \
-      --config selene-core/examples/cbindgen.toml \
-      --output selene-core/c/include/selene/{{plugin}}.h \
-      {{PLUGIN_EXPAND}}/{{plugin}}.rs
-    rm -rf target/tmp
-
-
-
 generate-selene-core-headers:
     cbindgen \
-      --config selene-core/cbindgen.toml \
+      --config selene-core/cbindgen/core_types.toml \
       --crate selene-core \
       --output selene-core/c/include/selene/core_types.h
 
-    just generate-plugin-header error_model
-    just generate-plugin-header simulator
-    just generate-plugin-header runtime
+    cbindgen \
+      --config selene-core/cbindgen/error_model.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/error_model.h
+
+    cbindgen \
+      --config selene-core/cbindgen/simulator.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/simulator.h
+
+    cbindgen \
+      --config selene-core/cbindgen/runtime.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/runtime.h
 
 generate-headers:
     just generate-selene-core-headers
