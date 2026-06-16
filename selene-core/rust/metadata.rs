@@ -40,23 +40,70 @@ impl<'bump> UnresolvedBacktrace<'bump> {
     }
 }
 
+/// Count the number of frames between the caller of `trace` and the frame
+/// where the closure executes. Returns the index of the caller in the trace.
+#[inline(never)]
+fn calibrate_global_frame_skip() -> usize {
+    let mut frame_count = 0;
+
+    backtrace::trace(|frame| {
+        let mut frame: BacktraceFrame = frame.clone().into();
+        frame.resolve();
+        for (_i, sym) in frame.symbols().iter().enumerate() {
+            let name = format!("{}", sym.name().expect("should be symbolicated"));
+            if name.contains("calibrate_global_frame_skip") {
+                debug_assert!(
+                    _i == frame.symbols().len() - 1,
+                    "target should not be inlined"
+                );
+                return false; // we have reached the frame of the calling function
+            }
+        }
+
+        // not found, keep searching
+        frame_count += 1;
+        true
+    });
+
+    // +1 because we want the caller of the caller of `trace`,
+    // a.k.a. the caller of `capture_backtrace`
+    frame_count + 1
+}
+
 /// Class which manages backtraces, including efficient allocation and deduplication.
-#[derive(Default)]
 pub struct BacktraceEngine<'bump> {
     /// Map from backtrace hash to existing backtraces
-    /// The key is the hash itself - the lookup is only used when a new backtrace is
-    /// constructed, to perform deduplication. We create the hash as part of
-    /// constructing it rather than implementing Hash.
+    /// The key is the hash itself - the lookup is only used when a new backtrace is /
+    /// constructed, to perform deduplication. For performance, we create the hash as part
+    /// of constructing the backtrace rather than implementing Hash.
     existing_traces: HashMap<u64, NonNull<UnresolvedBacktrace<'bump>>>,
-    /// Number of frames between the call site of `capture_backtrace` and the first
-    /// saved frame (which should be the QIS call site in the user program).
-    /// Automatically set the first time a backtrace is captured.
-    frame_skip: Option<usize>,
+    /// The global frame skip is the frame index of the *caller* of `capture_backtrace`.
+    /// It is calculated when the engine is constructed by calling
+    /// `calibrate_global_frame_skip`. The IP of the frame at this index is used as a
+    /// key to `frame_skip_by_site`.
+    global_frame_skip: usize,
+    /// Map from call-site IP to the number of frames to skip for that call site.
+    /// The call-site IP is the IP of the direct caller of `capture_backtrace`
+    /// (the frame at the index given by `global_frame_skip`). Calibrated once
+    /// per unique call site.
+    frame_skip_by_site: HashMap<usize, usize>,
     /// Landing zone for trace data (see capture_backtrace)  
     staging: Option<BoxedBacktrace<'bump>>,
     // TODO: enforce and remove lifetime hacking
     /// Bump allocator which provides backing memory. Must be dropped last!
     allocator: Bump,
+}
+
+impl<'bump> Default for BacktraceEngine<'bump> {
+    fn default() -> Self {
+        Self {
+            existing_traces: Default::default(),
+            global_frame_skip: calibrate_global_frame_skip(),
+            frame_skip_by_site: Default::default(),
+            staging: Default::default(),
+            allocator: Default::default(),
+        }
+    }
 }
 
 impl<'bump> BacktraceEngine<'bump> {
@@ -98,10 +145,13 @@ impl<'bump> BacktraceEngine<'bump> {
     const SKIP_PAST_C_API: usize = 2;
     const MAX_FRAMES_TO_SEARCH: usize = 10;
 
-    /// Get the frame skip count, finding it if it is not yet set.
-    #[inline(never)]
-    fn get_frame_skip(&mut self) -> usize {
-        if let Some(skip_count) = self.frame_skip {
+    /// Get the frame skip count for the given call-site IP, calibrating if not yet known.
+    ///
+    /// `call_site_ip` should be the IP of frame index 1 as seen from within
+    /// `capture_backtrace` (i.e. the direct caller of `capture_backtrace`).
+    #[inline(always)]
+    fn get_frame_skip(&mut self, call_site_ip: usize) -> usize {
+        if let Some(&skip_count) = self.frame_skip_by_site.get(&call_site_ip) {
             skip_count
         } else {
             let mut skip_count = 0;
@@ -136,13 +186,27 @@ impl<'bump> BacktraceEngine<'bump> {
             // adjust to skip callers above the selene C API
             skip_count += Self::SKIP_PAST_C_API;
 
-            self.frame_skip = Some(skip_count);
+            self.frame_skip_by_site.insert(call_site_ip, skip_count);
             skip_count
         }
     }
 
+    #[inline(never)]
     pub fn capture_backtrace(&mut self, n_capture: usize) -> u64 {
-        let frame_skip = self.get_frame_skip();
+        // Capture the IP of the direct caller of this function
+        let mut call_site_ip: usize = 0;
+        let mut frame_idx = 0usize;
+        trace(|frame: &Frame| {
+            if frame_idx == self.global_frame_skip {
+                call_site_ip = frame.ip() as usize;
+                false // stop after finding the call site
+            } else {
+                frame_idx += 1;
+                true
+            }
+        });
+
+        let frame_skip = self.get_frame_skip(call_site_ip);
         // We need to pass a `'bump Bump` to use the bumpalo containers.
         // But we cannot safely materialize a `&'bump self`, because rustc is not
         // convinced that Self outlives the Bump. So we do this instead.
@@ -280,14 +344,17 @@ impl ResolvedBacktrace {
 mod tests {
     use super::*;
 
+    // no_mangle prevents ICF from folding this with frame0b, which has identical code.
     #[inline(never)]
-    fn frame0(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
+    #[unsafe(no_mangle)]
+    extern "C" fn frame0(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
+        let engine = unsafe { &mut *engine };
         engine.capture_backtrace(n_cap)
     }
 
     #[inline(never)]
     fn frame1(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
-        frame0(engine, n_cap)
+        frame0(engine as *mut BacktraceEngine, n_cap)
     }
 
     // this function should match the rules in `is_c_api_sym()`.
@@ -365,5 +432,85 @@ mod tests {
             assert_eq!(orig.line, dec.line);
             assert_eq!(orig.column, dec.column);
         }
+    }
+
+    // A second synthetic call chain at a different stack depth from cap_synth_backtrace,
+    // used to verify that per-call-site calibration produces a correct result for
+    // both call sites independently.
+    //
+    // no_mangle prevents ICF from folding this with frame0, which has identical code.
+    #[inline(never)]
+    #[unsafe(no_mangle)]
+    extern "C" fn frame0b(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
+        let engine = unsafe { &mut *engine };
+        engine.capture_backtrace(n_cap)
+    }
+
+    #[inline(never)]
+    fn frame1b(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
+        frame0b(engine as *mut BacktraceEngine, n_cap)
+    }
+
+    #[inline(never)]
+    fn frame2b(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
+        frame1b(engine, n_cap)
+    }
+
+    // this function should match the rules in `is_c_api_sym()`.
+    //
+    // no_mangle is used only to ensure the name is preserved -
+    // this module is not intended for FFI use.
+    #[inline(never)]
+    #[unsafe(no_mangle)]
+    fn selene_frameb(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
+        let eref = unsafe { &mut *engine };
+        frame2b(eref, n_cap)
+    }
+
+    #[inline(never)]
+    fn frame4b(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
+        selene_frameb(engine, n_cap)
+    }
+
+    #[inline(never)]
+    fn cap_synth_backtrace_b(engine: &mut BacktraceEngine, n_cap: usize) -> u64 {
+        frame4b(engine, n_cap)
+    }
+
+    /// Verify that two call sites at different stack depths each produce a valid,
+    /// non-empty backtrace, demonstrating that per-call-site calibration works
+    /// independently for each site.
+    #[test]
+    fn test_per_callsite_calibration() {
+        let mut engine = BacktraceEngine::default();
+
+        let bt_a = cap_synth_backtrace(&mut engine, 3);
+        let bt_b = cap_synth_backtrace_b(&mut engine, 3);
+
+        // Each should resolve to at least one non-empty, symbolicated frame.
+        let resolved_a = ResolvedBacktrace::from_unresolved(bt_a);
+        let resolved_b = ResolvedBacktrace::from_unresolved(bt_b);
+
+        assert!(
+            !resolved_a.frames.is_empty(),
+            "expected at least one frame from call site A"
+        );
+        assert!(
+            !resolved_b.frames.is_empty(),
+            "expected at least one frame from call site B"
+        );
+
+        // Both call sites should produce distinct backtraces.
+        assert_ne!(
+            bt_a, bt_b,
+            "expected different backtraces from different call sites"
+        );
+
+        // Both call sites should be calibrated and cached.
+        assert_eq!(
+            engine.frame_skip_by_site.len(),
+            2,
+            "expected exactly two calibrated call sites"
+        );
     }
 }
