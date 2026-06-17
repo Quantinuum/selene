@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
-    metadata::{BacktraceEngine, DEBUG_INFO_TAG, ResolvedBacktrace},
+    metadata::{BacktraceEngine, DEBUG_INFO_TAG, DEFAULT_ANCHOR_FNS, ResolvedBacktrace},
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
@@ -74,7 +74,7 @@ impl SimpleRuntime {
             future_results: Vec::with_capacity(1000),
             start,
             params,
-            backtrace_engine: BacktraceEngine::default(),
+            backtrace_engine: BacktraceEngine::new(DEFAULT_ANCHOR_FNS, 1),
         }
     }
 

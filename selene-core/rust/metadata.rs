@@ -5,7 +5,7 @@
 //! [`ResolvedSrcLocation`] entries suitable for serialisation.
 
 use core::ptr::NonNull;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 
 use backtrace::{BacktraceFrame, BacktraceSymbol, Frame, Symbol, resolve, trace};
@@ -50,7 +50,7 @@ fn calibrate_global_frame_skip() -> usize {
         let mut frame: BacktraceFrame = frame.clone().into();
         frame.resolve();
         for (_i, sym) in frame.symbols().iter().enumerate() {
-            let name = format!("{}", sym.name().expect("should be symbolicated"));
+            let name = sym.name().expect("should be symbolicated").to_string();
             if name.contains("calibrate_global_frame_skip") {
                 debug_assert!(
                     _i == frame.symbols().len() - 1,
@@ -70,23 +70,50 @@ fn calibrate_global_frame_skip() -> usize {
     frame_count + 1
 }
 
+/// Default set of anchor function names, matching all public functions in
+/// `selene-ext/interfaces/helios_qis/c/src/helios_ops.c`.
+pub const DEFAULT_ANCHOR_FNS: &[&str] = &[
+    "___qalloc",
+    "___qfree",
+    "___rxy",
+    "___rzz",
+    "___rz",
+    "___reset",
+    "___measure",
+    "___lazy_measure",
+    "___lazy_measure_leaked",
+    "___dec_future_refcount",
+    "___inc_future_refcount",
+    "___read_future_bool",
+    "___read_future_uint",
+    "set_tc",
+    "get_tc",
+    "setup",
+    "teardown",
+    "___barrier",
+    "___sleep",
+];
+
 /// Class which manages backtraces, including efficient allocation and deduplication.
 pub struct BacktraceEngine<'bump> {
+    /// Set of function names used as "interface frames".
+    /// Backtraces are collected starting at the callers of these frames.
+    interface_fns: HashSet<String>,
     /// Map from backtrace hash to existing backtraces
-    /// The key is the hash itself - the lookup is only used when a new backtrace is /
+    /// The key is the hash itself - the lookup is only used when a new backtrace is
     /// constructed, to perform deduplication. For performance, we create the hash as part
     /// of constructing the backtrace rather than implementing Hash.
     existing_traces: HashMap<u64, NonNull<UnresolvedBacktrace<'bump>>>,
-    /// The global frame skip is the frame index of the *caller* of `capture_backtrace`.
-    /// It is calculated when the engine is constructed by calling
-    /// `calibrate_global_frame_skip`. The IP of the frame at this index is used as a
-    /// key to `frame_skip_by_site`.
+    /// The global frame skip is the frame index of the caller of `capture_backtrace`,
+    /// which can vary based on compile-time inlining decisions. It is calculated when the
+    /// engine is constructed by calling `calibrate_global_frame_skip`. The IP of the
+    /// frame at this index is considered the unique identifier of a call site, and is
+    /// used as a key to `site_frame_skips`.
     global_frame_skip: usize,
     /// Map from call-site IP to the number of frames to skip for that call site.
-    /// The call-site IP is the IP of the direct caller of `capture_backtrace`
-    /// (the frame at the index given by `global_frame_skip`). Calibrated once
-    /// per unique call site.
-    frame_skip_by_site: HashMap<usize, usize>,
+    /// The call-site IP is the IP of the direct caller of `capture_backtrace`.
+    /// Calibrated once per unique call site.
+    site_frame_skips: HashMap<usize, usize>,
     /// Landing zone for trace data (see capture_backtrace)  
     staging: Option<BoxedBacktrace<'bump>>,
     // TODO: enforce and remove lifetime hacking
@@ -94,55 +121,54 @@ pub struct BacktraceEngine<'bump> {
     allocator: Bump,
 }
 
-impl<'bump> Default for BacktraceEngine<'bump> {
-    fn default() -> Self {
+impl<'bump> BacktraceEngine<'bump> {
+    /// Create a new `BacktraceEngine`.
+    ///
+    /// Args:
+    /// - interface_fns: a set of function names which define the boundary between
+    ///   Selene and user code (i.e., where we want to start saving frames).
+    ///   This should be provided by the interface plugin.
+    ///
+    /// - user_skip: The number of frames between the `RuntimePlugin` trait methods
+    ///   and the call to `create_backtrace`. For instance, the simple
+    ///   runtime's interface methods call a `push` method which creates the actual
+    ///   backtrace, so it sets user_skip=1.
+    ///
+    ///   This value must be the same for all backtraces created with a given
+    ///   `BacktraceEngine`. In addition, intermediate frames included in the count
+    ///   must be marked with the `inline(never)` attribute to ensure the skip count
+    ///   remains correct across all build configurations.
+    pub fn new(interface_fns: impl IntoIterator<Item: AsRef<str>>, user_skip: usize) -> Self {
         Self {
+            interface_fns: interface_fns
+                .into_iter()
+                .map(|s| s.as_ref().to_owned())
+                .collect(),
             existing_traces: Default::default(),
-            global_frame_skip: calibrate_global_frame_skip(),
-            frame_skip_by_site: Default::default(),
+            global_frame_skip: calibrate_global_frame_skip() + user_skip,
+            site_frame_skips: Default::default(),
             staging: Default::default(),
             allocator: Default::default(),
         }
     }
-}
 
-impl<'bump> BacktraceEngine<'bump> {
-    // TODO: just use a proper regex...
-    /// We look for the Selene C API to determine the number of frames to skip.
-    /// The C API is chosen because:
-    /// - names are more greppable than the QIS API
-    /// - both QIS and C API are external interfaces that cannot be inlined,
-    ///   so as long as the former always calls the latter directly the frame
-    ///   relationship is well-known.
-    fn is_c_api_sym(sym: &BacktraceSymbol) -> bool {
-        let name_obj = sym
+    fn is_interface_frame(&self, sym: &BacktraceSymbol) -> bool {
+        let name = sym
             .name()
-            .expect("symbols passed to this function should be symbolicated");
-        // use Display to get the demangled name.
-        let name = format!("{name_obj}");
+            .expect("symbols passed to this function should be symbolicated")
+            .to_string();
 
-        // Functions in the C API do not have path separators.
-        if name.contains(":") {
-            return false;
-        }
-
-        // remove the _ prepended by macos if present
-        // TODO: compile-time config?
-        let name_canonical = name
-            .strip_prefix("_") // MacOS prepends an extra '_'
-            .or_else(|| Some(&name))
-            .unwrap();
-
-        // functions in the C API start with 'selene_', and are not followed by `runtime`.
-        if let Some(next_component) = name_canonical.strip_prefix("selene_") {
-            !next_component.starts_with("runtime")
+        // On macOS the Darwin linker prepends an extra '_' to C symbols,
+        // remove it before checking for matches
+        let name_canonical = if std::env::consts::OS == "macos" {
+            name.strip_prefix('_').unwrap_or(&name)
         } else {
-            false
-        }
+            &name
+        };
+
+        self.interface_fns.contains(name_canonical)
     }
 
-    /// Number of frames to skip past the Selene C API
-    const SKIP_PAST_C_API: usize = 2;
     const MAX_FRAMES_TO_SEARCH: usize = 10;
 
     /// Get the frame skip count for the given call-site IP, calibrating if not yet known.
@@ -151,7 +177,7 @@ impl<'bump> BacktraceEngine<'bump> {
     /// `capture_backtrace` (i.e. the direct caller of `capture_backtrace`).
     #[inline(always)]
     fn get_frame_skip(&mut self, call_site_ip: usize) -> usize {
-        if let Some(&skip_count) = self.frame_skip_by_site.get(&call_site_ip) {
+        if let Some(&skip_count) = self.site_frame_skips.get(&call_site_ip) {
             skip_count
         } else {
             let mut skip_count = 0;
@@ -160,14 +186,27 @@ impl<'bump> BacktraceEngine<'bump> {
                 frame.resolve();
                 let syms = frame.symbols();
                 for (i, sym) in syms.iter().enumerate() {
-                    if Self::is_c_api_sym(sym) {
+                    if self.is_interface_frame(sym) {
                         // must be the outermost symbol in the frame (not inlined)
                         if i != syms.len() - 1 {
-                            panic!("C API frame was inlined, or detection function is wrong")
+                            panic!("interface frame was inlined, or detection function is wrong")
                         }
-                        return false; // we have found the anchor frame
+                        return false; // we have found an interface frame
                     }
                 }
+
+                debug_assert!(
+                    skip_count != (self.global_frame_skip - 1)
+                        || syms
+                            .iter()
+                            .last()
+                            .unwrap()
+                            .name()
+                            .unwrap()
+                            .to_string()
+                            .contains("capture_backtrace"),
+                    "global skip count calibrated incorrectly"
+                );
 
                 // frame not found, continue until we hit the max
                 skip_count += 1;
@@ -176,17 +215,15 @@ impl<'bump> BacktraceEngine<'bump> {
 
             if skip_count == Self::MAX_FRAMES_TO_SEARCH {
                 panic!(
-                    "Could not find anchor frame for debug backtrace within {} frames",
+                    "Could not find interface frame for debug backtrace within {} frames",
                     Self::MAX_FRAMES_TO_SEARCH
                 );
             }
 
-            // adjust for this function's frame
-            skip_count -= 1;
-            // adjust to skip callers above the selene C API
-            skip_count += Self::SKIP_PAST_C_API;
+            // +1 because we want the caller of the interface frame
+            skip_count += 1;
 
-            self.frame_skip_by_site.insert(call_site_ip, skip_count);
+            self.site_frame_skips.insert(call_site_ip, skip_count);
             skip_count
         }
     }
@@ -231,7 +268,7 @@ impl<'bump> BacktraceEngine<'bump> {
                 let ip = frame.ip();
                 hash ^= ip as u64;
                 // SAFETY: the instruction pointer returned by the library must be
-                // non-null
+                // non-null.
                 staging.frames.push(unsafe { NonNull::new_unchecked(ip) });
 
                 count += 1;
@@ -344,9 +381,7 @@ impl ResolvedBacktrace {
 mod tests {
     use super::*;
 
-    // no_mangle prevents ICF from folding this with frame0b, which has identical code.
     #[inline(never)]
-    #[unsafe(no_mangle)]
     extern "C" fn frame0(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
         let engine = unsafe { &mut *engine };
         engine.capture_backtrace(n_cap)
@@ -357,7 +392,7 @@ mod tests {
         frame0(engine as *mut BacktraceEngine, n_cap)
     }
 
-    // this function should match the rules in `is_c_api_sym()`.
+    // this function serves as the anchor frame for the first synthetic call chain.
     //
     // no_mangle is used only to ensure the name is preserved -
     // this module is not intended for FFI use.
@@ -380,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_create_captures_frames() {
-        let mut engine = BacktraceEngine::default();
+        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
         let bt_ptr = cap_synth_backtrace(&mut engine, 3) as *mut UnresolvedBacktrace;
         let mut bt_nn = NonNull::new(bt_ptr).unwrap();
         let bt = unsafe { bt_nn.as_mut() };
@@ -393,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_deduplication() {
-        let mut engine = BacktraceEngine::default();
+        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
         let bt1 = cap_synth_backtrace(&mut engine, 1);
         let bt2 = cap_synth_backtrace(&mut engine, 1);
         assert!(bt1 == bt2, "expected backtraces to be deduplicated");
@@ -401,7 +436,7 @@ mod tests {
 
     #[test]
     fn test_resolved_has_symbols() {
-        let mut engine = BacktraceEngine::default();
+        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
         let bt_ref = cap_synth_backtrace(&mut engine, 5);
         let resolved = ResolvedBacktrace::from_unresolved(bt_ref);
         assert!(
@@ -419,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_serialize_roundtrip() {
-        let mut engine = BacktraceEngine::default();
+        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
         let bt_ref = cap_synth_backtrace(&mut engine, 3);
         let resolved = ResolvedBacktrace::from_unresolved(bt_ref);
         let bytes = resolved.serialize_msgpack().expect("serialization failed");
@@ -437,10 +472,7 @@ mod tests {
     // A second synthetic call chain at a different stack depth from cap_synth_backtrace,
     // used to verify that per-call-site calibration produces a correct result for
     // both call sites independently.
-    //
-    // no_mangle prevents ICF from folding this with frame0, which has identical code.
     #[inline(never)]
-    #[unsafe(no_mangle)]
     extern "C" fn frame0b(engine: *mut BacktraceEngine, n_cap: usize) -> u64 {
         let engine = unsafe { &mut *engine };
         engine.capture_backtrace(n_cap)
@@ -456,7 +488,7 @@ mod tests {
         frame1b(engine, n_cap)
     }
 
-    // this function should match the rules in `is_c_api_sym()`.
+    // this function serves as the anchor frame for the second synthetic call chain.
     //
     // no_mangle is used only to ensure the name is preserved -
     // this module is not intended for FFI use.
@@ -477,12 +509,12 @@ mod tests {
         frame4b(engine, n_cap)
     }
 
-    /// Verify that two call sites at different stack depths each produce a valid,
-    /// non-empty backtrace, demonstrating that per-call-site calibration works
+    /// Verify that two call sites at different stack depths each produce disjoint,
+    /// valid, non-empty backtraces, demonstrating that per-call-site calibration works
     /// independently for each site.
     #[test]
     fn test_per_callsite_calibration() {
-        let mut engine = BacktraceEngine::default();
+        let mut engine = BacktraceEngine::new(["selene_frame", "selene_frameb"], 0);
 
         let bt_a = cap_synth_backtrace(&mut engine, 3);
         let bt_b = cap_synth_backtrace_b(&mut engine, 3);
@@ -508,7 +540,7 @@ mod tests {
 
         // Both call sites should be calibrated and cached.
         assert_eq!(
-            engine.frame_skip_by_site.len(),
+            engine.site_frame_skips.len(),
             2,
             "expected exactly two calibrated call sites"
         );
