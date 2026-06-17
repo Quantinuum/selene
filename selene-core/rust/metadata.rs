@@ -273,6 +273,17 @@ impl<'bump> BacktraceEngine<'bump> {
             raw_ptr.as_ptr() as u64
         }
     }
+
+    /// Convert a reference to an unresolved backtrace into a `ResolvedBacktrace`
+    /// by looking up its symbols in the binary. `bt_ref` must have been
+    /// returned by a call to `capture_backtrace` on this engine.
+    pub fn resolve_backtrace(&self, bt_ref: u64) -> ResolvedBacktrace {
+        // The engine is not actually used here, but making resolution only accessible
+        // through an instance method ensures that users cannot try to resolve a
+        // backtrace after the underlying memory has been freed (unless they use
+        // multiple BacktraceEngines, which is not expected).
+        ResolvedBacktrace::from_unresolved(bt_ref)
+    }
 }
 
 impl<'bump> Drop for BacktraceEngine<'bump> {
@@ -326,12 +337,14 @@ impl ResolvedBacktrace {
     /// Symbolicate the frames in `input` and convert them to wire format.
     /// `input` must have been returned by a `BacktraceEngine` which has not
     /// yet been dropped.
-    pub fn from_unresolved(bt_ref: u64) -> Self {
+    fn from_unresolved(bt_ref: u64) -> Self {
         let mut ptr =
             NonNull::new(bt_ref as *mut UnresolvedBacktrace).expect("`bt_ref` should be nonzero");
         // SAFETY: `bt_ref` must have been returned by a call to
         // `BacktraceEngine::capture_backtrace` on an engine which has not yet been
-        // dropped.
+        // dropped. This should be guaranteed if this ctor is always invoked through
+        // `BacktraceEngine::resolve_backtrace`, as expected, and the user does not pass
+        // a ref created by a different BacktraceEngine.
         let unresolved = unsafe { ptr.as_mut() };
         let mut output = Self {
             frames: Vec::with_capacity(unresolved.frames.len()),

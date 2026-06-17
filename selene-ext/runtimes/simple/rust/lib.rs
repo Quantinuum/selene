@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
-    metadata::{BacktraceEngine, DEBUG_INFO_TAG, ResolvedBacktrace},
+    metadata::{BacktraceEngine, DEBUG_INFO_TAG},
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
@@ -140,11 +140,14 @@ impl RuntimeInterface for SimpleRuntime {
         };
         let mut ops = Vec::with_capacity(2);
         if let Some(bt_ref) = queued.bt_ref {
-            let resolved = ResolvedBacktrace::from_unresolved(bt_ref);
-            if let Ok(data) = resolved.serialize_msgpack() {
+            let resolved = self
+                .backtrace_engine
+                .as_ref()
+                .map(|engine| engine.resolve_backtrace(bt_ref));
+            if let Some(res_bt) = resolved {
                 ops.push(Operation::Custom {
                     custom_tag: DEBUG_INFO_TAG,
-                    data: data.into_boxed_slice(),
+                    data: res_bt.serialize_msgpack()?.into_boxed_slice(),
                 });
             }
         }
