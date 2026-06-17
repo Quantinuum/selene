@@ -44,6 +44,18 @@ struct Params {
     /// Provided by the interface plugin via the build system.
     #[arg(long = "interface-fn")]
     interface_fns: Vec<String>,
+    /// Enable backtrace capture for queued operations.
+    ///
+    /// When unset (the default), no `BacktraceEngine` is constructed and
+    /// operations are emitted without debug-info `Custom` entries. Callers
+    /// that want backtrace metadata in the operation stream must opt in by
+    /// passing this flag and supplying `--interface-fn` entries that anchor
+    /// the engine's frame-skip calibration. Contexts without a compiled
+    /// user program (e.g. the interactive Python driver) should leave this
+    /// off, since there are no meaningful user frames to capture and the
+    /// calibration would otherwise panic.
+    #[arg(long = "enable-backtrace")]
+    enable_backtrace: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,12 +79,16 @@ struct SimpleRuntime {
     future_results: Vec<FutureResult>,
     start: selene_core::time::Instant,
     params: Params,
-    backtrace_engine: BacktraceEngine<'static>,
+    backtrace_engine: Option<BacktraceEngine<'static>>,
 }
 
 impl SimpleRuntime {
     pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
-        let backtrace_engine = BacktraceEngine::new(&params.interface_fns, 1);
+        let backtrace_engine = if params.enable_backtrace {
+            Some(BacktraceEngine::new(&params.interface_fns, 1))
+        } else {
+            None
+        };
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
@@ -95,7 +111,10 @@ impl SimpleRuntime {
             Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
             _ => 0,
         };
-        let bt_ref = Some(self.backtrace_engine.capture_backtrace(FRAME_CAP));
+        let bt_ref = self
+            .backtrace_engine
+            .as_mut()
+            .map(|engine| engine.capture_backtrace(FRAME_CAP));
         let start = self.start;
         self.start += duration_ns.into();
         self.operation_queue.push_back(QueuedOp {

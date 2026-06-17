@@ -340,6 +340,14 @@ class InteractiveFullStack:
         self.simulator = simulator
         self.runtime = runtime or SimpleRuntime()
         self.error_model = error_model or IdealErrorModel()
+        # Interactive mode drives the runtime from Python, so any backtraces
+        # captured by the runtime would refer to Python's C call frames rather
+        # than meaningful user code. Disable backtrace capture on runtimes
+        # that support it (currently SimpleRuntime), both to avoid wasted
+        # work and to avoid the BacktraceEngine panicking when no interface
+        # function symbols are available to anchor calibration.
+        if hasattr(self.runtime, "enable_backtrace"):
+            self.runtime.enable_backtrace = False
 
         try:
             config_data = self._build_configuration(

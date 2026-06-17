@@ -418,6 +418,11 @@ class InteractiveRuntime:
         self._instance = SeleneRuntimeInstancePtr()
         if runtime.random_seed is None:
             runtime.random_seed = random.randint(0, 2**64 - 1)
+        # See InteractiveFullStack: backtraces captured from Python-driven
+        # interactive use cannot reference meaningful user code, so we
+        # disable them on runtimes that support the toggle.
+        if hasattr(runtime, "enable_backtrace"):
+            runtime.enable_backtrace = False
         self.runtime = runtime
         self.n_qubits = n_qubits
         self.shot_id = 0
