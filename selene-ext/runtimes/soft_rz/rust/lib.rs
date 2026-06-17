@@ -22,6 +22,10 @@ struct Params {
     duration_ns_measure_leaked: u64,
     #[arg(long)]
     max_batch_size: usize,
+    /// Accepted for compatibility with the interface symbol injection
+    /// protocol, but not used by this runtime.
+    #[arg(long = "interface-fn")]
+    _interface_fns: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

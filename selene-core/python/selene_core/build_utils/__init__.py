@@ -9,6 +9,7 @@ from .symbols import (
     SymbolTable,  # noqa: F401
     get_symbols_from_object,  # noqa: F401
     get_symbols_from_llvm,  # noqa: F401
+    get_exported_symbols,  # noqa: F401
 )
 
 

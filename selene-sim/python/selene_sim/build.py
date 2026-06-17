@@ -55,10 +55,12 @@ def _collect_libdeps(
     planner: BuildPlanner,
     interface: QuantumInterface | None,
     utilities: Sequence[Utility] | None,
-) -> list[LibDep]:
+) -> tuple[list[LibDep], QuantumInterface]:
     """
     Collects the library dependencies for the selene build process,
     and registers the chosen quantum interface with the planner.
+
+    Returns the list of library dependencies and the resolved interface.
     """
     if interface is None:
         from selene_helios_qis_plugin import HeliosInterface
@@ -68,7 +70,7 @@ def _collect_libdeps(
     interface.register_build_steps(planner)
     for u in utilities or []:
         deps.extend(LibDep.from_plugin(u))
-    return deps
+    return deps, interface
 
 
 def build(
@@ -174,7 +176,7 @@ def build(
     # from the interface and utilities passed in. This is necessary for
     # interfaces and utilities to be able to customise the final build,
     # e.g. adding link path arguments.
-    deps = _collect_libdeps(planner, interface, utilities)
+    deps, resolved_interface = _collect_libdeps(planner, interface, utilities)
 
     if "build_method" not in cfg:
         # If the build method is not provided, default to VIA_LLVM_BITCODE
@@ -265,8 +267,15 @@ def build(
             f"Expected library_path to be a directory, but it is not: {p}"
         )
 
+    interface_symbols = sorted(resolved_interface.get_interface_symbols())
+
     instance = SeleneInstance(
-        instance_root, artifact_dir, run_dir, executable_artifact, library_search_dirs
+        instance_root,
+        artifact_dir,
+        run_dir,
+        executable_artifact,
+        library_search_dirs,
+        interface_symbols,
     )
     instance.write_manifest(
         {

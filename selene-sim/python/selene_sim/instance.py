@@ -58,6 +58,7 @@ class SeleneInstance:
     runs: Path
     executable: Path
     library_search_dirs: list[Path]
+    interface_symbols: list[str]
 
     def __post_init__(self):
         """
@@ -226,6 +227,9 @@ class SeleneInstance:
             "error_model": self._get_component_config(error_model, random_seed),
             "runtime": self._get_component_config(runtime, random_seed),
         }
+        # Inject interface symbols so the runtime can calibrate its backtrace engine
+        for sym in self.interface_symbols:
+            global_configuration["runtime"]["args"].append(f"--interface-fn={sym}")
         with TCPStream(
             timeout=timeout,
             logfile=results_logfile,

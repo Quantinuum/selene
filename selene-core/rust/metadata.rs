@@ -70,30 +70,6 @@ fn calibrate_global_frame_skip() -> usize {
     frame_count + 1
 }
 
-/// Default set of anchor function names, matching all public functions in
-/// `selene-ext/interfaces/helios_qis/c/src/helios_ops.c`.
-pub const DEFAULT_ANCHOR_FNS: &[&str] = &[
-    "___qalloc",
-    "___qfree",
-    "___rxy",
-    "___rzz",
-    "___rz",
-    "___reset",
-    "___measure",
-    "___lazy_measure",
-    "___lazy_measure_leaked",
-    "___dec_future_refcount",
-    "___inc_future_refcount",
-    "___read_future_bool",
-    "___read_future_uint",
-    "set_tc",
-    "get_tc",
-    "setup",
-    "teardown",
-    "___barrier",
-    "___sleep",
-];
-
 /// Class which manages backtraces, including efficient allocation and deduplication.
 pub struct BacktraceEngine<'bump> {
     /// Set of function names used as "interface frames".

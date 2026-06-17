@@ -79,6 +79,46 @@ def get_symbols_from_object(object: Path | bytes) -> SymbolTable:
         )
 
 
+def get_exported_symbols(object: Path | bytes) -> set[str]:
+    """
+    Extract the publicly exported symbol names from a shared library or object file.
+
+    Unlike get_symbols_from_object, this returns only symbols that are visible
+    to external consumers of the library (i.e. the public API).
+
+    Returns an empty set for formats that LIEF cannot parse (e.g. static
+    archives), since these do not export symbols in the dynamic linking sense.
+    """
+    import lief
+
+    lief_input: Path | list[int] = list(object) if isinstance(object, bytes) else object
+    binary = lief.parse(lief_input)
+
+    if binary is None:
+        return set()
+
+    if isinstance(binary, lief.ELF.Binary):
+        return {str(sym.name) for sym in binary.exported_symbols}
+
+    elif isinstance(binary, lief.MachO.Binary):
+
+        def demangle(name: str):
+            return str(name[1:] if name.startswith("_") else name)
+
+        return {demangle(str(sym.name)) for sym in binary.exported_symbols}
+
+    elif isinstance(binary, (lief.PE.Binary, lief.COFF.Binary)):
+        return {
+            str(sym.name)
+            for sym in binary.symbols
+            if sym.is_external and not sym.is_undefined
+        }
+
+    raise NotImplementedError(
+        f"Unsupported binary format {type(binary)} for exported symbol extraction"
+    )
+
+
 def get_symbols_from_llvm(contents: str | Path | bytes) -> SymbolTable:
     """
     Extract symbols from LLVM (IR as a string or path, or bitcode as a string or path).

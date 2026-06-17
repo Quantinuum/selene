@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
-    metadata::{BacktraceEngine, DEBUG_INFO_TAG, DEFAULT_ANCHOR_FNS, ResolvedBacktrace},
+    metadata::{BacktraceEngine, DEBUG_INFO_TAG, ResolvedBacktrace},
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
@@ -40,6 +40,10 @@ struct Params {
     duration_ns_reset: u64,
     #[arg(long)]
     duration_ns_measure_leaked: u64,
+    /// Interface function names used to calibrate the backtrace engine.
+    /// Provided by the interface plugin via the build system.
+    #[arg(long = "interface-fn")]
+    interface_fns: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,13 +72,14 @@ struct SimpleRuntime {
 
 impl SimpleRuntime {
     pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
+        let backtrace_engine = BacktraceEngine::new(&params.interface_fns, 1);
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
             future_results: Vec::with_capacity(1000),
             start,
             params,
-            backtrace_engine: BacktraceEngine::new(DEFAULT_ANCHOR_FNS, 1),
+            backtrace_engine,
         }
     }
 

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from .build_utils import BuildPlanner
+from .build_utils.symbols import get_exported_symbols
 
 
 @dataclass
@@ -62,3 +63,14 @@ class QuantumInterface(ABC):
         build steps.
         """
         pass
+
+    def get_interface_symbols(self) -> set[str]:
+        """
+        Returns the publicly exported symbols from this interface and all
+        of its dependencies. These are the symbols that form the boundary
+        between the interface and user code.
+        """
+        symbols = get_exported_symbols(self.library_file)
+        for dep in self.dependencies:
+            symbols |= dep.get_interface_symbols()
+        return symbols
