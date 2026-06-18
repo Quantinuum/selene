@@ -17,6 +17,7 @@ dependencies = [
   "pydantic>=2.12.5",
   "pydot>=4.0.0",
   "pyyaml~=6.0",
+  "symbolic>=13.0",
   "typing_extensions>=4",
   "ziglang~=0.13",
 ]

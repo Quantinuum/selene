@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
-    metadata::{BacktraceEngine, DEBUG_INFO_TAG},
+    metadata::{BacktraceEngine, DEBUG_INFO_TAG, DEBUG_MODULE_TAG},
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
@@ -138,16 +138,22 @@ impl RuntimeInterface for SimpleRuntime {
         let Some(queued) = self.operation_queue.pop_front() else {
             return Ok(None);
         };
-        let mut ops = Vec::with_capacity(2);
+        let mut ops = Vec::with_capacity(4);
         if let Some(bt_ref) = queued.bt_ref {
-            let resolved = self
-                .backtrace_engine
-                .as_ref()
-                .map(|engine| engine.resolve_backtrace(bt_ref));
-            if let Some(res_bt) = resolved {
+            if let Some(engine) = self.backtrace_engine.as_mut() {
+                // Emit any newly-discovered modules first so that
+                // downstream consumers can interpret the module ids in
+                // the following DEBUG_INFO op.
+                for blob in engine.serialize_pending_modules()? {
+                    ops.push(Operation::Custom {
+                        custom_tag: DEBUG_MODULE_TAG,
+                        data: blob.into_boxed_slice(),
+                    });
+                }
+                let payload = engine.serialize_backtrace(bt_ref)?;
                 ops.push(Operation::Custom {
                     custom_tag: DEBUG_INFO_TAG,
-                    data: res_bt.serialize_msgpack()?.into_boxed_slice(),
+                    data: payload.into_boxed_slice(),
                 });
             }
         }
