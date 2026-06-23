@@ -19,8 +19,7 @@ function, passing it into the callback.
 | User program | ------ | Static runtime   |
 |              |        |                  |
 ----------------        --------------------
-               \        /
-                \      /
+             |               |
           -----------------------     -------------------------
           |  Dynamic helios-qis |_____| Dynamic base QIS shim |
           |  shim interface     |     |  interface            |
