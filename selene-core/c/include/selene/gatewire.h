@@ -183,7 +183,9 @@ GwStatus gw_decoded_gate_value_at(const GwDecodedGate *gate, size_t index, GwGat
 
 GwStatus gw_decoded_gate_qubit_operand_count(const GwDecodedGate *gate, size_t *out);
 
-GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate, size_t qubit_index, uint32_t *out);
+GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate,
+                                          size_t qubit_index,
+                                          uint32_t *out);
 
 GwStatus gw_gateset_validate_decoded(const GwGateSet *set,
                                      const GwDecodedGate *gate,

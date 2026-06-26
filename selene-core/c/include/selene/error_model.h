@@ -170,3 +170,18 @@ typedef struct SeleneErrorModelPluginDescriptorV1 {
                                       size_t output_len,
                                       size_t *written);
 } SeleneErrorModelPluginDescriptorV1;
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+GwStatus gw_decoded_gate_qubit_operand_count(const GwDecodedGate *gate,
+                                             size_t *out);
+
+GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate,
+                                          size_t qubit_index,
+                                          uint32_t *out);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
