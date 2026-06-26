@@ -31,10 +31,10 @@ class DepolarizingPlugin(ErrorModel):
 
     def __post_init__(self):
         assert 0 <= self.p_1q <= 1, (
-            f"error_probability for p_1q ({self.p_q1}) must be between 0 and 1 (both inclusive)"
+            f"error_probability for p_1q ({self.p_1q}) must be between 0 and 1 (both inclusive)"
         )
         assert 0 <= self.p_2q <= 1, (
-            f"error_probability for p_2q ({self.p_q2}) must be between 0 and 1 (both inclusive)"
+            f"error_probability for p_2q ({self.p_2q}) must be between 0 and 1 (both inclusive)"
         )
         assert 0 <= self.p_meas <= 1, (
             f"error_probability for p_meas ({self.p_meas}) must be between 0 and 1 (both inclusive)"

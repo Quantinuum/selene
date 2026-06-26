@@ -23,8 +23,7 @@ public:
     MySimulator(std::uint64_t n_qubits);
     ~MySimulator();
     void next_shot(std::uint64_t seed);
-    void rzz(std::uint64_t q0, std::uint64_t q1, double theta);
-    void rxy(std::uint64_t q);
+    void gate(const GateInstance& gate);
     bool measure(std::uint64_t q);
     void reset(std::uint64_t q);
 }
@@ -39,8 +38,7 @@ struct MySimulator {
 impl MySimulator {
     fn new(n_qubits: u64) -> Self;
     fn next_shot(seed: u64);
-    fn rzz(&mut self, q0: u64, q1: u64, theta: f64);
-    fn rxy(&mut self, q: u64);
+    fn gate(&mut self, gate: &OwnedGateInstance);
     fn measure(&mut self, q: u64) -> bool;
     fn reset(&mut self, q: u64);
 }
@@ -57,8 +55,7 @@ struct MySimulator {
 void MySimulator_create(struct MySimulator** sim, uint64_t n_qubits);
 void MySimulator_destroy(struct MySimulator* sim);
 void MySimulator_next_shot(struct MySimulator* sim, uint64_t seed);
-void MySimulator_rzz(struct MySimulator* sim, uint64_t q0, uint64_t q1, double theta);
-void MySimulator_rxy(struct MySimulator* sim, uint64_t q);
+void MySimulator_gate(struct MySimulator* sim, const GateInstance* gate);
 bool MySimulator_measure(struct MySimulator* sim, uint64_t q);
 void MySimulator_reset(struct MySimulator* sim, uint64_t q);
 ```
@@ -69,8 +66,7 @@ and one that does not expose the internal state might look like:
 void MySimulator_create(void** sim, uint64_t n_qubits, uint64_t random_seed);
 void MySimulator_destroy(void* sim);
 void MySimulator_next_shot(void* sim, uint64_t seed);
-void MySimulator_rzz(void* sim, uint64_t q0, uint64_t q1, double theta);
-void MySimulator_rxy(void* sim, uint64_t q);
+void MySimulator_gate(void* sim, const GateInstance* gate);
 bool MySimulator_measure(void* sim, uint64_t q);
 void MySimulator_reset(void* sim, uint64_t q);
 ```
@@ -88,8 +84,8 @@ MySimulator_create(&instance_1, 10);
 MySimulator_create(&instance_2, 10);
 MySimulator_next_shot(instance_1, 1234);
 MySimulator_next_shot(instance_2, 1235);
-MySimulator_rzz(instance_1, 0, 1, 0.123);
-MySimulator_rzz(instance_2, 0, 1, 0.456);
+MySimulator_gate(instance_1, &gate_1);
+MySimulator_gate(instance_2, &gate_2);
 MySimulator_destroy(instance_1);
 MySimulator_destroy(instance_2);
 ```
@@ -121,7 +117,4 @@ and keeping lifetime management simple.
 One can define both of these with help from [helper.rs](./helper.rs), which allows
 them to use a normal Rust struct and implement the SimulatorHelper trait. A
 `export_simulator_plugin!(YourStructName)` macro invocation will provide
-`pub extern "C"` functions automatically. For testing purposes, the
-`crate_to_inline_simulator!()` macro utilises those same exposed functions to
-create an InlineSimulator, which is then usable in the selene-core simulator test framework.
-
+`pub extern "C"` functions automatically.

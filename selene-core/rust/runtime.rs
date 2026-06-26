@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::sync;
 
 pub use crate::operation::{
-    BatchOperation, BatchSource, ErrorModelBatchSource, Operation, RuntimeBatchSource,
+    BatchOperation, BatchSource, BuiltinGate, ErrorModelBatchSource, Operation, RuntimeBatchSource,
     SimulatorBatchSource,
 };
 pub use inline::{RuntimeFFIAdapter, RuntimeHandle, RuntimeOperationInterface};
@@ -18,7 +18,9 @@ pub use version::RuntimeAPIVersion;
 use crate::utils::{MetricValue, check_errno, read_raw_metric};
 use anyhow::{Result, anyhow};
 
+use crate::gatewire::{DynamicGateSet, OwnedGateInstance};
 use crate::operation::plugin::BatchBuilder;
+use crate::plugin as plugin_utils;
 
 enum RuntimeBacking {
     Adapter { _adapter: Box<RuntimeFFIAdapter> },
@@ -119,6 +121,15 @@ impl RuntimeInterface for Runtime {
         )
     }
 
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        plugin_utils::negotiate_gateset(
+            "Runtime",
+            self.handle.instance,
+            Some(self.handle.interface.negotiate_gateset_fn),
+            gateset,
+        )
+    }
+
     fn custom_call(&mut self, custom_tag: u64, data: &[u8]) -> Result<u64> {
         let mut result = 0;
         check_errno(
@@ -171,48 +182,13 @@ impl RuntimeInterface for Runtime {
         )
     }
 
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+    fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
+        let data = gate.serialize();
         check_errno(
             unsafe {
-                (self.handle.interface.rxy_gate_fn)(self.handle.instance, qubit_id, theta, phi)
+                (self.handle.interface.gate_fn)(self.handle.instance, data.as_ptr(), data.len())
             },
-            || anyhow!("Runtime: rxy_gate failed"),
-        )
-    }
-
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.handle.interface.rzz_gate_fn)(
-                    self.handle.instance,
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                )
-            },
-            || anyhow!("Runtime: rzz_gate failed"),
-        )
-    }
-
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.handle.interface.rz_gate_fn)(self.handle.instance, qubit_id, theta) },
-            || anyhow!("Runtime: rz_gate failed"),
-        )
-    }
-
-    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.handle.interface.rpp_gate_fn)(
-                    self.handle.instance,
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                )
-            },
-            || anyhow!("Runtime: rpp_gate failed"),
+            || anyhow!("Runtime: gate failed"),
         )
     }
 

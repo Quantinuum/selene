@@ -3,8 +3,10 @@ from __future__ import annotations
 import ctypes
 from pathlib import Path
 
-from selene_core import Simulator
+from selene_core import Gate, Gateset, Simulator
 import random
+
+from ._library import load_selene_global
 
 
 class SeleneSimulatorInstance(ctypes.Structure):
@@ -32,26 +34,6 @@ SimShotStartFn = ctypes.CFUNCTYPE(
     ctypes.c_uint64,
 )
 SimShotEndFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr)
-SimRxyFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_double,
-    ctypes.c_double,
-)
-SimRzFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_double,
-)
-SimRzzFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_double,
-)
 SimMeasureFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64)
 SimPostselectFn = ctypes.CFUNCTYPE(
     Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64, ctypes.c_bool
@@ -72,6 +54,21 @@ SimDumpStateFn = ctypes.CFUNCTYPE(
     ctypes.POINTER(ctypes.c_uint64),
     ctypes.c_uint64,
 )
+SimGateFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.c_size_t,
+)
+SimNegotiateGatesetFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneSimulatorInstancePtr,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_size_t),
+)
 
 
 class SimulatorPluginDescriptorV1(ctypes.Structure):
@@ -83,15 +80,13 @@ class SimulatorPluginDescriptorV1(ctypes.Structure):
         ("exit_fn", SimExitFn),
         ("shot_start_fn", SimShotStartFn),
         ("shot_end_fn", SimShotEndFn),
-        ("rxy_fn", SimRxyFn),
-        ("rz_fn", SimRzFn),
-        ("rzz_fn", SimRzzFn),
-        ("rpp_fn", ctypes.c_void_p),
         ("measure_fn", SimMeasureFn),
         ("postselect_fn", SimPostselectFn),
         ("reset_fn", SimResetFn),
         ("get_metrics_fn", SimGetMetricsFn),
         ("dump_state_fn", SimDumpStateFn),
+        ("gate_fn", SimGateFn),
+        ("negotiate_gateset_fn", SimNegotiateGatesetFn),
     ]
 
 
@@ -100,6 +95,7 @@ GetSimulatorDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(SimulatorPluginDescri
 
 class SeleneSimSimulatorLib(ctypes.CDLL):
     def __init__(self, simulator: Simulator) -> None:
+        load_selene_global()
         super().__init__(str(simulator.library_file))
         self._configure_signatures()
 
@@ -125,25 +121,22 @@ class SeleneSimSimulatorLib(ctypes.CDLL):
         self.selene_simulator_exit = descriptor.exit_fn
         self.selene_simulator_shot_start = descriptor.shot_start_fn
         self.selene_simulator_shot_end = descriptor.shot_end_fn
-        self.selene_simulator_operation_rxy = descriptor.rxy_fn
-        self.selene_simulator_operation_rz = descriptor.rz_fn
-        self.selene_simulator_operation_rzz = descriptor.rzz_fn
         self.selene_simulator_operation_measure = descriptor.measure_fn
         self.selene_simulator_operation_postselect = descriptor.postselect_fn
         self.selene_simulator_operation_reset = descriptor.reset_fn
         self.selene_simulator_get_metrics = descriptor.get_metrics_fn
         self.selene_simulator_dump_state = descriptor.dump_state_fn
+        self.selene_simulator_operation_gate = descriptor.gate_fn
+        self.selene_simulator_negotiate_gateset = descriptor.negotiate_gateset_fn
 
-        if self.selene_simulator_operation_rxy is None:
-            raise RuntimeError("Simulator plugin does not expose rxy_fn")
-        if self.selene_simulator_operation_rz is None:
-            raise RuntimeError("Simulator plugin does not expose rz_fn")
-        if self.selene_simulator_operation_rzz is None:
-            raise RuntimeError("Simulator plugin does not expose rzz_fn")
         if self.selene_simulator_operation_postselect is None:
             raise RuntimeError("Simulator plugin does not expose postselect_fn")
         if self.selene_simulator_get_metrics is None:
             raise RuntimeError("Simulator plugin does not expose get_metrics_fn")
+        if self.selene_simulator_operation_gate is None:
+            raise RuntimeError("Simulator plugin does not expose gate_fn")
+        if self.selene_simulator_negotiate_gateset is None:
+            raise RuntimeError("Simulator plugin does not expose negotiate_gateset_fn")
 
 
 class InteractiveSimulator:
@@ -152,12 +145,15 @@ class InteractiveSimulator:
         *,
         n_qubits: int,
         simulator: Simulator,
+        gateset: Gateset | None = None,
     ):
         self._lib = SeleneSimSimulatorLib(simulator)
         self._instance = SeleneSimulatorInstancePtr()
         if simulator.random_seed is None:
             simulator.random_seed = random.randint(0, 2**64 - 1)
         self.simulator = simulator
+        self.gateset = gateset
+        self.emitted_gateset: Gateset | None = None
         self.n_qubits = n_qubits
         self.shot_id = 0
         arguments = simulator.get_init_args()
@@ -168,6 +164,8 @@ class InteractiveSimulator:
             ctypes.byref(self._instance), n_qubits, argc, argv
         ):
             raise RuntimeError("Failed to initialize Selene simulator")
+        if self.gateset is not None:
+            self.emitted_gateset = self.register_gateset(self.gateset)
         if 0 != self._lib.selene_simulator_shot_start(
             self._instance, self.shot_id, self.simulator.random_seed
         ):
@@ -180,6 +178,43 @@ class InteractiveSimulator:
             raise RuntimeError(
                 f"Failed to apply {operation_name} operation on Selene simulator"
             )
+
+    def register_gateset(self, gateset: Gateset) -> Gateset:
+        payload = gateset.serialize()
+        input_buffer = (ctypes.c_uint8 * len(payload))(*payload)
+        input_ptr = ctypes.cast(input_buffer, ctypes.POINTER(ctypes.c_uint8))
+        written = ctypes.c_size_t()
+        if 0 != self._lib.selene_simulator_negotiate_gateset(
+            self._instance,
+            input_ptr,
+            len(payload),
+            None,
+            0,
+            ctypes.byref(written),
+        ):
+            raise RuntimeError("Failed to negotiate gateset with Selene simulator")
+        output_buffer = (ctypes.c_uint8 * written.value)()
+        output_ptr = ctypes.cast(output_buffer, ctypes.POINTER(ctypes.c_uint8))
+        if 0 != self._lib.selene_simulator_negotiate_gateset(
+            self._instance,
+            input_ptr,
+            len(payload),
+            output_ptr,
+            written.value,
+            ctypes.byref(written),
+        ):
+            raise RuntimeError("Failed to negotiate gateset with Selene simulator")
+        return Gateset.deserialize(bytes(output_buffer[: written.value]))
+
+    def gate(self, gate: Gate):
+        payload = gate.serialize()
+        buffer = (ctypes.c_uint8 * len(payload))(*payload)
+        self._apply_void_operation(
+            self._lib.selene_simulator_operation_gate,
+            "GATE",
+            ctypes.cast(buffer, ctypes.POINTER(ctypes.c_uint8)),
+            len(payload),
+        )
 
     def _apply_measure_operation(self, qubit: int) -> bool:
         result = self._lib.selene_simulator_operation_measure(self._instance, qubit)
@@ -195,25 +230,6 @@ class InteractiveSimulator:
             self._instance, self.shot_id, self.simulator.random_seed + self.shot_id
         ):
             raise RuntimeError("Failed to start next shot on Selene simulator")
-
-    def rxy(self, qubit: int, theta: float, phi: float):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_rxy, "RXY", qubit, theta, phi
-        )
-
-    def rz(self, qubit: int, theta: float):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_rz, "RZ", qubit, theta
-        )
-
-    def rzz(self, qubit_a: int, qubit_b: int, theta: float):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_rzz,
-            "RZZ",
-            qubit_a,
-            qubit_b,
-            theta,
-        )
 
     def measure(self, qubit: int) -> bool:
         return self._apply_measure_operation(qubit)

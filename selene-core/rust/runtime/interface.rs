@@ -3,11 +3,12 @@ use std::sync::Arc;
 
 use crate::utils::MetricValue;
 
+use crate::gatewire::{DynamicGateSet, OwnedGateInstance};
 use crate::operation::BatchOperation;
 
 /// Instances of runtime plugins implement this interface.
 ///
-/// Many instances of a plugin may exist simultaneously. Instance are
+/// Many instances of a plugin may exist simultaneously. Instances are
 /// generically constructed by impls of [RuntimeInterfaceFactory].
 ///
 /// All functions can return an error, which will usually result in aborting the
@@ -17,7 +18,7 @@ use crate::operation::BatchOperation;
 /// [crate::export_runtime_plugin!]
 pub trait RuntimeInterface {
     /// Signals that the instance of the runtime plugin should cleanup. Plugins
-    /// should `Err`` from any functions called on an instance after `exit`.
+    /// should return `Err` from any functions called on an instance after `exit`.
     fn exit(&mut self) -> Result<()>;
     /// Called to retrieve the next batch of operations from the runtime.
     ///
@@ -32,12 +33,18 @@ pub trait RuntimeInterface {
     /// ideal place to perform validation (if applicable) and cleanup.
     fn shot_end(&mut self) -> Result<()>;
 
+    /// Negotiate the gates accepted from the user-facing interface and return
+    /// the gates this runtime may emit downstream.
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        Ok(gateset.clone())
+    }
+
     // If a runtime has special behaviour that a user may wish to invoke
     // from within a utility, this function serves as a generic interface
     // to that. For example, if the runtime supports some behaviour invokable
     // via frobnicate_qubits(qubit_a, qubit_b), and this doesn't make sense to
     // expose as a behaviour within standard guppy/hugr/etc, then a developer
-    // may create extensions to guppy/hugr/etc that define frobinate_qubits
+    // may create extensions to guppy/hugr/etc that define frobnicate_qubits
     // for a user to invoke as a symbol. A utility can then be created that
     // defines frobnicate_qubits as a symbol, invoking selene's exposed
     // runtime_call_direct function with a unique tag and some data, which
@@ -69,30 +76,9 @@ pub trait RuntimeInterface {
     /// Free a qubit. An error should be returned if the qubit is not allocated.
     fn qfree(&mut self, qubit_id: u64) -> Result<()>;
 
-    /// Schedule an RXY gate to allocated qubit `qubit_id` with the given angles.
-    fn rxy_gate(&mut self, _qubit_id: u64, _theta: f64, _phi: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RXY gate");
-    }
-
-    /// Schedule an RZZ gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angle.
-    fn rzz_gate(&mut self, _qubit_id_1: u64, _qubit_id_2: u64, _theta: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RZZ gate");
-    }
-
-    /// Schedule an RZ gate to allocated qubit `qubit_id` with the given angle.
-    fn rz_gate(&mut self, _qubit_id: u64, _theta: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RZ gate");
-    }
-
-    /// Schedule an RPP gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
-    fn rpp_gate(
-        &mut self,
-        _qubit_id_1: u64,
-        _qubit_id_2: u64,
-        _theta: f64,
-        _phi: f64,
-    ) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RPP gate");
+    /// Schedule a gate using the generic gatewire representation.
+    fn gate(&mut self, _gate: &OwnedGateInstance) -> Result<()> {
+        bail!("RuntimeInterface: The chosen runtime does not support this gate")
     }
 
     /// Schedule a measurement of allocated qubit `qubit_id`. The plugin should return a

@@ -4,26 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "selene/core_types.h"
-
-
-typedef struct ErrorModelAPIVersion {
-  /**
-   * Reserved for future use, must be 0.
-   */
-  uint8_t reserved;
-  /**
-   * Major version of the API.
-   */
-  uint8_t major;
-  /**
-   * Minor version of the API.
-   */
-  uint8_t minor;
-  /**
-   * Patch version of the API.
-   */
-  uint8_t patch;
-} ErrorModelAPIVersion;
+#define SELENE_RUNTIME_CURRENT_API_VERSION 0x00000300ULL
 
 typedef struct SeleneRuntimeAPIVersion {
   /**
@@ -67,22 +48,9 @@ typedef struct SeleneRuntimeGetOperationInterface {
   void (*set_batch_time_fn)(SeleneRuntimeGetOperationInstance,
                             uint64_t,
                             uint64_t);
-  void (*rzz_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double);
-  void (*rxy_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 double,
-                 double);
-  void (*rz_fn)(SeleneRuntimeGetOperationInstance,
-                uint64_t,
-                double);
-  void (*rpp_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double,
-                 double);
+  void (*gate_fn)(SeleneRuntimeGetOperationInstance,
+                  const uint8_t*,
+                  size_t);
 } SeleneRuntimeGetOperationInterface;
 
 typedef void *SeleneRuntimeExtractOperationInstance;
@@ -136,22 +104,6 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
                                   uint64_t sleep_ns);
   SeleneErrno (*global_barrier_fn)(RuntimeInstance handle,
                                    uint64_t sleep_ns);
-  SeleneErrno (*rxy_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit,
-                             double theta,
-                             double phi);
-  SeleneErrno (*rzz_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit0,
-                             uint64_t qubit1,
-                             double theta);
-  SeleneErrno (*rz_gate_fn)(RuntimeInstance handle,
-                            uint64_t qubit,
-                            double theta);
-  SeleneErrno (*rpp_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit0,
-                             uint64_t qubit1,
-                             double theta,
-                             double phi);
   SeleneErrno (*measure_fn)(RuntimeInstance handle,
                             uint64_t qubit,
                             uint64_t *result_id);
@@ -185,4 +137,13 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
                                 uint64_t *result);
   SeleneErrno (*simulate_delay_fn)(RuntimeInstance handle,
                                    uint64_t delay_ns);
+  SeleneErrno (*gate_fn)(RuntimeInstance handle,
+                         const uint8_t *data,
+                         size_t len);
+  SeleneErrno (*negotiate_gateset_fn)(RuntimeInstance handle,
+                                      const uint8_t *input,
+                                      size_t input_len,
+                                      uint8_t *output,
+                                      size_t output_len,
+                                      size_t *written);
 } SeleneRuntimePluginDescriptorV1;

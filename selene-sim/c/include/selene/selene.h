@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "selene/gatewire.h"
 
 
 typedef struct SeleneInstance SeleneInstance;
@@ -87,6 +88,10 @@ struct selene_bool_result_t selene_future_read_bool(struct SeleneInstance *insta
  * Reads a u64 future
  */
 struct selene_u64_result_t selene_future_read_u64(struct SeleneInstance *instance, uint64_t r);
+
+struct selene_void_result_t selene_gate(struct SeleneInstance *instance,
+                                        const uint8_t *data,
+                                        size_t data_len);
 
 struct selene_u64_result_t selene_get_current_shot(struct SeleneInstance *instance);
 
@@ -253,25 +258,12 @@ struct selene_void_result_t selene_refcount_decrement(struct SeleneInstance *ins
  */
 struct selene_void_result_t selene_refcount_increment(struct SeleneInstance *instance, uint64_t r);
 
-struct selene_void_result_t selene_rpp(struct SeleneInstance *instance,
-                                       uint64_t qubit_id,
-                                       uint64_t qubit_id2,
-                                       double theta,
-                                       double phi);
-
-struct selene_void_result_t selene_rxy(struct SeleneInstance *instance,
-                                       uint64_t qubit_id,
-                                       double theta,
-                                       double phi);
-
-struct selene_void_result_t selene_rz(struct SeleneInstance *instance,
-                                      uint64_t qubit_id,
-                                      double theta);
-
-struct selene_void_result_t selene_rzz(struct SeleneInstance *instance,
-                                       uint64_t qubit_id,
-                                       uint64_t qubit_id2,
-                                       double theta);
+struct selene_void_result_t selene_register_gateset(struct SeleneInstance *instance,
+                                                    const uint8_t *input,
+                                                    size_t input_len,
+                                                    uint8_t *output,
+                                                    size_t output_len,
+                                                    size_t *written);
 
 struct selene_void_result_t selene_set_tc(struct SeleneInstance *instance, uint64_t tc);
 

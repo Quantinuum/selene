@@ -1,0 +1,204 @@
+# Writing a Simulator Plugin in C
+
+C simulators implement `SeleneSimulatorPluginDescriptorV1` from
+`selene/simulator.h`. Use `selene/gatewire.h` to negotiate and decode gates.
+
+## 1. Define Instance State
+
+```c
+#include <selene/simulator.h>
+#include <selene/gatewire.h>
+#include <stdlib.h>
+
+typedef struct {
+    uint64_t n_qubits;
+    uint64_t measurements;
+    /* Backend state goes here. */
+} MySimulator;
+```
+
+Allocate state in `init`:
+
+```c
+static SeleneErrno my_simulator_init(SeleneSimulatorInstance *out,
+                                     uint64_t n_qubits,
+                                     uint32_t argc,
+                                     const char *const *argv) {
+    (void)argc;
+    (void)argv;
+
+    MySimulator *sim = calloc(1, sizeof(MySimulator));
+    if (sim == NULL) {
+        return 1;
+    }
+    sim->n_qubits = n_qubits;
+    *out = sim;
+    return 0;
+}
+
+static SeleneErrno my_simulator_exit(SeleneSimulatorInstance handle) {
+    free((MySimulator *)handle);
+    return 0;
+}
+```
+
+## 2. Negotiate Supported Gates
+
+The simulator receives the final gateset. Validate it and return it unchanged:
+
+```c
+static SeleneErrno my_simulator_negotiate_gateset(SeleneSimulatorInstance handle,
+                                                  const uint8_t *input,
+                                                  size_t input_len,
+                                                  uint8_t *output,
+                                                  size_t output_len,
+                                                  size_t *written) {
+    (void)handle;
+
+    GwGateSet *incoming = NULL;
+    if (gw_gateset_deserialize(input, input_len, &incoming) != GW_STATUS_OK) {
+        return 1;
+    }
+
+    GwGateSet *supported = NULL;
+    gw_gateset_new(&supported);
+    gw_gateset_add_builtin_rz(supported);
+    gw_gateset_add_builtin_phased_x(supported);
+    gw_gateset_add_builtin_zz_phase(supported);
+    gw_gateset_add_builtin_phased_xx(supported);
+
+    size_t len = 0;
+    gw_gateset_len(incoming, &len);
+    for (size_t i = 0; i < len; i++) {
+        GwGateDeclInfo decl;
+        uint8_t contains = 0;
+        gw_gateset_decl_at(incoming, i, &decl);
+        gw_gateset_contains(supported, decl.semantic_id, &contains);
+        if (!contains) {
+            gw_gateset_free(incoming);
+            gw_gateset_free(supported);
+            return 1;
+        }
+    }
+
+    size_t required = 0;
+    gw_gateset_serialized_len(incoming, &required);
+    if (output == NULL || output_len == 0) {
+        *written = required;
+        gw_gateset_free(incoming);
+        gw_gateset_free(supported);
+        return 0;
+    }
+
+    GwStatus status = gw_gateset_serialize(incoming, output, output_len, written);
+    gw_gateset_free(incoming);
+    gw_gateset_free(supported);
+    return status == GW_STATUS_OK ? 0 : 1;
+}
+```
+
+For a restricted simulator, build a smaller supported set and reject anything
+outside it.
+
+## 3. Decode and Apply Gates
+
+`gate_fn` receives serialized gate bytes:
+
+```c
+static SeleneErrno my_simulator_gate(SeleneSimulatorInstance handle,
+                                     const uint8_t *data,
+                                     size_t len) {
+    MySimulator *sim = (MySimulator *)handle;
+    GwDecodedGate *gate = NULL;
+    if (gw_gate_deserialize(data, len, &gate) != GW_STATUS_OK) {
+        return 1;
+    }
+
+    GwSemanticId id;
+    gw_decoded_gate_semantic_id(gate, &id);
+
+    if (gw_semantic_id_eq(id, gw_builtin_rz_semantic_id())) {
+        GwGateValue q0;
+        GwGateValue theta;
+        gw_decoded_gate_value_at(gate, 0, &q0);
+        gw_decoded_gate_value_at(gate, 1, &theta);
+        /* backend_apply_rz(sim, q0.data.qubit, theta.data.f64_value); */
+    } else if (gw_semantic_id_eq(id, gw_builtin_phased_x_semantic_id())) {
+        /* Decode q0, theta, phi and apply. */
+    } else {
+        gw_decoded_gate_free(gate);
+        return 1;
+    }
+
+    (void)sim;
+    gw_decoded_gate_free(gate);
+    return 0;
+}
+```
+
+Validate operand kinds before using them in production code.
+
+## 4. Measure, Reset, and Postselect
+
+Simulator measurement returns the value directly as the function return code:
+
+```c
+static SeleneErrno my_simulator_measure(SeleneSimulatorInstance handle,
+                                        uint64_t qubit) {
+    MySimulator *sim = (MySimulator *)handle;
+    sim->measurements++;
+    /* Return 0 for false, 1 for true, or another nonzero value for error. */
+    return backend_measure(sim, qubit) ? 1 : 0;
+}
+```
+
+Reset should apply a physical reset in the backend. Postselection is optional:
+return a nonzero error if unsupported.
+
+## 5. Metrics and Lifecycle
+
+`shot_start` should initialize the quantum state for a shot and seed any RNG.
+`shot_end` should validate and clean up per-shot state. `get_metrics_fn` is
+called with increasing `nth_metric` until it returns nonzero.
+
+```c
+static SeleneErrno my_simulator_get_metrics(SeleneSimulatorInstance handle,
+                                            uint8_t nth_metric,
+                                            char *tag,
+                                            uint8_t *datatype,
+                                            uint64_t *value) {
+    MySimulator *sim = (MySimulator *)handle;
+    if (nth_metric != 0) {
+        return 1;
+    }
+    strcpy(tag, "measurements");
+    *datatype = 2; /* u64 */
+    *value = sim->measurements;
+    return 0;
+}
+```
+
+## 6. Export the Descriptor
+
+```c
+const SeleneSimulatorPluginDescriptorV1 selene_simulator_plugin_descriptor_v1 = {
+    .struct_size = sizeof(SeleneSimulatorPluginDescriptorV1),
+    .api_version = SELENE_SIMULATOR_CURRENT_API_VERSION,
+    .get_name_fn = my_simulator_get_name,
+    .init_fn = my_simulator_init,
+    .exit_fn = my_simulator_exit,
+    .shot_start_fn = my_simulator_shot_start,
+    .shot_end_fn = my_simulator_shot_end,
+    .measure_fn = my_simulator_measure,
+    .postselect_fn = my_simulator_postselect,
+    .reset_fn = my_simulator_reset,
+    .get_metrics_fn = my_simulator_get_metrics,
+    .dump_state_fn = my_simulator_dump_state,
+    .gate_fn = my_simulator_gate,
+    .negotiate_gateset_fn = my_simulator_negotiate_gateset,
+};
+```
+
+Use `NULL` only for callbacks documented as optional. Required callbacks are
+validated when Selene loads the plugin.
+

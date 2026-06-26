@@ -4,6 +4,7 @@
     packages = with pkgs; [
       cmake
       just
+      stdenv.cc
       zlib
       libxml2
       ncurses

@@ -1,0 +1,23 @@
+python := env_var_or_default("PYTHON", "python")
+venv := "venv"
+
+default:
+    just --list
+
+venv:
+    {{python}} -m venv {{venv}}
+
+setup: venv
+    {{venv}}/bin/pip install --upgrade pip
+    {{venv}}/bin/pip install ../../
+    {{venv}}/bin/pip install ../../selene-core
+    {{venv}}/bin/pip install .
+    {{venv}}/bin/pip install pytest
+
+test:
+    {{venv}}/bin/python -m pytest -s python/tests
+
+all: setup test
+
+clean:
+    rm -rf {{venv}}

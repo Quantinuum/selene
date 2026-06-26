@@ -6,6 +6,7 @@ use crate::{
     operation::plugin::{
         BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
     },
+    plugin::write_negotiated_gateset,
     simulator::{Simulator, inline::SimulatorHandle},
     utils::{result_of_errno_to_errno, result_to_errno},
 };
@@ -36,6 +37,7 @@ impl ErrorModelFFIAdapter {
                 exit_fn: Self::exit,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
+                negotiate_gateset_fn: Self::negotiate_gateset,
                 handle_operations_fn: Self::handle_operations,
                 get_metrics_fn: Self::get_metrics,
                 _marker: PhantomData,
@@ -76,6 +78,23 @@ impl ErrorModelFFIAdapter {
     unsafe extern "C" fn shot_end(instance: ErrorModelInstance) -> Errno {
         result_to_errno("ErrorModelFFIAdapter: shot_end failed", unsafe {
             Self::with_error_model(instance, |error_model| error_model.shot_end())
+        })
+    }
+
+    unsafe extern "C" fn negotiate_gateset(
+        instance: ErrorModelInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        result_to_errno("ErrorModelFFIAdapter: negotiate_gateset failed", unsafe {
+            Self::with_error_model(instance, |error_model| {
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    error_model.negotiate_gateset(gateset)
+                })
+            })
         })
     }
 
@@ -151,5 +170,13 @@ pub struct ErrorModelOperationInterface<'a> {
     ) -> Errno,
     pub get_metrics_fn:
         unsafe extern "C" fn(ErrorModelInstance, u8, *mut ffi::c_char, *mut u8, *mut u64) -> Errno,
+    pub negotiate_gateset_fn: unsafe extern "C" fn(
+        ErrorModelInstance,
+        *const u8,
+        usize,
+        *mut u8,
+        usize,
+        *mut usize,
+    ) -> Errno,
     _marker: PhantomData<&'a ()>,
 }

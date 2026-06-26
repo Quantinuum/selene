@@ -4,26 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "selene/core_types.h"
-
-
-typedef struct ErrorModelAPIVersion {
-  /**
-   * Reserved for future use, must be 0.
-   */
-  uint8_t reserved;
-  /**
-   * Major version of the API.
-   */
-  uint8_t major;
-  /**
-   * Minor version of the API.
-   */
-  uint8_t minor;
-  /**
-   * Patch version of the API.
-   */
-  uint8_t patch;
-} ErrorModelAPIVersion;
+#define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000101ULL
 
 typedef struct SeleneSimulatorAPIVersion {
   /**
@@ -61,22 +42,6 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
                                uint64_t shot_id,
                                uint64_t seed);
   SeleneErrno (*shot_end_fn)(SeleneSimulatorInstance handle);
-  SeleneErrno (*rxy_fn)(SeleneSimulatorInstance handle,
-                        uint64_t qubit,
-                        double theta,
-                        double phi);
-  SeleneErrno (*rz_fn)(SeleneSimulatorInstance handle,
-                       uint64_t qubit0,
-                       double theta);
-  SeleneErrno (*rzz_fn)(SeleneSimulatorInstance handle,
-                        uint64_t qubit0,
-                        uint64_t qubit1,
-                        double theta);
-  SeleneErrno (*rpp_fn)(SeleneSimulatorInstance handle,
-                        uint64_t qubit0,
-                        uint64_t qubit1,
-                        double theta,
-                        double phi);
   SeleneErrno (*measure_fn)(SeleneSimulatorInstance handle,
                             uint64_t qubit);
   SeleneErrno (*postselect_fn)(SeleneSimulatorInstance handle,
@@ -93,4 +58,13 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
                                const char *file,
                                const uint64_t *qubits,
                                uint64_t n_qubits);
+  SeleneErrno (*gate_fn)(SeleneSimulatorInstance handle,
+                         const uint8_t *data,
+                         size_t len);
+  SeleneErrno (*negotiate_gateset_fn)(SeleneSimulatorInstance handle,
+                                      const uint8_t *input,
+                                      size_t input_len,
+                                      uint8_t *output,
+                                      size_t output_len,
+                                      size_t *written);
 } SeleneSimulatorPluginDescriptorV1;

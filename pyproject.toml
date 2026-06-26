@@ -123,7 +123,7 @@ ignore_missing_imports = true
 exclude = ["test_.*.py$", "^target/.*$", "^selene-core/.*$", "^scratch/.*$"]
 
 [tool.pytest.ini_options]
-norecursedirs = ['*.egg', '.*', 'build', 'target', 'dist', 'venv']
+norecursedirs = ['*.egg', '.*', 'build', 'target', 'dist', 'venv', 'examples']
 
 
 [tool.deptry]

@@ -16,6 +16,8 @@ use crate::utils::{MetricValue, check_errno, read_raw_metric};
 use anyhow::{Result, anyhow};
 
 use crate::error_model::BatchResult;
+use crate::gatewire::DynamicGateSet;
+use crate::plugin as plugin_utils;
 use crate::runtime::{BatchOperation, Operation};
 
 enum SimulatorBacking {
@@ -112,69 +114,30 @@ impl SimulatorInterface for Simulator {
         )
     }
 
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        plugin_utils::negotiate_gateset(
+            "Simulator",
+            self.handle.instance,
+            Some(self.handle.interface.negotiate_gateset_fn),
+            gateset,
+        )
+    }
+
     fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => {
+                Operation::Gate { gate } => {
+                    let data = gate.serialize();
                     check_errno(
                         unsafe {
-                            (self.handle.interface.rxy_fn)(
+                            (self.handle.interface.gate_fn)(
                                 self.handle.instance,
-                                qubit_id,
-                                theta,
-                                phi,
+                                data.as_ptr(),
+                                data.len(),
                             )
                         },
-                        || anyhow!("Simulator: rxy failed"),
-                    )?;
-                }
-                Operation::RZGate { qubit_id, theta } => {
-                    check_errno(
-                        unsafe {
-                            (self.handle.interface.rz_fn)(self.handle.instance, qubit_id, theta)
-                        },
-                        || anyhow!("Simulator: rz failed"),
-                    )?;
-                }
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => {
-                    check_errno(
-                        unsafe {
-                            (self.handle.interface.rzz_fn)(
-                                self.handle.instance,
-                                qubit_id_1,
-                                qubit_id_2,
-                                theta,
-                            )
-                        },
-                        || anyhow!("Simulator: rzz failed"),
-                    )?;
-                }
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => {
-                    check_errno(
-                        unsafe {
-                            (self.handle.interface.rpp_fn)(
-                                self.handle.instance,
-                                qubit_id_1,
-                                qubit_id_2,
-                                theta,
-                                phi,
-                            )
-                        },
-                        || anyhow!("Simulator: rpp failed"),
+                        || anyhow!("Simulator: gate failed"),
                     )?;
                 }
                 Operation::Measure {

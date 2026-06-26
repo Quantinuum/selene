@@ -32,12 +32,16 @@ impl From<ErrorModelAPIVersion> for u64 {
     }
 }
 
-pub const CURRENT_API_VERSION: ErrorModelAPIVersion = ErrorModelAPIVersion {
+pub(crate) const CURRENT_API_VERSION: ErrorModelAPIVersion = ErrorModelAPIVersion {
     reserved: 0,
     major: 0,
     minor: 2,
     patch: 0,
 };
+
+pub const fn current_api_version() -> ErrorModelAPIVersion {
+    CURRENT_API_VERSION
+}
 
 // Changelog:
 // 0.1.0: Initial version.

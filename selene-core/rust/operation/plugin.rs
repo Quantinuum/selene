@@ -38,60 +38,6 @@ impl BatchBuilder {
         go(this)
     }
 
-    unsafe extern "C" fn rzz(
-        interface: RuntimeGetOperationInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        theta: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::RZZGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-            },
-        )
-    }
-
-    unsafe extern "C" fn rz(interface: RuntimeGetOperationInstance, qubit_id: u64, theta: f64) {
-        Self::push(interface, Operation::RZGate { qubit_id, theta })
-    }
-
-    unsafe extern "C" fn rxy(
-        interface: RuntimeGetOperationInstance,
-        qubit_id: u64,
-        theta: f64,
-        phi: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::RXYGate {
-                qubit_id,
-                theta,
-                phi,
-            },
-        )
-    }
-
-    unsafe extern "C" fn rpp(
-        interface: RuntimeGetOperationInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        theta: f64,
-        phi: f64,
-    ) {
-        Self::push(
-            interface,
-            Operation::RPPGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-                phi,
-            },
-        )
-    }
-
     unsafe extern "C" fn measure(
         interface: RuntimeGetOperationInstance,
         qubit_id: u64,
@@ -136,6 +82,17 @@ impl BatchBuilder {
         Self::push(interface, Operation::Custom { custom_tag, data })
     }
 
+    unsafe extern "C" fn gate(interface: RuntimeGetOperationInstance, data: *const u8, len: usize) {
+        let data = unsafe { slice::from_raw_parts(data, len) };
+        let Ok(gate) = crate::gatewire::OwnedGateInstance::deserialize(data) else {
+            return;
+        };
+        Self::push(
+            interface,
+            Operation::from_gate_instance(gate).expect("gate operation"),
+        )
+    }
+
     unsafe extern "C" fn set_batch_time(
         interface: RuntimeGetOperationInstance,
         start: u64,
@@ -155,10 +112,7 @@ impl BatchBuilder {
                 reset_fn: Self::reset,
                 custom_fn: Self::custom,
                 set_batch_time_fn: Self::set_batch_time,
-                rzz_fn: Self::rzz,
-                rxy_fn: Self::rxy,
-                rz_fn: Self::rz,
-                rpp_fn: Self::rpp,
+                gate_fn: Self::gate,
             },
         }
     }
@@ -183,10 +137,7 @@ pub struct RuntimeGetOperationInterface {
     pub custom_fn:
         unsafe extern "C" fn(RuntimeGetOperationInstance, usize, *const ffi::c_void, usize),
     pub set_batch_time_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
-    pub rzz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64),
-    pub rxy_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64, f64),
-    pub rz_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, f64),
-    pub rpp_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64, f64, f64),
+    pub gate_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, *const u8, usize),
 }
 
 #[derive(Default)]
@@ -209,10 +160,7 @@ impl BatchExtractor {
             reset_fn,
             custom_fn,
             set_batch_time_fn,
-            rzz_fn,
-            rxy_fn,
-            rz_fn,
-            rpp_fn,
+            gate_fn,
             ..
         } = output.interface;
         if let Some(timing) = batch.runtime_source() {
@@ -235,25 +183,10 @@ impl BatchExtractor {
                     result_id,
                 } => unsafe { measure_leaked_fn(output.instance, *qubit_id, *result_id) },
                 Operation::Reset { qubit_id } => unsafe { reset_fn(output.instance, *qubit_id) },
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => unsafe { rxy_fn(output.instance, *qubit_id, *theta, *phi) },
-                Operation::RZGate { qubit_id, theta } => unsafe {
-                    rz_fn(output.instance, *qubit_id, *theta)
-                },
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => unsafe { rzz_fn(output.instance, *qubit_id_1, *qubit_id_2, *theta) },
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => unsafe { rpp_fn(output.instance, *qubit_id_1, *qubit_id_2, *theta, *phi) },
+                Operation::Gate { gate } => {
+                    let data = gate.serialize();
+                    unsafe { gate_fn(output.instance, data.as_ptr(), data.len()) }
+                }
                 Operation::Custom { custom_tag, data } => {
                     let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                     unsafe { custom_fn(output.instance, *custom_tag, ptr, len) }

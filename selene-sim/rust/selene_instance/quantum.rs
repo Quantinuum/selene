@@ -1,5 +1,6 @@
 use crate::selene_instance::SeleneInstance;
 use anyhow::Result;
+use selene_core::gatewire::{DynamicGateSet, OwnedGateInstance};
 
 impl SeleneInstance {
     pub fn qalloc(&mut self) -> Result<u64> {
@@ -10,21 +11,8 @@ impl SeleneInstance {
         self.emulator.user_issued_qfree(q)
     }
 
-    pub fn rz(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        self.emulator.user_issued_rz(qubit_id, theta)
-    }
-
-    pub fn rxy(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        self.emulator.user_issued_rxy(qubit_id, theta, phi)
-    }
-
-    pub fn rzz(&mut self, qubit_id: u64, qubit_id2: u64, theta: f64) -> Result<()> {
-        self.emulator.user_issued_rzz(qubit_id, qubit_id2, theta)
-    }
-
-    pub fn rpp(&mut self, qubit_id: u64, qubit_id2: u64, theta: f64, phi: f64) -> Result<()> {
-        self.emulator
-            .user_issued_rpp(qubit_id, qubit_id2, theta, phi)
+    pub fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
+        self.emulator.user_issued_gate(gate)
     }
 
     pub fn qubit_reset(&mut self, q: u64) -> Result<()> {
@@ -69,5 +57,8 @@ impl SeleneInstance {
     }
     pub fn simulate_delay(&mut self, delay: u64) -> Result<()> {
         self.emulator.simulate_delay(delay)
+    }
+    pub fn register_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        self.emulator.register_gateset(gateset)
     }
 }

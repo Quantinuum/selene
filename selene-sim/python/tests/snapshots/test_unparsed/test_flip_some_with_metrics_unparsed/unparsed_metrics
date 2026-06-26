@@ -35,14 +35,8 @@
   - METRICS:INT:user_program:measure_read_count
   - 4
 - !!python/tuple
-  - METRICS:INT:user_program:rxy_count
+  - METRICS:INT:user_program:gate:PhasedX:count
   - 3
-- !!python/tuple
-  - METRICS:INT:user_program:rzz_count
-  - 0
-- !!python/tuple
-  - METRICS:INT:user_program:rz_count
-  - 0
 - !!python/tuple
   - METRICS:INT:user_program:global_barrier_count
   - 0
@@ -80,23 +74,11 @@
   - METRICS:INT:post_runtime:reset_individual_count
   - 4
 - !!python/tuple
-  - METRICS:INT:post_runtime:rxy_batch_count
+  - METRICS:INT:post_runtime:gate:PhasedX:batch_count
   - 3
 - !!python/tuple
-  - METRICS:INT:post_runtime:rxy_individual_count
+  - METRICS:INT:post_runtime:gate:PhasedX:individual_count
   - 3
-- !!python/tuple
-  - METRICS:INT:post_runtime:rz_batch_count
-  - 0
-- !!python/tuple
-  - METRICS:INT:post_runtime:rz_individual_count
-  - 0
-- !!python/tuple
-  - METRICS:INT:post_runtime:rzz_batch_count
-  - 0
-- !!python/tuple
-  - METRICS:INT:post_runtime:rzz_individual_count
-  - 0
 - !!python/tuple
   - METRICS:INT:post_runtime:total_duration_ns
   - 0

@@ -51,6 +51,11 @@ generate-selene-core-headers:
       --crate selene-core \
       --output selene-core/c/include/selene/runtime.h
 
+    cbindgen \
+      --config selene-core/rust/gatewire/cbindgen.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/gatewire.h
+
 generate-headers:
     just generate-selene-core-headers
     just generate-selene-sim-headers
@@ -83,4 +88,4 @@ build-ci:
     mkdir -p /tmp/ci-cache
     export CACHE_CARGO=true
     uv build --package selene-core --out-dir wheelhouse
-    cibuildwheel .
+    uvx cibuildwheel .

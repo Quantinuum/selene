@@ -31,12 +31,16 @@ impl From<RuntimeAPIVersion> for u64 {
     }
 }
 
-pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
+pub(crate) const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     reserved: 0,
     major: 0,
     minor: 3,
     patch: 0,
 };
+
+pub const fn current_api_version() -> RuntimeAPIVersion {
+    CURRENT_API_VERSION
+}
 
 // CHANGELOG:
 // 0.0.1: Initial version

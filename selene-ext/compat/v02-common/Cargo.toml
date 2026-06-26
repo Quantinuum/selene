@@ -1,0 +1,19 @@
+[package]
+name = "selene-v02-compat-common"
+version = "0.3.0-alpha.1"
+edition = "2024"
+
+[workspace]
+
+[lib]
+name = "selene_v02_compat_common"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+libloading = "0.8"
+selene-core = { path = "../../../selene-core" }
+
+[lints.clippy]
+undocumented_unsafe_blocks = "allow"
+missing_safety_doc = "allow"

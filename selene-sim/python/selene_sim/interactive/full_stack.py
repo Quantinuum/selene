@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import ctypes
 import os
-import platform
-import sys
 import tempfile
 from pathlib import Path
 from typing import ClassVar
 
 import yaml
-from selene_core import ErrorModel, Runtime, SeleneComponent, Simulator
+from selene_core import (
+    ErrorModel,
+    Gate,
+    Gateset,
+    Runtime,
+    SeleneComponent,
+    Simulator,
+)
 
 from selene_sim import dist_dir as selene_dist
 from selene_sim.backends import IdealErrorModel, SimpleRuntime
@@ -17,6 +22,8 @@ from selene_sim.event_hooks import EventHook, NoEventHook
 from selene_sim.instance import ShotSpec
 from selene_sim.result_handling import DataStream, ResultStream
 from selene_sim.result_handling.result_stream import StreamEntry
+
+from ._library import selene_library_path
 
 
 PathLike = str | os.PathLike | bytes | bytearray
@@ -161,18 +168,7 @@ def _uint8_buffer(
 
 class SeleneSimLib(ctypes.CDLL):
     def __init__(self) -> None:
-        lib_path = selene_dist / "lib"
-        match platform.system():
-            case "Darwin":
-                lib_path /= "libselene.dylib"
-            case "Linux":
-                lib_path /= "libselene.so"
-            case "Windows":
-                lib_path /= "selene.dll"
-            case _:
-                raise RuntimeError(f"Unsupported OS {sys.platform}")
-        assert lib_path.is_file(), f"Selene library not found at {lib_path}"
-        super().__init__(str(lib_path))
+        super().__init__(str(selene_library_path()), mode=ctypes.RTLD_GLOBAL)
         self._configure_signatures()
 
     def _configure_signatures(self):
@@ -235,22 +231,6 @@ class SeleneSimLib(ctypes.CDLL):
         self.selene_refcount_decrement.restype = selene_void_result_t
         self.selene_refcount_increment.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
         self.selene_refcount_increment.restype = selene_void_result_t
-        self.selene_rxy.argtypes = [
-            SeleneInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_double,
-            ctypes.c_double,
-        ]
-        self.selene_rxy.restype = selene_void_result_t
-        self.selene_rz.argtypes = [SeleneInstancePtr, ctypes.c_uint64, ctypes.c_double]
-        self.selene_rz.restype = selene_void_result_t
-        self.selene_rzz.argtypes = [
-            SeleneInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.c_double,
-        ]
-        self.selene_rzz.restype = selene_void_result_t
         self.selene_set_tc.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
         self.selene_set_tc.restype = selene_void_result_t
         self.selene_shot_count.argtypes = [SeleneInstancePtr]
@@ -270,6 +250,17 @@ class SeleneSimLib(ctypes.CDLL):
             ctypes.c_uint64,
         ]
         self.selene_fetch_output.restype = selene_u64_result_t
+        self.selene_gate.argtypes = [SeleneInstancePtr, BytePtr, ctypes.c_size_t]
+        self.selene_gate.restype = selene_void_result_t
+        self.selene_register_gateset.argtypes = [
+            SeleneInstancePtr,
+            BytePtr,
+            ctypes.c_size_t,
+            BytePtr,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ]
+        self.selene_register_gateset.restype = selene_void_result_t
 
 
 class InternalOutputStream(DataStream):
@@ -321,6 +312,7 @@ class InteractiveFullStack:
         error_model: ErrorModel | None = None,
         event_hook: EventHook | None = None,
         random_seed: int | None = None,
+        gateset: Gateset | None = None,
     ):
         self._lib = self.load_library()
         self._instance = SeleneInstancePtr()
@@ -340,6 +332,8 @@ class InteractiveFullStack:
         self.simulator = simulator
         self.runtime = runtime or SimpleRuntime()
         self.error_model = error_model or IdealErrorModel()
+        self.gateset = gateset
+        self.emitted_gateset: Gateset | None = None
 
         try:
             config_data = self._build_configuration(
@@ -365,12 +359,13 @@ class InteractiveFullStack:
             self._config_path.write_text(yaml.safe_dump(config_data))
 
             instance_ptr = SeleneInstancePtr()
-            print(type(instance_ptr))
             config_bytes = _encode_text(self._config_path)
             self._lib.selene_load_config(
                 ctypes.byref(instance_ptr), ctypes.c_char_p(config_bytes)
             ).unwrap()
             self._instance = instance_ptr
+            if self.gateset is not None:
+                self.emitted_gateset = self.register_gateset(self.gateset)
         except Exception:
             self._teardown_environment()
             raise
@@ -544,14 +539,40 @@ class InteractiveFullStack:
     def refcount_increment(self, reference: int) -> None:
         self._call_void("selene_refcount_increment", reference)
 
-    def rxy(self, qubit: Qubit, theta: float, phi: float) -> None:
-        self._call_void("selene_rxy", qubit.id, theta, phi)
+    def register_gateset(self, gateset: Gateset) -> Gateset:
+        payload = gateset.serialize()
+        input_buffer = (ctypes.c_uint8 * len(payload))(*payload)
+        input_ptr = ctypes.cast(input_buffer, BytePtr)
+        written = ctypes.c_size_t()
+        self._lib.selene_register_gateset(
+            self._instance,
+            input_ptr,
+            len(payload),
+            None,
+            0,
+            ctypes.byref(written),
+        ).unwrap()
+        output_buffer = (ctypes.c_uint8 * written.value)()
+        output_ptr = ctypes.cast(output_buffer, BytePtr)
+        self._lib.selene_register_gateset(
+            self._instance,
+            input_ptr,
+            len(payload),
+            output_ptr,
+            written.value,
+            ctypes.byref(written),
+        ).unwrap()
+        return Gateset.deserialize(bytes(output_buffer[: written.value]))
 
-    def rz(self, qubit: Qubit, theta: float) -> None:
-        self._call_void("selene_rz", qubit.id, theta)
-
-    def rzz(self, qubit_a: Qubit, qubit_b: Qubit, theta: float) -> None:
-        self._call_void("selene_rzz", qubit_a.id, qubit_b.id, theta)
+    def gate(self, gate: Gate) -> None:
+        payload = gate.serialize()
+        buffer = (ctypes.c_uint8 * len(payload))(*payload)
+        self._lib.selene_gate(
+            self._instance, ctypes.cast(buffer, BytePtr), len(payload)
+        ).unwrap()
+        if self._auto_poll_metadata:
+            self._lib.selene_write_metadata(self._instance)
+        self._poll_results()
 
     def get_state(self, qubits: list[Qubit]):
         if not hasattr(self.simulator, "extract_states"):

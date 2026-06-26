@@ -6,6 +6,7 @@ import pytest
 import tempfile
 
 import numpy as np
+from selene_core import Gateset, PhasedX, RZ, ZZPhase
 
 from selene_sim import DepolarizingErrorModel, Quest, SoftRZRuntime, SimpleRuntime
 from selene_sim.interactive import (
@@ -15,6 +16,9 @@ from selene_sim.interactive import (
 )
 
 
+NATIVE_GATES = Gateset(RZ, PhasedX, ZZPhase)
+
+
 def test_interactive_full_stack_event_hooks():
     from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
 
@@ -22,7 +26,10 @@ def test_interactive_full_stack_event_hooks():
     circuit_extractor = CircuitExtractor()
     metric_store = MetricStore()
     hook = MultiEventHook([circuit_extractor, metric_store])
-    s = InteractiveFullStack(simulator=Quest(), n_qubits=10, event_hook=hook)
+    gates = NATIVE_GATES
+    s = InteractiveFullStack(
+        simulator=Quest(), n_qubits=10, event_hook=hook, gateset=NATIVE_GATES
+    )
     metrics = metric_store.shots[0]
     extractor = circuit_extractor.shots[0]
     # Allocate 3 qubits
@@ -63,27 +70,27 @@ def test_interactive_full_stack_event_hooks():
     # We can apply some gates and check that the metrics are properly updated
     # We'll build a GHZ state. As we only have access to the native gateset and
     # not (yet) a direct hadamard or cnot, I'll write it out verbatim.
-    assert metrics["user_program"]["rxy_count"] == 0
-    assert metrics["user_program"]["rzz_count"] == 0
+    assert metrics["user_program"].get("gate:PhasedX:count", 0) == 0
+    assert metrics["user_program"].get("gate:ZZPhase:count", 0) == 0
     # h(q0)
-    s.rxy(qs[0], pi / 2, -pi / 2)
-    s.rz(qs[0], pi)
+    s.gate(gates.PhasedX(qs[0].id, pi / 2, -pi / 2))
+    s.gate(gates.RZ(qs[0].id, pi))
     # cx(q0, q1)
-    s.rxy(qs[1], -pi / 2, pi / 2)
-    s.rzz(qs[0], qs[1], pi / 2)
-    s.rz(qs[0], -pi / 2)
-    s.rxy(qs[1], pi / 2, pi)
-    s.rz(qs[1], -pi / 2)
+    s.gate(gates.PhasedX(qs[1].id, -pi / 2, pi / 2))
+    s.gate(gates.ZZPhase(qs[0].id, qs[1].id, pi / 2))
+    s.gate(gates.RZ(qs[0].id, -pi / 2))
+    s.gate(gates.PhasedX(qs[1].id, pi / 2, pi))
+    s.gate(gates.RZ(qs[1].id, -pi / 2))
     # cx(q1, q2)
-    s.rxy(qs[2], -pi / 2, pi / 2)
-    s.rzz(qs[1], qs[2], pi / 2)
-    s.rz(qs[1], -pi / 2)
-    s.rxy(qs[2], pi / 2, pi)
-    s.rz(qs[2], -pi / 2)
+    s.gate(gates.PhasedX(qs[2].id, -pi / 2, pi / 2))
+    s.gate(gates.ZZPhase(qs[1].id, qs[2].id, pi / 2))
+    s.gate(gates.RZ(qs[1].id, -pi / 2))
+    s.gate(gates.PhasedX(qs[2].id, pi / 2, pi))
+    s.gate(gates.RZ(qs[2].id, -pi / 2))
     # Check that the metrics reflect the gates we've applied
-    assert metrics["user_program"]["rxy_count"] == 5
-    assert metrics["user_program"]["rzz_count"] == 2
-    assert metrics["user_program"]["rz_count"] == 5
+    assert metrics["user_program"]["gate:PhasedX:count"] == 5
+    assert metrics["user_program"]["gate:ZZPhase:count"] == 2
+    assert metrics["user_program"]["gate:RZ:count"] == 5
 
     # We can get the state of the qubits.
     state = s.get_state(qs).get_single_state()
@@ -112,9 +119,9 @@ def test_interactive_full_stack_event_hooks():
     # As measurement necessarily forces the runtime to have emitted instructions, we can now check the post-runtime metrics
     # As we're using the SimpleRuntime, all gates are applied (no optimisation, no soft RZ gate, etc)
     assert metrics["post_runtime"]["measure_individual_count"] == 3
-    assert metrics["post_runtime"]["rxy_individual_count"] == 5
-    assert metrics["post_runtime"]["rz_individual_count"] == 5
-    assert metrics["post_runtime"]["rzz_individual_count"] == 2
+    assert metrics["post_runtime"]["gate:PhasedX:individual_count"] == 5
+    assert metrics["post_runtime"]["gate:RZ:individual_count"] == 5
+    assert metrics["post_runtime"]["gate:ZZPhase:individual_count"] == 2
     # We can also check the circuit extractor
 
     output = extractor.get_optimiser_output()
@@ -173,7 +180,8 @@ def test_interactive_full_stack_error_model_io():
 
     error_model_output = instructions.get_error_model_output()
     assert error_model_output[0] == {"op": "Reset", "qubit": 0}
-    assert error_model_output[1]["op"] in {"Rxy", "Rz"}
+    assert error_model_output[1]["op"] == "Gate"
+    assert error_model_output[1]["gate"] in {"PhasedX", "RZ"}
     assert error_model_output[2] == {"op": "MeasureRequest", "qubit": 0}
 
     simulator_output = instructions.get_simulator_output()
@@ -187,16 +195,33 @@ def test_interactive_full_stack_error_model_io():
     )
 
 
+def test_interactive_full_stack_gateset_negotiation():
+    s = InteractiveFullStack(
+        simulator=Quest(random_seed=1234),
+        runtime=SoftRZRuntime(),
+        n_qubits=1,
+        gateset=NATIVE_GATES,
+    )
+    assert s.emitted_gateset is not None
+    assert {definition.name for definition in s.emitted_gateset} == {
+        "PhasedX",
+        "ZZPhase",
+    }
+
+
 def test_interactive_simulator():
-    sim = InteractiveSimulator(simulator=Quest(random_seed=1234), n_qubits=10)
+    gates = NATIVE_GATES
+    sim = InteractiveSimulator(
+        simulator=Quest(random_seed=1234), n_qubits=10, gateset=NATIVE_GATES
+    )
     # Some simple checks on measurement and postselection
     assert sim.measure(0) == 0
-    sim.rxy(0, pi, 0)
+    sim.gate(gates.PhasedX(0, pi, 0))
     assert sim.measure(0) == 1
     assert sim.get_metrics()["cumulative_postselect_probability"] == 1.0
     sim.reset(0)
-    sim.rxy(0, pi / 2, 0)
-    sim.rxy(1, pi / 2, 0)
+    sim.gate(gates.PhasedX(0, pi / 2, 0))
+    sim.gate(gates.PhasedX(1, pi / 2, 0))
     sim.postselect(0, True)
     sim.postselect(1, False)
     assert sim.measure(0)
@@ -206,20 +231,20 @@ def test_interactive_simulator():
 
     # Now make a GHZ state on qubits 1, 2, 3, dump the state and check amplitudes, postselect one of the qubits, then assert measurements are consistent.
     # h(1)
-    sim.rxy(1, pi / 2, -pi / 2)
-    sim.rz(1, pi)
+    sim.gate(gates.PhasedX(1, pi / 2, -pi / 2))
+    sim.gate(gates.RZ(1, pi))
     # cx(1, 2)
-    sim.rxy(2, -pi / 2, pi / 2)
-    sim.rzz(1, 2, pi / 2)
-    sim.rz(1, -pi / 2)
-    sim.rxy(2, pi / 2, pi)
-    sim.rz(2, -pi / 2)
+    sim.gate(gates.PhasedX(2, -pi / 2, pi / 2))
+    sim.gate(gates.ZZPhase(1, 2, pi / 2))
+    sim.gate(gates.RZ(1, -pi / 2))
+    sim.gate(gates.PhasedX(2, pi / 2, pi))
+    sim.gate(gates.RZ(2, -pi / 2))
     # cx(2, 3)
-    sim.rxy(3, -pi / 2, pi / 2)
-    sim.rzz(2, 3, pi / 2)
-    sim.rz(2, -pi / 2)
-    sim.rxy(3, pi / 2, pi)
-    sim.rz(3, -pi / 2)
+    sim.gate(gates.PhasedX(3, -pi / 2, pi / 2))
+    sim.gate(gates.ZZPhase(2, 3, pi / 2))
+    sim.gate(gates.RZ(2, -pi / 2))
+    sim.gate(gates.PhasedX(3, pi / 2, pi))
+    sim.gate(gates.RZ(3, -pi / 2))
 
     # get a temp file; close the handle before re-opening so Windows can read it
     with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -240,16 +265,32 @@ def test_interactive_simulator():
     assert sim.measure(3)
 
 
+def test_interactive_simulator_gateset_gate_api():
+    gates = NATIVE_GATES
+    sim = InteractiveSimulator(
+        simulator=Quest(random_seed=1234), n_qubits=2, gateset=NATIVE_GATES
+    )
+    assert sim.emitted_gateset is not None
+    assert {definition.name for definition in sim.emitted_gateset} == {
+        "RZ",
+        "PhasedX",
+        "ZZPhase",
+    }
+    sim.gate(gates.PhasedX(q0=0, theta=pi, phi=0))
+    assert sim.measure(0)
+
+
 def test_interactive_runtime_simple():
     # The simple runtime flushes on each quantum operation.
-    r = InteractiveRuntime(runtime=SimpleRuntime(), n_qubits=10)
+    gates = NATIVE_GATES
+    r = InteractiveRuntime(runtime=SimpleRuntime(), n_qubits=10, gateset=NATIVE_GATES)
     qubits = [r.qalloc() for _ in range(10)]
     # An alloc doesn't correspond to a physical operation
     assert len(r.get_operations()) == 0
     future_refs = []
     for qubit in qubits:
         r.reset(qubit)
-        r.rxy(qubit, pi, 0)
+        r.gate(gates.PhasedX(qubit, pi, 0))
         future_refs.append(r.measure(qubit))
         # Each of reset, rxy and measure should have caused a flush of operations
         assert len(r.get_operations()) == 3
@@ -266,7 +307,8 @@ def test_interactive_runtime_simple():
 
 
 def test_interactive_runtime_softrz():
-    r = InteractiveRuntime(runtime=SoftRZRuntime(), n_qubits=10)
+    gates = NATIVE_GATES
+    r = InteractiveRuntime(runtime=SoftRZRuntime(), n_qubits=10, gateset=NATIVE_GATES)
     qubits = [r.qalloc() for _ in range(10)]
     # the soft RZ runtime waits until futures are forced before flushing
     # operations.
@@ -275,7 +317,7 @@ def test_interactive_runtime_softrz():
     future_refs = []
     for qubit in qubits:
         r.reset(qubit)
-        r.rxy(qubit, pi, 0)
+        r.gate(gates.PhasedX(qubit, pi, 0))
         future_refs.append(r.measure(qubit))
         assert len(r.get_operations()) == 0
 

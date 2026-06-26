@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "selene/core_types.h"
-
+#define SELENE_ERROR_MODEL_CURRENT_API_VERSION 0x00000200ULL
 
 typedef struct SeleneErrorModelAPIVersion {
   /**
@@ -29,7 +29,7 @@ typedef void *SeleneErrorModelInstance;
 
 /**
  * An instance is provided to `selene_runtime_get_next_operations`, which must
- * pass that back to any function it calls in it's provided
+ * pass that back to any function it calls in its provided
  * [ErrorModelSetResultInterface].
  */
 typedef void *SeleneErrorModelSetResultInstance;
@@ -77,22 +77,9 @@ typedef struct RuntimeGetOperationInterface {
   void (*set_batch_time_fn)(SeleneRuntimeGetOperationInstance,
                             uint64_t,
                             uint64_t);
-  void (*rzz_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double);
-  void (*rxy_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 double,
-                 double);
-  void (*rz_fn)(SeleneRuntimeGetOperationInstance,
-                uint64_t,
-                double);
-  void (*rpp_fn)(SeleneRuntimeGetOperationInstance,
-                 uint64_t,
-                 uint64_t,
-                 double,
-                 double);
+  void (*gate_fn)(SeleneRuntimeGetOperationInstance,
+                  const uint8_t*,
+                  size_t);
 } RuntimeGetOperationInterface;
 
 typedef struct RuntimeGetOperationHandle {
@@ -118,22 +105,6 @@ typedef struct SimulatorOperationInterface {
                                uint64_t shot_id,
                                uint64_t seed);
   SeleneErrno (*shot_end_fn)(SeleneSimulatorInstance instance);
-  SeleneErrno (*rxy_fn)(SeleneSimulatorInstance instance,
-                        uint64_t qubit,
-                        double theta,
-                        double phi);
-  SeleneErrno (*rz_fn)(SeleneSimulatorInstance instance,
-                       uint64_t qubit,
-                       double theta);
-  SeleneErrno (*rzz_fn)(SeleneSimulatorInstance instance,
-                        uint64_t qubit1,
-                        uint64_t qubit2,
-                        double theta);
-  SeleneErrno (*rpp_fn)(SeleneSimulatorInstance instance,
-                        uint64_t qubit1,
-                        uint64_t qubit2,
-                        double theta,
-                        double phi);
   SeleneErrno (*measure_fn)(SeleneSimulatorInstance instance,
                             uint64_t qubit);
   SeleneErrno (*postselect_fn)(SeleneSimulatorInstance instance,
@@ -150,6 +121,15 @@ typedef struct SimulatorOperationInterface {
                                const char *file,
                                const uint64_t *qubits,
                                uint64_t n_qubits);
+  SeleneErrno (*gate_fn)(SeleneSimulatorInstance instance,
+                         const uint8_t *data,
+                         size_t len);
+  SeleneErrno (*negotiate_gateset_fn)(SeleneSimulatorInstance instance,
+                                      const uint8_t *input,
+                                      size_t input_len,
+                                      uint8_t *output,
+                                      size_t output_len,
+                                      size_t *written);
 } SimulatorOperationInterface;
 
 typedef struct SimulatorHandle {
@@ -183,4 +163,10 @@ typedef struct SeleneErrorModelPluginDescriptorV1 {
                                 char *out_tag_str,
                                 uint8_t *out_datatype,
                                 uint64_t *out_data);
+  SeleneErrno (*negotiate_gateset_fn)(SeleneErrorModelInstance handle,
+                                      const uint8_t *input,
+                                      size_t input_len,
+                                      uint8_t *output,
+                                      size_t output_len,
+                                      size_t *written);
 } SeleneErrorModelPluginDescriptorV1;

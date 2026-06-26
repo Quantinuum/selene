@@ -2,6 +2,12 @@
 name = "selene-core"
 version = "0.3.0-alpha.1"
 edition = "2024"
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Core Rust APIs for Selene plugins, gatewire gatesets, and simulation infrastructure."
+readme = "README.md"
 
 [lib]
 name = "selene_core"
@@ -13,7 +19,12 @@ anyhow = "1.0"
 thiserror = "2.0"
 libloading = "0.8"
 delegate = "0.13"
-derive_more = { version = "2.1", features = ["from", "into", "add", "add_assign"] }
+derive_more = { version = "2.1", features = ["full"] }
+bitflags = "2"
+blake3 = "1"
+indexmap = "2"
+smallvec = "1"
+static_assertions = "1"
 
 [lints.clippy]
 undocumented_unsafe_blocks = "allow" # TODO: add safety docs

@@ -25,6 +25,55 @@
 
 #include "logging.h"
 
+static void check_gw(GwStatus status) {
+    if (status != GW_STATUS_OK) {
+        ERROR("gatewire error: %s\n", gw_status_message(status));
+        abort();
+    }
+}
+
+static int register_sol_gateset(void) {
+    GwGateSet* set = NULL;
+    check_gw(gw_gateset_new(&set));
+    check_gw(gw_gateset_add_builtin_rz(set));
+    check_gw(gw_gateset_add_builtin_phased_x(set));
+    check_gw(gw_gateset_add_builtin_phased_xx(set));
+
+    size_t len = 0;
+    check_gw(gw_gateset_serialized_len(set, &len));
+    uint8_t* buffer = malloc(len);
+    if (buffer == NULL) {
+        ERROR("failed to allocate gateset buffer\n");
+        gw_gateset_free(set);
+        return 1;
+    }
+    size_t written = 0;
+    check_gw(gw_gateset_serialize(set, buffer, len, &written));
+    gw_gateset_free(set);
+
+    size_t accepted_len = 0;
+    struct selene_void_result_t result = selene_register_gateset(selene_instance, buffer, written, NULL, 0, &accepted_len);
+    if (result.error_code != 0) {
+        ERROR("Error registering Sol gateset: error code %" PRIu32 "\n", result.error_code);
+        free(buffer);
+        return result.error_code;
+    }
+    uint8_t* accepted = malloc(accepted_len);
+    if (accepted == NULL && accepted_len != 0) {
+        ERROR("failed to allocate accepted gateset buffer\n");
+        free(buffer);
+        return 1;
+    }
+    result = selene_register_gateset(selene_instance, buffer, written, accepted, accepted_len, &accepted_len);
+    free(buffer);
+    free(accepted);
+    if (result.error_code != 0) {
+        ERROR("Error registering Sol gateset: error code %" PRIu32 "\n", result.error_code);
+        return result.error_code;
+    }
+    return 0;
+}
+
 
 
 int selene_sol_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
@@ -41,6 +90,10 @@ int selene_sol_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     if (void_result.error_code != 0) {
         ERROR("Error initializing selene: error code %" PRIu32 "\n", void_result.error_code);
         return void_result.error_code;
+    }
+    int register_result = register_sol_gateset();
+    if (register_result != 0) {
+        return register_result;
     }
     struct selene_u64_result_t n_shots = selene_shot_count(selene_instance);
     if (n_shots.error_code != 0) {

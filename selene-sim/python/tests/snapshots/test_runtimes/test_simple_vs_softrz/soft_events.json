@@ -44,182 +44,287 @@
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 3.141592653589793,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 3.141592653589793,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": -1.5707963267948966
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        0
+      ],
+      "params": [
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": -1.5707963267948966
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 1.5707963267948966,
-      "phi": -1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        1.5707963267948966,
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": 3.141592653589793
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        0
+      ],
+      "params": [
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": -1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": 3.141592653589793
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        1
+      ],
+      "params": [
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": -1.5707963267948966
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        0
+      ],
+      "params": [
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": -1.5707963267948966
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 1,
-      "qubit1": 2,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        1,
+        2
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": -1.5707963267948966
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.USER",
     "operation": {
-      "op": "Rz",
-      "qubit": 2,
-      "theta": -1.5707963267948966
+      "op": "Gate",
+      "gate": "RZ",
+      "qubits": [
+        2
+      ],
+      "params": [
+        -1.5707963267948966
+      ]
     }
   },
   {
@@ -372,28 +477,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 3.141592653589793,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 3.141592653589793,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 3.141592653589793,
-      "phi": 0.0,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ],
       "duration_ns": 0
     }
   },
@@ -408,28 +528,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 3.141592653589793,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 3.141592653589793,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 3.141592653589793,
-      "phi": 0.0,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        3.141592653589793,
+        0.0
+      ],
       "duration_ns": 0
     }
   },
@@ -444,28 +579,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ],
       "duration_ns": 0
     }
   },
@@ -480,28 +630,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966,
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ],
       "duration_ns": 0
     }
   },
@@ -516,28 +681,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ],
       "duration_ns": 0
     }
   },
@@ -552,28 +732,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 1.5707963267948966,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        1.5707963267948966,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 1.5707963267948966,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        1.5707963267948966,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 1.5707963267948966,
-      "phi": 0.0,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        0
+      ],
+      "params": [
+        1.5707963267948966,
+        0.0
+      ],
       "duration_ns": 0
     }
   },
@@ -588,28 +783,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 0.0,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        0.0
+      ],
       "duration_ns": 0
     }
   },
@@ -624,28 +834,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 0.0
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        0.0
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 0.0,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        -1.5707963267948966,
+        0.0
+      ],
       "duration_ns": 0
     }
   },
@@ -660,28 +885,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966,
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        0,
+        1
+      ],
+      "params": [
+        1.5707963267948966
+      ],
       "duration_ns": 0
     }
   },
@@ -696,28 +936,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 1.5707963267948966,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        1
+      ],
+      "params": [
+        1.5707963267948966,
+        1.5707963267948966
+      ],
       "duration_ns": 0
     }
   },
@@ -732,28 +987,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        -1.5707963267948966,
+        1.5707963267948966
+      ],
       "duration_ns": 0
     }
   },
@@ -768,28 +1038,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 1,
-      "qubit1": 2,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        1,
+        2
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 1,
-      "qubit1": 2,
-      "theta": 1.5707963267948966
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        1,
+        2
+      ],
+      "params": [
+        1.5707963267948966
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rzz",
-      "qubit0": 1,
-      "qubit1": 2,
-      "theta": 1.5707963267948966,
+      "op": "Gate",
+      "gate": "ZZPhase",
+      "qubits": [
+        1,
+        2
+      ],
+      "params": [
+        1.5707963267948966
+      ],
       "duration_ns": 0
     }
   },
@@ -804,28 +1089,43 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.ERROR_MODEL",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ]
     }
   },
   {
     "source": "Source.SIMULATOR",
     "operation": {
-      "op": "Rxy",
-      "qubit": 2,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793,
+      "op": "Gate",
+      "gate": "PhasedX",
+      "qubits": [
+        2
+      ],
+      "params": [
+        1.5707963267948966,
+        3.141592653589793
+      ],
       "duration_ns": 0
     }
   },

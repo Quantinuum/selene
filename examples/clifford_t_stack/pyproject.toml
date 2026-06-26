@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling", "packaging"]
+build-backend = "hatchling.build"
+
+[project]
+name = "selene-example-clifford-t-stack"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "A worked Selene custom-gateset example using Clifford+T plugins"
+readme = "README.md"
+dependencies = [
+  "selene-core~=0.3.0a0",
+  "selene-sim~=0.3.0a0",
+]
+
+[tool.uv.sources]
+selene-core = { path = "../../selene-core", editable = true }
+selene-sim = { path = "../..", editable = true }
+
+[dependency-groups]
+test = [
+  "pytest>=8.3.5",
+]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/selene_example_clifford_t_stack"]
+
+[tool.uv]
+cache-keys = [
+  { file = "Cargo.lock" },
+  { file = "Cargo.toml" },
+  { file = "hatch_build.py" },
+  { file = "c/**/*.c" },
+  { file = "c/**/*.h" },
+  { file = "cpp/CMakeLists.txt" },
+  { file = "cpp/**/*.cpp" },
+  { file = "programs/**/*.c" },
+  { file = "src/**/*.rs" },
+]

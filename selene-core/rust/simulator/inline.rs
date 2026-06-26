@@ -1,5 +1,7 @@
 use super::{SimulatorInterface, plugin::SimulatorInstance};
 use crate::{
+    gatewire::OwnedGateInstance,
+    plugin::write_negotiated_gateset,
     runtime::{BatchOperation, Operation},
     simulator::plugin::Errno,
     utils::{result_of_errno_to_errno, result_to_errno},
@@ -28,10 +30,8 @@ pub fn borrowed_simulator_interface(
             exit_fn: BorrowedSimulatorBridge::exit,
             shot_start_fn: BorrowedSimulatorBridge::shot_start,
             shot_end_fn: BorrowedSimulatorBridge::shot_end,
-            rxy_fn: BorrowedSimulatorBridge::rxy,
-            rz_fn: BorrowedSimulatorBridge::rz,
-            rzz_fn: BorrowedSimulatorBridge::rzz,
-            rpp_fn: BorrowedSimulatorBridge::rpp,
+            negotiate_gateset_fn: BorrowedSimulatorBridge::negotiate_gateset,
+            gate_fn: BorrowedSimulatorBridge::gate,
             measure_fn: BorrowedSimulatorBridge::measure,
             postselect_fn: BorrowedSimulatorBridge::postselect,
             reset_fn: BorrowedSimulatorBridge::reset,
@@ -71,81 +71,46 @@ impl BorrowedSimulatorBridge {
             Self::with_simulator(instance, |simulator| simulator.shot_end())
         })
     }
-    unsafe extern "C" fn rxy(
+    unsafe extern "C" fn negotiate_gateset(
         instance: SimulatorInstance,
-        qubit: u64,
-        theta: f64,
-        phi: f64,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
     ) -> Errno {
-        result_to_errno("BorrowedSimulatorBridge: rxy failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RXYGate {
-                        qubit_id: qubit,
-                        theta,
-                        phi,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RXY unexpectedly produced results")
-                }
-            })
-        })
+        result_to_errno(
+            "BorrowedSimulatorBridge: negotiate_gateset failed",
+            unsafe {
+                Self::with_simulator(instance, |simulator| {
+                    write_negotiated_gateset(
+                        input,
+                        input_len,
+                        output,
+                        output_len,
+                        written,
+                        |gateset| simulator.negotiate_gateset(gateset),
+                    )
+                })
+            },
+        )
     }
-    unsafe extern "C" fn rz(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno {
-        result_to_errno("BorrowedSimulatorBridge: rz failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RZGate {
-                        qubit_id: qubit,
-                        theta,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RZ unexpectedly produced results")
-                }
-            })
-        })
-    }
-    unsafe extern "C" fn rzz(instance: SimulatorInstance, q1: u64, q2: u64, theta: f64) -> Errno {
-        result_to_errno("BorrowedSimulatorBridge: rzz failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RZZGate {
-                        qubit_id_1: q1,
-                        qubit_id_2: q2,
-                        theta,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RZZ unexpectedly produced results")
-                }
-            })
-        })
-    }
-    unsafe extern "C" fn rpp(
+    unsafe extern "C" fn gate(
         instance: SimulatorInstance,
-        q1: u64,
-        q2: u64,
-        theta: f64,
-        phi: f64,
+        data: *const u8,
+        data_len: usize,
     ) -> Errno {
-        result_to_errno("BorrowedSimulatorBridge: rpp failed", unsafe {
+        result_to_errno("BorrowedSimulatorBridge: gate failed", unsafe {
             Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RPPGate {
-                        qubit_id_1: q1,
-                        qubit_id_2: q2,
-                        theta,
-                        phi,
-                    }))?;
+                let gate =
+                    OwnedGateInstance::deserialize(std::slice::from_raw_parts(data, data_len))?;
+                let results = simulator.handle_operations(Self::singleton_batch(
+                    Operation::from_gate_instance(gate)?,
+                ))?;
                 if results.bool_results.is_empty() && results.u64_results.is_empty() {
                     Ok(())
                 } else {
-                    anyhow::bail!("RPP unexpectedly produced results")
+                    anyhow::bail!("Gate unexpectedly produced results")
                 }
             })
         })
@@ -242,10 +207,8 @@ impl SimulatorFFIAdapter {
                 exit_fn: Self::exit,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
-                rxy_fn: Self::rxy,
-                rz_fn: Self::rz,
-                rzz_fn: Self::rzz,
-                rpp_fn: Self::rpp,
+                negotiate_gateset_fn: Self::negotiate_gateset,
+                gate_fn: Self::gate,
                 measure_fn: Self::measure,
                 postselect_fn: Self::postselect,
                 reset_fn: Self::reset,
@@ -286,89 +249,39 @@ impl SimulatorFFIAdapter {
         })
     }
 
-    unsafe extern "C" fn rxy(
+    unsafe extern "C" fn negotiate_gateset(
         instance: SimulatorInstance,
-        qubit: u64,
-        theta: f64,
-        phi: f64,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
     ) -> Errno {
-        result_to_errno("SimulatorFFIAdapter: rxy failed", unsafe {
+        result_to_errno("SimulatorFFIAdapter: negotiate_gateset failed", unsafe {
             Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RXYGate {
-                        qubit_id: qubit,
-                        theta,
-                        phi,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RXY unexpectedly produced results")
-                }
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    simulator.negotiate_gateset(gateset)
+                })
             })
         })
     }
 
-    unsafe extern "C" fn rz(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno {
-        result_to_errno("SimulatorFFIAdapter: rz failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RZGate {
-                        qubit_id: qubit,
-                        theta,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RZ unexpectedly produced results")
-                }
-            })
-        })
-    }
-
-    unsafe extern "C" fn rzz(
+    unsafe extern "C" fn gate(
         instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        theta: f64,
+        data: *const u8,
+        data_len: usize,
     ) -> Errno {
-        result_to_errno("SimulatorFFIAdapter: rzz failed", unsafe {
+        result_to_errno("SimulatorFFIAdapter: gate failed", unsafe {
             Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RZZGate {
-                        qubit_id_1: qubit1,
-                        qubit_id_2: qubit2,
-                        theta,
-                    }))?;
+                let gate =
+                    OwnedGateInstance::deserialize(std::slice::from_raw_parts(data, data_len))?;
+                let results = simulator.handle_operations(Self::singleton_batch(
+                    Operation::from_gate_instance(gate)?,
+                ))?;
                 if results.bool_results.is_empty() && results.u64_results.is_empty() {
                     Ok(())
                 } else {
-                    anyhow::bail!("RZZ unexpectedly produced results")
-                }
-            })
-        })
-    }
-
-    unsafe extern "C" fn rpp(
-        instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno {
-        result_to_errno("SimulatorFFIAdapter: rpp failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RPPGate {
-                        qubit_id_1: qubit1,
-                        qubit_id_2: qubit2,
-                        theta,
-                        phi,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RPP unexpectedly produced results")
+                    anyhow::bail!("Gate unexpectedly produced results")
                 }
             })
         })
@@ -472,26 +385,6 @@ pub struct SimulatorOperationInterface<'a> {
     pub shot_start_fn:
         unsafe extern "C" fn(instance: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(instance: SimulatorInstance) -> Errno,
-    pub rxy_fn: unsafe extern "C" fn(
-        instance: SimulatorInstance,
-        qubit: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno,
-    pub rz_fn: unsafe extern "C" fn(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno,
-    pub rzz_fn: unsafe extern "C" fn(
-        instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        theta: f64,
-    ) -> Errno,
-    pub rpp_fn: unsafe extern "C" fn(
-        instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno,
     pub measure_fn: unsafe extern "C" fn(instance: SimulatorInstance, qubit: u64) -> Errno,
     pub postselect_fn:
         unsafe extern "C" fn(instance: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
@@ -509,6 +402,16 @@ pub struct SimulatorOperationInterface<'a> {
         qubits: *const u64,
         n_qubits: u64,
     ) -> Errno,
+    pub gate_fn:
+        unsafe extern "C" fn(instance: SimulatorInstance, data: *const u8, len: usize) -> Errno,
+    pub negotiate_gateset_fn: unsafe extern "C" fn(
+        instance: SimulatorInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno,
     _marker: PhantomData<&'a ()>,
 }
 
@@ -518,15 +421,13 @@ impl SimulatorOperationInterface<'_> {
             exit_fn: self.exit_fn,
             shot_start_fn: self.shot_start_fn,
             shot_end_fn: self.shot_end_fn,
-            rxy_fn: self.rxy_fn,
-            rz_fn: self.rz_fn,
-            rzz_fn: self.rzz_fn,
-            rpp_fn: self.rpp_fn,
             measure_fn: self.measure_fn,
             postselect_fn: self.postselect_fn,
             reset_fn: self.reset_fn,
             get_metric_fn: self.get_metric_fn,
             dump_state_fn: self.dump_state_fn,
+            gate_fn: self.gate_fn,
+            negotiate_gateset_fn: self.negotiate_gateset_fn,
             _marker: PhantomData,
         }
     }

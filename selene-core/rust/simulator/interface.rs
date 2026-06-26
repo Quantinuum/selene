@@ -2,6 +2,7 @@ use anyhow::{Result, bail};
 use std::sync::Arc;
 
 use crate::error_model::BatchResult;
+use crate::gatewire::{DynamicGateSet, builtin};
 use crate::runtime::BatchOperation;
 use crate::utils::MetricValue;
 
@@ -17,6 +18,15 @@ pub trait SimulatorInterface {
     // Called to signal that the simulator should prepare to end the current
     // shot.
     fn shot_end(&mut self) -> Result<()>;
+
+    // Validate the gates this simulator may receive.
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let supported = builtin::all();
+        if let Some(decl) = gateset.first_unsupported_by(&supported) {
+            bail!("The chosen simulator does not support gate {}", decl.name);
+        }
+        Ok(gateset.clone())
+    }
 
     // Perform a batch of runtime operations on the simulator and return the
     // results of any measurements in the batch.

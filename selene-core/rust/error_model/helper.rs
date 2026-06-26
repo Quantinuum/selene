@@ -10,6 +10,7 @@ use super::{
 use crate::operation::plugin::{
     BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
 };
+use crate::plugin::write_negotiated_gateset;
 use crate::simulator::Simulator;
 use crate::simulator::inline::SimulatorHandle;
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
@@ -96,6 +97,24 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
         )
     }
 
+    pub unsafe fn negotiate_gateset(
+        instance: ErrorModelInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        result_to_errno(
+            "Failed to negotiate gateset",
+            Self::with_error_model_instance(instance, |error_model| unsafe {
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    error_model.negotiate_gateset(gateset)
+                })
+            }),
+        )
+    }
+
     pub unsafe fn handle_operations(
         instance: ErrorModelInstance,
         batch: RuntimeExtractOperationHandle,
@@ -172,7 +191,7 @@ macro_rules! export_error_model_plugin {
                         ErrorModelSetResultHandle, ErrorModelSetResultInstance,
                         ErrorModelSetResultInterface,
                     },
-                    version::CURRENT_API_VERSION,
+                    version::current_api_version,
                 },
                 operation::plugin::{
                     BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInstance,
@@ -265,6 +284,19 @@ macro_rules! export_error_model_plugin {
                 Helper::shot_end(instance)
             }
 
+            /// Negotiate the gates accepted from the runtime and return the gates this error
+            /// model may emit to the simulator, encoded as a gatewire gateset.
+            unsafe extern "C" fn selene_error_model_negotiate_gateset(
+                instance: ErrorModelInstance,
+                input: *const u8,
+                input_len: usize,
+                output: *mut u8,
+                output_len: usize,
+                written: *mut usize,
+            ) -> Errno {
+                Helper::negotiate_gateset(instance, input, input_len, output, output_len, written)
+            }
+
             /// This function is called to handle a batch of operations extracted from the
             /// runtime. It is responsible for processing the operations and returning the
             /// results of any measurements provided in the operation list.
@@ -346,13 +378,14 @@ macro_rules! export_error_model_plugin {
             selene_core::export_plugin_descriptor_v1!(
                 selene_error_model_plugin_descriptor_v1,
                 ErrorModelPluginDescriptorV1,
-                CURRENT_API_VERSION.as_u64(),
+                current_api_version().as_u64(),
                 {
-                    init_fn: selene_error_model_init,
+                    init_fn: Some(selene_error_model_init),
                     exit_fn: Some(selene_error_model_exit),
-                    shot_start_fn: selene_error_model_shot_start,
-                    shot_end_fn: selene_error_model_shot_end,
-                    handle_operations_fn: selene_error_model_handle_operations,
+                    shot_start_fn: Some(selene_error_model_shot_start),
+                    shot_end_fn: Some(selene_error_model_shot_end),
+                    negotiate_gateset_fn: Some(selene_error_model_negotiate_gateset),
+                    handle_operations_fn: Some(selene_error_model_handle_operations),
                     get_metrics_fn: Some(selene_error_model_get_metrics),
                 }
             );

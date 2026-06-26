@@ -85,10 +85,10 @@ def test_simple_vs_softrz(snapshot, compiled_guppy):
         f"User program metrics differ: {soft_metrics['user_program']} vs {simple_metrics['user_program']}"
     )
 
-    assert simple_metrics["post_runtime"]["rz_batch_count"] > 0
-    assert simple_metrics["post_runtime"]["rz_individual_count"] > 0
-    assert soft_metrics["post_runtime"]["rz_batch_count"] == 0
-    assert soft_metrics["post_runtime"]["rz_individual_count"] == 0
+    assert simple_metrics["post_runtime"]["gate:RZ:batch_count"] > 0
+    assert simple_metrics["post_runtime"]["gate:RZ:individual_count"] > 0
+    assert soft_metrics["post_runtime"].get("gate:RZ:batch_count", 0) == 0
+    assert soft_metrics["post_runtime"].get("gate:RZ:individual_count", 0) == 0
 
     def sum_up(metrics: dict[str, int], category: str):
         return sum(

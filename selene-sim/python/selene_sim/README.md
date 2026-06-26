@@ -24,7 +24,7 @@ Error models that are currently provided include:
 
 And we offer two example quantum runtimes, including:
 - Simple, which executes the program as-is, without any modifications
-- SoftRZ, which elides Z rotations through RXY gates, providing the same observable behaviour with fewer quantum operations
+- SoftRZ, which elides Z rotations through PhasedX gates, providing the same observable behaviour with fewer quantum operations
 
 ## Usage example
 
@@ -111,7 +111,7 @@ shots = QsysResult(runner.run_shots(
 print(shots)
 ```
 
-- And/or a runtime, such as the SoftRZRuntime, which elides physical RZ gates through subsequent RXY gates:
+- And/or a runtime, such as the SoftRZRuntime, which elides physical RZ gates through subsequent PhasedX gates:
 ```python
 from selene_sim import SoftRZRuntime
 

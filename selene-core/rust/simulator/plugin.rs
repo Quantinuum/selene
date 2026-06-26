@@ -1,9 +1,13 @@
 use super::{SimulatorAPIVersion, SimulatorInterface, SimulatorInterfaceFactory};
 use crate::error_model::BatchResult;
+use crate::gatewire::DynamicGateSet;
+use crate::plugin::{
+    NegotiateGatesetFn, PluginDescriptorV1, load_descriptor_v1, load_library, negotiate_gateset,
+    require_callback, validate_descriptor_v1,
+};
 use crate::runtime::{BatchOperation, Operation};
 use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
 use anyhow::{Result, anyhow, bail};
-use libloading;
 use std::ffi::OsStr;
 use std::ffi::c_char;
 use std::sync::Arc;
@@ -18,43 +22,23 @@ pub struct SimulatorPluginDescriptorV1 {
     pub struct_size: u64,
     pub api_version: u64,
     pub get_name_fn: Option<unsafe extern "C" fn() -> *const c_char>,
-    pub init_fn: unsafe extern "C" fn(
-        handle: *mut SimulatorInstance,
-        n_qubits: u64,
-        argc: u32,
-        argv: *const *const c_char,
-    ) -> Errno,
+    pub init_fn: Option<
+        unsafe extern "C" fn(
+            handle: *mut SimulatorInstance,
+            n_qubits: u64,
+            argc: u32,
+            argv: *const *const c_char,
+        ) -> Errno,
+    >,
     pub exit_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
     pub shot_start_fn:
-        unsafe extern "C" fn(handle: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
-    pub shot_end_fn: unsafe extern "C" fn(handle: SimulatorInstance) -> Errno,
-    pub rxy_fn: Option<
-        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
-    >,
-    pub rz_fn:
-        Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno>,
-    pub rzz_fn: Option<
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            theta: f64,
-        ) -> Errno,
-    >,
-    pub rpp_fn: Option<
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            theta: f64,
-            phi: f64,
-        ) -> Errno,
-    >,
-    pub measure_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+        Option<unsafe extern "C" fn(handle: SimulatorInstance, shot_id: u64, seed: u64) -> Errno>,
+    pub shot_end_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
+    pub measure_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno>,
     pub postselect_fn: Option<
         unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
     >,
-    pub reset_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    pub reset_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno>,
     pub get_metrics_fn: Option<
         unsafe extern "C" fn(
             handle: SimulatorInstance,
@@ -64,12 +48,39 @@ pub struct SimulatorPluginDescriptorV1 {
             value_out: *mut u64,
         ) -> Errno,
     >,
-    pub dump_state_fn: unsafe extern "C" fn(
-        handle: SimulatorInstance,
-        file: *const c_char,
-        qubits: *const u64,
-        n_qubits: u64,
-    ) -> Errno,
+    pub dump_state_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            file: *const c_char,
+            qubits: *const u64,
+            n_qubits: u64,
+        ) -> Errno,
+    >,
+    pub gate_fn: Option<
+        unsafe extern "C" fn(handle: SimulatorInstance, data: *const u8, len: usize) -> Errno,
+    >,
+    pub negotiate_gateset_fn: Option<
+        unsafe extern "C" fn(
+            handle: SimulatorInstance,
+            input: *const u8,
+            input_len: usize,
+            output: *mut u8,
+            output_len: usize,
+            written: *mut usize,
+        ) -> Errno,
+    >,
+}
+
+impl PluginDescriptorV1 for SimulatorPluginDescriptorV1 {
+    const KIND: &'static str = "Simulator";
+
+    fn struct_size(&self) -> u64 {
+        self.struct_size
+    }
+
+    fn api_version(&self) -> u64 {
+        self.api_version
+    }
 }
 
 /// Provides a simulation engine backend that controls a plugin, in the form of a shared object.
@@ -79,10 +90,10 @@ pub struct SimulatorPluginDescriptorV1 {
 /// plugin's implementation of the simulator interface, as well as metadata about the plugin and
 /// the ABI it implements.
 ///
-/// Plugins are used allow implementations of simulation backends to be written and
+/// Plugins allow implementations of simulation backends to be written and
 /// distributed independently of selene. Users should be cautious about the plugins they use,
 /// as it is possible that mistakes or malicious code could be present in the plugin, and, as
-/// with all external libraries, due dilligence must be done to verify the source and the
+/// with all external libraries, due diligence must be done to verify the source and the
 /// trustworthiness of the provider.
 pub struct SimulatorPluginInterface {
     _lib: libloading::Library,
@@ -97,28 +108,8 @@ pub struct SimulatorPluginInterface {
     shot_start_fn:
         unsafe extern "C" fn(handle: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
     shot_end_fn: unsafe extern "C" fn(handle: SimulatorInstance) -> Errno,
-    rxy_fn: Option<
-        unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
-    >,
-    rz_fn:
-        Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno>,
-    rzz_fn: Option<
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            theta: f64,
-        ) -> Errno,
-    >,
-    rpp_fn: Option<
-        unsafe extern "C" fn(
-            handle: SimulatorInstance,
-            qubit0: u64,
-            qubit1: u64,
-            theta: f64,
-            phi: f64,
-        ) -> Errno,
-    >,
+    negotiate_gateset_fn: Option<NegotiateGatesetFn<SimulatorInstance>>,
+    gate_fn: unsafe extern "C" fn(handle: SimulatorInstance, data: *const u8, len: usize) -> Errno,
     measure_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
     postselect_fn: Option<
         unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
@@ -143,36 +134,18 @@ pub struct SimulatorPluginInterface {
 
 impl SimulatorPluginInterface {
     pub fn new_from_file(plugin_file: impl AsRef<OsStr>) -> Result<Arc<Self>> {
-        let lib = unsafe { libloading::Library::new(plugin_file.as_ref()) }.map_err(|e| {
-            anyhow!(
-                "Failed to load simulator plugin: {}. Error: {}",
-                plugin_file.as_ref().to_string_lossy(),
-                e
-            )
-        })?;
+        let lib = load_library("simulator", &plugin_file)?;
         let descriptor = unsafe {
-            lib.get::<SimulatorPluginDescriptorV1>(b"selene_simulator_plugin_descriptor_v1")
-                .ok()
-                .map(|d| *d)
-                .or_else(|| {
-                    lib.get::<unsafe extern "C" fn() -> *const SimulatorPluginDescriptorV1>(
-                        b"selene_simulator_get_plugin_descriptor_v1",
-                    )
-                    .ok()
-                    .and_then(|f| {
-                        let ptr = f();
-                        if ptr.is_null() { None } else { Some(*ptr) }
-                    })
-                })
-        };
-        let descriptor = descriptor.ok_or_else(|| {
-            anyhow!(
-                "Simulator plugin '{}' does not expose either selene_simulator_plugin_descriptor_v1 or selene_simulator_get_plugin_descriptor_v1",
-                plugin_file.as_ref().to_string_lossy()
+            load_descriptor_v1::<SimulatorPluginDescriptorV1>(
+                &lib,
+                &plugin_file,
+                b"selene_simulator_plugin_descriptor_v1",
+                b"selene_simulator_get_plugin_descriptor_v1",
             )
+        }?;
+        validate_descriptor_v1(&descriptor, |api_version| {
+            SimulatorAPIVersion::from(api_version).validate()
         })?;
-        let version: SimulatorAPIVersion = descriptor.api_version.into();
-        version.validate()?;
         let name = unsafe {
             descriptor
                 .get_name_fn
@@ -186,25 +159,28 @@ impl SimulatorPluginInterface {
                     },
                 )
         };
-        if descriptor.struct_size < core::mem::size_of::<SimulatorPluginDescriptorV1>() as u64 {
-            bail!("Simulator plugin descriptor is too small for v1 ABI");
-        }
         Ok(Arc::new(Self {
             _lib: lib,
             name,
-            init_fn: descriptor.init_fn,
+            init_fn: require_callback("Simulator", "init_fn", descriptor.init_fn)?,
             exit_fn: descriptor.exit_fn,
-            shot_start_fn: descriptor.shot_start_fn,
-            shot_end_fn: descriptor.shot_end_fn,
-            rxy_fn: descriptor.rxy_fn,
-            rz_fn: descriptor.rz_fn,
-            rzz_fn: descriptor.rzz_fn,
-            rpp_fn: descriptor.rpp_fn,
-            measure_fn: descriptor.measure_fn,
+            shot_start_fn: require_callback(
+                "Simulator",
+                "shot_start_fn",
+                descriptor.shot_start_fn,
+            )?,
+            shot_end_fn: require_callback("Simulator", "shot_end_fn", descriptor.shot_end_fn)?,
+            negotiate_gateset_fn: descriptor.negotiate_gateset_fn,
+            gate_fn: require_callback("Simulator", "gate_fn", descriptor.gate_fn)?,
+            measure_fn: require_callback("Simulator", "measure_fn", descriptor.measure_fn)?,
             postselect_fn: descriptor.postselect_fn,
-            reset_fn: descriptor.reset_fn,
+            reset_fn: require_callback("Simulator", "reset_fn", descriptor.reset_fn)?,
             get_metrics_fn: descriptor.get_metrics_fn,
-            dump_state_fn: descriptor.dump_state_fn,
+            dump_state_fn: require_callback(
+                "Simulator",
+                "dump_state_fn",
+                descriptor.dump_state_fn,
+            )?,
         }))
     }
 }
@@ -215,53 +191,11 @@ pub struct SimulatorPlugin {
 }
 
 impl SimulatorPlugin {
-    fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> Result<()> {
-        let Some(rxy_fn) = self.interface.rxy_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RXY gate",
-                &self.interface.name
-            );
-        };
-        check_errno(unsafe { rxy_fn(self.instance, qubit, theta, phi) }, || {
-            anyhow!("SimulatorPlugin({}): rxy failed", &self.interface.name)
-        })
-    }
-
-    fn rz(&mut self, qubit: u64, theta: f64) -> Result<()> {
-        let Some(rz_fn) = self.interface.rz_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RZ gate",
-                &self.interface.name
-            );
-        };
-        check_errno(unsafe { rz_fn(self.instance, qubit, theta) }, || {
-            anyhow!("SimulatorPlugin({}): rz failed", &self.interface.name)
-        })
-    }
-
-    fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> Result<()> {
-        let Some(rzz_fn) = self.interface.rzz_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RZZ gate",
-                &self.interface.name
-            );
-        };
+    fn gate(&mut self, gate: &crate::gatewire::OwnedGateInstance) -> Result<()> {
+        let data = gate.serialize();
         check_errno(
-            unsafe { rzz_fn(self.instance, qubit1, qubit2, theta) },
-            || anyhow!("SimulatorPlugin({}): rzz failed", &self.interface.name),
-        )
-    }
-
-    fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> Result<()> {
-        let Some(rpp_fn) = self.interface.rpp_fn else {
-            bail!(
-                "SimulatorPlugin({}): The chosen simulator does not support the RPP gate",
-                &self.interface.name
-            );
-        };
-        check_errno(
-            unsafe { rpp_fn(self.instance, qubit1, qubit2, theta, phi) },
-            || anyhow!("SimulatorPlugin({}): rpp failed", &self.interface.name),
+            unsafe { (self.interface.gate_fn)(self.instance, data.as_ptr(), data.len()) },
+            || anyhow!("SimulatorPlugin({}): gate failed", &self.interface.name),
         )
     }
 
@@ -333,27 +267,21 @@ impl SimulatorInterface for SimulatorPlugin {
             || anyhow!("SimulatorPlugin({}): shot_end failed", &self.interface.name),
         )
     }
+
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let plugin = format!("SimulatorPlugin({})", &self.interface.name);
+        negotiate_gateset(
+            &plugin,
+            self.instance,
+            self.interface.negotiate_gateset_fn,
+            gateset,
+        )
+    }
     fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => self.rxy(qubit_id, theta, phi)?,
-                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Gate { gate } => self.gate(&gate)?,
                 Operation::Measure {
                     qubit_id,
                     result_id,

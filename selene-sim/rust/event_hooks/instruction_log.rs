@@ -49,26 +49,13 @@ impl Instruction {
                 encoder.write(5u64)?;
                 encoder.write(*qubit1)?;
             }
-            Operation::RXY(qubit1, angle1, angle2) => {
-                encoder.write(6u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*angle1)?;
-                encoder.write(*angle2)?;
-            }
-            Operation::RZ(qubit1, angle) => {
-                encoder.write(7u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*angle)?;
-            }
-            Operation::RZZ(qubit1, qubit2, angle) => {
-                encoder.write(8u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*qubit2)?;
-                encoder.write(*angle)?;
-            }
             Operation::Custom(tag, data) => {
                 encoder.write(9u64)?;
                 encoder.write(*tag)?;
+                encoder.write(&**data)?;
+            }
+            Operation::Gate(data) => {
+                encoder.write(15u64)?;
                 encoder.write(&**data)?;
             }
             Operation::LocalBarrier(qubits, sleep_time) => {
@@ -90,13 +77,6 @@ impl Instruction {
             Operation::ClassicalDelay(duration) => {
                 encoder.write(13u64)?;
                 encoder.write(*duration)?;
-            }
-            Operation::RPP(qubit1, qubit2, theta, phi) => {
-                encoder.write(14u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*qubit2)?;
-                encoder.write(*theta)?;
-                encoder.write(*phi)?;
             }
             Operation::Postselect(qubit1, target_value) => {
                 encoder.write(16u64)?;

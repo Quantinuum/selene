@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
-use selene_core::runtime::{BatchOperation, Operation};
+use selene_core::runtime::{BatchOperation, BuiltinGate, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -35,23 +35,23 @@ pub struct ClassicalReplaySimulator {
 }
 
 impl ClassicalReplaySimulator {
-    fn rxy(&mut self, q0: u64, _theta: f64, _phi: f64) -> Result<()> {
+    fn phased_x(&mut self, q0: u64, _theta: f64, _phi: f64) -> Result<()> {
         if q0 < self.n_qubits {
             Ok(())
         } else {
             Err(anyhow!(
-                "RXY(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                "PhasedX(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
                 self.n_qubits
             ))
         }
     }
 
-    fn rzz(&mut self, q0: u64, q1: u64, _theta: f64) -> Result<()> {
+    fn zz_phase(&mut self, q0: u64, q1: u64, _theta: f64) -> Result<()> {
         if q0 < self.n_qubits && q1 < self.n_qubits {
             Ok(())
         } else {
             Err(anyhow!(
-                "RZZ(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                "ZZPhase(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
                 self.n_qubits
             ))
         }
@@ -68,12 +68,12 @@ impl ClassicalReplaySimulator {
         }
     }
 
-    fn rpp(&mut self, q0: u64, q1: u64, _theta: f64, _phi: f64) -> Result<()> {
+    fn phased_xx(&mut self, q0: u64, q1: u64, _theta: f64, _phi: f64) -> Result<()> {
         if q0 < self.n_qubits && q1 < self.n_qubits {
             Ok(())
         } else {
             Err(anyhow!(
-                "RPP(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                "PhasedXX(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
                 self.n_qubits
             ))
         }
@@ -144,23 +144,26 @@ impl SimulatorInterface for ClassicalReplaySimulator {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => self.rxy(qubit_id, theta, phi)?,
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
-                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Gate { .. } => match operation.as_builtin_gate()? {
+                    Some(BuiltinGate::PhasedX {
+                        qubit_id,
+                        theta,
+                        phi,
+                    }) => self.phased_x(qubit_id, theta, phi)?,
+                    Some(BuiltinGate::ZZPhase {
+                        qubit_id_1,
+                        qubit_id_2,
+                        theta,
+                    }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
+                    Some(BuiltinGate::RZ { qubit_id, theta }) => self.rz(qubit_id, theta)?,
+                    Some(BuiltinGate::PhasedXX {
+                        qubit_id_1,
+                        qubit_id_2,
+                        theta,
+                        phi,
+                    }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
+                    None => {}
+                },
                 Operation::Measure {
                     qubit_id,
                     result_id,

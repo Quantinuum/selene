@@ -5,6 +5,7 @@ requires-python = ">=3.10"
 description = "The core interop library for Selene python interfaces"
 readme = "python/selene_core/README.md"
 dependencies = [
+  "blake3>=1.0.0",
   "hugr>=0.13.0",
   # required for inspecting object files to find defined and declared symbols
   "lief>=0.16.5",

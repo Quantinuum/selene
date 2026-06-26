@@ -3,7 +3,9 @@ use super::{
     plugin::{Errno, RuntimeInstance},
 };
 use crate::{
+    gatewire::OwnedGateInstance,
     operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface},
+    plugin::write_negotiated_gateset,
     runtime::Operation,
     utils::{result_of_errno_to_errno, result_to_errno},
 };
@@ -40,10 +42,8 @@ impl RuntimeFFIAdapter {
                 qfree_fn: Self::qfree,
                 local_barrier_fn: Self::local_barrier,
                 global_barrier_fn: Self::global_barrier,
-                rxy_gate_fn: Self::rxy_gate,
-                rzz_gate_fn: Self::rzz_gate,
-                rz_gate_fn: Self::rz_gate,
-                rpp_gate_fn: Self::rpp_gate,
+                gate_fn: Self::gate,
+                negotiate_gateset_fn: Self::negotiate_gateset,
                 measure_fn: Self::measure,
                 measure_leaked_fn: Self::measure_leaked,
                 reset_fn: Self::reset,
@@ -91,10 +91,7 @@ impl RuntimeFFIAdapter {
                     reset_fn,
                     custom_fn,
                     set_batch_time_fn,
-                    rzz_fn,
-                    rxy_fn,
-                    rz_fn,
-                    rpp_fn,
+                    gate_fn,
                     ..
                 } = ops.interface;
                 if let Some(timing) = batch.runtime_source() {
@@ -115,27 +112,10 @@ impl RuntimeFFIAdapter {
                             result_id,
                         } => measure_leaked_fn(ops.instance, *qubit_id, *result_id),
                         Operation::Reset { qubit_id } => reset_fn(ops.instance, *qubit_id),
-                        Operation::RXYGate {
-                            qubit_id,
-                            theta,
-                            phi,
-                        } => {
-                            rxy_fn(ops.instance, *qubit_id, *theta, *phi);
+                        Operation::Gate { gate } => {
+                            let data = gate.serialize();
+                            gate_fn(ops.instance, data.as_ptr(), data.len())
                         }
-                        Operation::RZGate { qubit_id, theta } => {
-                            rz_fn(ops.instance, *qubit_id, *theta)
-                        }
-                        Operation::RZZGate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            theta,
-                        } => rzz_fn(ops.instance, *qubit_id_1, *qubit_id_2, *theta),
-                        Operation::RPPGate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            theta,
-                            phi,
-                        } => rpp_fn(ops.instance, *qubit_id_1, *qubit_id_2, *theta, *phi),
                         Operation::Custom { custom_tag, data } => custom_fn(
                             ops.instance,
                             *custom_tag,
@@ -159,6 +139,23 @@ impl RuntimeFFIAdapter {
     unsafe extern "C" fn shot_end(instance: RuntimeInstance) -> Errno {
         result_to_errno("RuntimeFFIAdapter: shot_end failed", unsafe {
             Self::with_runtime(instance, |runtime| runtime.shot_end())
+        })
+    }
+
+    unsafe extern "C" fn negotiate_gateset(
+        instance: RuntimeInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        result_to_errno("RuntimeFFIAdapter: negotiate_gateset failed", unsafe {
+            Self::with_runtime(instance, |runtime| {
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    runtime.negotiate_gateset(gateset)
+                })
+            })
         })
     }
 
@@ -213,46 +210,19 @@ impl RuntimeFFIAdapter {
         })
     }
 
-    unsafe extern "C" fn rxy_gate(
+    unsafe extern "C" fn gate(
         instance: RuntimeInstance,
-        qubit: u64,
-        theta: f64,
-        phi: f64,
+        data: *const u8,
+        data_len: usize,
     ) -> Errno {
-        result_to_errno("RuntimeFFIAdapter: rxy_gate failed", unsafe {
-            Self::with_runtime(instance, |runtime| runtime.rxy_gate(qubit, theta, phi))
-        })
-    }
-
-    unsafe extern "C" fn rzz_gate(
-        instance: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        theta: f64,
-    ) -> Errno {
-        result_to_errno("RuntimeFFIAdapter: rzz_gate failed", unsafe {
-            Self::with_runtime(instance, |runtime| runtime.rzz_gate(qubit0, qubit1, theta))
-        })
-    }
-
-    unsafe extern "C" fn rz_gate(instance: RuntimeInstance, qubit: u64, theta: f64) -> Errno {
-        result_to_errno("RuntimeFFIAdapter: rz_gate failed", unsafe {
-            Self::with_runtime(instance, |runtime| runtime.rz_gate(qubit, theta))
-        })
-    }
-
-    unsafe extern "C" fn rpp_gate(
-        instance: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno {
-        result_to_errno("RuntimeFFIAdapter: rpp_gate failed", unsafe {
-            Self::with_runtime(instance, |runtime| {
-                runtime.rpp_gate(qubit0, qubit1, theta, phi)
-            })
-        })
+        result_to_errno(
+            "RuntimeFFIAdapter: gate failed",
+            (|| unsafe {
+                let gate =
+                    OwnedGateInstance::deserialize(std::slice::from_raw_parts(data, data_len))?;
+                Self::with_runtime(instance, |runtime| runtime.gate(&gate))
+            })(),
+        )
     }
 
     unsafe extern "C" fn measure(
@@ -409,10 +379,6 @@ pub struct RuntimeOperationInterface<'a> {
     pub qfree_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,
     pub local_barrier_fn: unsafe extern "C" fn(RuntimeInstance, *const u64, u64, u64) -> Errno,
     pub global_barrier_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,
-    pub rxy_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, f64, f64) -> Errno,
-    pub rzz_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64, f64) -> Errno,
-    pub rz_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, f64) -> Errno,
-    pub rpp_gate_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64, f64, f64) -> Errno,
     pub measure_fn: unsafe extern "C" fn(RuntimeInstance, u64, *mut u64) -> Errno,
     pub measure_leaked_fn: unsafe extern "C" fn(RuntimeInstance, u64, *mut u64) -> Errno,
     pub reset_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,
@@ -426,5 +392,14 @@ pub struct RuntimeOperationInterface<'a> {
     pub custom_call_fn:
         unsafe extern "C" fn(RuntimeInstance, u64, *const ffi::c_void, usize, *mut u64) -> Errno,
     pub simulate_delay_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,
+    pub gate_fn: unsafe extern "C" fn(RuntimeInstance, *const u8, usize) -> Errno,
+    pub negotiate_gateset_fn: unsafe extern "C" fn(
+        RuntimeInstance,
+        *const u8,
+        usize,
+        *mut u8,
+        usize,
+        *mut usize,
+    ) -> Errno,
     _marker: PhantomData<&'a ()>,
 }

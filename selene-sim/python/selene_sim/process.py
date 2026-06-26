@@ -2,6 +2,7 @@ import os
 import platform
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
+
 import yaml
 
 
@@ -39,6 +40,7 @@ class SeleneProcess:
         )
         self.stdout = run_directory / "stdout.txt"
         self.stderr = run_directory / "stderr.txt"
+        self.process = None
 
     def get_environment(self) -> dict:
         """
@@ -61,7 +63,10 @@ class SeleneProcess:
         return env
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except Exception:
+            pass
 
     def terminate(self, expected_natural_exit: bool = False):
         """

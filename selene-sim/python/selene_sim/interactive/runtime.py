@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import ctypes
 
-from selene_core import Runtime
+from selene_core import Gate, Gateset, Runtime
 import random
+
+from ._library import load_selene_global
 
 
 class SeleneRuntimeInstance(ctypes.Structure):
@@ -13,30 +15,11 @@ class SeleneRuntimeInstance(ctypes.Structure):
 
 SeleneRuntimeGetOperationInstance = ctypes.c_void_p
 
-RZZ_CB = ctypes.CFUNCTYPE(
+GATE_CB = ctypes.CFUNCTYPE(
     None,
     SeleneRuntimeGetOperationInstance,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_double,
-)
-RXY_CB = ctypes.CFUNCTYPE(
-    None,
-    SeleneRuntimeGetOperationInstance,
-    ctypes.c_uint64,
-    ctypes.c_double,
-    ctypes.c_double,
-)
-RZ_CB = ctypes.CFUNCTYPE(
-    None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_double
-)
-RPP_CB = ctypes.CFUNCTYPE(
-    None,
-    SeleneRuntimeGetOperationInstance,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_double,
-    ctypes.c_double,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.c_size_t,
 )
 
 MEASURE_CB = ctypes.CFUNCTYPE(
@@ -65,10 +48,7 @@ class SeleneRuntimeGetOperationInterface(ctypes.Structure):
         ("reset_fn", RESET_CB),
         ("custom_fn", CUSTOM_CB),
         ("set_batch_time_fn", SET_BATCH_TIME_CB),
-        ("rzz_fn", RZZ_CB),
-        ("rxy_fn", RXY_CB),
-        ("rz_fn", RZ_CB),
-        ("rpp_fn", RPP_CB),
+        ("gate_fn", GATE_CB),
     ]
 
 
@@ -91,31 +71,8 @@ class ResetOperation:
 
 
 @dataclass
-class RXYGateOperation:
-    qubit_id: int
-    theta: float
-    phi: float
-
-
-@dataclass
-class RZGateOperation:
-    qubit_id: int
-    theta: float
-
-
-@dataclass
-class RZZGateOperation:
-    qubit_id_a: int
-    qubit_id_b: int
-    theta: float
-
-
-@dataclass
-class RPPGateOperation:
-    qubit_id_a: int
-    qubit_id_b: int
-    theta: float
-    phi: float
+class GateOperation:
+    gate: Gate
 
 
 @dataclass
@@ -133,10 +90,7 @@ class MeasureLeakedOperation:
 RuntimeOperation = (
     MeasureOperation
     | ResetOperation
-    | RXYGateOperation
-    | RZGateOperation
-    | RZZGateOperation
-    | RPPGateOperation
+    | GateOperation
     | CustomOperation
     | MeasureLeakedOperation
 )
@@ -154,16 +108,8 @@ class OperationBatch:
         self.duration_nanos = duration_nanos
         self.invoked = True
 
-    def rxy(self, qubit_id: int, theta: float, phi: float):
-        self.operations.append(RXYGateOperation(qubit_id, theta, phi))
-        self.invoked = True
-
-    def rz(self, qubit_id: int, theta: float):
-        self.operations.append(RZGateOperation(qubit_id, theta))
-        self.invoked = True
-
-    def rzz(self, qubit_id_a: int, qubit_id_b: int, theta: float):
-        self.operations.append(RZZGateOperation(qubit_id_a, qubit_id_b, theta))
+    def gate(self, gate: Gate):
+        self.operations.append(GateOperation(gate))
         self.invoked = True
 
     def measure(self, qubit_id: int, result_id: int):
@@ -190,25 +136,14 @@ class OperationBatch:
         return ctypes.cast(ptr, ctypes.POINTER(ctypes.py_object)).contents.value
 
 
-def callback_rxy(
-    instance: SeleneRuntimeGetOperationInstance, qubit_id: int, theta: float, phi: float
-):
-    OperationBatch.from_ptr(instance).rxy(qubit_id, theta, phi)
-
-
-def callback_rz(
-    instance: SeleneRuntimeGetOperationInstance, qubit_id: int, theta: float
-):
-    OperationBatch.from_ptr(instance).rz(qubit_id, theta)
-
-
-def callback_rzz(
+def callback_gate(
     instance: SeleneRuntimeGetOperationInstance,
-    qubit_id_a: int,
-    qubit_id_b: int,
-    theta: float,
+    data_ptr: ctypes.c_void_p,
+    data_len: int,
 ):
-    OperationBatch.from_ptr(instance).rzz(qubit_id_a, qubit_id_b, theta)
+    OperationBatch.from_ptr(instance).gate(
+        Gate.deserialize(ctypes.string_at(data_ptr, data_len))
+    )
 
 
 def callback_measure(
@@ -244,9 +179,7 @@ def callback_set_batch_time(
 
 
 OPERATION_BATCH_CALLBACKS = SeleneRuntimeGetOperationInterface(
-    rzz_fn=RZZ_CB(callback_rzz),
-    rxy_fn=RXY_CB(callback_rxy),
-    rz_fn=RZ_CB(callback_rz),
+    gate_fn=GATE_CB(callback_gate),
     measure_fn=MEASURE_CB(callback_measure),
     measure_leaked_fn=MEASURE_LEAKED_CB(callback_measure_leaked),
     reset_fn=RESET_CB(callback_reset),
@@ -280,19 +213,6 @@ RuntimeQallocFn = ctypes.CFUNCTYPE(
     Errno, SeleneRuntimeInstancePtr, ctypes.POINTER(ctypes.c_uint64)
 )
 RuntimeQfreeFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
-RuntimeRxyFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_double, ctypes.c_double
-)
-RuntimeRzFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_double
-)
-RuntimeRzzFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneRuntimeInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_double,
-)
 RuntimeMeasureFn = ctypes.CFUNCTYPE(
     Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
 )
@@ -325,6 +245,18 @@ RuntimeCustomCallFn = ctypes.CFUNCTYPE(
     ctypes.c_size_t,
     ctypes.POINTER(ctypes.c_uint64),
 )
+RuntimeGateFn = ctypes.CFUNCTYPE(
+    Errno, SeleneRuntimeInstancePtr, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t
+)
+RuntimeNegotiateGatesetFn = ctypes.CFUNCTYPE(
+    Errno,
+    SeleneRuntimeInstancePtr,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_size_t),
+)
 
 
 class RuntimePluginDescriptorV1(ctypes.Structure):
@@ -341,10 +273,6 @@ class RuntimePluginDescriptorV1(ctypes.Structure):
         ("qfree_fn", RuntimeQfreeFn),
         ("local_barrier_fn", ctypes.c_void_p),
         ("global_barrier_fn", ctypes.c_void_p),
-        ("rxy_gate_fn", RuntimeRxyFn),
-        ("rzz_gate_fn", RuntimeRzzFn),
-        ("rz_gate_fn", RuntimeRzFn),
-        ("rpp_gate_fn", ctypes.c_void_p),
         ("measure_fn", RuntimeMeasureFn),
         ("measure_leaked_fn", RuntimeMeasureLeakedFn),
         ("reset_fn", RuntimeResetFn),
@@ -357,6 +285,8 @@ class RuntimePluginDescriptorV1(ctypes.Structure):
         ("decrement_future_refcount_fn", RuntimeDecFutureFn),
         ("custom_call_fn", RuntimeCustomCallFn),
         ("simulate_delay_fn", ctypes.c_void_p),
+        ("gate_fn", RuntimeGateFn),
+        ("negotiate_gateset_fn", RuntimeNegotiateGatesetFn),
     ]
 
 
@@ -365,6 +295,7 @@ GetRuntimeDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(RuntimePluginDescriptor
 
 class SeleneSimRuntimeLib(ctypes.CDLL):
     def __init__(self, runtime: Runtime) -> None:
+        load_selene_global()
         super().__init__(str(runtime.library_file))
         self._configure_signatures()
 
@@ -394,9 +325,6 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
         self.selene_runtime_get_next_operations = descriptor.get_next_operations_fn
         self.selene_runtime_qalloc = descriptor.qalloc_fn
         self.selene_runtime_qfree = descriptor.qfree_fn
-        self.selene_runtime_rxy_gate = descriptor.rxy_gate_fn
-        self.selene_runtime_rz_gate = descriptor.rz_gate_fn
-        self.selene_runtime_rzz_gate = descriptor.rzz_gate_fn
         self.selene_runtime_measure = descriptor.measure_fn
         self.selene_runtime_measure_leaked = descriptor.measure_leaked_fn
         self.selene_runtime_reset = descriptor.reset_fn
@@ -411,9 +339,15 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
         self.selene_runtime_decrement_future_refcount = (
             descriptor.decrement_future_refcount_fn
         )
+        self.selene_runtime_gate = descriptor.gate_fn
+        self.selene_runtime_negotiate_gateset = descriptor.negotiate_gateset_fn
 
         if self.selene_runtime_custom_call is None:
             raise RuntimeError("Runtime plugin does not expose custom_call_fn")
+        if self.selene_runtime_gate is None:
+            raise RuntimeError("Runtime plugin does not expose gate_fn")
+        if self.selene_runtime_negotiate_gateset is None:
+            raise RuntimeError("Runtime plugin does not expose negotiate_gateset_fn")
 
 
 class InteractiveRuntime:
@@ -423,12 +357,15 @@ class InteractiveRuntime:
         n_qubits: int,
         runtime: Runtime,
         start_time_nanos: int = 0,
+        gateset: Gateset | None = None,
     ):
         self._lib = SeleneSimRuntimeLib(runtime)
         self._instance = SeleneRuntimeInstancePtr()
         if runtime.random_seed is None:
             runtime.random_seed = random.randint(0, 2**64 - 1)
         self.runtime = runtime
+        self.gateset = gateset
+        self.emitted_gateset: Gateset | None = None
         self.n_qubits = n_qubits
         self.shot_id = 0
         arguments = runtime.get_init_args()
@@ -439,10 +376,32 @@ class InteractiveRuntime:
             ctypes.byref(self._instance), n_qubits, start_time_nanos, argc, argv
         ):
             raise RuntimeError("Failed to initialize Selene runtime")
+        if self.gateset is not None:
+            self.emitted_gateset = self.register_gateset(self.gateset)
         if 0 != self._lib.selene_runtime_shot_start(
             self._instance, self.shot_id, self.runtime.random_seed
         ):
             raise RuntimeError("Failed to start first shot on Selene runtime")
+
+    def register_gateset(self, gateset: Gateset) -> Gateset:
+        data = gateset.serialize()
+        input_buffer = (ctypes.c_uint8 * len(data)).from_buffer_copy(data)
+        written = ctypes.c_size_t()
+        if 0 != self._lib.selene_runtime_negotiate_gateset(
+            self._instance, input_buffer, len(data), None, 0, ctypes.byref(written)
+        ):
+            raise RuntimeError("Failed to negotiate gateset with Selene runtime")
+        output_buffer = (ctypes.c_uint8 * written.value)()
+        if 0 != self._lib.selene_runtime_negotiate_gateset(
+            self._instance,
+            input_buffer,
+            len(data),
+            output_buffer,
+            written.value,
+            ctypes.byref(written),
+        ):
+            raise RuntimeError("Failed to negotiate gateset with Selene runtime")
+        return Gateset.deserialize(bytes(output_buffer[: written.value]))
 
     def next_shot(self):
         if 0 != self._lib.selene_runtime_shot_end(self._instance):
@@ -487,19 +446,13 @@ class InteractiveRuntime:
         if 0 != self._lib.selene_runtime_qfree(self._instance, qubit_id):
             raise RuntimeError("Failed to free qubit on Selene runtime")
 
-    def rxy(self, qubit: int, theta: float, phi: float):
-        if 0 != self._lib.selene_runtime_rxy_gate(self._instance, qubit, theta, phi):
-            raise RuntimeError("Failed to apply RXY operation on Selene runtime")
-
-    def rz(self, qubit: int, theta: float):
-        if 0 != self._lib.selene_runtime_rz_gate(self._instance, qubit, theta):
-            raise RuntimeError("Failed to apply RZ operation on Selene runtime")
-
-    def rzz(self, qubit_a: int, qubit_b: int, theta: float):
-        if 0 != self._lib.selene_runtime_rzz_gate(
-            self._instance, qubit_a, qubit_b, theta
-        ):
-            raise RuntimeError("Failed to apply RZZ operation on Selene runtime")
+    def gate(self, gate: Gate):
+        data = gate.serialize()
+        input_buffer = (ctypes.c_uint8 * len(data)).from_buffer_copy(data)
+        if 0 != self._lib.selene_runtime_gate(self._instance, input_buffer, len(data)):
+            raise RuntimeError(
+                "Failed to apply generic gate operation on Selene runtime"
+            )
 
     def measure(self, qubit: int) -> int:
         future_ref = ctypes.c_uint64()

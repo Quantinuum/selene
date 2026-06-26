@@ -3,7 +3,11 @@ use std::collections::VecDeque;
 use anyhow::{bail, Result};
 use selene_core::{
     export_runtime_plugin,
-    runtime::{interface::RuntimeInterfaceFactory, BatchOperation, Operation, RuntimeInterface},
+    gatewire::OwnedGateInstance,
+    runtime::{
+        interface::RuntimeInterfaceFactory, BatchOperation, BuiltinGate, Operation,
+        RuntimeInterface,
+    },
     utils::MetricValue,
 };
 
@@ -95,42 +99,12 @@ impl RuntimeInterface for ExampleRuntime {
             .enumerate()
         {
             for op in operation.iter_ops() {
-                match op {
-                    Operation::RXYGate { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::RZGate { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::RZZGate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        ..
-                    } => {
-                        if qubits.contains(qubit_id_1) || qubits.contains(qubit_id_2) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Measure { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::MeasureLeaked { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Reset { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Custom { .. } => {}
+                if op
+                    .get_qubit_ids()
+                    .iter()
+                    .any(|qubit_id| qubits.contains(qubit_id))
+                {
+                    last_op_using_qubits = i;
                 }
             }
         }
@@ -155,47 +129,50 @@ impl RuntimeInterface for ExampleRuntime {
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
-            bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
+    fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
+        match Operation::from_gate_instance(gate.clone())?.as_builtin_gate()? {
+            Some(BuiltinGate::PhasedX {
+                qubit_id,
+                theta,
+                phi,
+            }) => {
+                if qubit_id >= self.qubits.len() as u64 {
+                    bail!("applying PhasedX gate to out-of-bounds qubit {qubit_id}");
+                }
+                let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
+                    bail!("Qubit {qubit_id} is not active");
+                };
+                self.push(Operation::phased_x(qubit_id, theta, phi - phase)?);
+            }
+            Some(BuiltinGate::ZZPhase {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            }) => {
+                if qubit_id_1 >= self.qubits.len() as u64 {
+                    bail!("applying ZZPhase gate to out-of-bounds qubit1 {qubit_id_1}");
+                }
+                if qubit_id_2 >= self.qubits.len() as u64 {
+                    bail!("applying ZZPhase gate to out-of-bounds qubit2 {qubit_id_2}");
+                }
+                self.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
+            }
+            Some(BuiltinGate::RZ { qubit_id, theta }) => {
+                if qubit_id >= self.qubits.len() as u64 {
+                    bail!("applying RZ gate to out-of-bounds qubit {qubit_id}");
+                }
+                let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
+                    bail!("Qubit {qubit_id} is not active");
+                };
+                self.qubits[qubit_id as usize] = QubitStatus::Active {
+                    phase: phase + theta,
+                };
+            }
+            Some(BuiltinGate::PhasedXX { .. }) => {
+                bail!("ExampleRuntime does not support PhasedXX gates");
+            }
+            None => bail!("ExampleRuntime does not support custom gates"),
         }
-        let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
-            bail!("Qubit {qubit_id} is not active");
-        };
-        self.push(Operation::RXYGate {
-            qubit_id,
-            theta,
-            phi: phi - phase, // The Z phase is enacted here.
-        });
-        Ok(())
-    }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        if qubit_id_1 >= self.qubits.len() as u64 {
-            bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
-        }
-        if qubit_id_2 >= self.qubits.len() as u64 {
-            bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
-        }
-        self.push(Operation::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        });
-        Ok(())
-    }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
-            bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
-        }
-        let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
-            bail!("Qubit {qubit_id} is not active");
-        };
-        // We don't apply an RZ gate. Instead, we accumulate a phase, and mutate
-        // RXY gates' phi parameters to account for the phase shift. RZZ and measurement
-        // are unaffected.
-        self.qubits[qubit_id as usize] = QubitStatus::Active {
-            phase: phase + theta,
-        };
         Ok(())
     }
     // Lifetime ops
@@ -204,7 +181,7 @@ impl RuntimeInterface for ExampleRuntime {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
         let result_id = self.future_results.len() as u64;
-        self.future_result.push(FutureResult {
+        self.future_results.push(FutureResult {
             is_set: false,
             value: 0,
         });

@@ -1,19 +1,17 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use clap::Parser;
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64Mcg;
 use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
-use selene_core::runtime::{BatchOperation, Operation};
-use selene_core::simulator::{Simulator, SimulatorInterface};
+use selene_core::runtime::{BatchOperation, BuiltinGate, Operation};
+use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
-use std::ffi::OsStr;
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64Mcg;
-use clap::Parser;
-
 
 #[derive(Parser, Debug)]
 struct Params {
-    #[arg(long, default_value= "0.01")]
+    #[arg(long, default_value = "0.01")]
     flip_probability: f64,
     #[arg(long, default_value = "0.01")]
     angle_mutation: f64,
@@ -28,48 +26,45 @@ struct Stats {
     total_angle_error: f64,
 }
 
-
 pub struct ExampleErrorModel {
-    simulator: Simulator,
     rng: Pcg64Mcg,
-    // Store the user-customisable properties for this instance
     error_params: Params,
-    // We can gather statistics that will be reported back to the user
-    // if they are using the MetricStore.
     stats: Stats,
     leakage_map: Vec<bool>,
 }
 
 impl ExampleErrorModel {
     fn mutate_angle(&mut self, angle: f64) -> f64 {
-        // Mutate the angle by a small random amount
-        let offset = self.rng.random_range(-self.error_params.angle_mutation..self.error_params.angle_mutation);
+        let offset = self
+            .rng
+            .random_range(-self.error_params.angle_mutation..self.error_params.angle_mutation);
         self.stats.total_angle_error += offset.abs();
         angle + offset
     }
+
     fn should_flip(&mut self) -> bool {
-        // Randomly decide whether to flip a qubit in the computational basis
         self.rng.random_bool(self.error_params.flip_probability)
     }
+
     fn should_leak(&mut self) -> bool {
-        // Randomly decide whether to leak a qubit
         self.rng.random_bool(self.error_params.leak_probability)
     }
-    fn flip_qubit(&mut self, qubit_id: u64) -> Result<()> {
-        // Flip the qubit in the computational basis
-        self.apply_simulator_void(Operation::RXYGate {
-            qubit_id,
-            theta: std::f64::consts::PI,
-            phi: 0.0,
-        })?;
+
+    fn flip_qubit(&mut self, simulator: &mut dyn SimulatorInterface, qubit_id: u64) -> Result<()> {
+        self.apply_simulator_void(
+            simulator,
+            Operation::phased_x(qubit_id, std::f64::consts::PI, 0.0)?,
+        )?;
         self.stats.flips_induced += 1;
         Ok(())
     }
 
-    fn apply_simulator_void(&mut self, operation: Operation) -> Result<()> {
-        let results = self
-            .simulator
-            .handle_operations(BatchOperation::error_model(vec![operation]))?;
+    fn apply_simulator_void(
+        &mut self,
+        simulator: &mut dyn SimulatorInterface,
+        operation: Operation,
+    ) -> Result<()> {
+        let results = simulator.handle_operations(BatchOperation::error_model(vec![operation]))?;
         if results.bool_results.is_empty() && results.u64_results.is_empty() {
             Ok(())
         } else {
@@ -79,13 +74,17 @@ impl ExampleErrorModel {
         }
     }
 
-    fn measure_simulator(&mut self, qubit_id: u64) -> Result<bool> {
-        let results = self
-            .simulator
-            .handle_operations(BatchOperation::error_model(vec![Operation::Measure {
+    fn measure_simulator(
+        &mut self,
+        simulator: &mut dyn SimulatorInterface,
+        qubit_id: u64,
+    ) -> Result<bool> {
+        let results = simulator.handle_operations(BatchOperation::error_model(vec![
+            Operation::Measure {
                 qubit_id,
                 result_id: 0,
-            }]))?;
+            },
+        ]))?;
         if results.u64_results.is_empty() && results.bool_results.len() == 1 {
             Ok(results.bool_results[0].value)
         } else {
@@ -94,128 +93,118 @@ impl ExampleErrorModel {
             ))
         }
     }
+
+    fn handle_gate(
+        &mut self,
+        operation: Operation,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<()> {
+        match operation.as_builtin_gate()? {
+            Some(BuiltinGate::PhasedX {
+                qubit_id,
+                theta,
+                phi,
+            }) => {
+                let theta = self.mutate_angle(theta);
+                let phi = self.mutate_angle(phi);
+                self.apply_simulator_void(simulator, Operation::phased_x(qubit_id, theta, phi)?)?;
+                if self.should_flip() {
+                    self.flip_qubit(simulator, qubit_id)?;
+                }
+                if self.should_leak() {
+                    self.stats.leaks_induced += 1;
+                    self.leakage_map[qubit_id as usize] = true;
+                }
+            }
+            Some(BuiltinGate::ZZPhase {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            }) => {
+                let theta = self.mutate_angle(theta);
+                let mut leaked_1 = self.leakage_map[qubit_id_1 as usize];
+                let mut leaked_2 = self.leakage_map[qubit_id_2 as usize];
+                match (leaked_1, leaked_2) {
+                    (false, true) => {
+                        self.leakage_map[qubit_id_1 as usize] = true;
+                        leaked_1 = true;
+                    }
+                    (true, false) => {
+                        self.leakage_map[qubit_id_2 as usize] = true;
+                        leaked_2 = true;
+                    }
+                    (false, false) => {
+                        if self.should_leak() {
+                            self.stats.leaks_induced += 2;
+                            self.leakage_map[qubit_id_1 as usize] = true;
+                            self.leakage_map[qubit_id_2 as usize] = true;
+                            leaked_1 = true;
+                            leaked_2 = true;
+                        }
+                    }
+                    _ => {}
+                }
+                if !leaked_1 && !leaked_2 {
+                    self.apply_simulator_void(
+                        simulator,
+                        Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?,
+                    )?;
+                    if self.should_flip() {
+                        self.flip_qubit(simulator, qubit_id_1)?;
+                        self.flip_qubit(simulator, qubit_id_2)?;
+                    }
+                }
+            }
+            Some(BuiltinGate::RZ { qubit_id, theta }) => {
+                let theta = self.mutate_angle(theta);
+                self.apply_simulator_void(simulator, Operation::rz(qubit_id, theta)?)?;
+                if self.should_flip() {
+                    self.flip_qubit(simulator, qubit_id)?;
+                }
+                if self.should_leak() {
+                    self.stats.leaks_induced += 1;
+                    self.leakage_map[qubit_id as usize] = true;
+                }
+            }
+            Some(BuiltinGate::PhasedXX { .. }) | None => {
+                self.apply_simulator_void(simulator, operation)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl ErrorModelInterface for ExampleErrorModel {
     fn exit(&mut self) -> Result<()> {
         Ok(())
     }
-    fn shot_start(&mut self, shot_id: u64, error_model_seed: u64, simulator_seed: u64) -> Result<()> {
-        self.simulator.shot_start(shot_id, simulator_seed)?;
-        self.rng = Pcg64Mcg::seed_from_u64(error_model_seed);
-        Ok(())
-    }
-    fn shot_end(&mut self) -> Result<()> {
-        self.simulator.shot_end()?;
+
+    fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
+        self.rng = Pcg64Mcg::seed_from_u64(seed);
         Ok(())
     }
 
-    fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+    fn shot_end(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn handle_operations(
+        &mut self,
+        operations: BatchOperation,
+        simulator: &mut dyn SimulatorInterface,
+    ) -> Result<BatchResult> {
         let mut results = BatchResult::default();
-        for op in operations {
-            match op {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => {
-                    // An RXY gate has been requested.
-                    //
-                    // randomly mutate theta and phi
-                    let theta = self.mutate_angle(theta);
-                    let phi = self.mutate_angle(phi);
-                    // Apply the RXY gate
-                    self.apply_simulator_void(Operation::RXYGate {
-                        qubit_id,
-                        theta,
-                        phi,
-                    })?;
-                    // randomly flip the qubit in the computational basis
-                    if self.should_flip() {
-                        self.flip_qubit(qubit_id)?;
-                    }
-                    if self.should_leak() {
-                        self.stats.leaks_induced += 1;
-                        self.leakage_map[qubit_id as usize] = true;
-                    }
-                }
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => {
-                    // An RZZ gate has been requested.
-                    //
-                    // randomly mutate theta
-                    let theta = self.mutate_angle(theta);
-                    // apply the RZZ gate
-                    let mut leaked_1 = self.leakage_map[qubit_id_1 as usize];
-                    let mut leaked_2 = self.leakage_map[qubit_id_2 as usize];
-                    match (leaked_1, leaked_2) {
-                        // For this example, we model leakage like a contagion. 
-                        // If one has leaked, leak the other upon interaction.
-                        (false, true) => {
-                            self.leakage_map[qubit_id_1 as usize] = true;
-                            leaked_1 = true;
-                        }
-                        (true, false) => {
-                            self.leakage_map[qubit_id_2 as usize] = true;
-                            leaked_2 = true;
-                        }
-                        (false, false) => {
-                            if self.should_leak() {
-                                // leak both
-                                self.stats.leaks_induced += 2;
-                                self.leakage_map[qubit_id_1 as usize] = true;
-                                self.leakage_map[qubit_id_2 as usize] = true;
-                                leaked_1 = true;
-                                leaked_2 = true;
-                            }
-                        }
-                        _ => {}
-                    }
-                    if !leaked_1 && !leaked_2 {
-                        self.apply_simulator_void(Operation::RZZGate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            theta,
-                        })?;
-                        // randomly flip both qubits in the computational basis
-                        if self.should_flip() {
-                            self.flip_qubit(qubit_id_1)?;
-                            self.flip_qubit(qubit_id_2)?;
-                        }
-                    }
-                }
-                Operation::RZGate { qubit_id, theta } => {
-                    // An RZ gate has been requested.
-                    //
-                    // randomly mutate theta
-                    let theta = self.mutate_angle(theta);
-                    // apply the RZ gate
-                    self.apply_simulator_void(Operation::RZGate { qubit_id, theta })?;
-                    // randomly flip the qubit in the computational basis
-                    if self.should_flip() {
-                        self.flip_qubit(qubit_id)?;
-                    }
-                    if self.should_leak() {
-                        self.stats.leaks_induced += 1;
-                        self.leakage_map[qubit_id as usize] = true;
-                    }
-                }
+        for operation in operations {
+            match operation {
+                Operation::Gate { .. } => self.handle_gate(operation, simulator)?,
                 Operation::Measure {
                     qubit_id,
                     result_id,
                 } => {
-                    // If leaked, measure 1 with 90% chance.
                     let measurement = if self.leakage_map[qubit_id as usize] {
                         self.rng.random_bool(0.9)
                     } else {
-                        // A measurement has been requested.
-                        // We need to perform the measurement and store the result.
-                        let true_measurement = self.measure_simulator(qubit_id)?;
-                        // But wait! Let's randomly flip the measurement result with a small
-                        // probability.
+                        let true_measurement = self.measure_simulator(simulator, qubit_id)?;
                         if self.should_flip() {
                             self.stats.flips_induced += 1;
                             !true_measurement
@@ -229,19 +218,13 @@ impl ErrorModelInterface for ExampleErrorModel {
                     qubit_id,
                     result_id,
                 } => {
-                    // If leaked, return 2, otherwise measure 0 or 1 according to the
-                    // normal measurement procedure.
                     let measurement = if self.leakage_map[qubit_id as usize] {
-                        2 // Indicate leakage
+                        2
                     } else {
-                        // A measurement has been requested.
-                        // We need to perform the measurement and store the result.
-                        let true_measurement = self.measure_simulator(qubit_id)?;
-                        // But wait! Let's randomly flip the measurement result with a small
-                        // probability.
+                        let true_measurement = self.measure_simulator(simulator, qubit_id)?;
                         if self.should_flip() {
                             self.stats.flips_induced += 1;
-                            !true_measurement as u64
+                            (!true_measurement) as u64
                         } else {
                             true_measurement as u64
                         }
@@ -249,17 +232,14 @@ impl ErrorModelInterface for ExampleErrorModel {
                     results.set_u64_result(result_id, measurement);
                 }
                 Operation::Reset { qubit_id } => {
-                    // A reset has been requested.
-                    self.leakage_map[qubit_id as usize] = false; // Reset leakage state
-                    self.apply_simulator_void(Operation::Reset { qubit_id })?;
-                    // So ideally it is in |0> now. Let's flip it with a small probability.
+                    self.leakage_map[qubit_id as usize] = false;
+                    self.apply_simulator_void(simulator, Operation::Reset { qubit_id })?;
                     if self.should_flip() {
-                        self.flip_qubit(qubit_id)?;
+                        self.flip_qubit(simulator, qubit_id)?;
                     }
                 }
-                Operation::Custom { .. } => {
-                    // Passively ignore custom operations
-                }
+                Operation::Custom { .. } => {}
+                _ => {}
             }
         }
         Ok(results)
@@ -267,29 +247,23 @@ impl ErrorModelInterface for ExampleErrorModel {
 
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         match nth_metric {
-            0 => {
-                // Return the number of flips induced by the error model
-                Ok(Some(("flips_induced".to_string(), MetricValue::U64(self.stats.flips_induced))))
-            }
-            1 => {
-                // Return the total angle error induced by the error model
-                Ok(Some(("total_angle_error".to_string(), MetricValue::F64(self.stats.total_angle_error))))
-            }
-            2 => {
-                // Return the number of leaks induced by the error model
-                Ok(Some(("leaks_induced".to_string(), MetricValue::U64(self.stats.leaks_induced))))
-            }
-            3 => {
-                // No other metrics are defined. Note this is NOT an error. We are
-                // simply reporting to Selene that we are at the end of the metric list.
-                Ok(None)
-            }
-            _ => {
-                // Selene should not be requesting another metric. This shouldn't happen,
-                // and you shouldn't need to handle this, but it's an example of how to provide
-                // errors through this function.
-                Err(anyhow!("Selene requested an out of bounds metric: {}", nth_metric))
-            }
+            0 => Ok(Some((
+                "flips_induced".to_string(),
+                MetricValue::U64(self.stats.flips_induced),
+            ))),
+            1 => Ok(Some((
+                "total_angle_error".to_string(),
+                MetricValue::F64(self.stats.total_angle_error),
+            ))),
+            2 => Ok(Some((
+                "leaks_induced".to_string(),
+                MetricValue::U64(self.stats.leaks_induced),
+            ))),
+            3 => Ok(None),
+            _ => Err(anyhow!(
+                "Selene requested an out of bounds metric: {}",
+                nth_metric
+            )),
         }
     }
 }
@@ -304,26 +278,18 @@ impl ErrorModelInterfaceFactory for ExampleErrorModelFactory {
         self: std::sync::Arc<Self>,
         n_qubits: u64,
         error_model_args: &[impl AsRef<str>],
-        simulator_path: &impl AsRef<OsStr>,
-        simulator_args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
         match Params::try_parse_from(error_model_args.iter().map(|s| s.as_ref())) {
             Err(e) => Err(anyhow!(
                 "Error parsing arguments to the example error model plugin: {}",
                 e
             )),
-            Ok(params) => {
-                let simulator =
-                    Simulator::load_from_file(simulator_path, n_qubits, simulator_args)?;
-                let leakage_map = vec![false; n_qubits as usize]; // Initialize a leakage map if needed
-                Ok(Box::new(ExampleErrorModel {
-                    rng: Pcg64Mcg::seed_from_u64(0),
-                    simulator,
-                    error_params: params,
-                    stats: Stats::default(),
-                    leakage_map,
-                }))
-            }
+            Ok(params) => Ok(Box::new(ExampleErrorModel {
+                rng: Pcg64Mcg::seed_from_u64(0),
+                error_params: params,
+                stats: Stats::default(),
+                leakage_map: vec![false; n_qubits as usize],
+            })),
         }
     }
 }

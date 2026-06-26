@@ -3,12 +3,14 @@ use anyhow::{Result, anyhow};
 use std::ffi::OsStr;
 use std::sync;
 
+use crate::gatewire::DynamicGateSet;
 pub mod helper;
 pub mod inline;
 pub mod interface;
 pub mod plugin;
 pub mod version;
 use crate::operation::BatchOperation;
+use crate::plugin as plugin_utils;
 pub use inline::{ErrorModelFFIAdapter, ErrorModelHandle, ErrorModelOperationInterface};
 pub use interface::{ErrorModelInterface, ErrorModelInterfaceFactory};
 pub use version::ErrorModelAPIVersion;
@@ -141,6 +143,15 @@ impl ErrorModelInterface for ErrorModel {
         check_errno(
             unsafe { (self.handle.interface.shot_end_fn)(self.handle.instance) },
             || anyhow!("ErrorModel: shot_end failed"),
+        )
+    }
+
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        plugin_utils::negotiate_gateset(
+            "ErrorModel",
+            self.handle.instance,
+            Some(self.handle.interface.negotiate_gateset_fn),
+            gateset,
         )
     }
 
