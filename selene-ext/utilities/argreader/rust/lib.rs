@@ -346,6 +346,9 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
                     values.len()
                 ));
             }
+            if len == 0 {
+                return;
+            }
             let u64_values: Vec<u64> = values.into_iter().map(|v| if v { 1 } else { 0 }).collect();
             unsafe {
                 std::ptr::copy_nonoverlapping(u64_values.as_ptr(), out_ptr, u64_values.len());
@@ -428,6 +431,9 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
                     "Runtime argument '{key}' expects an array of {len} integers, but was provided a boolean array {values:?} of length {}",
                     values.len()
                 ));
+            }
+            if len == 0 {
+                return;
             }
             let i64_values: Vec<i64> = values.into_iter().map(|v| if v { 1 } else { 0 }).collect();
             unsafe {
@@ -515,6 +521,9 @@ pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *m
                     "Runtime argument '{key}' expects an array of {len} floats, but was provided a boolean array {values:?} of length {}",
                     values.len()
                 ));
+            }
+            if len == 0 {
+                return;
             }
             let f64_values: Vec<f64> = values.into_iter().map(|v| if v { 1.0 } else { 0.0 }).collect();
             unsafe {
