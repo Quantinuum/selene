@@ -44,16 +44,7 @@ struct Params {
     /// Provided by the interface plugin via the build system.
     #[arg(long = "interface-fn")]
     interface_fns: Vec<String>,
-    /// Enable backtrace capture for queued operations.
-    ///
-    /// When unset (the default), no `BacktraceEngine` is constructed and
-    /// operations are emitted without debug-info `Custom` entries. Callers
-    /// that want backtrace metadata in the operation stream must opt in by
-    /// passing this flag and supplying `--interface-fn` entries that anchor
-    /// the engine's frame-skip calibration. Contexts without a compiled
-    /// user program (e.g. the interactive Python driver) should leave this
-    /// off, since there are no meaningful user frames to capture and the
-    /// calibration would otherwise panic.
+    /// Enable source location capture for use by trace consumers.
     #[arg(long = "enable-backtrace")]
     enable_backtrace: bool,
 }
