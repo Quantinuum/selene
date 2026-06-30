@@ -219,19 +219,19 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                 Operation::RXYGate {
                     qubit_id,
                     theta,
-                    phi,
+                    phi, ..
                 } => {
                     self.maybe_apply_1q_error(qubit_id)?;
                     self.simulator.rxy(qubit_id, theta, phi)?;
                 }
-                Operation::RZGate { qubit_id, theta } => {
+                Operation::RZGate { qubit_id, theta, .. } => {
                     self.maybe_apply_1q_error(qubit_id)?;
                     self.simulator.rz(qubit_id, theta)?;
                 }
                 Operation::RZZGate {
                     qubit_id_1,
                     qubit_id_2,
-                    theta,
+                    theta, ..
                 } => {
                     self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
                     self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
@@ -241,7 +241,7 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     qubit_id_2,
                     alpha,
                     beta,
-                    gamma,
+                    gamma, ..
                 } => {
                     self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
                     self.simulator
@@ -251,14 +251,14 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
-                    phi,
+                    phi, ..
                 } => {
                     self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?;
                     self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
                 }
                 Operation::Measure {
                     qubit_id,
-                    result_id,
+                    result_id, ..
                 } => {
                     let measurement = self.simulator.measure(qubit_id)?;
                     let modified_measurement = self.maybe_flip_measurement(qubit_id, measurement);
@@ -266,7 +266,7 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                 }
                 Operation::MeasureLeaked {
                     qubit_id,
-                    result_id,
+                    result_id, ..
                 } => {
                     // We aren't modelling leakage so this is the same as a normal measurement,
                     // except we set the u64 future as 0 or 1 (leakage would include higher values)
@@ -274,7 +274,7 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     let modified_measurement = self.maybe_flip_measurement(qubit_id, measurement);
                     results.set_u64_result(result_id, if modified_measurement { 1 } else { 0 });
                 }
-                Operation::Reset { qubit_id } => {
+                Operation::Reset { qubit_id, .. } => {
                     self.simulator.reset(qubit_id)?;
                     self.maybe_flip_on_init(qubit_id)?;
                 }

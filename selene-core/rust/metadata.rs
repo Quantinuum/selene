@@ -680,24 +680,6 @@ impl<'bump> BacktraceEngine<'bump> {
 /// The host (selene-sim) holds a backtrace engine and threads it through to
 /// event hooks via `EventHook::write`, where each hook can lazily resolve any
 /// metadata handles it has recorded into the wire-format `Custom` ops.
-pub trait MetadataResolver {
-    /// Drain any module-table entries discovered since the last drain,
-    /// serialised as msgpack blobs suitable for `Custom { tag: DEBUG_MODULE_TAG, data }` ops.
-    fn drain_pending_module_blobs(&mut self) -> Result<Vec<Vec<u8>>, rmp_serde::encode::Error>;
-    /// Serialise the metadata referenced by `handle` as the payload for a
-    /// `Custom { tag: DEBUG_INFO_TAG, data }` op.
-    fn serialize_metadata(&self, handle: u64) -> Result<Vec<u8>, rmp_serde::encode::Error>;
-}
-
-impl<'bump> MetadataResolver for BacktraceEngine<'bump> {
-    fn drain_pending_module_blobs(&mut self) -> Result<Vec<Vec<u8>>, rmp_serde::encode::Error> {
-        self.serialize_pending_modules()
-    }
-    fn serialize_metadata(&self, handle: u64) -> Result<Vec<u8>, rmp_serde::encode::Error> {
-        self.serialize_backtrace(handle)
-    }
-}
-
 impl<'bump> Drop for BacktraceEngine<'bump> {
     /// Manually drop all `UnresolvedBacktrace`s before the memory is deallocated
     /// when `self.allocator` is auto-dropped.

@@ -297,7 +297,7 @@ impl EventHook for HighLevelMetrics {
         &mut self,
         time_cursor: u64,
         encoder: &mut OutputStream,
-        _metadata_resolver: Option<&mut dyn selene_core::metadata::MetadataResolver>,
+        _metadata_resolver: Option<&mut selene_core::metadata::BacktraceEngine<'_>>,
     ) -> Result<(), OutputStreamError> {
         self.user_program_metrics.write(time_cursor, encoder)?;
         self.post_runtime_metrics.write(time_cursor, encoder)?;

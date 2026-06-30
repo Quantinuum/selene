@@ -1,6 +1,6 @@
 use selene_core::encoder::{OutputStream, OutputStreamError};
 use selene_core::error_model::BatchResult;
-use selene_core::metadata::MetadataResolver;
+use selene_core::metadata::BacktraceEngine;
 use selene_core::runtime::BatchOperation;
 
 pub mod instruction_log;
@@ -35,7 +35,7 @@ pub trait EventHook {
         &mut self,
         _time_cursor: u64,
         _encoder: &mut OutputStream,
-        _metadata_resolver: Option<&mut dyn MetadataResolver>,
+        _backtrace_engine: Option<&mut BacktraceEngine<'_>>,
     ) -> Result<(), OutputStreamError> {
         Ok(())
     }
@@ -73,15 +73,13 @@ impl EventHook for MultiEventHook {
         &mut self,
         time_cursor: u64,
         encoder: &mut OutputStream,
-        mut metadata_resolver: Option<&mut dyn MetadataResolver>,
+        mut backtrace_engine: Option<&mut BacktraceEngine<'_>>,
     ) -> Result<(), OutputStreamError> {
         for hook in self.hooks.iter_mut() {
             // Reborrow so each hook gets an independent borrow of the
-            // resolver while we keep the outer `Option` alive.
-            let resolver = metadata_resolver
-                .as_deref_mut()
-                .map(|r| r as &mut dyn MetadataResolver);
-            hook.write(time_cursor, encoder, resolver)?;
+            // engine while we keep the outer `Option` alive.
+            let engine = backtrace_engine.as_deref_mut();
+            hook.write(time_cursor, encoder, engine)?;
         }
         Ok(())
     }

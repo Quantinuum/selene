@@ -727,16 +727,14 @@ impl RuntimeInterface for RuntimePlugin {
 #[derive(Default)]
 pub struct BatchBuilder {
     ops: Vec<Operation>,
-    metadata: Vec<OpMetadata>,
     start: crate::time::Instant,
     duration: crate::time::Duration,
 }
 
 impl BatchBuilder {
-    fn push(interface: RuntimeGetOperationInstance, op: Operation, metadata: OpMetadata) {
+    fn push(interface: RuntimeGetOperationInstance, op: Operation) {
         Self::with_interface(interface, move |this| {
             this.ops.push(op);
-            this.metadata.push(metadata);
         })
     }
 
@@ -762,8 +760,8 @@ impl BatchBuilder {
                 qubit_id_1,
                 qubit_id_2,
                 theta,
+                metadata,
             },
-            metadata,
         )
     }
 
@@ -773,7 +771,14 @@ impl BatchBuilder {
         theta: f64,
         metadata: OpMetadata,
     ) {
-        Self::push(interface, Operation::RZGate { qubit_id, theta }, metadata)
+        Self::push(
+            interface,
+            Operation::RZGate {
+                qubit_id,
+                theta,
+                metadata,
+            },
+        )
     }
 
     unsafe extern "C" fn rxy(
@@ -789,8 +794,8 @@ impl BatchBuilder {
                 qubit_id,
                 theta,
                 phi,
+                metadata,
             },
-            metadata,
         )
     }
 
@@ -809,8 +814,8 @@ impl BatchBuilder {
                 qubit_id_2,
                 theta,
                 phi,
+                metadata,
             },
-            metadata,
         )
     }
 
@@ -831,8 +836,8 @@ impl BatchBuilder {
                 alpha,
                 beta,
                 gamma,
+                metadata,
             },
-            metadata,
         )
     }
 
@@ -847,8 +852,8 @@ impl BatchBuilder {
             Operation::Measure {
                 qubit_id,
                 result_id,
+                metadata,
             },
-            metadata,
         )
     }
 
@@ -863,8 +868,8 @@ impl BatchBuilder {
             Operation::MeasureLeaked {
                 qubit_id,
                 result_id,
+                metadata,
             },
-            metadata,
         )
     }
 
@@ -873,7 +878,7 @@ impl BatchBuilder {
         qubit_id: u64,
         metadata: OpMetadata,
     ) {
-        Self::push(interface, Operation::Reset { qubit_id }, metadata)
+        Self::push(interface, Operation::Reset { qubit_id, metadata })
     }
 
     unsafe extern "C" fn custom(
@@ -885,12 +890,7 @@ impl BatchBuilder {
         let data = unsafe { slice::from_raw_parts(data as *mut u8, len) }
             .to_vec()
             .into_boxed_slice();
-        // Custom ops don't carry metadata.
-        Self::push(
-            interface,
-            Operation::Custom { custom_tag, data },
-            crate::runtime::NO_METADATA,
-        )
+        Self::push(interface, Operation::Custom { custom_tag, data })
     }
 
     unsafe extern "C" fn set_batch_time(
@@ -932,7 +932,7 @@ impl BatchBuilder {
 
     /// Consumes the `BatchBuilder` returning the accumulated operations.
     pub fn finish(self) -> BatchOperation {
-        BatchOperation::new_with_metadata(self.ops, self.metadata, self.start, self.duration)
+        BatchOperation::new(self.ops, self.start, self.duration)
     }
 }
 
@@ -992,37 +992,44 @@ impl BatchExtractor {
             ..
         } = interface_out;
         unsafe { set_batch_time_fn(instance_out, batch.start().into(), batch.duration().into()) };
-        for (operation, metadata) in batch.iter_ops_with_metadata() {
+        for operation in batch.iter_ops() {
             match operation {
                 Operation::Measure {
                     qubit_id,
                     result_id,
-                } => unsafe { measure_fn(instance_out, *qubit_id, *result_id, metadata) },
+                    metadata,
+                } => unsafe { measure_fn(instance_out, *qubit_id, *result_id, *metadata) },
                 Operation::MeasureLeaked {
                     qubit_id,
                     result_id,
-                } => unsafe { measure_leaked_fn(instance_out, *qubit_id, *result_id, metadata) },
-                Operation::Reset { qubit_id } => unsafe {
-                    reset_fn(instance_out, *qubit_id, metadata)
+                    metadata,
+                } => unsafe { measure_leaked_fn(instance_out, *qubit_id, *result_id, *metadata) },
+                Operation::Reset { qubit_id, metadata } => unsafe {
+                    reset_fn(instance_out, *qubit_id, *metadata)
                 },
                 Operation::RXYGate {
                     qubit_id,
                     theta,
                     phi,
-                } => unsafe { rxy_fn(instance_out, *qubit_id, *theta, *phi, metadata) },
-                Operation::RZGate { qubit_id, theta } => unsafe {
-                    rz_fn(instance_out, *qubit_id, *theta, metadata)
-                },
+                    metadata,
+                } => unsafe { rxy_fn(instance_out, *qubit_id, *theta, *phi, *metadata) },
+                Operation::RZGate {
+                    qubit_id,
+                    theta,
+                    metadata,
+                } => unsafe { rz_fn(instance_out, *qubit_id, *theta, *metadata) },
                 Operation::RZZGate {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
-                } => unsafe { rzz_fn(instance_out, *qubit_id_1, *qubit_id_2, *theta, metadata) },
+                    metadata,
+                } => unsafe { rzz_fn(instance_out, *qubit_id_1, *qubit_id_2, *theta, *metadata) },
                 Operation::RPPGate {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
                     phi,
+                    metadata,
                 } => unsafe {
                     rpp_fn(
                         instance_out,
@@ -1030,7 +1037,7 @@ impl BatchExtractor {
                         *qubit_id_2,
                         *theta,
                         *phi,
-                        metadata,
+                        *metadata,
                     )
                 },
                 Operation::TK2Gate {
@@ -1039,6 +1046,7 @@ impl BatchExtractor {
                     alpha,
                     beta,
                     gamma,
+                    metadata,
                 } => unsafe {
                     tk2_fn(
                         instance_out,
@@ -1047,7 +1055,7 @@ impl BatchExtractor {
                         *alpha,
                         *beta,
                         *gamma,
-                        metadata,
+                        *metadata,
                     )
                 },
                 Operation::Custom { custom_tag, data } => {

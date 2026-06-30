@@ -68,7 +68,7 @@ impl EventHook for MeasurementLog {
             match *op {
                 Operation::Measure {
                     qubit_id,
-                    result_id,
+                    result_id, ..
                 } => {
                     self.meas_calls.push_back(MeasCall {
                         meas_type: MeasType::Measure,
@@ -78,7 +78,7 @@ impl EventHook for MeasurementLog {
                 }
                 Operation::MeasureLeaked {
                     qubit_id,
-                    result_id,
+                    result_id, ..
                 } => {
                     self.meas_calls.push_back(MeasCall {
                         meas_type: MeasType::MeasureLeaked,
@@ -123,7 +123,7 @@ impl EventHook for MeasurementLog {
         &mut self,
         time_cursor: u64,
         encoder: &mut OutputStream,
-        _metadata_resolver: Option<&mut dyn selene_core::metadata::MetadataResolver>,
+        _metadata_resolver: Option<&mut selene_core::metadata::BacktraceEngine<'_>>,
     ) -> Result<(), OutputStreamError> {
         encoder.begin_message(time_cursor)?;
         encoder.write("MEASUREMENTLOG")?;

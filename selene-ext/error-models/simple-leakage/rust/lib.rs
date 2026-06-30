@@ -96,19 +96,19 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                 Operation::RXYGate {
                     qubit_id,
                     theta,
-                    phi,
+                    phi, ..
                 } => {
                     self.maybe_leak(qubit_id)?;
                     self.simulator.rxy(qubit_id, theta, phi)?;
                 }
-                Operation::RZGate { qubit_id, theta } => {
+                Operation::RZGate { qubit_id, theta, .. } => {
                     self.maybe_leak(qubit_id)?;
                     self.simulator.rz(qubit_id, theta)?;
                 }
                 Operation::RZZGate {
                     qubit_id_1,
                     qubit_id_2,
-                    theta,
+                    theta, ..
                 } => {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
@@ -120,7 +120,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     qubit_id_2,
                     alpha,
                     beta,
-                    gamma,
+                    gamma, ..
                 } => {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
@@ -132,7 +132,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
-                    phi,
+                    phi, ..
                 } => {
                     self.maybe_leak(qubit_id_1)?;
                     self.maybe_leak(qubit_id_2)?;
@@ -141,7 +141,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                 }
                 Operation::Measure {
                     qubit_id,
-                    result_id,
+                    result_id, ..
                 } => {
                     let measurement = if self.leak_register[qubit_id as usize] {
                         self.rng
@@ -153,7 +153,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                 }
                 Operation::MeasureLeaked {
                     qubit_id,
-                    result_id,
+                    result_id, ..
                 } => {
                     let measurement = if self.leak_register[qubit_id as usize] {
                         2
@@ -162,7 +162,7 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     };
                     results.set_u64_result(result_id, measurement);
                 }
-                Operation::Reset { qubit_id } => {
+                Operation::Reset { qubit_id, .. } => {
                     self.simulator.reset(qubit_id)?;
                     self.leak_register[qubit_id as usize] = false;
                 }

@@ -5,17 +5,16 @@ use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
     runtime::{
-        BatchOperation, OpMetadata, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory,
+        BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory,
     },
     utils::MetricValue,
 };
 
 /// Pending gate operation, held in the queue until `get_next_operations` is called.
-/// The opaque metadata handle (e.g. a backtrace) is supplied by the host and
-/// surfaced unchanged through `BatchOperation` for downstream resolution.
+/// The opaque metadata handle (e.g. a backtrace) lives inside the [`Operation`]
+/// variants and is surfaced unchanged through `BatchOperation`.
 struct QueuedOp {
     op: Operation,
-    metadata: OpMetadata,
     start: selene_core::time::Instant,
     duration: selene_core::time::Duration,
 }
@@ -74,7 +73,7 @@ impl SimpleRuntime {
         }
     }
 
-    pub fn push(&mut self, op: Operation, metadata: OpMetadata) {
+    pub fn push(&mut self, op: Operation) {
         let duration_ns = match op {
             Operation::RXYGate { .. } => self.params.duration_ns_rxy,
             Operation::RZZGate { .. } => self.params.duration_ns_rzz,
@@ -90,7 +89,6 @@ impl SimpleRuntime {
         self.start += duration_ns.into();
         self.operation_queue.push_back(QueuedOp {
             op,
-            metadata,
             start,
             duration: duration_ns.into(),
         });
@@ -110,7 +108,7 @@ impl RuntimeInterface for SimpleRuntime {
             return Ok(None);
         };
         let mut batch = BatchOperation::new(Vec::new(), queued.start, queued.duration);
-        batch.add_operation_with_metadata(queued.op, queued.metadata);
+        batch.add_operation(queued.op);
         Ok(Some(batch))
     }
 
@@ -164,14 +162,12 @@ impl RuntimeInterface for SimpleRuntime {
         let QubitStatus::Active = self.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(
-            Operation::RXYGate {
-                qubit_id,
-                theta,
-                phi,
-            },
+        self.push(Operation::RXYGate {
+            qubit_id,
+            theta,
+            phi,
             metadata,
-        );
+        });
         Ok(())
     }
     fn rzz_gate(
@@ -187,14 +183,12 @@ impl RuntimeInterface for SimpleRuntime {
         if qubit_id_2 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
         }
-        self.push(
-            Operation::RZZGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-            },
+        self.push(Operation::RZZGate {
+            qubit_id_1,
+            qubit_id_2,
+            theta,
             metadata,
-        );
+        });
         Ok(())
     }
     fn rz_gate(
@@ -209,7 +203,11 @@ impl RuntimeInterface for SimpleRuntime {
         let QubitStatus::Active = self.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(Operation::RZGate { qubit_id, theta }, metadata);
+        self.push(Operation::RZGate {
+            qubit_id,
+            theta,
+            metadata,
+        });
         Ok(())
     }
     fn tk2_gate(
@@ -233,16 +231,14 @@ impl RuntimeInterface for SimpleRuntime {
         let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
             bail!("Qubit {qubit_id_2} is not active");
         };
-        self.push(
-            Operation::TK2Gate {
-                qubit_id_1,
-                qubit_id_2,
-                alpha,
-                beta,
-                gamma,
-            },
+        self.push(Operation::TK2Gate {
+            qubit_id_1,
+            qubit_id_2,
+            alpha,
+            beta,
+            gamma,
             metadata,
-        );
+        });
         Ok(())
     }
     fn rpp_gate(
@@ -265,15 +261,13 @@ impl RuntimeInterface for SimpleRuntime {
         let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
             bail!("Qubit {qubit_id_2} is not active");
         };
-        self.push(
-            Operation::RPPGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-                phi,
-            },
+        self.push(Operation::RPPGate {
+            qubit_id_1,
+            qubit_id_2,
+            theta,
+            phi,
             metadata,
-        );
+        });
         Ok(())
     }
     // Lifetime ops
@@ -290,13 +284,11 @@ impl RuntimeInterface for SimpleRuntime {
             measured: false,
             value: 0,
         });
-        self.push(
-            Operation::Measure {
-                qubit_id,
-                result_id,
-            },
+        self.push(Operation::Measure {
+            qubit_id,
+            result_id,
             metadata,
-        );
+        });
         Ok(result_id)
     }
     fn measure_leaked(
@@ -312,13 +304,11 @@ impl RuntimeInterface for SimpleRuntime {
             measured: false,
             value: 0,
         });
-        self.push(
-            Operation::MeasureLeaked {
-                qubit_id,
-                result_id,
-            },
+        self.push(Operation::MeasureLeaked {
+            qubit_id,
+            result_id,
             metadata,
-        );
+        });
         Ok(result_id)
     }
 
@@ -326,7 +316,7 @@ impl RuntimeInterface for SimpleRuntime {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("resetting out-of-bounds qubit {qubit_id}")
         }
-        self.push(Operation::Reset { qubit_id }, metadata);
+        self.push(Operation::Reset { qubit_id, metadata });
         Ok(())
     }
     fn force_result(&mut self, result_id: u64) -> Result<()> {

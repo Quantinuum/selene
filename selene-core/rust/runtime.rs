@@ -11,6 +11,19 @@ use delegate::delegate;
 pub use interface::{RuntimeInterface, RuntimeInterfaceFactory};
 pub use version::RuntimeAPIVersion;
 
+/// Opaque per-op metadata handle threaded from selene's user-program
+/// boundary through the runtime and surfaced back on each op of the
+/// emitted [`BatchOperation`].
+///
+/// The handle is a plain `u64` on the wire. The sentinel value `0`
+/// means "no metadata"; non-zero values are issued by selene and are
+/// meaningful only to selene (the runtime must treat them as opaque
+/// and pass them through unchanged).
+pub type OpMetadata = u64;
+
+/// Sentinel meaning "no metadata attached to this op".
+pub const NO_METADATA: OpMetadata = 0;
+
 /// We assume that operations of the same type can be done in parallel.
 /// The level of parallelism is decided by the runtime - i.e. it can
 /// choose to provide just one element at a time, or up to some limit N,
@@ -27,23 +40,28 @@ pub enum Operation {
     Measure {
         qubit_id: u64,
         result_id: u64,
+        metadata: OpMetadata,
     },
     Reset {
         qubit_id: u64,
+        metadata: OpMetadata,
     },
     RXYGate {
         qubit_id: u64,
         theta: f64,
         phi: f64,
+        metadata: OpMetadata,
     },
     RZGate {
         qubit_id: u64,
         theta: f64,
+        metadata: OpMetadata,
     },
     RZZGate {
         qubit_id_1: u64,
         qubit_id_2: u64,
         theta: f64,
+        metadata: OpMetadata,
     },
     Custom {
         custom_tag: usize,
@@ -52,12 +70,14 @@ pub enum Operation {
     MeasureLeaked {
         qubit_id: u64,
         result_id: u64,
+        metadata: OpMetadata,
     },
     RPPGate {
         qubit_id_1: u64,
         qubit_id_2: u64,
         theta: f64,
         phi: f64,
+        metadata: OpMetadata,
     },
     TK2Gate {
         qubit_id_1: u64,
@@ -65,6 +85,7 @@ pub enum Operation {
         alpha: f64,
         beta: f64,
         gamma: f64,
+        metadata: OpMetadata,
     },
 }
 
@@ -72,7 +93,7 @@ impl Operation {
     pub fn get_qubit_ids(&self) -> HashSet<u64> {
         match self {
             Operation::Measure { qubit_id, .. }
-            | Operation::Reset { qubit_id }
+            | Operation::Reset { qubit_id, .. }
             | Operation::RXYGate { qubit_id, .. }
             | Operation::RZGate { qubit_id, .. }
             | Operation::MeasureLeaked { qubit_id, .. } => {
@@ -103,25 +124,28 @@ impl Operation {
             Operation::Custom { .. } => HashSet::new(),
         }
     }
+
+    /// Returns the opaque metadata handle attached to this op, or
+    /// [`NO_METADATA`] for variants which never carry metadata
+    /// (currently only [`Operation::Custom`]).
+    pub fn metadata(&self) -> OpMetadata {
+        match self {
+            Operation::Measure { metadata, .. }
+            | Operation::Reset { metadata, .. }
+            | Operation::RXYGate { metadata, .. }
+            | Operation::RZGate { metadata, .. }
+            | Operation::RZZGate { metadata, .. }
+            | Operation::MeasureLeaked { metadata, .. }
+            | Operation::RPPGate { metadata, .. }
+            | Operation::TK2Gate { metadata, .. } => *metadata,
+            Operation::Custom { .. } => NO_METADATA,
+        }
+    }
 }
-
-/// Opaque per-op metadata handle threaded from selene's user-program
-/// boundary through the runtime and back out via [`BatchOperation`].
-///
-/// The handle is a plain `u64` on the wire. The sentinel value `0`
-/// means "no metadata"; non-zero values are issued by selene and are
-/// meaningful only to selene (the runtime must treat them as opaque).
-pub type OpMetadata = u64;
-
-/// Sentinel meaning "no metadata attached to this op".
-pub const NO_METADATA: OpMetadata = 0;
 
 #[derive(Default, Clone, Debug)]
 pub struct BatchOperation {
     ops: Vec<Operation>,
-    /// Parallel to `ops`; carries an opaque metadata handle (or
-    /// [`NO_METADATA`]) for each op.
-    metadata: Vec<OpMetadata>,
     start: crate::time::Instant,
     duration: crate::time::Duration,
 }
@@ -136,16 +160,6 @@ impl BatchOperation {
         }
     }
 
-    pub fn iter_metadata(&self) -> impl iter::DoubleEndedIterator<Item = OpMetadata> + '_ {
-        self.metadata.iter().copied()
-    }
-
-    pub fn iter_ops_with_metadata(
-        &self,
-    ) -> impl iter::DoubleEndedIterator<Item = (&Operation, OpMetadata)> + '_ {
-        self.ops.iter().zip(self.metadata.iter().copied())
-    }
-
     pub fn start(&self) -> crate::time::Instant {
         self.start
     }
@@ -158,37 +172,13 @@ impl BatchOperation {
         self.duration
     }
 
-    /// Construct a batch where every op has [`NO_METADATA`].
     pub fn new(
         ops: Vec<Operation>,
         start: crate::time::Instant,
         duration: crate::time::Duration,
     ) -> Self {
-        let metadata = vec![NO_METADATA; ops.len()];
         Self {
             ops,
-            metadata,
-            start,
-            duration,
-        }
-    }
-
-    /// Construct a batch from parallel `ops` + `metadata` vectors. The
-    /// two must have the same length.
-    pub fn new_with_metadata(
-        ops: Vec<Operation>,
-        metadata: Vec<OpMetadata>,
-        start: crate::time::Instant,
-        duration: crate::time::Duration,
-    ) -> Self {
-        assert_eq!(
-            ops.len(),
-            metadata.len(),
-            "BatchOperation: ops and metadata length mismatch"
-        );
-        Self {
-            ops,
-            metadata,
             start,
             duration,
         }
@@ -203,16 +193,8 @@ impl BatchOperation {
         })
     }
 
-    /// Add an op with no associated metadata.
     pub fn add_operation(&mut self, op: Operation) {
         self.ops.push(op);
-        self.metadata.push(NO_METADATA);
-    }
-
-    /// Add an op together with an opaque metadata handle.
-    pub fn add_operation_with_metadata(&mut self, op: Operation, metadata: OpMetadata) {
-        self.ops.push(op);
-        self.metadata.push(metadata);
     }
 }
 

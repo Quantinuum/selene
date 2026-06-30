@@ -110,39 +110,48 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     ..
                 } = unsafe { &*callbacks };
                 unsafe { set_batch_time_fn(goi, start.into(), duration.into()) };
-                for (op, metadata) in batch.iter_ops_with_metadata() {
+                for op in batch.iter_ops() {
                     match op {
                         Operation::Measure {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_fn(goi, *qubit_id, *result_id, metadata) },
+                            metadata,
+                        } => unsafe { measure_fn(goi, *qubit_id, *result_id, *metadata) },
                         Operation::MeasureLeaked {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_leaked_fn(goi, *qubit_id, *result_id, metadata) },
-                        Operation::Reset { qubit_id } => unsafe {
-                            reset_fn(goi, *qubit_id, metadata)
+                            metadata,
+                        } => unsafe { measure_leaked_fn(goi, *qubit_id, *result_id, *metadata) },
+                        Operation::Reset { qubit_id, metadata } => unsafe {
+                            reset_fn(goi, *qubit_id, *metadata)
                         },
-                        Operation::RZGate { qubit_id, theta } => unsafe {
-                            rz_fn(goi, *qubit_id, *theta, metadata)
-                        },
+                        Operation::RZGate {
+                            qubit_id,
+                            theta,
+                            metadata,
+                        } => unsafe { rz_fn(goi, *qubit_id, *theta, *metadata) },
                         Operation::RXYGate {
                             qubit_id,
                             theta,
                             phi,
-                        } => unsafe { rxy_fn(goi, *qubit_id, *theta, *phi, metadata) },
+                            metadata,
+                        } => unsafe { rxy_fn(goi, *qubit_id, *theta, *phi, *metadata) },
                         Operation::RZZGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
-                        } => unsafe { rzz_fn(goi, *qubit_id_1, *qubit_id_2, *theta, metadata) },
+                            metadata,
+                        } => unsafe {
+                            rzz_fn(goi, *qubit_id_1, *qubit_id_2, *theta, *metadata)
+                        },
                         Operation::RPPGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
                             phi,
+                            metadata,
                         } => unsafe {
-                            rpp_fn(goi, *qubit_id_1, *qubit_id_2, *theta, *phi, metadata)
+                            rpp_fn(goi, *qubit_id_1, *qubit_id_2, *theta, *phi, *metadata)
                         },
                         Operation::TK2Gate {
                             qubit_id_1,
@@ -150,6 +159,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             alpha,
                             beta,
                             gamma,
+                            metadata,
                         } => unsafe {
                             tk2_fn(
                                 goi,
@@ -158,7 +168,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                                 *alpha,
                                 *beta,
                                 *gamma,
-                                metadata,
+                                *metadata,
                             )
                         },
                         Operation::Custom { custom_tag, data } => {
