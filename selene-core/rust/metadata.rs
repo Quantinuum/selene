@@ -437,15 +437,7 @@ impl<'bump> BacktraceEngine<'bump> {
 
     /// Check if `name` is one of the interface functions.
     fn is_interface_fn_name(&self, name: &str) -> bool {
-        // On macOS the Darwin linker prepends an extra '_' to C symbols,
-        // remove it before checking for matches
-        let name_canonical = if std::env::consts::OS == "macos" {
-            name.strip_prefix('_').unwrap_or(name)
-        } else {
-            name
-        };
-
-        self.interface_fns.contains(name_canonical)
+        self.interface_fns.contains(name)
     }
 
     const MAX_FRAMES_TO_SEARCH: usize = 64;
@@ -540,6 +532,7 @@ impl<'bump> BacktraceEngine<'bump> {
                     // Found the interface frame. We want the *caller* of
                     // the interface frame, which is one frame above.
                     skip_count += 1;
+                    eprintln!("[BT cal] => skip_count = {skip_count}");
                     self.site_frame_skips.insert(call_site_ip, skip_count);
                     return skip_count;
                 }
@@ -616,8 +609,13 @@ impl<'bump> BacktraceEngine<'bump> {
         let end = std::cmp::min(frame_skip + n_capture, n_frames);
         for &frame_ptr in &frames[frame_skip..end] {
             let ip = frame_ptr as usize;
-            let vma: u64 = match self.module_for_ip_cached(ip) {
-                Some(_) => ip as u64,
+            // Subtract 1 from the return address to get an address within the
+            // call instruction. libc::backtrace / RtlCaptureStackBackTrace
+            // return return addresses (the instruction *after* the call), but
+            // addr2line needs an address *within* the call for correct line info.
+            let call_ip = ip.saturating_sub(1);
+            let vma: u64 = match self.module_for_ip_cached(call_ip) {
+                Some(_) => call_ip as u64,
                 None => 0,
             };
             hash = hash.rotate_left(13) ^ (vma.wrapping_mul(0x9E3779B97F4A7C15));

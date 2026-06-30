@@ -144,9 +144,22 @@ def validate_debug_info(hugr):
         )
         for frame in meta.frames:
             assert isinstance(frame.function_name, str)
-            assert isinstance(frame.file_name, str)
+            # file_name and line may be None for frames in libraries without
+            # debug info (e.g. selene_helios_run). Only user-code frames are
+            # guaranteed to have full source locations.
+            assert isinstance(frame.file_name, (str, type(None)))
             assert isinstance(frame.line, (int, type(None)))
             assert isinstance(frame.column, (int, type(None)))
+
+    # Validate that the innermost frame (user code) has full source info
+    for record in events_with_metadata:
+        innermost = record.event.metadata.frames[0]
+        assert isinstance(innermost.file_name, str), (
+            f"Innermost frame should have file_name, got {innermost}"
+        )
+        assert isinstance(innermost.line, int), (
+            f"Innermost frame should have line, got {innermost}"
+        )
 
     # Validate that innermost frames point to correct source operations
     for record in events_with_metadata:
