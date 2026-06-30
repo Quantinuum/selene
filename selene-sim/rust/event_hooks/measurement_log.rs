@@ -123,6 +123,7 @@ impl EventHook for MeasurementLog {
         &mut self,
         time_cursor: u64,
         encoder: &mut OutputStream,
+        _metadata_resolver: Option<&mut dyn selene_core::metadata::MetadataResolver>,
     ) -> Result<(), OutputStreamError> {
         encoder.begin_message(time_cursor)?;
         encoder.write("MEASUREMENTLOG")?;

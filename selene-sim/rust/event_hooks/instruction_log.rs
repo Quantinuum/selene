@@ -1,10 +1,15 @@
 use crate::event_hooks::{EventHook, Operation};
 use selene_core::encoder::{OutputStream, OutputStreamError};
-use selene_core::runtime::{self, BatchOperation};
+use selene_core::metadata::{DEBUG_INFO_TAG, DEBUG_MODULE_TAG, MetadataResolver};
+use selene_core::runtime::{self, BatchOperation, OpMetadata};
 
 pub struct Instruction {
     pub source: Source,
     pub operation: Operation,
+    /// Opaque per-op metadata handle, or zero (`NO_METADATA`) if none.
+    /// Resolved into `Custom { tag: DEBUG_MODULE_TAG / DEBUG_INFO_TAG }`
+    /// instructions emitted immediately before this one at write time.
+    pub metadata: OpMetadata,
 }
 #[derive(Clone)]
 #[repr(u64)]
@@ -116,6 +121,7 @@ impl EventHook for InstructionLog {
         self.entries.push(Instruction {
             source: Source::UserProgram,
             operation: operation.clone(),
+            metadata: selene_core::runtime::NO_METADATA,
         });
     }
     fn on_runtime_batch(&mut self, batch: &BatchOperation) {
@@ -124,8 +130,9 @@ impl EventHook for InstructionLog {
         self.entries.push(Instruction {
             source: Source::RuntimeOptimiser,
             operation: Operation::BatchStart(start, duration),
+            metadata: selene_core::runtime::NO_METADATA,
         });
-        for op in batch.iter_ops() {
+        for (op, meta) in batch.iter_ops_with_metadata() {
             let operation = match op {
                 runtime::Operation::Reset { qubit_id } => Operation::Reset(*qubit_id),
                 runtime::Operation::RXYGate {
@@ -164,6 +171,7 @@ impl EventHook for InstructionLog {
             self.entries.push(Instruction {
                 source: Source::RuntimeOptimiser,
                 operation,
+                metadata: meta,
             });
         }
     }
@@ -171,10 +179,37 @@ impl EventHook for InstructionLog {
         &mut self,
         time_cursor: u64,
         encoder: &mut OutputStream,
+        mut metadata_resolver: Option<&mut dyn MetadataResolver>,
     ) -> Result<(), OutputStreamError> {
         encoder.begin_message(time_cursor)?;
         encoder.write("INSTRUCTIONLOG")?;
         for instruction in self.entries.iter() {
+            // Lazily resolve metadata: emit any newly-discovered module
+            // blobs first (as Custom { DEBUG_MODULE_TAG }), then the
+            // backtrace payload (as Custom { DEBUG_INFO_TAG }), then
+            // the actual instruction. All synthesised events share the
+            // instruction's source (typically RuntimeOptimiser).
+            if instruction.metadata != selene_core::runtime::NO_METADATA {
+                if let Some(resolver) = metadata_resolver.as_deref_mut() {
+                    let module_blobs = resolver
+                        .drain_pending_module_blobs()
+                        .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
+                    let source_id: u64 = instruction.source.clone() as u64;
+                    for blob in module_blobs {
+                        encoder.write(source_id)?;
+                        encoder.write(9u64)?;
+                        encoder.write(DEBUG_MODULE_TAG as u64)?;
+                        encoder.write(&blob[..])?;
+                    }
+                    let payload = resolver
+                        .serialize_metadata(instruction.metadata)
+                        .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
+                    encoder.write(source_id)?;
+                    encoder.write(9u64)?;
+                    encoder.write(DEBUG_INFO_TAG as u64)?;
+                    encoder.write(&payload[..])?;
+                }
+            }
             instruction.write(encoder)?;
         }
         self.entries.clear();

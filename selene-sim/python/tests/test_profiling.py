@@ -9,7 +9,7 @@ real samply install) are left as manual verification.
 
 import platform
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -121,7 +121,9 @@ def test_profile_raises_when_samply_missing(tmp_path):
 
 def test_selene_object_step_forwards_emit_debug(tmp_path):
     """emit_debug=True in BuildCtx.cfg is forwarded to invoke_zig."""
-    from selene_core.build_utils.builtins.selene import SeleneObjectToSeleneExecutableStep
+    from selene_core.build_utils.builtins.selene import (
+        SeleneObjectToSeleneExecutableStep,
+    )
     from selene_core.build_utils.types import BuildCtx, Artifact
     from selene_core.build_utils.builtins.selene import SeleneObjectFileKind
 
@@ -149,7 +151,9 @@ def test_selene_object_step_forwards_emit_debug(tmp_path):
     with (
         patch.object(selene_sim, "dist_dir", fake_lib_dir.parent),
         patch("selene_core.build_utils.builtins.selene.invoke_zig") as mock_zig,
-        patch("selene_core.build_utils.builtins.selene.invoke_dsymutil") as mock_dsymutil,
+        patch(
+            "selene_core.build_utils.builtins.selene.invoke_dsymutil"
+        ) as mock_dsymutil,
     ):
         SeleneObjectToSeleneExecutableStep.apply(ctx, artifact)
 
@@ -167,7 +171,9 @@ def test_selene_object_step_forwards_emit_debug(tmp_path):
 
 def test_selene_object_step_no_dsymutil_without_emit_debug(tmp_path):
     """invoke_dsymutil is NOT called when emit_debug is False (the default)."""
-    from selene_core.build_utils.builtins.selene import SeleneObjectToSeleneExecutableStep
+    from selene_core.build_utils.builtins.selene import (
+        SeleneObjectToSeleneExecutableStep,
+    )
     from selene_core.build_utils.types import BuildCtx, Artifact
     from selene_core.build_utils.builtins.selene import SeleneObjectFileKind
 
@@ -188,7 +194,9 @@ def test_selene_object_step_no_dsymutil_without_emit_debug(tmp_path):
     with (
         patch.object(selene_sim, "dist_dir", fake_lib_dir.parent),
         patch("selene_core.build_utils.builtins.selene.invoke_zig"),
-        patch("selene_core.build_utils.builtins.selene.invoke_dsymutil") as mock_dsymutil,
+        patch(
+            "selene_core.build_utils.builtins.selene.invoke_dsymutil"
+        ) as mock_dsymutil,
     ):
         SeleneObjectToSeleneExecutableStep.apply(ctx, artifact)
         assert not mock_dsymutil.called

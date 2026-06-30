@@ -146,9 +146,7 @@ fn module_for_ip(ip: usize) -> Option<ModuleLoadInfo> {
         let base = info.dlpi_addr as usize;
 
         let mut ranges: Vec<(u64, u64)> = Vec::new();
-        let phdrs = unsafe {
-            std::slice::from_raw_parts(info.dlpi_phdr, info.dlpi_phnum as usize)
-        };
+        let phdrs = unsafe { std::slice::from_raw_parts(info.dlpi_phdr, info.dlpi_phnum as usize) };
         for ph in phdrs {
             if ph.p_type == libc::PT_LOAD {
                 let start = (info.dlpi_addr as u64).wrapping_add(ph.p_vaddr as u64);
@@ -164,7 +162,9 @@ fn module_for_ip(ip: usize) -> Option<ModuleLoadInfo> {
 
         let name = if info.dlpi_name.is_null() || unsafe { *info.dlpi_name } == 0 {
             // Empty name => the main executable. Try to recover via /proc/self/exe.
-            std::fs::read_link("/proc/self/exe").ok().unwrap_or_default()
+            std::fs::read_link("/proc/self/exe")
+                .ok()
+                .unwrap_or_default()
         } else {
             let cstr = unsafe { CStr::from_ptr(info.dlpi_name) };
             match cstr.to_str() {
@@ -213,9 +213,8 @@ fn module_for_ip(ip: usize) -> Option<ModuleLoadInfo> {
         let ncmds = header64.ncmds as usize;
 
         let mut ranges: Vec<(u64, u64)> = Vec::new();
-        let mut cmd_ptr = unsafe {
-            (header as *const u8).add(std::mem::size_of::<libc::mach_header_64>())
-        };
+        let mut cmd_ptr =
+            unsafe { (header as *const u8).add(std::mem::size_of::<libc::mach_header_64>()) };
         for _ in 0..ncmds {
             // SAFETY: load commands are laid out contiguously after the
             // header, each prefixed with a `load_command` header that
@@ -333,8 +332,6 @@ struct ModuleInfo {
     path: Option<PathBuf>,
     ranges: Option<Vec<(u64, u64)>>,
 }
-
-
 
 /// Count the number of frames between the caller of `trace` and the frame
 /// where the closure executes. Returns the index of the caller in the trace.
@@ -524,8 +521,8 @@ impl<'bump> BacktraceEngine<'bump> {
             if self.module_by_base.contains_key(&base) {
                 return Some(base);
             }
-            let id = u32::try_from(self.modules.len())
-                .expect("more than u32::MAX modules captured");
+            let id =
+                u32::try_from(self.modules.len()).expect("more than u32::MAX modules captured");
             self.modules.push(ModuleInfo {
                 bias: base,
                 path: Some(info.path),
@@ -592,9 +589,7 @@ impl<'bump> BacktraceEngine<'bump> {
             // Mix only the VMA: distinct modules occupy disjoint loaded
             // address ranges, so VMAs are globally unique without
             // requiring a module identifier.
-            hash = hash
-                .rotate_left(13)
-                ^ (vma.wrapping_mul(0x9E3779B97F4A7C15));
+            hash = hash.rotate_left(13) ^ (vma.wrapping_mul(0x9E3779B97F4A7C15));
             staged_box.frames.push(CapturedFrame { vma });
             count += 1;
             count < limit
@@ -654,9 +649,7 @@ impl<'bump> BacktraceEngine<'bump> {
 
     /// Serialise each pending module as a separate msgpack blob, ready
     /// to be wrapped in `Custom { tag: DEBUG_MODULE_TAG, data }` ops.
-    pub fn serialize_pending_modules(
-        &mut self,
-    ) -> Result<Vec<Vec<u8>>, rmp_serde::encode::Error> {
+    pub fn serialize_pending_modules(&mut self) -> Result<Vec<Vec<u8>>, rmp_serde::encode::Error> {
         self.drain_pending_modules()
             .iter()
             .map(|m| m.serialize_msgpack())
@@ -669,12 +662,9 @@ impl<'bump> BacktraceEngine<'bump> {
     /// `bt_ref` must have been returned by a prior call to
     /// [`capture_backtrace`](Self::capture_backtrace) on this engine,
     /// and the engine must not yet have been dropped.
-    pub fn serialize_backtrace(
-        &self,
-        bt_ref: u64,
-    ) -> Result<Vec<u8>, rmp_serde::encode::Error> {
-        let ptr = NonNull::new(bt_ref as *mut UnresolvedBacktrace)
-            .expect("`bt_ref` should be nonzero");
+    pub fn serialize_backtrace(&self, bt_ref: u64) -> Result<Vec<u8>, rmp_serde::encode::Error> {
+        let ptr =
+            NonNull::new(bt_ref as *mut UnresolvedBacktrace).expect("`bt_ref` should be nonzero");
         // SAFETY: `bt_ref` was returned by `capture_backtrace` on this
         // engine, whose bump arena is still alive (engine not dropped).
         let bt = unsafe { ptr.as_ref() };
@@ -682,6 +672,29 @@ impl<'bump> BacktraceEngine<'bump> {
             frames: bt.frames.iter().copied().collect(),
         };
         payload.serialize_msgpack()
+    }
+}
+
+/// Abstraction over a per-op metadata store used at serialisation time.
+///
+/// The host (selene-sim) holds a backtrace engine and threads it through to
+/// event hooks via `EventHook::write`, where each hook can lazily resolve any
+/// metadata handles it has recorded into the wire-format `Custom` ops.
+pub trait MetadataResolver {
+    /// Drain any module-table entries discovered since the last drain,
+    /// serialised as msgpack blobs suitable for `Custom { tag: DEBUG_MODULE_TAG, data }` ops.
+    fn drain_pending_module_blobs(&mut self) -> Result<Vec<Vec<u8>>, rmp_serde::encode::Error>;
+    /// Serialise the metadata referenced by `handle` as the payload for a
+    /// `Custom { tag: DEBUG_INFO_TAG, data }` op.
+    fn serialize_metadata(&self, handle: u64) -> Result<Vec<u8>, rmp_serde::encode::Error>;
+}
+
+impl<'bump> MetadataResolver for BacktraceEngine<'bump> {
+    fn drain_pending_module_blobs(&mut self) -> Result<Vec<Vec<u8>>, rmp_serde::encode::Error> {
+        self.serialize_pending_modules()
+    }
+    fn serialize_metadata(&self, handle: u64) -> Result<Vec<u8>, rmp_serde::encode::Error> {
+        self.serialize_backtrace(handle)
     }
 }
 
@@ -802,11 +815,7 @@ impl ResolvedBacktrace {
                         .and_then(|fn_| fn_.demangle().ok().map(|s| s.into_owned()))
                         .unwrap_or_else(|| "<unknown>".to_string());
                     let (file_name, line, column) = match frame.location {
-                        Some(loc) => (
-                            loc.file.map(|s| s.to_string()),
-                            loc.line,
-                            loc.column,
-                        ),
+                        Some(loc) => (loc.file.map(|s| s.to_string()), loc.line, loc.column),
                         None => (None, None, None),
                     };
                     out.frames.push(ResolvedSrcLocation {

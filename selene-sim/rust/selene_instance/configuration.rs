@@ -30,6 +30,18 @@ pub struct EventHookConfig {
     pub provide_metrics: bool,
     #[serde(default = "disable_by_default")]
     pub provide_measurement_log: bool,
+    /// Enable per-op backtrace capture for use by trace consumers.
+    /// When true, the core Emulator constructs a `BacktraceEngine`
+    /// and captures a backtrace at each user-program → runtime
+    /// transition, threading the handle through to event hooks for
+    /// lazy resolution at serialisation time.
+    #[serde(default = "disable_by_default")]
+    pub provide_backtraces: bool,
+    /// Interface function names used to calibrate the backtrace
+    /// engine. Provided by the interface plugin via the build system.
+    /// Only consulted when `provide_backtraces` is true.
+    #[serde(default)]
+    pub interface_fns: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]

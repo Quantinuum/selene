@@ -110,46 +110,60 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                     ..
                 } = unsafe { &*callbacks };
                 unsafe { set_batch_time_fn(goi, start.into(), duration.into()) };
-                for op in batch {
+                for (op, metadata) in batch.iter_ops_with_metadata() {
                     match op {
                         Operation::Measure {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_fn(goi, qubit_id, result_id) },
+                        } => unsafe { measure_fn(goi, *qubit_id, *result_id, metadata) },
                         Operation::MeasureLeaked {
                             qubit_id,
                             result_id,
-                        } => unsafe { measure_leaked_fn(goi, qubit_id, result_id) },
-                        Operation::Reset { qubit_id } => unsafe { reset_fn(goi, qubit_id) },
+                        } => unsafe { measure_leaked_fn(goi, *qubit_id, *result_id, metadata) },
+                        Operation::Reset { qubit_id } => unsafe {
+                            reset_fn(goi, *qubit_id, metadata)
+                        },
                         Operation::RZGate { qubit_id, theta } => unsafe {
-                            rz_fn(goi, qubit_id, theta)
+                            rz_fn(goi, *qubit_id, *theta, metadata)
                         },
                         Operation::RXYGate {
                             qubit_id,
                             theta,
                             phi,
-                        } => unsafe { rxy_fn(goi, qubit_id, theta, phi) },
+                        } => unsafe { rxy_fn(goi, *qubit_id, *theta, *phi, metadata) },
                         Operation::RZZGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
-                        } => unsafe { rzz_fn(goi, qubit_id_1, qubit_id_2, theta) },
+                        } => unsafe { rzz_fn(goi, *qubit_id_1, *qubit_id_2, *theta, metadata) },
                         Operation::RPPGate {
                             qubit_id_1,
                             qubit_id_2,
                             theta,
                             phi,
-                        } => unsafe { rpp_fn(goi, qubit_id_1, qubit_id_2, theta, phi) },
+                        } => unsafe {
+                            rpp_fn(goi, *qubit_id_1, *qubit_id_2, *theta, *phi, metadata)
+                        },
                         Operation::TK2Gate {
                             qubit_id_1,
                             qubit_id_2,
                             alpha,
                             beta,
                             gamma,
-                        } => unsafe { tk2_fn(goi, qubit_id_1, qubit_id_2, alpha, beta, gamma) },
+                        } => unsafe {
+                            tk2_fn(
+                                goi,
+                                *qubit_id_1,
+                                *qubit_id_2,
+                                *alpha,
+                                *beta,
+                                *gamma,
+                                metadata,
+                            )
+                        },
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
-                            unsafe { custom_fn(goi, custom_tag, ptr, len) }
+                            unsafe { custom_fn(goi, *custom_tag, ptr, len) }
                         }
                     }
                 }
@@ -239,10 +253,13 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         qubit_id: u64,
         theta: f64,
         phi: f64,
+        metadata: crate::runtime::OpMetadata,
     ) -> Errno {
         result_to_errno(
             "Failed in rxy_gate",
-            Self::with_runtime_instance(instance, |runtime| runtime.rxy_gate(qubit_id, theta, phi)),
+            Self::with_runtime_instance(instance, |runtime| {
+                runtime.rxy_gate(qubit_id, theta, phi, metadata)
+            }),
         )
     }
 
@@ -251,19 +268,27 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         qubit_id_1: u64,
         qubit_id_2: u64,
         theta: f64,
+        metadata: crate::runtime::OpMetadata,
     ) -> Errno {
         result_to_errno(
             "Failed in rzz_gate",
             Self::with_runtime_instance(instance, |runtime| {
-                runtime.rzz_gate(qubit_id_1, qubit_id_2, theta)
+                runtime.rzz_gate(qubit_id_1, qubit_id_2, theta, metadata)
             }),
         )
     }
 
-    pub unsafe fn rz_gate(instance: RuntimeInstance, qubit_id: u64, theta: f64) -> Errno {
+    pub unsafe fn rz_gate(
+        instance: RuntimeInstance,
+        qubit_id: u64,
+        theta: f64,
+        metadata: crate::runtime::OpMetadata,
+    ) -> Errno {
         result_to_errno(
             "Failed in rz_gate",
-            Self::with_runtime_instance(instance, |runtime| runtime.rz_gate(qubit_id, theta)),
+            Self::with_runtime_instance(instance, |runtime| {
+                runtime.rz_gate(qubit_id, theta, metadata)
+            }),
         )
     }
 
@@ -273,11 +298,12 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         qubit_id_2: u64,
         theta: f64,
         phi: f64,
+        metadata: crate::runtime::OpMetadata,
     ) -> Errno {
         result_to_errno(
             "Failed in rpp_gate",
             Self::with_runtime_instance(instance, |runtime| {
-                runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi)
+                runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi, metadata)
             }),
         )
     }
@@ -289,20 +315,26 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         alpha: f64,
         beta: f64,
         gamma: f64,
+        metadata: crate::runtime::OpMetadata,
     ) -> Errno {
         result_to_errno(
             "Failed in tk2_gate",
             Self::with_runtime_instance(instance, |runtime| {
-                runtime.tk2_gate(qubit_id_1, qubit_id_2, alpha, beta, gamma)
+                runtime.tk2_gate(qubit_id_1, qubit_id_2, alpha, beta, gamma, metadata)
             }),
         )
     }
 
-    pub unsafe fn measure(instance: RuntimeInstance, qubit_id: u64, result: *mut u64) -> Errno {
+    pub unsafe fn measure(
+        instance: RuntimeInstance,
+        qubit_id: u64,
+        metadata: crate::runtime::OpMetadata,
+        result: *mut u64,
+    ) -> Errno {
         result_to_errno(
             "Failed in measure",
             Self::with_runtime_instance(instance, |runtime| {
-                let r = runtime.measure(qubit_id)?;
+                let r = runtime.measure(qubit_id, metadata)?;
                 unsafe { *result = r };
                 anyhow::Ok(())
             }),
@@ -312,22 +344,27 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     pub unsafe fn measure_leaked(
         instance: RuntimeInstance,
         qubit_id: u64,
+        metadata: crate::runtime::OpMetadata,
         result: *mut u64,
     ) -> Errno {
         result_to_errno(
             "Failed in measure_leaked",
             Self::with_runtime_instance(instance, |runtime| {
-                let r = runtime.measure_leaked(qubit_id)?;
+                let r = runtime.measure_leaked(qubit_id, metadata)?;
                 unsafe { *result = r };
                 anyhow::Ok(())
             }),
         )
     }
 
-    pub unsafe fn reset(instance: RuntimeInstance, qubit_id: u64) -> Errno {
+    pub unsafe fn reset(
+        instance: RuntimeInstance,
+        qubit_id: u64,
+        metadata: crate::runtime::OpMetadata,
+    ) -> Errno {
         result_to_errno(
             "Failed in reset",
-            Self::with_runtime_instance(instance, |runtime| runtime.reset(qubit_id)),
+            Self::with_runtime_instance(instance, |runtime| runtime.reset(qubit_id, metadata)),
         )
     }
 
@@ -709,8 +746,9 @@ macro_rules! export_runtime_plugin {
                 qubit_id: u64,
                 theta: f64,
                 phi: f64,
+                metadata: u64,
             ) -> i32 {
-                Helper::rxy_gate(instance, qubit_id, theta, phi)
+                Helper::rxy_gate(instance, qubit_id, theta, phi, metadata)
             }
 
             /// Instruct the runtime to apply an RZZ gate to the qubits with the given IDs.
@@ -726,8 +764,9 @@ macro_rules! export_runtime_plugin {
                 qubit_id_1: u64,
                 qubit_id_2: u64,
                 theta: f64,
+                metadata: u64,
             ) -> i32 {
-                Helper::rzz_gate(instance, qubit_id_1, qubit_id_2, theta)
+                Helper::rzz_gate(instance, qubit_id_1, qubit_id_2, theta, metadata)
             }
 
             /// Instruct the runtime to apply an RZ gate to the qubit with the given ID.
@@ -743,8 +782,9 @@ macro_rules! export_runtime_plugin {
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 theta: f64,
+                metadata: u64,
             ) -> i32 {
-                Helper::rz_gate(instance, qubit_id, theta)
+                Helper::rz_gate(instance, qubit_id, theta, metadata)
             }
 
             /// Instruct the runtime to apply an RPP gate to the qubits with the given IDs.
@@ -761,8 +801,9 @@ macro_rules! export_runtime_plugin {
                 qubit_id_2: u64,
                 theta: f64,
                 phi: f64,
+                metadata: u64,
             ) -> i32 {
-                Helper::rpp_gate(instance, qubit_id_1, qubit_id_2, theta, phi)
+                Helper::rpp_gate(instance, qubit_id_1, qubit_id_2, theta, phi, metadata)
             }
 
             /// Instruct the runtime to apply a TK2 gate to the qubits with the given IDs.
@@ -780,8 +821,11 @@ macro_rules! export_runtime_plugin {
                 alpha: f64,
                 beta: f64,
                 gamma: f64,
+                metadata: u64,
             ) -> i32 {
-                Helper::tk2_gate(instance, qubit_id_1, qubit_id_2, alpha, beta, gamma)
+                Helper::tk2_gate(
+                    instance, qubit_id_1, qubit_id_2, alpha, beta, gamma, metadata,
+                )
             }
 
             /// Instruct the runtime that a measurement is to be requested and to write
@@ -796,8 +840,9 @@ macro_rules! export_runtime_plugin {
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 result: *mut u64,
+                metadata: u64,
             ) -> i32 {
-                Helper::measure(instance, qubit_id, result)
+                Helper::measure(instance, qubit_id, metadata, result)
             }
 
             /// Instruct the runtime that a measurement is to be requested with additional
@@ -809,8 +854,9 @@ macro_rules! export_runtime_plugin {
                 instance: RuntimeInstance,
                 qubit_id: u64,
                 result: *mut u64,
+                metadata: u64,
             ) -> i32 {
-                Helper::measure_leaked(instance, qubit_id, result)
+                Helper::measure_leaked(instance, qubit_id, metadata, result)
             }
 
             /// Instruct the runtime to reset a qubit to the |0> state with the given ID.
@@ -820,8 +866,9 @@ macro_rules! export_runtime_plugin {
             pub unsafe extern "C" fn selene_runtime_reset(
                 instance: RuntimeInstance,
                 qubit_id: u64,
+                metadata: u64,
             ) -> i32 {
-                Helper::reset(instance, qubit_id)
+                Helper::reset(instance, qubit_id, metadata)
             }
 
             /// Instruct the runtime to force a result with the given ID to be made available, e.g.

@@ -34,13 +34,18 @@ impl From<RuntimeAPIVersion> for u64 {
 pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     reserved: 0,
     major: 0,
-    minor: 3,
+    minor: 4,
     patch: 0,
 };
 
 // CHANGELOG:
 // 0.0.1: Initial version
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result
+// 0.0.4: Gate/measure/reset entry points and the get_next_operations callbacks all
+//        now carry an opaque per-op `u64` metadata handle (0 = none). The handle is
+//        captured by selene at the user-program boundary and threaded through to
+//        the runtime; the runtime is expected to surface it back on each op in the
+//        `BatchOperation` it returns.
 
 impl RuntimeAPIVersion {
     pub fn validate(&self) -> Result<()> {

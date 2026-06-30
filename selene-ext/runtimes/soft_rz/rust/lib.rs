@@ -68,7 +68,7 @@ impl SoftRZRuntime {
         }
     }
 
-    pub fn push(&mut self, op: Operation) {
+    pub fn push(&mut self, op: Operation, metadata: selene_core::runtime::OpMetadata) {
         // In this runtime we aim to schedule an operation as early as possible.
         // As such, we search backwards through the operation queue for the earliest
         // batch that op can be appended to, taking into account the batch's operations' types, the batch's qubits,
@@ -86,7 +86,7 @@ impl SoftRZRuntime {
 
         if append_idx < self.operation_queue.len() {
             // We found a batch to append to!
-            self.operation_queue[append_idx].add_operation(op);
+            self.operation_queue[append_idx].add_operation_with_metadata(op, metadata);
         } else {
             // We didn't find a batch to append to, so we need to create a new batch for this operation.
             let duration = match op {
@@ -97,11 +97,9 @@ impl SoftRZRuntime {
                 Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
                 _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
             };
-            self.operation_queue.push_back(BatchOperation::new(
-                vec![op],
-                self.start,
-                duration.into(),
-            ));
+            let mut batch = BatchOperation::new(Vec::new(), self.start, duration.into());
+            batch.add_operation_with_metadata(op, metadata);
+            self.operation_queue.push_back(batch);
             self.start += duration.into();
         }
     }
@@ -223,35 +221,58 @@ impl RuntimeInterface for SoftRZRuntime {
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+    fn rxy_gate(
+        &mut self,
+        qubit_id: u64,
+        theta: f64,
+        phi: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
         }
         let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(Operation::RXYGate {
-            qubit_id,
-            theta,
-            phi: phi - phase, // The Z phase is enacted here.
-        });
+        self.push(
+            Operation::RXYGate {
+                qubit_id,
+                theta,
+                phi: phi - phase, // The Z phase is enacted here.
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
+    fn rzz_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id_1 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
         }
         if qubit_id_2 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
         }
-        self.push(Operation::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        });
+        self.push(
+            Operation::RZZGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
+    fn rz_gate(
+        &mut self,
+        qubit_id: u64,
+        theta: f64,
+        _metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
         }
@@ -273,6 +294,7 @@ impl RuntimeInterface for SoftRZRuntime {
         _alpha: f64,
         _beta: f64,
         _gamma: f64,
+        _metadata: selene_core::runtime::OpMetadata,
     ) -> Result<()> {
         bail!(
             "The TK2 gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
@@ -284,13 +306,18 @@ impl RuntimeInterface for SoftRZRuntime {
         _qubit_id_2: u64,
         _theta: f64,
         _phi: f64,
+        _metadata: selene_core::runtime::OpMetadata,
     ) -> Result<()> {
         bail!(
             "The RPP gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
         );
     }
     // Lifetime ops
-    fn measure(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -299,13 +326,20 @@ impl RuntimeInterface for SoftRZRuntime {
             is_set: false,
             value: 0,
         });
-        self.push(Operation::Measure {
-            qubit_id,
-            result_id,
-        });
+        self.push(
+            Operation::Measure {
+                qubit_id,
+                result_id,
+            },
+            metadata,
+        );
         Ok(result_id)
     }
-    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure_leaked(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("leak-measuring out-of-bounds qubit {qubit_id}")
         }
@@ -314,18 +348,21 @@ impl RuntimeInterface for SoftRZRuntime {
             is_set: false,
             value: 0,
         });
-        self.push(Operation::MeasureLeaked {
-            qubit_id,
-            result_id,
-        });
+        self.push(
+            Operation::MeasureLeaked {
+                qubit_id,
+                result_id,
+            },
+            metadata,
+        );
         Ok(result_id)
     }
 
-    fn reset(&mut self, qubit_id: u64) -> Result<()> {
+    fn reset(&mut self, qubit_id: u64, metadata: selene_core::runtime::OpMetadata) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("resetting out-of-bounds qubit {qubit_id}")
         }
-        self.push(Operation::Reset { qubit_id });
+        self.push(Operation::Reset { qubit_id }, metadata);
         Ok(())
     }
     fn force_result(&mut self, result_id: u64) -> Result<()> {

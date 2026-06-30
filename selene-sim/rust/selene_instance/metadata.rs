@@ -67,9 +67,14 @@ impl SeleneInstance {
         Ok(())
     }
     pub fn write_metadata(&mut self) -> Result<()> {
+        let resolver = self
+            .emulator
+            .backtrace_engine
+            .as_mut()
+            .map(|e| e as &mut dyn selene_core::metadata::MetadataResolver);
         self.emulator
             .event_hooks
-            .write(self.time_cursor, &mut self.out_encoder)?;
+            .write(self.time_cursor, &mut self.out_encoder, resolver)?;
         Ok(())
     }
 }

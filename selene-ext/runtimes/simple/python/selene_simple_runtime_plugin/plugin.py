@@ -24,14 +24,15 @@ class SimpleRuntimePlugin(Runtime):
     duration_ns_measure: int = 0
     duration_ns_reset: int = 0
     duration_ns_measure_leaked: int = 0
-    # When True (the default), the runtime constructs a BacktraceEngine and
-    # attaches debug-info entries to emitted operations. Set this to False
-    # in contexts where there is no compiled user program (e.g. interactive
-    # Python use), where backtrace calibration would have no interface
-    # symbols to anchor on and would otherwise panic. The underlying Rust
-    # runtime defaults to backtraces *off* and requires an explicit opt-in
-    # flag; this Python wrapper inverts the default so the common build
-    # path produces debug info without extra ceremony.
+    # When True (the default), per-op backtrace metadata is captured at
+    # each user → runtime transition by the core Emulator. Set this to
+    # False in contexts where there is no compiled user program (e.g.
+    # interactive Python use), where backtrace calibration would have
+    # no interface symbols to anchor on and would otherwise panic.
+    #
+    # Capture is no longer driven by this runtime plugin itself; this
+    # attribute is read by the surrounding selene-sim Python harness
+    # and forwarded onto the core event-hooks configuration block.
     enable_backtrace: bool = True
 
     def __post_init__(self):
@@ -47,7 +48,7 @@ class SimpleRuntimePlugin(Runtime):
         )
 
     def get_init_args(self):
-        args = [
+        return [
             f"--duration-ns-rxy={self.duration_ns_rxy}",
             f"--duration-ns-rzz={self.duration_ns_rzz}",
             f"--duration-ns-rz={self.duration_ns_rz}",
@@ -57,9 +58,6 @@ class SimpleRuntimePlugin(Runtime):
             f"--duration-ns-reset={self.duration_ns_reset}",
             f"--duration-ns-measure-leaked={self.duration_ns_measure_leaked}",
         ]
-        if self.enable_backtrace:
-            args.append("--enable-backtrace")
-        return args
 
     @property
     def library_file(self):

@@ -6,11 +6,10 @@ pub mod version;
 use std::collections::HashSet;
 use std::{iter, sync};
 
-pub use interface::{RuntimeInterface, RuntimeInterfaceFactory};
-pub use version::RuntimeAPIVersion;
-
 use anyhow::Result;
 use delegate::delegate;
+pub use interface::{RuntimeInterface, RuntimeInterfaceFactory};
+pub use version::RuntimeAPIVersion;
 
 /// We assume that operations of the same type can be done in parallel.
 /// The level of parallelism is decided by the runtime - i.e. it can
@@ -106,9 +105,23 @@ impl Operation {
     }
 }
 
+/// Opaque per-op metadata handle threaded from selene's user-program
+/// boundary through the runtime and back out via [`BatchOperation`].
+///
+/// The handle is a plain `u64` on the wire. The sentinel value `0`
+/// means "no metadata"; non-zero values are issued by selene and are
+/// meaningful only to selene (the runtime must treat them as opaque).
+pub type OpMetadata = u64;
+
+/// Sentinel meaning "no metadata attached to this op".
+pub const NO_METADATA: OpMetadata = 0;
+
 #[derive(Default, Clone, Debug)]
 pub struct BatchOperation {
     ops: Vec<Operation>,
+    /// Parallel to `ops`; carries an opaque metadata handle (or
+    /// [`NO_METADATA`]) for each op.
+    metadata: Vec<OpMetadata>,
     start: crate::time::Instant,
     duration: crate::time::Duration,
 }
@@ -123,6 +136,16 @@ impl BatchOperation {
         }
     }
 
+    pub fn iter_metadata(&self) -> impl iter::DoubleEndedIterator<Item = OpMetadata> + '_ {
+        self.metadata.iter().copied()
+    }
+
+    pub fn iter_ops_with_metadata(
+        &self,
+    ) -> impl iter::DoubleEndedIterator<Item = (&Operation, OpMetadata)> + '_ {
+        self.ops.iter().zip(self.metadata.iter().copied())
+    }
+
     pub fn start(&self) -> crate::time::Instant {
         self.start
     }
@@ -135,13 +158,37 @@ impl BatchOperation {
         self.duration
     }
 
+    /// Construct a batch where every op has [`NO_METADATA`].
     pub fn new(
         ops: Vec<Operation>,
         start: crate::time::Instant,
         duration: crate::time::Duration,
     ) -> Self {
+        let metadata = vec![NO_METADATA; ops.len()];
         Self {
             ops,
+            metadata,
+            start,
+            duration,
+        }
+    }
+
+    /// Construct a batch from parallel `ops` + `metadata` vectors. The
+    /// two must have the same length.
+    pub fn new_with_metadata(
+        ops: Vec<Operation>,
+        metadata: Vec<OpMetadata>,
+        start: crate::time::Instant,
+        duration: crate::time::Duration,
+    ) -> Self {
+        assert_eq!(
+            ops.len(),
+            metadata.len(),
+            "BatchOperation: ops and metadata length mismatch"
+        );
+        Self {
+            ops,
+            metadata,
             start,
             duration,
         }
@@ -156,8 +203,16 @@ impl BatchOperation {
         })
     }
 
+    /// Add an op with no associated metadata.
     pub fn add_operation(&mut self, op: Operation) {
         self.ops.push(op);
+        self.metadata.push(NO_METADATA);
+    }
+
+    /// Add an op together with an opaque metadata handle.
+    pub fn add_operation_with_metadata(&mut self, op: Operation, metadata: OpMetadata) {
+        self.ops.push(op);
+        self.metadata.push(metadata);
     }
 }
 
@@ -217,14 +272,14 @@ impl RuntimeInterface for Runtime {
             fn qfree(&mut self, qubit_id: u64) -> Result<()>;
             fn local_barrier(&mut self, qubits: &[u64], sleep_ns: u64) -> Result<()>;
             fn global_barrier(&mut self, sleep_ns: u64) -> Result<()>;
-            fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()>;
-            fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()>;
-            fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()>;
-            fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()>;
-            fn tk2_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, alpha: f64, beta: f64, gamma: f64) -> Result<()>;
-            fn measure(&mut self, qubit_id: u64) -> Result<u64>;
-            fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64>;
-            fn reset(&mut self, qubit_id: u64) -> Result<()>;
+            fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64, metadata: OpMetadata) -> Result<()>;
+            fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, metadata: OpMetadata) -> Result<()>;
+            fn rz_gate(&mut self, qubit_id: u64, theta: f64, metadata: OpMetadata) -> Result<()>;
+            fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64, metadata: OpMetadata) -> Result<()>;
+            fn tk2_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, alpha: f64, beta: f64, gamma: f64, metadata: OpMetadata) -> Result<()>;
+            fn measure(&mut self, qubit_id: u64, metadata: OpMetadata) -> Result<u64>;
+            fn measure_leaked(&mut self, qubit_id: u64, metadata: OpMetadata) -> Result<u64>;
+            fn reset(&mut self, qubit_id: u64, metadata: OpMetadata) -> Result<()>;
             fn force_result(&mut self, result_id: u64) -> Result<()>;
             fn get_bool_result(&mut self, result_id: u64) -> Result<Option<bool>>;
             fn set_bool_result(&mut self, result_id: u64, result: bool) -> Result<()>;

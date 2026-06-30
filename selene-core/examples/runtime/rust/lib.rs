@@ -42,12 +42,11 @@ impl ExampleRuntime {
         }
     }
 
-    pub fn push(&mut self, op: Operation) {
-        self.operation_queue.push_back(BatchOperation::new(
-            vec![op],
-            self.start,
-            Default::default(),
-        ));
+    pub fn push(&mut self, op: Operation, metadata: selene_core::runtime::OpMetadata) {
+        let mut batch =
+            BatchOperation::new(Vec::new(), self.start, Default::default());
+        batch.add_operation_with_metadata(op, metadata);
+        self.operation_queue.push_back(batch);
     }
 }
 
@@ -155,35 +154,58 @@ impl RuntimeInterface for ExampleRuntime {
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+    fn rxy_gate(
+        &mut self,
+        qubit_id: u64,
+        theta: f64,
+        phi: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
         }
         let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(Operation::RXYGate {
-            qubit_id,
-            theta,
-            phi: phi - phase, // The Z phase is enacted here.
-        });
+        self.push(
+            Operation::RXYGate {
+                qubit_id,
+                theta,
+                phi: phi - phase, // The Z phase is enacted here.
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
+    fn rzz_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id_1 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
         }
         if qubit_id_2 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
         }
-        self.push(Operation::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        });
+        self.push(
+            Operation::RZZGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
+    fn rz_gate(
+        &mut self,
+        qubit_id: u64,
+        theta: f64,
+        _metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
         }
@@ -199,7 +221,11 @@ impl RuntimeInterface for ExampleRuntime {
         Ok(())
     }
     // Lifetime ops
-    fn measure(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -208,13 +234,20 @@ impl RuntimeInterface for ExampleRuntime {
             is_set: false,
             value: 0,
         });
-        self.push(Operation::Measure {
-            qubit_id,
-            result_id,
-        });
+        self.push(
+            Operation::Measure {
+                qubit_id,
+                result_id,
+            },
+            metadata,
+        );
         Ok(result_id)
     }
-    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure_leaked(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -223,17 +256,24 @@ impl RuntimeInterface for ExampleRuntime {
             is_set: false,
             value: 0,
         });
-        self.push(Operation::MeasureLeaked {
-            qubit_id,
-            result_id,
-        });
+        self.push(
+            Operation::MeasureLeaked {
+                qubit_id,
+                result_id,
+            },
+            metadata,
+        );
         Ok(result_id)
     }
-    fn reset(&mut self, qubit_id: u64) -> Result<()> {
+    fn reset(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("resetting out-of-bounds qubit {qubit_id}")
         }
-        self.push(Operation::Reset { qubit_id });
+        self.push(Operation::Reset { qubit_id }, metadata);
         Ok(())
     }
     fn force_result(&mut self, result_id: u64) -> Result<()> {

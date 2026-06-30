@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::utils::MetricValue;
 
-use super::BatchOperation;
+use super::{BatchOperation, OpMetadata};
 
 /// Instances of runtime plugins implement this interface.
 ///
@@ -70,32 +70,57 @@ pub trait RuntimeInterface {
     fn qfree(&mut self, qubit_id: u64) -> Result<()>;
 
     /// Schedule an RXY gate to allocated qubit `qubit_id` with the given angles.
-    fn rxy_gate(&mut self, _qubit_id: u64, _theta: f64, _phi: f64) -> Result<()> {
+    ///
+    /// `metadata` is an opaque per-op handle (see [`OpMetadata`]); the runtime
+    /// must store it on the queued op and surface it back on the corresponding
+    /// op of the [`BatchOperation`] returned from `get_next_operations`.
+    fn rxy_gate(
+        &mut self,
+        _qubit_id: u64,
+        _theta: f64,
+        _phi: f64,
+        _metadata: OpMetadata,
+    ) -> Result<()> {
         bail!("RuntimeInterface: The chosen runtime does not support the RXY gate");
     }
 
     /// Schedule an RZZ gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angle.
-    fn rzz_gate(&mut self, _qubit_id_1: u64, _qubit_id_2: u64, _theta: f64) -> Result<()> {
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
+    fn rzz_gate(
+        &mut self,
+        _qubit_id_1: u64,
+        _qubit_id_2: u64,
+        _theta: f64,
+        _metadata: OpMetadata,
+    ) -> Result<()> {
         bail!("RuntimeInterface: The chosen runtime does not support the RZZ gate");
     }
 
     /// Schedule an RZ gate to allocated qubit `qubit_id` with the given angle.
-    fn rz_gate(&mut self, _qubit_id: u64, _theta: f64) -> Result<()> {
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
+    fn rz_gate(&mut self, _qubit_id: u64, _theta: f64, _metadata: OpMetadata) -> Result<()> {
         bail!("RuntimeInterface: The chosen runtime does not support the RZ gate");
     }
 
     /// Schedule an RPP gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
     fn rpp_gate(
         &mut self,
         _qubit_id_1: u64,
         _qubit_id_2: u64,
         _theta: f64,
         _phi: f64,
+        _metadata: OpMetadata,
     ) -> Result<()> {
         bail!("RuntimeInterface: The chosen runtime does not support the RPP gate");
     }
 
     /// Schedule a TK2 gate between allocated qubits `qubit_id_1` and `qubit_id_2` with the given angles.
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
     fn tk2_gate(
         &mut self,
         _qubit_id_1: u64,
@@ -103,21 +128,28 @@ pub trait RuntimeInterface {
         _alpha: f64,
         _beta: f64,
         _gamma: f64,
+        _metadata: OpMetadata,
     ) -> Result<()> {
         bail!("RuntimeInterface: The chosen runtime does not support the TK2 gate");
     }
 
     /// Schedule a measurement of allocated qubit `qubit_id`. The plugin should return a
     /// new result index. That result index must have a reference count of 1.
-    fn measure(&mut self, qubit_id: u64) -> Result<u64>;
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
+    fn measure(&mut self, qubit_id: u64, metadata: OpMetadata) -> Result<u64>;
 
     /// Schedule a leakage-detection and measurement of allocated qubit `qubit_id`.
     /// The plugin should return a new result index. That result index must have a
     /// reference count of 1.
-    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64>;
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
+    fn measure_leaked(&mut self, qubit_id: u64, metadata: OpMetadata) -> Result<u64>;
 
     /// Schedule a reset of allocated qubit `qubit_id`.
-    fn reset(&mut self, qubit_id: u64) -> Result<()>;
+    ///
+    /// See [`Self::rxy_gate`] for `metadata` semantics.
+    fn reset(&mut self, qubit_id: u64, metadata: OpMetadata) -> Result<()>;
 
     /// A hint to the plugin that the result with index `result_id` is needed.
     ///

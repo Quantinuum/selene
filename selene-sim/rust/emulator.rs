@@ -3,13 +3,22 @@ use crate::selene_instance::configuration::Configuration;
 use anyhow::{Result, anyhow};
 use selene_core::error_model::plugin::ErrorModelPluginInterface;
 use selene_core::error_model::{ErrorModel, ErrorModelInterface};
+use selene_core::metadata::BacktraceEngine;
 use selene_core::runtime::plugin::RuntimePluginInterface;
 use selene_core::runtime::{Runtime, RuntimeInterface as _};
+
+/// Number of frames captured per gate-site backtrace.
+const FRAME_CAP: usize = 2;
 
 pub struct Emulator {
     pub runtime: Runtime,
     pub error_model: ErrorModel,
     pub event_hooks: MultiEventHook,
+    /// Optional backtrace engine used to attach opaque metadata
+    /// handles to every user-issued op. Populated only when
+    /// `event_hooks.provide_backtraces` is enabled in the
+    /// configuration.
+    pub backtrace_engine: Option<BacktraceEngine<'static>>,
 }
 
 // User-issued function calls
@@ -52,14 +61,39 @@ impl Emulator {
             ));
         }
 
+        // Construct the backtrace engine when enabled. The direct caller of
+        // `capture_backtrace` in this module is the `user_issued_*` method
+        // itself (no helper hops), so `user_skip = 0`.
+        let backtrace_engine = if config.event_hooks.provide_backtraces {
+            Some(BacktraceEngine::new(&config.event_hooks.interface_fns, 0))
+        } else {
+            None
+        };
+
         Ok(Self {
             runtime,
             error_model,
             event_hooks,
+            backtrace_engine,
         })
     }
     pub fn poke(&mut self) -> Result<()> {
         self.process_runtime()
+    }
+
+    /// Capture a backtrace handle for the upcoming gate, if the engine
+    /// is configured. Returns `NO_METADATA` (0) otherwise.
+    ///
+    /// Marked `#[inline(never)]` so the frame distance between this
+    /// function and `capture_backtrace` is stable across build
+    /// configurations (the engine's calibration assumes a fixed
+    /// `user_skip`).
+    #[inline(never)]
+    fn capture_metadata(&mut self) -> selene_core::runtime::OpMetadata {
+        match self.backtrace_engine.as_mut() {
+            Some(engine) => engine.capture_backtrace(FRAME_CAP),
+            None => selene_core::runtime::NO_METADATA,
+        }
     }
     pub fn dump_quantum_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
         self.runtime.global_barrier(0)?;
@@ -90,19 +124,22 @@ impl Emulator {
         self.process_runtime()
     }
     pub fn user_issued_rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
-        self.runtime.rxy_gate(q0, theta, phi)?;
+        let metadata = self.capture_metadata();
+        self.runtime.rxy_gate(q0, theta, phi, metadata)?;
         self.event_hooks
             .on_user_call(&Operation::RXY(q0, theta, phi));
         self.process_runtime()
     }
     pub fn user_issued_rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
-        self.runtime.rzz_gate(q0, q1, theta)?;
+        let metadata = self.capture_metadata();
+        self.runtime.rzz_gate(q0, q1, theta, metadata)?;
         self.event_hooks
             .on_user_call(&Operation::RZZ(q0, q1, theta));
         self.process_runtime()
     }
     pub fn user_issued_rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
-        self.runtime.rpp_gate(q0, q1, theta, phi)?;
+        let metadata = self.capture_metadata();
+        self.runtime.rpp_gate(q0, q1, theta, phi, metadata)?;
         self.event_hooks
             .on_user_call(&Operation::RPP(q0, q1, theta, phi));
         self.process_runtime()
@@ -115,30 +152,36 @@ impl Emulator {
         beta: f64,
         gamma: f64,
     ) -> Result<()> {
-        self.runtime.tk2_gate(q0, q1, alpha, beta, gamma)?;
+        let metadata = self.capture_metadata();
+        self.runtime
+            .tk2_gate(q0, q1, alpha, beta, gamma, metadata)?;
         self.event_hooks
             .on_user_call(&Operation::TK2(q0, q1, alpha, beta, gamma));
         self.process_runtime()
     }
     pub fn user_issued_rz(&mut self, q0: u64, theta: f64) -> Result<()> {
-        self.runtime.rz_gate(q0, theta)?;
+        let metadata = self.capture_metadata();
+        self.runtime.rz_gate(q0, theta, metadata)?;
         self.event_hooks.on_user_call(&Operation::RZ(q0, theta));
         self.process_runtime()
     }
     pub fn user_issued_reset(&mut self, q0: u64) -> Result<()> {
-        self.runtime.reset(q0)?;
+        let metadata = self.capture_metadata();
+        self.runtime.reset(q0, metadata)?;
         self.event_hooks.on_user_call(&Operation::Reset(q0));
         self.process_runtime()
     }
     pub fn user_issued_lazy_measure(&mut self, q0: u64) -> Result<u64> {
-        let result_id = self.runtime.measure(q0)?;
+        let metadata = self.capture_metadata();
+        let result_id = self.runtime.measure(q0, metadata)?;
         self.event_hooks
             .on_user_call(&Operation::MeasureRequest(q0));
         self.process_runtime()?;
         Ok(result_id)
     }
     pub fn user_issued_lazy_measure_leaked(&mut self, q0: u64) -> Result<u64> {
-        let result_id = self.runtime.measure_leaked(q0)?;
+        let metadata = self.capture_metadata();
+        let result_id = self.runtime.measure_leaked(q0, metadata)?;
         self.event_hooks
             .on_user_call(&Operation::MeasureLeakedRequest(q0));
         self.process_runtime()?;

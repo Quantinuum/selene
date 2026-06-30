@@ -79,9 +79,7 @@ class _ModuleEntry:
 
     __slots__ = ("path", "bias", "ranges")
 
-    def __init__(
-        self, path: str, bias: int, ranges: list[tuple[int, int]]
-    ) -> None:
+    def __init__(self, path: str, bias: int, ranges: list[tuple[int, int]]) -> None:
         self.path = path
         self.bias = bias
         self.ranges = ranges
@@ -242,9 +240,7 @@ def _resolve_frame(module: "_ModuleEntry | None", svma: int) -> list[SrcLocation
     return out
 
 
-def _parse_debug_info(
-    record: EventRecord, index: _ModuleIndex
-) -> GateMetadata:
+def _parse_debug_info(record: EventRecord, index: _ModuleIndex) -> GateMetadata:
     """Deserialise a DEBUG_INFO_TAG custom event payload into a
     :class:`GateMetadata`, resolving frames against *index*."""
     assert isinstance(record.event, CustomEvent)

@@ -325,12 +325,14 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
             ctypes.c_uint64,
             ctypes.c_double,
             ctypes.c_double,
+            ctypes.c_uint64,
         ]
         self.selene_runtime_rxy_gate.restype = ctypes.c_int32
         self.selene_runtime_rz_gate.argtypes = [
             SeleneRuntimeInstancePtr,
             ctypes.c_uint64,
             ctypes.c_double,
+            ctypes.c_uint64,
         ]
         self.selene_runtime_rz_gate.restype = ctypes.c_int32
         self.selene_runtime_rzz_gate.argtypes = [
@@ -338,22 +340,26 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
             ctypes.c_uint64,
             ctypes.c_uint64,
             ctypes.c_double,
+            ctypes.c_uint64,
         ]
         self.selene_runtime_rzz_gate.restype = ctypes.c_int32
         self.selene_runtime_measure.argtypes = [
             SeleneRuntimeInstancePtr,
             ctypes.c_uint64,
             ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_uint64,
         ]
         self.selene_runtime_measure.restype = ctypes.c_int32
         self.selene_runtime_measure_leaked.argtypes = [
             SeleneRuntimeInstancePtr,
             ctypes.c_uint64,
             ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_uint64,
         ]
         self.selene_runtime_measure_leaked.restype = ctypes.c_int32
         self.selene_runtime_reset.argtypes = [
             SeleneRuntimeInstancePtr,
+            ctypes.c_uint64,
             ctypes.c_uint64,
         ]
         self.selene_runtime_reset.restype = ctypes.c_int32
@@ -480,23 +486,23 @@ class InteractiveRuntime:
             raise RuntimeError("Failed to free qubit on Selene runtime")
 
     def rxy(self, qubit: int, theta: float, phi: float):
-        if 0 != self._lib.selene_runtime_rxy_gate(self._instance, qubit, theta, phi):
+        if 0 != self._lib.selene_runtime_rxy_gate(self._instance, qubit, theta, phi, 0):
             raise RuntimeError("Failed to apply RXY operation on Selene runtime")
 
     def rz(self, qubit: int, theta: float):
-        if 0 != self._lib.selene_runtime_rz_gate(self._instance, qubit, theta):
+        if 0 != self._lib.selene_runtime_rz_gate(self._instance, qubit, theta, 0):
             raise RuntimeError("Failed to apply RZ operation on Selene runtime")
 
     def rzz(self, qubit_a: int, qubit_b: int, theta: float):
         if 0 != self._lib.selene_runtime_rzz_gate(
-            self._instance, qubit_a, qubit_b, theta
+            self._instance, qubit_a, qubit_b, theta, 0
         ):
             raise RuntimeError("Failed to apply RZZ operation on Selene runtime")
 
     def measure(self, qubit: int) -> int:
         future_ref = ctypes.c_uint64()
         if 0 != self._lib.selene_runtime_measure(
-            self._instance, qubit, ctypes.byref(future_ref)
+            self._instance, qubit, ctypes.byref(future_ref), 0
         ):
             raise RuntimeError("Failed to apply measure operation on Selene runtime")
         return future_ref.value
@@ -504,7 +510,7 @@ class InteractiveRuntime:
     def measure_leaked(self, qubit: int) -> int:
         future_ref = ctypes.c_uint64()
         if 0 != self._lib.selene_runtime_measure_leaked(
-            self._instance, qubit, ctypes.byref(future_ref)
+            self._instance, qubit, ctypes.byref(future_ref), 0
         ):
             raise RuntimeError(
                 "Failed to apply measure_leaked operation on Selene runtime"
@@ -512,7 +518,7 @@ class InteractiveRuntime:
         return future_ref.value
 
     def reset(self, qubit: int):
-        if 0 != self._lib.selene_runtime_reset(self._instance, qubit):
+        if 0 != self._lib.selene_runtime_reset(self._instance, qubit, 0):
             raise RuntimeError("Failed to apply RESET operation on Selene runtime")
 
     def force_result(self, result_id: int):

@@ -4,20 +4,18 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
-    metadata::{BacktraceEngine, DEBUG_INFO_TAG, DEBUG_MODULE_TAG},
-    runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
+    runtime::{
+        BatchOperation, OpMetadata, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory,
+    },
     utils::MetricValue,
 };
 
-/// Number of frames to capture at a QIS gate call site.
-const FRAME_CAP: usize = 2;
-
 /// Pending gate operation, held in the queue until `get_next_operations` is called.
-/// The backtrace (if any) is stored as a raw `u64` handle into the `BacktraceEngine`
-/// and resolved lazily when the operation is dequeued.
+/// The opaque metadata handle (e.g. a backtrace) is supplied by the host and
+/// surfaced unchanged through `BatchOperation` for downstream resolution.
 struct QueuedOp {
     op: Operation,
-    bt_ref: Option<u64>,
+    metadata: OpMetadata,
     start: selene_core::time::Instant,
     duration: selene_core::time::Duration,
 }
@@ -40,13 +38,6 @@ struct Params {
     duration_ns_reset: u64,
     #[arg(long)]
     duration_ns_measure_leaked: u64,
-    /// Interface function names used to calibrate the backtrace engine.
-    /// Provided by the interface plugin via the build system.
-    #[arg(long = "interface-fn")]
-    interface_fns: Vec<String>,
-    /// Enable source location capture for use by trace consumers.
-    #[arg(long = "enable-backtrace")]
-    enable_backtrace: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,27 +61,20 @@ struct SimpleRuntime {
     future_results: Vec<FutureResult>,
     start: selene_core::time::Instant,
     params: Params,
-    backtrace_engine: Option<BacktraceEngine<'static>>,
 }
 
 impl SimpleRuntime {
     pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
-        let backtrace_engine = if params.enable_backtrace {
-            Some(BacktraceEngine::new(&params.interface_fns, 1))
-        } else {
-            None
-        };
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
             future_results: Vec::with_capacity(1000),
             start,
             params,
-            backtrace_engine,
         }
     }
 
-    pub fn push(&mut self, op: Operation) {
+    pub fn push(&mut self, op: Operation, metadata: OpMetadata) {
         let duration_ns = match op {
             Operation::RXYGate { .. } => self.params.duration_ns_rxy,
             Operation::RZZGate { .. } => self.params.duration_ns_rzz,
@@ -102,15 +86,11 @@ impl SimpleRuntime {
             Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
             _ => 0,
         };
-        let bt_ref = self
-            .backtrace_engine
-            .as_mut()
-            .map(|engine| engine.capture_backtrace(FRAME_CAP));
         let start = self.start;
         self.start += duration_ns.into();
         self.operation_queue.push_back(QueuedOp {
             op,
-            bt_ref,
+            metadata,
             start,
             duration: duration_ns.into(),
         });
@@ -129,31 +109,9 @@ impl RuntimeInterface for SimpleRuntime {
         let Some(queued) = self.operation_queue.pop_front() else {
             return Ok(None);
         };
-        let mut ops = Vec::with_capacity(4);
-        if let Some(bt_ref) = queued.bt_ref {
-            if let Some(engine) = self.backtrace_engine.as_mut() {
-                // Emit any newly-discovered modules first so that
-                // downstream consumers can interpret the module ids in
-                // the following DEBUG_INFO op.
-                for blob in engine.serialize_pending_modules()? {
-                    ops.push(Operation::Custom {
-                        custom_tag: DEBUG_MODULE_TAG,
-                        data: blob.into_boxed_slice(),
-                    });
-                }
-                let payload = engine.serialize_backtrace(bt_ref)?;
-                ops.push(Operation::Custom {
-                    custom_tag: DEBUG_INFO_TAG,
-                    data: payload.into_boxed_slice(),
-                });
-            }
-        }
-        ops.push(queued.op);
-        Ok(Some(BatchOperation::new(
-            ops,
-            queued.start,
-            queued.duration,
-        )))
+        let mut batch = BatchOperation::new(Vec::new(), queued.start, queued.duration);
+        batch.add_operation_with_metadata(queued.op, queued.metadata);
+        Ok(Some(batch))
     }
 
     fn shot_start(&mut self, _shot_id: u64, _seed: u64) -> Result<()> {
@@ -193,42 +151,65 @@ impl RuntimeInterface for SimpleRuntime {
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+    fn rxy_gate(
+        &mut self,
+        qubit_id: u64,
+        theta: f64,
+        phi: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
         }
         let QubitStatus::Active = self.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(Operation::RXYGate {
-            qubit_id,
-            theta,
-            phi,
-        });
+        self.push(
+            Operation::RXYGate {
+                qubit_id,
+                theta,
+                phi,
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
+    fn rzz_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id_1 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
         }
         if qubit_id_2 >= self.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
         }
-        self.push(Operation::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        });
+        self.push(
+            Operation::RZZGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
+    fn rz_gate(
+        &mut self,
+        qubit_id: u64,
+        theta: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
         }
         let QubitStatus::Active = self.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(Operation::RZGate { qubit_id, theta });
+        self.push(Operation::RZGate { qubit_id, theta }, metadata);
         Ok(())
     }
     fn tk2_gate(
@@ -238,6 +219,7 @@ impl RuntimeInterface for SimpleRuntime {
         alpha: f64,
         beta: f64,
         gamma: f64,
+        metadata: selene_core::runtime::OpMetadata,
     ) -> Result<()> {
         if qubit_id_1 >= self.qubits.len() as u64 {
             bail!("applying tk2 gate to out-of-bounds qubit1 {qubit_id_1}");
@@ -251,16 +233,26 @@ impl RuntimeInterface for SimpleRuntime {
         let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
             bail!("Qubit {qubit_id_2} is not active");
         };
-        self.push(Operation::TK2Gate {
-            qubit_id_1,
-            qubit_id_2,
-            alpha,
-            beta,
-            gamma,
-        });
+        self.push(
+            Operation::TK2Gate {
+                qubit_id_1,
+                qubit_id_2,
+                alpha,
+                beta,
+                gamma,
+            },
+            metadata,
+        );
         Ok(())
     }
-    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
+    fn rpp_gate(
+        &mut self,
+        qubit_id_1: u64,
+        qubit_id_2: u64,
+        theta: f64,
+        phi: f64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<()> {
         if qubit_id_1 >= self.qubits.len() as u64 {
             bail!("applying rpp gate to out-of-bounds qubit1 {qubit_id_1}");
         }
@@ -273,16 +265,23 @@ impl RuntimeInterface for SimpleRuntime {
         let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
             bail!("Qubit {qubit_id_2} is not active");
         };
-        self.push(Operation::RPPGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-            phi,
-        });
+        self.push(
+            Operation::RPPGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+                phi,
+            },
+            metadata,
+        );
         Ok(())
     }
     // Lifetime ops
-    fn measure(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -291,13 +290,20 @@ impl RuntimeInterface for SimpleRuntime {
             measured: false,
             value: 0,
         });
-        self.push(Operation::Measure {
-            qubit_id,
-            result_id,
-        });
+        self.push(
+            Operation::Measure {
+                qubit_id,
+                result_id,
+            },
+            metadata,
+        );
         Ok(result_id)
     }
-    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure_leaked(
+        &mut self,
+        qubit_id: u64,
+        metadata: selene_core::runtime::OpMetadata,
+    ) -> Result<u64> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -306,18 +312,21 @@ impl RuntimeInterface for SimpleRuntime {
             measured: false,
             value: 0,
         });
-        self.push(Operation::MeasureLeaked {
-            qubit_id,
-            result_id,
-        });
+        self.push(
+            Operation::MeasureLeaked {
+                qubit_id,
+                result_id,
+            },
+            metadata,
+        );
         Ok(result_id)
     }
 
-    fn reset(&mut self, qubit_id: u64) -> Result<()> {
+    fn reset(&mut self, qubit_id: u64, metadata: selene_core::runtime::OpMetadata) -> Result<()> {
         if qubit_id >= self.qubits.len() as u64 {
             bail!("resetting out-of-bounds qubit {qubit_id}")
         }
-        self.push(Operation::Reset { qubit_id });
+        self.push(Operation::Reset { qubit_id }, metadata);
         Ok(())
     }
     fn force_result(&mut self, result_id: u64) -> Result<()> {

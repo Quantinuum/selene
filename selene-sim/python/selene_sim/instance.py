@@ -219,16 +219,23 @@ class SeleneInstance:
         library_search_dirs = self.library_search_dirs.copy()
         for component in (simulator, error_model, runtime):
             library_search_dirs.extend(component.library_search_dirs)
+        # Forward backtrace configuration onto the core event-hooks
+        # configuration block. Capture is now owned by the Emulator,
+        # not the runtime plugin.
+        enable_backtrace = bool(getattr(runtime, "enable_backtrace", False))
         global_configuration = {
-            "event_hooks": {flag: True for flag in event_hook.get_selene_flags()},
+            "event_hooks": {
+                **{flag: True for flag in event_hook.get_selene_flags()},
+                "provide_backtraces": enable_backtrace,
+                "interface_fns": list(self.interface_symbols)
+                if enable_backtrace
+                else [],
+            },
             "n_qubits": n_qubits,
             "simulator": self._get_component_config(simulator, random_seed),
             "error_model": self._get_component_config(error_model, random_seed),
             "runtime": self._get_component_config(runtime, random_seed),
         }
-        # Inject interface symbols so the runtime can calibrate its backtrace engine
-        for sym in self.interface_symbols:
-            global_configuration["runtime"]["args"].append(f"--interface-fn={sym}")
         with TCPStream(
             timeout=timeout,
             logfile=results_logfile,
@@ -415,15 +422,20 @@ class SeleneInstance:
         library_search_dirs = self.library_search_dirs.copy()
         for component in (simulator, error_model, runtime):
             library_search_dirs.extend(component.library_search_dirs)
+        enable_backtrace = bool(getattr(runtime, "enable_backtrace", False))
         global_configuration = {
-            "event_hooks": {flag: True for flag in event_hook.get_selene_flags()},
+            "event_hooks": {
+                **{flag: True for flag in event_hook.get_selene_flags()},
+                "provide_backtraces": enable_backtrace,
+                "interface_fns": list(self.interface_symbols)
+                if enable_backtrace
+                else [],
+            },
             "n_qubits": n_qubits,
             "simulator": self._get_component_config(simulator, random_seed),
             "error_model": self._get_component_config(error_model, random_seed),
             "runtime": self._get_component_config(runtime, random_seed),
         }
-        for sym in self.interface_symbols:
-            global_configuration["runtime"]["args"].append(f"--interface-fn={sym}")
 
         # Profiling always uses a single process so that samply wraps exactly
         # one executable instance.
