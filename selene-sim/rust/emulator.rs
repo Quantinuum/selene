@@ -61,11 +61,11 @@ impl Emulator {
             ));
         }
 
-        // Construct the backtrace engine when enabled. The direct caller of
-        // `capture_backtrace` in this module is the `user_issued_*` method
-        // itself (no helper hops), so `user_skip = 0`.
+        // Construct the backtrace engine when enabled. The system backtrace
+        // functions are called directly from `capture_backtrace`, so there is
+        // no variable library overhead to account for.
         let backtrace_engine = if config.event_hooks.provide_backtraces {
-            Some(BacktraceEngine::new(&config.event_hooks.interface_fns, 0))
+            Some(BacktraceEngine::new(&config.event_hooks.interface_fns))
         } else {
             None
         };

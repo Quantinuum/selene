@@ -24,7 +24,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use addr2line::Loader;
-use backtrace::{BacktraceFrame, BacktraceSymbol, Frame, trace};
 use bumpalo::{Bump, boxed::Box as BumpBox, collections::vec::Vec as BumpVec};
 
 /// Magic tag used to identify `Custom` operations carrying backtrace metadata
@@ -321,6 +320,55 @@ fn module_for_ip(_ip: usize) -> Option<ModuleLoadInfo> {
     None
 }
 
+/// Capture a raw stack backtrace into `buf`, returning the number of frames
+/// written. Uses frame-pointer-based unwinding via the platform's native
+/// backtrace facility (`libc::backtrace` on Unix,
+/// `RtlCaptureStackBackTrace` on Windows).
+///
+/// The returned frames start from the caller of this function (i.e. this
+/// function's own frame is excluded via `frames_to_skip = 1` on Windows,
+/// or by decrementing the count by 1 on Unix where `libc::backtrace`
+/// includes its own frame).
+#[cfg(unix)]
+#[inline(never)]
+fn raw_backtrace(buf: &mut [*mut std::ffi::c_void]) -> usize {
+    // SAFETY: buf is a valid mutable slice; libc::backtrace writes at most
+    // buf.len() pointers and returns the actual count.
+    let n = unsafe { libc::backtrace(buf.as_mut_ptr(), buf.len() as i32) };
+    // libc::backtrace includes its own frame + this function's frame.
+    // We skip 2 frames (raw_backtrace + libc::backtrace) so the first
+    // entry is the caller of raw_backtrace.
+    let n = n as usize;
+    if n > 2 {
+        buf.copy_within(2..n, 0);
+        n - 2
+    } else {
+        0
+    }
+}
+
+#[cfg(windows)]
+#[inline(never)]
+fn raw_backtrace(buf: &mut [*mut std::ffi::c_void]) -> usize {
+    use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
+    // Skip 1 frame (this function itself) so the first entry is our caller.
+    // SAFETY: buf is a valid mutable pointer to buf.len() elements.
+    let n = unsafe {
+        RtlCaptureStackBackTrace(
+            1,                               // FramesToSkip
+            buf.len() as u32,                // FramesToCapture
+            buf.as_mut_ptr() as *mut *mut _, // BackTrace
+            std::ptr::null_mut(),            // BackTraceHash
+        )
+    };
+    n as usize
+}
+
+#[cfg(not(any(unix, windows)))]
+fn raw_backtrace(_buf: &mut [*mut std::ffi::c_void]) -> usize {
+    0
+}
+
 /// Per-module information retained by the [`BacktraceEngine`].
 ///
 /// `path` and `ranges` are only populated for modules that have not
@@ -333,36 +381,6 @@ struct ModuleInfo {
     ranges: Option<Vec<(u64, u64)>>,
 }
 
-/// Count the number of frames between the caller of `trace` and the frame
-/// where the closure executes. Returns the index of the caller in the trace.
-#[inline(never)]
-fn calibrate_global_frame_skip() -> usize {
-    let mut frame_count = 0;
-
-    backtrace::trace(|frame| {
-        let mut frame: BacktraceFrame = frame.clone().into();
-        frame.resolve();
-        for (_i, sym) in frame.symbols().iter().enumerate() {
-            let name = sym.name().expect("should be symbolicated").to_string();
-            if name.contains("calibrate_global_frame_skip") {
-                debug_assert!(
-                    _i == frame.symbols().len() - 1,
-                    "target should not be inlined"
-                );
-                return false; // we have reached the frame of the calling function
-            }
-        }
-
-        // not found, keep searching
-        frame_count += 1;
-        true
-    });
-
-    // +1 because we want the caller of the caller of `trace`,
-    // a.k.a. the caller of `capture_backtrace`
-    frame_count + 1
-}
-
 /// Class which manages backtraces, including efficient allocation and deduplication.
 pub struct BacktraceEngine<'bump> {
     /// Set of function names used as "interface frames".
@@ -373,14 +391,9 @@ pub struct BacktraceEngine<'bump> {
     /// constructed, to perform deduplication. For performance, we create the hash as part
     /// of constructing the backtrace rather than implementing Hash.
     existing_traces: HashMap<u64, NonNull<UnresolvedBacktrace<'bump>>>,
-    /// The global frame skip is the frame index of the caller of `capture_backtrace`,
-    /// which can vary based on compile-time inlining decisions. It is calculated when the
-    /// engine is constructed by calling `calibrate_global_frame_skip`. The IP of the
-    /// frame at this index is considered the unique identifier of a call site, and is
-    /// used as a key to `site_frame_skips`.
-    global_frame_skip: usize,
     /// Map from call-site IP to the number of frames to skip for that call site.
-    /// The call-site IP is the IP of the direct caller of `capture_backtrace`.
+    /// The call-site IP is the first frame returned by `raw_backtrace` inside
+    /// `capture_backtrace` (i.e. the direct caller of `capture_backtrace`).
     /// Calibrated once per unique call site.
     site_frame_skips: HashMap<usize, usize>,
     /// Landing zone for trace data (see capture_backtrace)  
@@ -406,24 +419,13 @@ impl<'bump> BacktraceEngine<'bump> {
     /// - interface_fns: a set of function names which define the boundary between
     ///   Selene and user code (i.e., where we want to start saving frames).
     ///   This should be provided by the interface plugin.
-    ///
-    /// - user_skip: The number of frames between the `RuntimePlugin` trait methods
-    ///   and the call to `create_backtrace`. For instance, the simple
-    ///   runtime's interface methods call a `push` method which creates the actual
-    ///   backtrace, so it sets user_skip=1.
-    ///
-    ///   This value must be the same for all backtraces created with a given
-    ///   `BacktraceEngine`. In addition, intermediate frames included in the count
-    ///   must be marked with the `inline(never)` attribute to ensure the skip count
-    ///   remains correct across all build configurations.
-    pub fn new(interface_fns: impl IntoIterator<Item: AsRef<str>>, user_skip: usize) -> Self {
+    pub fn new(interface_fns: impl IntoIterator<Item: AsRef<str>>) -> Self {
         Self {
             interface_fns: interface_fns
                 .into_iter()
                 .map(|s| s.as_ref().to_owned())
                 .collect(),
             existing_traces: Default::default(),
-            global_frame_skip: calibrate_global_frame_skip() + user_skip,
             site_frame_skips: Default::default(),
             staging: Default::default(),
             modules: Default::default(),
@@ -433,80 +435,126 @@ impl<'bump> BacktraceEngine<'bump> {
         }
     }
 
-    fn is_interface_frame(&self, sym: &BacktraceSymbol) -> bool {
-        let name = sym
-            .name()
-            .expect("symbols passed to this function should be symbolicated")
-            .to_string();
-
+    /// Check if `name` is one of the interface functions.
+    fn is_interface_fn_name(&self, name: &str) -> bool {
         // On macOS the Darwin linker prepends an extra '_' to C symbols,
         // remove it before checking for matches
         let name_canonical = if std::env::consts::OS == "macos" {
-            name.strip_prefix('_').unwrap_or(&name)
+            name.strip_prefix('_').unwrap_or(name)
         } else {
-            &name
+            name
         };
 
         self.interface_fns.contains(name_canonical)
     }
 
-    const MAX_FRAMES_TO_SEARCH: usize = 10;
+    const MAX_FRAMES_TO_SEARCH: usize = 64;
+
+    /// Resolve the symbol name for a given IP using the platform's dynamic
+    /// linker API. Returns `None` if the symbol cannot be identified.
+    #[cfg(unix)]
+    fn symbol_name_for_ip(ip: usize) -> Option<String> {
+        use std::ffi::CStr;
+
+        let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
+        // SAFETY: dladdr writes into info; returns 0 on failure.
+        let ret = unsafe { libc::dladdr(ip as *const std::ffi::c_void, &mut info) };
+        if ret == 0 || info.dli_sname.is_null() {
+            return None;
+        }
+        let cstr = unsafe { CStr::from_ptr(info.dli_sname) };
+        cstr.to_str().ok().map(|s| s.to_owned())
+    }
+
+    #[cfg(windows)]
+    fn symbol_name_for_ip(ip: usize) -> Option<String> {
+        use windows_sys::Win32::System::Diagnostics::Debug::{
+            SYMBOL_INFO, SymFromAddr, SymInitialize,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+        // SymFromAddr requires SymInitialize to have been called.
+        // This is a one-time init; calling it multiple times is harmless.
+        static INIT: std::sync::Once = std::sync::Once::new();
+        INIT.call_once(|| unsafe {
+            SymInitialize(GetCurrentProcess(), std::ptr::null(), 1);
+        });
+
+        // SYMBOL_INFO with space for a 256-char name.
+        #[repr(C)]
+        struct SymbolBuf {
+            info: SYMBOL_INFO,
+            name_buf: [u8; 256],
+        }
+        let mut buf: SymbolBuf = unsafe { std::mem::zeroed() };
+        buf.info.SizeOfStruct = std::mem::size_of::<SYMBOL_INFO>() as u32;
+        buf.info.MaxNameLen = 256;
+
+        let mut displacement: u64 = 0;
+        let ok = unsafe {
+            SymFromAddr(
+                GetCurrentProcess(),
+                ip as u64,
+                &mut displacement,
+                &mut buf.info,
+            )
+        };
+        if ok == 0 {
+            return None;
+        }
+        let name_len = buf.info.NameLen as usize;
+        let name_bytes =
+            unsafe { std::slice::from_raw_parts(buf.info.Name.as_ptr() as *const u8, name_len) };
+        std::str::from_utf8(name_bytes).ok().map(|s| s.to_owned())
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn symbol_name_for_ip(_ip: usize) -> Option<String> {
+        None
+    }
 
     /// Get the frame skip count for the given call-site IP, calibrating if not yet known.
     ///
-    /// `call_site_ip` should be the IP of frame index 1 as seen from within
-    /// `capture_backtrace` (i.e. the direct caller of `capture_backtrace`).
+    /// `frames` is the raw backtrace captured by `capture_backtrace`. The first
+    /// entry (index 0) is the direct caller of `capture_backtrace`. We walk the
+    /// frames and use `dladdr` (Unix) or `SymFromAddr` (Windows) to identify the
+    /// interface function boundary.
     #[inline(always)]
-    fn get_frame_skip(&mut self, call_site_ip: usize) -> usize {
+    fn get_frame_skip(&mut self, frames: &[*mut std::ffi::c_void]) -> usize {
+        let call_site_ip = frames[0] as usize;
         if let Some(&skip_count) = self.site_frame_skips.get(&call_site_ip) {
-            skip_count
-        } else {
-            let mut skip_count = 0;
-            backtrace::trace(|abstract_frame| {
-                let mut frame: BacktraceFrame = abstract_frame.clone().into();
-                frame.resolve();
-                let syms = frame.symbols();
-                for (i, sym) in syms.iter().enumerate() {
-                    if self.is_interface_frame(sym) {
-                        // must be the outermost symbol in the frame (not inlined)
-                        if i != syms.len() - 1 {
-                            panic!("interface frame was inlined, or detection function is wrong")
-                        }
-                        return false; // we have found an interface frame
-                    }
-                }
+            return skip_count;
+        }
 
-                debug_assert!(
-                    skip_count != (self.global_frame_skip - 1)
-                        || syms
-                            .iter()
-                            .last()
-                            .unwrap()
-                            .name()
-                            .unwrap()
-                            .to_string()
-                            .contains("capture_backtrace"),
-                    "global skip count calibrated incorrectly"
-                );
-
-                // frame not found, continue until we hit the max
-                skip_count += 1;
-                skip_count < Self::MAX_FRAMES_TO_SEARCH
-            });
-
-            if skip_count == Self::MAX_FRAMES_TO_SEARCH {
-                panic!(
-                    "Could not find interface frame for debug backtrace within {} frames",
-                    Self::MAX_FRAMES_TO_SEARCH
-                );
+        // Calibrate: walk through the frames, resolve each symbol name to
+        // find the interface function boundary.
+        let mut skip_count = 0;
+        for &frame_ptr in frames.iter() {
+            let ip = frame_ptr as usize;
+            if ip == 0 {
+                break;
             }
 
-            // +1 because we want the caller of the interface frame
-            skip_count += 1;
+            if let Some(name) = Self::symbol_name_for_ip(ip) {
+                if self.is_interface_fn_name(&name) {
+                    // Found the interface frame. We want the *caller* of
+                    // the interface frame, which is one frame above.
+                    skip_count += 1;
+                    self.site_frame_skips.insert(call_site_ip, skip_count);
+                    return skip_count;
+                }
+            }
 
-            self.site_frame_skips.insert(call_site_ip, skip_count);
-            skip_count
+            skip_count += 1;
+            if skip_count >= Self::MAX_FRAMES_TO_SEARCH {
+                break;
+            }
         }
+
+        panic!(
+            "Could not find interface frame for debug backtrace within {} frames",
+            Self::MAX_FRAMES_TO_SEARCH
+        );
     }
 
     /// Look up or insert the module containing `ip`. Returns the
@@ -538,20 +586,18 @@ impl<'bump> BacktraceEngine<'bump> {
 
     #[inline(never)]
     pub fn capture_backtrace(&mut self, n_capture: usize) -> u64 {
-        // Capture the IP of the direct caller of this function
-        let mut call_site_ip: usize = 0;
-        let mut frame_idx = 0usize;
-        trace(|frame: &Frame| {
-            if frame_idx == self.global_frame_skip {
-                call_site_ip = frame.ip() as usize;
-                false // stop after finding the call site
-            } else {
-                frame_idx += 1;
-                true
-            }
-        });
+        // Capture raw frame pointers. The first frame returned by
+        // `raw_backtrace` is our direct caller (capture_metadata).
+        let mut buf = [std::ptr::null_mut::<std::ffi::c_void>(); 64];
+        let n_frames = raw_backtrace(&mut buf);
+        if n_frames == 0 {
+            panic!("raw_backtrace returned 0 frames");
+        }
+        let frames = &buf[..n_frames];
 
-        let frame_skip = self.get_frame_skip(call_site_ip);
+        // Determine how many frames to skip to reach user code.
+        let frame_skip = self.get_frame_skip(frames);
+
         // We need to pass a `'bump Bump` to use the bumpalo containers.
         // But we cannot safely materialize a `&'bump self`, because rustc is not
         // convinced that Self outlives the Bump. So we do this instead.
@@ -559,43 +605,26 @@ impl<'bump> BacktraceEngine<'bump> {
         let alloc_casted: &'bump Bump = unsafe { &*(&self.allocator as *const Bump) };
 
         // Take the staging box out of `self` for the duration of the
-        // trace closure. This lets the closure call
-        // `self.module_for_ip_cached` (which borrows `&mut self`)
-        // while simultaneously pushing into the staged frames vector,
-        // without violating Rust's aliasing rules.
+        // capture. This lets us call `self.module_for_ip_cached` while
+        // simultaneously pushing into the staged frames vector.
         let mut staged_box = self
             .staging
             .take()
             .unwrap_or_else(|| UnresolvedBacktrace::new_boxed(alloc_casted, n_capture));
 
         let mut hash: u64 = 0;
-        let mut count = 0;
-        let limit = n_capture + frame_skip;
-        trace(|frame: &Frame| {
-            if count < frame_skip {
-                count += 1;
-                return true;
-            }
-            // Resolve the module to register it in pending_modules
-            // (consumers need module entries to look up VMAs at
-            // resolution time), but the frame itself carries only the
-            // raw loaded VMA. `0` is reserved as the sentinel for
-            // "module unknown".
-            let ip = frame.ip() as usize;
+        let end = std::cmp::min(frame_skip + n_capture, n_frames);
+        for &frame_ptr in &frames[frame_skip..end] {
+            let ip = frame_ptr as usize;
             let vma: u64 = match self.module_for_ip_cached(ip) {
                 Some(_) => ip as u64,
                 None => 0,
             };
-            // Mix only the VMA: distinct modules occupy disjoint loaded
-            // address ranges, so VMAs are globally unique without
-            // requiring a module identifier.
             hash = hash.rotate_left(13) ^ (vma.wrapping_mul(0x9E3779B97F4A7C15));
             staged_box.frames.push(CapturedFrame { vma });
-            count += 1;
-            count < limit
-        });
+        }
 
-        if count <= frame_skip {
+        if frame_skip >= n_frames {
             panic!(
                 "Did not get at least `frame_skip` ({frame_skip}) frames in `capture_backtrace`; \
                 this should not happen if the backtrace is properly calibrated."
@@ -874,7 +903,7 @@ mod tests {
 
     #[test]
     fn test_create_captures_frames() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let bt_ref = cap_synth_backtrace(&mut engine, 3);
         let frames = frames_of(bt_ref);
         assert!(!frames.is_empty(), "expected at least one captured frame");
@@ -888,7 +917,7 @@ mod tests {
 
     #[test]
     fn test_deduplication() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let bt1 = cap_synth_backtrace(&mut engine, 1);
         let bt2 = cap_synth_backtrace(&mut engine, 1);
         assert!(bt1 == bt2, "expected backtraces to be deduplicated");
@@ -896,7 +925,7 @@ mod tests {
 
     #[test]
     fn test_module_cache_dedup() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let _ = cap_synth_backtrace(&mut engine, 3);
         let first = engine.drain_pending_modules();
         assert!(
@@ -933,7 +962,7 @@ mod tests {
 
     #[test]
     fn test_backtrace_payload_roundtrip() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let bt_ref = cap_synth_backtrace(&mut engine, 3);
         let bytes = engine.serialize_backtrace(bt_ref).unwrap();
         let decoded: UnresolvedBacktracePayload = rmp_serde::from_slice(&bytes).unwrap();
@@ -945,7 +974,7 @@ mod tests {
 
     #[test]
     fn test_captured_vmas_lie_in_module_ranges() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let bt_ref = cap_synth_backtrace(&mut engine, 5);
         let frames = frames_of(bt_ref);
         let modules = drain_modules(&mut engine);
@@ -976,7 +1005,7 @@ mod tests {
 
     #[test]
     fn test_resolved_has_symbols() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let bt_ref = cap_synth_backtrace(&mut engine, 5);
         let frames = frames_of(bt_ref);
         let modules = drain_modules(&mut engine);
@@ -1026,7 +1055,7 @@ mod tests {
 
     #[test]
     fn test_serialize_roundtrip() {
-        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame"]);
         let bt_ref = cap_synth_backtrace(&mut engine, 3);
         let frames = frames_of(bt_ref);
         let modules = drain_modules(&mut engine);
@@ -1088,7 +1117,7 @@ mod tests {
     /// independently for each site.
     #[test]
     fn test_per_callsite_calibration() {
-        let mut engine = BacktraceEngine::new(["selene_frame", "selene_frameb"], 0);
+        let mut engine = BacktraceEngine::new(["selene_frame", "selene_frameb"]);
 
         let bt_a = cap_synth_backtrace(&mut engine, 3);
         let bt_b = cap_synth_backtrace_b(&mut engine, 3);

@@ -4,9 +4,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
-    runtime::{
-        BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory,
-    },
+    runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
 

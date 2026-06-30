@@ -141,9 +141,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             qubit_id_2,
                             theta,
                             metadata,
-                        } => unsafe {
-                            rzz_fn(goi, *qubit_id_1, *qubit_id_2, *theta, *metadata)
-                        },
+                        } => unsafe { rzz_fn(goi, *qubit_id_1, *qubit_id_2, *theta, *metadata) },
                         Operation::RPPGate {
                             qubit_id_1,
                             qubit_id_2,

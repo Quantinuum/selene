@@ -70,7 +70,7 @@ def invoke_zig(
         if target_triple is not None:
             args_str += ["-target", target_triple]
     if emit_debug:
-        args_str += ["-g"]
+        args_str += ["-g", "-fno-omit-frame-pointer"]
     argv = [sys.executable, "-m", "ziglang"] + args_str
     if verbose:
         print(f"zig command: {' '.join(argv)}")

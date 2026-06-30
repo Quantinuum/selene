@@ -31,23 +31,28 @@ impl ErrorModelInterface for IdealErrorModel {
                 Operation::RXYGate {
                     qubit_id,
                     theta,
-                    phi, ..
+                    phi,
+                    ..
                 } => {
                     self.simulator.rxy(qubit_id, theta, phi)?;
                 }
                 Operation::RZZGate {
                     qubit_id_1,
                     qubit_id_2,
-                    theta, ..
+                    theta,
+                    ..
                 } => {
                     self.simulator.rzz(qubit_id_1, qubit_id_2, theta)?;
                 }
-                Operation::RZGate { qubit_id, theta, .. } => {
+                Operation::RZGate {
+                    qubit_id, theta, ..
+                } => {
                     self.simulator.rz(qubit_id, theta)?;
                 }
                 Operation::Measure {
                     qubit_id,
-                    result_id, ..
+                    result_id,
+                    ..
                 } => {
                     let measurement = self.simulator.measure(qubit_id)?;
                     results.set_bool_result(result_id, measurement);
@@ -57,7 +62,8 @@ impl ErrorModelInterface for IdealErrorModel {
                     qubit_id_2,
                     alpha,
                     beta,
-                    gamma, ..
+                    gamma,
+                    ..
                 } => {
                     self.simulator
                         .tk2(qubit_id_1, qubit_id_2, alpha, beta, gamma)?;
@@ -66,13 +72,15 @@ impl ErrorModelInterface for IdealErrorModel {
                     qubit_id_1,
                     qubit_id_2,
                     theta,
-                    phi, ..
+                    phi,
+                    ..
                 } => {
                     self.simulator.rpp(qubit_id_1, qubit_id_2, theta, phi)?;
                 }
                 Operation::MeasureLeaked {
                     qubit_id,
-                    result_id, ..
+                    result_id,
+                    ..
                 } => {
                     // In this ideal model, there's no leakage.
                     // Just do a normal measurement and stick to the [0,1] range

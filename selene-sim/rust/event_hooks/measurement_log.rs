@@ -68,7 +68,8 @@ impl EventHook for MeasurementLog {
             match *op {
                 Operation::Measure {
                     qubit_id,
-                    result_id, ..
+                    result_id,
+                    ..
                 } => {
                     self.meas_calls.push_back(MeasCall {
                         meas_type: MeasType::Measure,
@@ -78,7 +79,8 @@ impl EventHook for MeasurementLog {
                 }
                 Operation::MeasureLeaked {
                     qubit_id,
-                    result_id, ..
+                    result_id,
+                    ..
                 } => {
                     self.meas_calls.push_back(MeasCall {
                         meas_type: MeasType::MeasureLeaked,
