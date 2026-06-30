@@ -8,20 +8,25 @@ The runtime emits captured backtraces in an *unresolved* form, paired
 with module-table entries that describe each loaded library. This
 module:
 
-* collects ``DEBUG_MODULE_TAG`` events into an in-memory module table,
-* decodes ``DEBUG_INFO_TAG`` events (lists of ``{module_id, svma}`` frames),
-* resolves each frame against the on-disk binary via the ``symbolic``
-  package, and
+* collects ``DEBUG_MODULE_TAG`` events into an in-memory module table
+  and incrementally indexes their loaded VMA ranges,
+* decodes ``DEBUG_INFO_TAG`` events (lists of ``{vma}`` frames),
+* resolves each frame by binary-searching the range index to find its
+  owning module, then symbolicating ``svma = vma - module.bias`` via
+  the ``symbolic`` package, and
 * attaches the resulting :class:`SrcLocation` list as metadata on the
   following gate / measure / reset event.
 
-Modules whose on-disk binary is missing or cannot be opened produce
-``<unknown>`` placeholder frames, mirroring the Rust-side fallback in
+Modules whose on-disk binary is missing or cannot be opened, and
+frames whose VMA falls outside every announced range (or is the
+``0`` sentinel for "module unknown"), produce ``<unknown>``
+placeholder frames, mirroring the Rust-side fallback in
 ``selene_core::metadata::ResolvedBacktrace::from_unresolved``.
 """
 
 from __future__ import annotations
 
+import bisect
 from functools import lru_cache
 from pathlib import Path
 
@@ -46,7 +51,7 @@ DEBUG_INFO_TAG: int = 0x6FCFC512E44136EB
 #: Tag value used to identify custom operations carrying module-table
 #: entries. Each such event carries a single :class:`ResolvedModule`-style
 #: payload describing one loaded library; entries must precede any
-#: ``DEBUG_INFO_TAG`` event that references their ``module_id``.
+#: ``DEBUG_INFO_TAG`` event whose frame VMAs fall within their ranges.
 #: Must match ``selene_core::metadata::DEBUG_MODULE_TAG`` in the Rust crate.
 DEBUG_MODULE_TAG: int = 0x6FCFC512E44136EC
 
@@ -69,31 +74,68 @@ def _is_debug_module_event(record: EventRecord) -> bool:
     )
 
 
-#: Sentinel module id used by the Rust side when ``dladdr`` fails to
-#: identify the module owning an IP. Must match
-#: ``selene_core::metadata::UNKNOWN_MODULE_ID``.
-_UNKNOWN_MODULE_ID: int = 0xFFFFFFFF
-
-
 class _ModuleEntry:
     """Decoded ``DEBUG_MODULE_TAG`` payload."""
 
-    __slots__ = ("module_id", "path", "bias")
+    __slots__ = ("path", "bias", "ranges")
 
-    def __init__(self, module_id: int, path: str, bias: int) -> None:
-        self.module_id = module_id
+    def __init__(
+        self, path: str, bias: int, ranges: list[tuple[int, int]]
+    ) -> None:
         self.path = path
         self.bias = bias
+        self.ranges = ranges
+
+
+class _ModuleIndex:
+    """Sorted interval index over loaded VMA ranges.
+
+    Maintained incrementally as new ``DEBUG_MODULE_TAG`` entries arrive.
+    Module ranges across distinct loaded libraries are disjoint by
+    construction (the kernel guarantees this), so binary searching on
+    interval start is sufficient to locate the owning module.
+    """
+
+    __slots__ = ("_starts", "_intervals")
+
+    def __init__(self) -> None:
+        self._starts: list[int] = []
+        # parallel list of (start, end, entry); kept sorted by start.
+        self._intervals: list[tuple[int, int, _ModuleEntry]] = []
+
+    def add(self, entry: _ModuleEntry) -> None:
+        for start, end in entry.ranges:
+            if end <= start:
+                continue
+            idx = bisect.bisect_left(self._starts, start)
+            self._starts.insert(idx, start)
+            self._intervals.insert(idx, (start, end, entry))
+
+    def lookup(self, vma: int) -> _ModuleEntry | None:
+        if vma == 0 or not self._starts:
+            return None
+        # Rightmost interval whose start <= vma.
+        idx = bisect.bisect_right(self._starts, vma) - 1
+        if idx < 0:
+            return None
+        start, end, entry = self._intervals[idx]
+        if start <= vma < end:
+            return entry
+        return None
 
 
 def _parse_debug_module(record: EventRecord) -> _ModuleEntry:
     assert isinstance(record.event, CustomEvent)
     assert isinstance(record.event.payload, OpaquePayload)
     raw = msgpack.unpackb(record.event.payload.data, raw=False)
+    ranges_raw = raw.get("ranges") or []
+    ranges: list[tuple[int, int]] = [
+        (int(start), int(end)) for start, end in ranges_raw
+    ]
     return _ModuleEntry(
-        module_id=int(raw["module_id"]),
         path=str(raw["path"]),
         bias=int(raw["bias"]),
+        ranges=ranges,
     )
 
 
@@ -170,8 +212,8 @@ _UNKNOWN_FRAME = SrcLocation(
 
 
 def _resolve_frame(module: "_ModuleEntry | None", svma: int) -> list[SrcLocation]:
-    """Resolve a single captured ``(module_id, svma)`` pair to one or
-    more :class:`SrcLocation` entries (one per inlined frame).
+    """Resolve a single captured ``(module, svma)`` pair to one or more
+    :class:`SrcLocation` entries (one per inlined frame).
 
     Falls back to a single ``<unknown>`` placeholder when the module is
     unknown, missing, or lacks the relevant debug info.
@@ -201,18 +243,18 @@ def _resolve_frame(module: "_ModuleEntry | None", svma: int) -> list[SrcLocation
 
 
 def _parse_debug_info(
-    record: EventRecord, modules: dict[int, _ModuleEntry]
+    record: EventRecord, index: _ModuleIndex
 ) -> GateMetadata:
     """Deserialise a DEBUG_INFO_TAG custom event payload into a
-    :class:`GateMetadata`, resolving frames against *modules*."""
+    :class:`GateMetadata`, resolving frames against *index*."""
     assert isinstance(record.event, CustomEvent)
     assert isinstance(record.event.payload, OpaquePayload)
     raw = msgpack.unpackb(record.event.payload.data, raw=False)
     frames: list[SrcLocation] = []
     for frame in raw["frames"]:
-        module_id = int(frame["module_id"])
-        svma = int(frame["svma"])
-        module = modules.get(module_id) if module_id != _UNKNOWN_MODULE_ID else None
+        vma = int(frame["vma"])
+        module = index.lookup(vma)
+        svma = vma - module.bias if module is not None else 0
         frames.extend(_resolve_frame(module, svma))
     return GateMetadata(frames=frames)
 
@@ -220,23 +262,23 @@ def _parse_debug_info(
 def resolve_debug_info(trace: Trace) -> Trace:
     """Transform a :class:`~selene_core.trace.Trace` by moving debug info into gate metadata.
 
-    ``DEBUG_MODULE_TAG`` custom events are accumulated into an in-memory
-    module table; ``DEBUG_INFO_TAG`` events are then decoded and
-    resolved against that table, attached as the ``metadata`` field on
-    the immediately following gate / measure / reset event. Both kinds
-    of debug-info custom events are removed from the output trace.
+    ``DEBUG_MODULE_TAG`` custom events are accumulated into an
+    incremental VMA-range index; ``DEBUG_INFO_TAG`` events are then
+    decoded and resolved against that index, attached as the
+    ``metadata`` field on the immediately following
+    gate / measure / reset event. Both kinds of debug-info custom
+    events are removed from the output trace.
 
     :raises ValueError: if two consecutive ``DEBUG_INFO_TAG`` events are
         encountered (which would indicate a malformed stream).
     """
     output_events: list[EventRecord] = []
     pending_metadata: GateMetadata | None = None
-    modules: dict[int, _ModuleEntry] = {}
+    index = _ModuleIndex()
 
     for record in trace.events:
         if _is_debug_module_event(record):
-            entry = _parse_debug_module(record)
-            modules[entry.module_id] = entry
+            index.add(_parse_debug_module(record))
             continue
 
         if _is_debug_info_event(record):
@@ -245,7 +287,7 @@ def resolve_debug_info(trace: Trace) -> Trace:
                     "Two adjacent debug info events encountered in trace; "
                     "expected a gate/measure/reset between debug info entries."
                 )
-            pending_metadata = _parse_debug_info(record, modules)
+            pending_metadata = _parse_debug_info(record, index)
             continue
 
         if pending_metadata is not None:

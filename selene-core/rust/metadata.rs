@@ -1,17 +1,23 @@
 //! Backtrace metadata types for attaching source-location information to gates.
 //!
 //! Backtraces are captured at the call site as a sequence of
-//! [`CapturedFrame`] entries, each carrying a module id and a stable
-//! virtual address (SVMA) computed as `ip - module_bias`. SVMAs survive
-//! ASLR and process teardown, so they can be resolved later by
-//! [`ResolvedBacktrace::from_unresolved`] against the on-disk binary
-//! using `addr2line`.
+//! [`CapturedFrame`] entries, each carrying the raw loaded virtual
+//! address (VMA) of the corresponding instruction pointer in the
+//! captured process. A VMA of `0` is a sentinel for "module unknown"
+//! (e.g. JIT'd code or anonymous mappings).
 //!
-//! The module table required for resolution is emitted out-of-band as
-//! [`DEBUG_MODULE_TAG`] `Custom` operations carrying [`ResolvedModule`]
-//! payloads. Each [`DEBUG_INFO_TAG`] `Custom` op carries an
-//! [`UnresolvedBacktracePayload`] referencing module ids previously
-//! announced on the same stream.
+//! Module-table entries ([`ResolvedModule`]) describe each loaded
+//! library as a list of loaded VMA half-open ranges plus the slide
+//! ("bias") needed to translate a loaded VMA back to an in-binary
+//! VMA suitable for `addr2line`. Modules are identified solely by
+//! their ranges — there is no opaque module id. Consumers build a
+//! VMA → module interval map from the announced module table and use
+//! it to resolve each captured frame.
+//!
+//! Module-table entries are emitted out-of-band as
+//! [`DEBUG_MODULE_TAG`] `Custom` operations; each [`DEBUG_INFO_TAG`]
+//! `Custom` op carries an [`UnresolvedBacktracePayload`] referencing
+//! VMAs in modules previously announced on the same stream.
 
 use core::ptr::NonNull;
 use std::collections::{HashMap, HashSet};
@@ -30,26 +36,21 @@ pub const DEBUG_INFO_TAG: usize = 0x6fcfc512e44136eb;
 /// Magic tag used to identify `Custom` operations carrying module-table
 /// entries. Each such op carries a single [`ResolvedModule`] (msgpack) and
 /// must be emitted on the stream before any [`DEBUG_INFO_TAG`] op that
-/// references its `module_id`.
+/// references VMAs falling within its ranges.
 pub const DEBUG_MODULE_TAG: usize = 0x6fcfc512e44136ec;
 
-/// A single captured frame: a module identifier plus a module-relative
-/// virtual address (SVMA = `ip - module_bias`).
+/// A single captured frame: the loaded virtual address of the
+/// instruction pointer at capture time.
 ///
-/// SVMAs are stable across processes for a given on-disk binary, so this
-/// representation can be persisted and resolved later via
-/// [`ResolvedBacktrace::from_unresolved`].
+/// A `vma` of `0` is the sentinel for "module unknown" (e.g. JIT'd
+/// code or anonymous mappings); program IPs are never NULL on any
+/// supported platform, so the encoding is unambiguous. Non-zero VMAs
+/// are resolved by looking up the containing [`ResolvedModule`] via
+/// its `ranges` and computing `svma = vma - module.bias`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CapturedFrame {
-    pub module_id: u32,
-    pub svma: u64,
+    pub vma: u64,
 }
-
-/// Sentinel module id used when `dladdr`/`GetModuleHandleExW` fail to
-/// identify the module owning a given IP (e.g. JIT'd code, anonymous
-/// mappings). Frames with this module id store the raw IP in `svma` and
-/// resolve to an `<unknown>` placeholder.
-pub const UNKNOWN_MODULE_ID: u32 = u32::MAX;
 
 type BoxedBacktrace<'b> = BumpBox<'b, UnresolvedBacktrace<'b>>;
 
@@ -72,11 +73,18 @@ impl<'bump> UnresolvedBacktrace<'bump> {
 /// Wire-format module entry. Emitted into the trace as a
 /// [`DEBUG_MODULE_TAG`] `Custom` op so downstream consumers can resolve
 /// captured frames without access to the live process.
+///
+/// `ranges` is a list of non-overlapping half-open `[start, end)`
+/// intervals of loaded VMAs occupied by the module (one per PT_LOAD
+/// / Mach-O segment / PE image, depending on platform). `bias` is the
+/// runtime slide: `svma = vma - bias` yields an in-binary VMA that,
+/// after adjusting by `Loader::relative_address_base()`, can be fed
+/// to `addr2line` / `symbolic` for resolution.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ResolvedModule {
-    pub module_id: u32,
     pub path: String,
     pub bias: u64,
+    pub ranges: Vec<(u64, u64)>,
 }
 
 impl ResolvedModule {
@@ -88,9 +96,10 @@ impl ResolvedModule {
 
 /// Wire-format payload for a [`DEBUG_INFO_TAG`] `Custom` op.
 ///
-/// `frames` is a list of [`CapturedFrame`] entries; each `module_id`
-/// refers to a [`ResolvedModule`] previously announced on the stream via
-/// a [`DEBUG_MODULE_TAG`] op.
+/// `frames` is a list of [`CapturedFrame`] entries; the `vma` of each
+/// frame is resolved by finding the [`ResolvedModule`] whose `ranges`
+/// contain it, as announced earlier on the stream via
+/// [`DEBUG_MODULE_TAG`] ops.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct UnresolvedBacktracePayload {
     pub frames: Vec<CapturedFrame>,
@@ -103,28 +112,153 @@ impl UnresolvedBacktracePayload {
     }
 }
 
-/// Look up the module containing `ip`. Returns `(module_base, path)` on
-/// success, or `None` if no module can be identified.
-#[cfg(unix)]
-fn module_for_ip(ip: usize) -> Option<(usize, PathBuf)> {
+/// Information about a single loaded module: the runtime slide
+/// ("bias"), the on-disk path, and the list of loaded VMA half-open
+/// ranges occupied by the module in the captured process.
+struct ModuleLoadInfo {
+    base: usize,
+    path: PathBuf,
+    ranges: Vec<(u64, u64)>,
+}
+
+/// Look up the module containing `ip` and return its load base, path,
+/// and full set of loaded VMA ranges. Returns `None` if no module can
+/// be identified.
+#[cfg(target_os = "linux")]
+fn module_for_ip(ip: usize) -> Option<ModuleLoadInfo> {
     use std::ffi::CStr;
-    // SAFETY: `Dl_info` is plain-old-data with no invalid bit patterns,
-    // so zero-init is safe. `dladdr` is thread-safe on all supported
-    // Unix targets.
-    let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
-    let ret = unsafe { libc::dladdr(ip as *const std::ffi::c_void, &mut info) };
-    if ret == 0 || info.dli_fbase.is_null() || info.dli_fname.is_null() {
-        return None;
+    use std::os::raw::{c_int, c_void};
+
+    struct Probe {
+        ip: usize,
+        found: Option<ModuleLoadInfo>,
     }
-    // SAFETY: dli_fname is a NUL-terminated C string owned by the dynamic
-    // linker. We immediately copy it into an owned PathBuf.
-    let cstr = unsafe { CStr::from_ptr(info.dli_fname) };
-    let path = PathBuf::from(cstr.to_str().ok()?);
-    Some((info.dli_fbase as usize, path))
+
+    unsafe extern "C" fn cb(
+        info: *mut libc::dl_phdr_info,
+        _size: libc::size_t,
+        data: *mut c_void,
+    ) -> c_int {
+        // SAFETY: dl_iterate_phdr guarantees `info` and `data` are valid for
+        // the duration of the callback.
+        let probe = unsafe { &mut *(data as *mut Probe) };
+        let info = unsafe { &*info };
+        let base = info.dlpi_addr as usize;
+
+        let mut ranges: Vec<(u64, u64)> = Vec::new();
+        let phdrs = unsafe {
+            std::slice::from_raw_parts(info.dlpi_phdr, info.dlpi_phnum as usize)
+        };
+        for ph in phdrs {
+            if ph.p_type == libc::PT_LOAD {
+                let start = (info.dlpi_addr as u64).wrapping_add(ph.p_vaddr as u64);
+                let end = start.wrapping_add(ph.p_memsz as u64);
+                ranges.push((start, end));
+            }
+        }
+
+        let ip64 = probe.ip as u64;
+        if !ranges.iter().any(|(s, e)| ip64 >= *s && ip64 < *e) {
+            return 0; // not this module, keep iterating
+        }
+
+        let name = if info.dlpi_name.is_null() || unsafe { *info.dlpi_name } == 0 {
+            // Empty name => the main executable. Try to recover via /proc/self/exe.
+            std::fs::read_link("/proc/self/exe").ok().unwrap_or_default()
+        } else {
+            let cstr = unsafe { CStr::from_ptr(info.dlpi_name) };
+            match cstr.to_str() {
+                Ok(s) => PathBuf::from(s),
+                Err(_) => return 0,
+            }
+        };
+
+        probe.found = Some(ModuleLoadInfo {
+            base,
+            path: name,
+            ranges,
+        });
+        1 // stop iterating
+    }
+
+    let mut probe = Probe { ip, found: None };
+    // SAFETY: callback is C ABI; we pass a valid pointer to our local Probe.
+    unsafe {
+        libc::dl_iterate_phdr(Some(cb), &mut probe as *mut Probe as *mut c_void);
+    }
+    probe.found
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)] // libc routes mach-o lookups via deprecated items; mach2 would be the alternative
+fn module_for_ip(ip: usize) -> Option<ModuleLoadInfo> {
+    use std::ffi::CStr;
+
+    // Repr-compatible subset of mach-o load_command / segment_command_64.
+    // We use libc's struct definitions directly when available.
+    let ip64 = ip as u64;
+    // SAFETY: _dyld_image_count returns the current number of loaded images.
+    let count = unsafe { libc::_dyld_image_count() };
+    for i in 0..count {
+        // SAFETY: i is in range [0, count).
+        let header = unsafe { libc::_dyld_get_image_header(i) };
+        if header.is_null() {
+            continue;
+        }
+        let slide = unsafe { libc::_dyld_get_image_vmaddr_slide(i) } as u64;
+
+        // SAFETY: _dyld_get_image_header returns a pointer to a valid
+        // mach_header / mach_header_64 (one per loaded image).
+        let header64: &libc::mach_header_64 = unsafe { &*(header as *const libc::mach_header_64) };
+        let ncmds = header64.ncmds as usize;
+
+        let mut ranges: Vec<(u64, u64)> = Vec::new();
+        let mut cmd_ptr = unsafe {
+            (header as *const u8).add(std::mem::size_of::<libc::mach_header_64>())
+        };
+        for _ in 0..ncmds {
+            // SAFETY: load commands are laid out contiguously after the
+            // header, each prefixed with a `load_command` header that
+            // carries `cmdsize`.
+            let lc: &libc::load_command = unsafe { &*(cmd_ptr as *const libc::load_command) };
+            if lc.cmd == libc::LC_SEGMENT_64 {
+                let seg: &libc::segment_command_64 =
+                    unsafe { &*(cmd_ptr as *const libc::segment_command_64) };
+                if seg.vmsize > 0 {
+                    let start = (seg.vmaddr as u64).wrapping_add(slide);
+                    let end = start.wrapping_add(seg.vmsize as u64);
+                    ranges.push((start, end));
+                }
+            }
+            cmd_ptr = unsafe { cmd_ptr.add(lc.cmdsize as usize) };
+        }
+
+        if !ranges.iter().any(|(s, e)| ip64 >= *s && ip64 < *e) {
+            continue;
+        }
+
+        // SAFETY: _dyld_get_image_name returns a NUL-terminated C string
+        // owned by dyld; we copy it immediately.
+        let name_ptr = unsafe { libc::_dyld_get_image_name(i) };
+        if name_ptr.is_null() {
+            continue;
+        }
+        let path = match unsafe { CStr::from_ptr(name_ptr) }.to_str() {
+            Ok(s) => PathBuf::from(s),
+            Err(_) => continue,
+        };
+
+        return Some(ModuleLoadInfo {
+            base: header as usize,
+            path,
+            ranges,
+        });
+    }
+    None
 }
 
 #[cfg(windows)]
-fn module_for_ip(ip: usize) -> Option<(usize, PathBuf)> {
+fn module_for_ip(ip: usize) -> Option<ModuleLoadInfo> {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
     use windows_sys::Win32::Foundation::HMODULE;
@@ -132,6 +266,8 @@ fn module_for_ip(ip: usize) -> Option<(usize, PathBuf)> {
         GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
         GetModuleFileNameW, GetModuleHandleExW,
     };
+    use windows_sys::Win32::System::ProcessStatus::{GetModuleInformation, MODULEINFO};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
     let mut hmod: HMODULE = std::ptr::null_mut();
     // SAFETY: passing a stack-allocated out pointer. The
@@ -153,23 +289,49 @@ fn module_for_ip(ip: usize) -> Option<(usize, PathBuf)> {
         return None;
     }
     buf.truncate(n as usize);
-    Some((hmod as usize, PathBuf::from(OsString::from_wide(&buf))))
+    let path = PathBuf::from(OsString::from_wide(&buf));
+
+    // SAFETY: MODULEINFO is plain-old-data; zero-init is safe.
+    let mut info: MODULEINFO = unsafe { std::mem::zeroed() };
+    // SAFETY: hmod is a valid module handle obtained above; passing
+    // GetCurrentProcess() pseudo-handle is documented and safe.
+    let got = unsafe {
+        GetModuleInformation(
+            GetCurrentProcess(),
+            hmod,
+            &mut info,
+            std::mem::size_of::<MODULEINFO>() as u32,
+        )
+    };
+    let base = hmod as usize;
+    let ranges = if got != 0 && !info.lpBaseOfDll.is_null() && info.SizeOfImage > 0 {
+        let start = info.lpBaseOfDll as u64;
+        let end = start.wrapping_add(info.SizeOfImage as u64);
+        vec![(start, end)]
+    } else {
+        // Fall back to a degenerate single-range entry rooted at the
+        // module handle; size-unknown loaders are rare in practice.
+        Vec::new()
+    };
+
+    Some(ModuleLoadInfo { base, path, ranges })
 }
 
-#[cfg(not(any(unix, windows)))]
-fn module_for_ip(_ip: usize) -> Option<(usize, PathBuf)> {
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn module_for_ip(_ip: usize) -> Option<ModuleLoadInfo> {
     None
 }
 
 /// Per-module information retained by the [`BacktraceEngine`].
 ///
-/// `path` is only populated for modules that have not yet been drained
-/// via [`BacktraceEngine::drain_pending_modules`]; once drained, the
-/// engine drops the path and keeps only the bias needed for future SVMA
-/// arithmetic on the same module.
+/// `path` and `ranges` are only populated for modules that have not
+/// yet been drained via [`BacktraceEngine::drain_pending_modules`];
+/// once drained, the engine drops them and keeps only the bias
+/// needed for future SVMA arithmetic on the same module.
 struct ModuleInfo {
     bias: usize,
     path: Option<PathBuf>,
+    ranges: Option<Vec<(u64, u64)>>,
 }
 
 
@@ -351,31 +513,29 @@ impl<'bump> BacktraceEngine<'bump> {
     }
 
     /// Look up or insert the module containing `ip`. Returns the
-    /// `module_id` and the corresponding bias. New entries are recorded
-    /// in `pending_modules` for emission via
-    /// [`drain_pending_modules`](Self::drain_pending_modules).
-    fn module_for_ip_cached(&mut self, ip: usize) -> (u32, usize) {
-        match module_for_ip(ip) {
-            Some((base, path)) => {
-                if let Some(&id) = self.module_by_base.get(&base) {
-                    (id, base)
-                } else {
-                    let id = u32::try_from(self.modules.len())
-                        .expect("more than u32::MAX modules captured");
-                    assert!(id != UNKNOWN_MODULE_ID, "module id collides with sentinel");
-                    self.modules.push(ModuleInfo {
-                        bias: base,
-                        path: Some(path),
-                    });
-                    self.module_by_base.insert(base, id);
-                    self.pending_modules.push(id);
-                    (id, base)
-                }
+    /// module's load base (used purely for bias arithmetic). New entries
+    /// are recorded in `pending_modules` for emission via
+    /// [`drain_pending_modules`](Self::drain_pending_modules). Returns
+    /// `None` when no module can be identified (JIT'd code, anonymous
+    /// mappings, etc.).
+    fn module_for_ip_cached(&mut self, ip: usize) -> Option<usize> {
+        if let Some(info) = module_for_ip(ip) {
+            let base = info.base;
+            if self.module_by_base.contains_key(&base) {
+                return Some(base);
             }
-            // No module: store raw IP as the "svma" so we can still emit
-            // something useful (and the user can debug it). Resolution
-            // will yield <unknown>.
-            None => (UNKNOWN_MODULE_ID, 0),
+            let id = u32::try_from(self.modules.len())
+                .expect("more than u32::MAX modules captured");
+            self.modules.push(ModuleInfo {
+                bias: base,
+                path: Some(info.path),
+                ranges: Some(info.ranges),
+            });
+            self.module_by_base.insert(base, id);
+            self.pending_modules.push(id);
+            Some(base)
+        } else {
+            None
         }
     }
 
@@ -401,26 +561,43 @@ impl<'bump> BacktraceEngine<'bump> {
         // TODO: make this safe by adding a nested struct
         let alloc_casted: &'bump Bump = unsafe { &*(&self.allocator as *const Bump) };
 
-        // Create a new staging object if needed
-        let _ = self
+        // Take the staging box out of `self` for the duration of the
+        // trace closure. This lets the closure call
+        // `self.module_for_ip_cached` (which borrows `&mut self`)
+        // while simultaneously pushing into the staged frames vector,
+        // without violating Rust's aliasing rules.
+        let mut staged_box = self
             .staging
-            .get_or_insert_with(|| UnresolvedBacktrace::new_boxed(alloc_casted, n_capture));
+            .take()
+            .unwrap_or_else(|| UnresolvedBacktrace::new_boxed(alloc_casted, n_capture));
 
-        // capture the trace into the staging object. Collect raw IPs
-        // first; module resolution requires &mut self and would
-        // otherwise alias the staging borrow.
-        let mut raw_ips: Vec<usize> = Vec::with_capacity(n_capture);
+        let mut hash: u64 = 0;
         let mut count = 0;
         let limit = n_capture + frame_skip;
         trace(|frame: &Frame| {
             if count < frame_skip {
                 count += 1;
-                true
-            } else {
-                raw_ips.push(frame.ip() as usize);
-                count += 1;
-                count < limit
+                return true;
             }
+            // Resolve the module to register it in pending_modules
+            // (consumers need module entries to look up VMAs at
+            // resolution time), but the frame itself carries only the
+            // raw loaded VMA. `0` is reserved as the sentinel for
+            // "module unknown".
+            let ip = frame.ip() as usize;
+            let vma: u64 = match self.module_for_ip_cached(ip) {
+                Some(_) => ip as u64,
+                None => 0,
+            };
+            // Mix only the VMA: distinct modules occupy disjoint loaded
+            // address ranges, so VMAs are globally unique without
+            // requiring a module identifier.
+            hash = hash
+                .rotate_left(13)
+                ^ (vma.wrapping_mul(0x9E3779B97F4A7C15));
+            staged_box.frames.push(CapturedFrame { vma });
+            count += 1;
+            count < limit
         });
 
         if count <= frame_skip {
@@ -430,36 +607,15 @@ impl<'bump> BacktraceEngine<'bump> {
             );
         }
 
-        let mut hash: u64 = 0;
-        for ip in &raw_ips {
-            let (module_id, bias) = self.module_for_ip_cached(*ip);
-            let svma = if module_id == UNKNOWN_MODULE_ID {
-                *ip as u64
-            } else {
-                (*ip - bias) as u64
-            };
-            // Mix module id and svma so identical svmas in different
-            // modules don't collide.
-            hash = hash
-                .rotate_left(13)
-                ^ (svma.wrapping_mul(0x9E3779B97F4A7C15))
-                ^ (module_id as u64);
-            // Re-borrow staging each iteration; module_for_ip_cached
-            // borrowed &mut self.
-            let staging = self.staging.as_mut().expect("staging set above");
-            staging.frames.push(CapturedFrame { module_id, svma });
-        }
-
         if let Some(existing) = self.existing_traces.get(&hash) {
-            // existing entry: return it, keeping the staging object for reuse.
-            let staging = self.staging.as_mut().expect("staging set above");
-            staging.frames.clear();
+            // existing entry: return it, recycling the staging object.
+            staged_box.frames.clear();
+            self.staging = Some(staged_box);
             existing.as_ptr() as u64
         } else {
-            // no existing entry: take the staging object out of `self` and return it as a raw pointer
-            let staged_box = self.staging.take().unwrap();
-            // SAFETY: we ensure self.staging contains an initialized BumpBox on entry
-            // to the function, which guarantees `raw_ptr` is non-null.
+            // no existing entry: hand the staging object off as a raw pointer.
+            // SAFETY: staged_box was just created or taken from self.staging,
+            // both of which yield a valid non-null BumpBox.
             let raw_ptr = unsafe { NonNull::new_unchecked(BumpBox::into_raw(staged_box)) };
             let _ = self.existing_traces.insert(hash, raw_ptr);
             raw_ptr.as_ptr() as u64
@@ -469,10 +625,12 @@ impl<'bump> BacktraceEngine<'bump> {
     /// Drain any modules discovered since the last call. Each
     /// [`ResolvedModule`] should be emitted into the operation stream as
     /// a `Custom` op with tag [`DEBUG_MODULE_TAG`] before any
-    /// subsequent [`DEBUG_INFO_TAG`] op that references its `module_id`.
+    /// subsequent [`DEBUG_INFO_TAG`] op that references VMAs falling
+    /// within its ranges.
     ///
-    /// After draining, the engine drops the module paths and retains
-    /// only the bias needed for future captures on the same modules.
+    /// After draining, the engine drops the module paths and ranges and
+    /// retains only the bias needed for future captures on the same
+    /// modules.
     pub fn drain_pending_modules(&mut self) -> Vec<ResolvedModule> {
         let mut out = Vec::with_capacity(self.pending_modules.len());
         for id in self.pending_modules.drain(..) {
@@ -481,10 +639,14 @@ impl<'bump> BacktraceEngine<'bump> {
                 .path
                 .take()
                 .expect("pending module should still have its path");
+            let ranges = info
+                .ranges
+                .take()
+                .expect("pending module should still have its ranges");
             out.push(ResolvedModule {
-                module_id: id,
                 path: path.to_string_lossy().into_owned(),
                 bias: info.bias as u64,
+                ranges,
             });
         }
         out
@@ -564,45 +726,72 @@ pub struct ResolvedBacktrace {
 
 impl ResolvedBacktrace {
     /// Resolve a captured backtrace using a previously emitted module
-    /// table. `modules` maps `module_id` to the [`ResolvedModule`]
-    /// announced earlier on the stream.
+    /// table. `modules` is the list of [`ResolvedModule`] entries
+    /// announced earlier on the stream; a sorted interval index is
+    /// built over their ranges to locate each frame's module.
     ///
-    /// Each module's on-disk binary is opened (at most once per call)
-    /// with [`addr2line::Loader`]; one [`ResolvedSrcLocation`] is emitted
-    /// per inlined frame returned by `find_frames`. Frames whose module
-    /// is missing, whose file cannot be opened, or whose SVMA does not
-    /// resolve, produce an `<unknown>` placeholder.
-    pub fn from_unresolved(
-        frames: &[CapturedFrame],
-        modules: &HashMap<u32, ResolvedModule>,
-    ) -> Self {
-        let mut loaders: HashMap<u32, Option<Loader>> = HashMap::new();
+    /// Each owning module's on-disk binary is opened (at most once per
+    /// call) with [`addr2line::Loader`]; one [`ResolvedSrcLocation`]
+    /// is emitted per inlined frame returned by `find_frames`. Frames
+    /// whose VMA falls outside every range, whose owning binary cannot
+    /// be opened, or whose SVMA does not resolve, produce an
+    /// `<unknown>` placeholder.
+    pub fn from_unresolved(frames: &[CapturedFrame], modules: &[ResolvedModule]) -> Self {
+        // Build sorted (start, end, module_idx) intervals.
+        let mut intervals: Vec<(u64, u64, usize)> =
+            Vec::with_capacity(modules.iter().map(|m| m.ranges.len()).sum());
+        for (idx, m) in modules.iter().enumerate() {
+            for &(start, end) in &m.ranges {
+                if end > start {
+                    intervals.push((start, end, idx));
+                }
+            }
+        }
+        intervals.sort_by_key(|(start, _, _)| *start);
+
+        let find_module = |vma: u64| -> Option<usize> {
+            if vma == 0 {
+                return None;
+            }
+            // partition_point finds first interval with start > vma; the
+            // candidate is the one just before it.
+            let idx = intervals.partition_point(|(start, _, _)| *start <= vma);
+            if idx == 0 {
+                return None;
+            }
+            let (start, end, mod_idx) = intervals[idx - 1];
+            if vma >= start && vma < end {
+                Some(mod_idx)
+            } else {
+                None
+            }
+        };
+
+        let mut loaders: HashMap<usize, Option<Loader>> = HashMap::new();
         let mut out = Self {
             frames: Vec::with_capacity(frames.len()),
         };
 
         for f in frames {
-            if f.module_id == UNKNOWN_MODULE_ID {
-                out.frames.push(ResolvedSrcLocation::unknown());
-                continue;
-            }
-            let Some(module) = modules.get(&f.module_id) else {
+            let Some(mod_idx) = find_module(f.vma) else {
                 out.frames.push(ResolvedSrcLocation::unknown());
                 continue;
             };
+            let module = &modules[mod_idx];
             let loader = loaders
-                .entry(f.module_id)
+                .entry(mod_idx)
                 .or_insert_with(|| Loader::new(&module.path).ok());
             let Some(loader) = loader.as_ref() else {
                 out.frames.push(ResolvedSrcLocation::unknown());
                 continue;
             };
 
+            let svma = f.vma.wrapping_sub(module.bias);
             // addr2line expects a VMA in the binary's address space.
-            // Our svma is module-load-relative (ip - dli_fbase). Add
-            // the loader's relative_address_base to convert. On ELF PIE
+            // Our svma is module-load-relative (vma - bias). Add the
+            // loader's relative_address_base to convert. On ELF PIE
             // builds this is 0; on Mach-O it's the lowest __TEXT vmaddr.
-            let probe = f.svma.wrapping_add(loader.relative_address_base());
+            let probe = svma.wrapping_add(loader.relative_address_base());
 
             let mut pushed = 0usize;
             if let Ok(mut iter) = loader.find_frames(probe) {
@@ -678,14 +867,10 @@ mod tests {
         frame3(engine, n_cap)
     }
 
-    /// Helper: build a HashMap module table from the engine's pending
-    /// drain, for use with `ResolvedBacktrace::from_unresolved`.
-    fn drain_modules_as_map(engine: &mut BacktraceEngine) -> HashMap<u32, ResolvedModule> {
-        engine
-            .drain_pending_modules()
-            .into_iter()
-            .map(|m| (m.module_id, m))
-            .collect()
+    /// Helper: drain modules from the engine and return as a Vec for use with
+    /// `ResolvedBacktrace::from_unresolved`.
+    fn drain_modules(engine: &mut BacktraceEngine) -> Vec<ResolvedModule> {
+        engine.drain_pending_modules()
     }
 
     /// Helper: dereference a bt_ref into the captured frame slice (test only).
@@ -702,10 +887,11 @@ mod tests {
         let bt_ref = cap_synth_backtrace(&mut engine, 3);
         let frames = frames_of(bt_ref);
         assert!(!frames.is_empty(), "expected at least one captured frame");
-        // At least one frame should have a real module id (not the sentinel).
+        // At least one frame should have a non-zero VMA (i.e. its
+        // owning module was identified).
         assert!(
-            frames.iter().any(|f| f.module_id != UNKNOWN_MODULE_ID),
-            "expected at least one frame with a known module"
+            frames.iter().any(|f| f.vma != 0),
+            "expected at least one frame with a known VMA"
         );
     }
 
@@ -726,6 +912,14 @@ mod tests {
             !first.is_empty(),
             "first capture should announce at least one module"
         );
+        // Each emitted module should have at least one range.
+        for m in &first {
+            assert!(
+                !m.ranges.is_empty(),
+                "emitted module {} should have at least one VMA range",
+                m.path
+            );
+        }
         let _ = cap_synth_backtrace(&mut engine, 3);
         let second = engine.drain_pending_modules();
         assert!(
@@ -737,9 +931,9 @@ mod tests {
     #[test]
     fn test_module_payload_roundtrip() {
         let m = ResolvedModule {
-            module_id: 7,
             path: "/tmp/example.so".to_string(),
             bias: 0x1234_5678,
+            ranges: vec![(0x1234_5000, 0x1234_8000), (0x1234_9000, 0x1234_a000)],
         };
         let bytes = m.serialize_msgpack().unwrap();
         let decoded: ResolvedModule = rmp_serde::from_slice(&bytes).unwrap();
@@ -759,11 +953,42 @@ mod tests {
     }
 
     #[test]
+    fn test_captured_vmas_lie_in_module_ranges() {
+        let mut engine = BacktraceEngine::new(["selene_frame"], 0);
+        let bt_ref = cap_synth_backtrace(&mut engine, 5);
+        let frames = frames_of(bt_ref);
+        let modules = drain_modules(&mut engine);
+        assert!(!modules.is_empty(), "expected at least one drained module");
+        for f in &frames {
+            if f.vma == 0 {
+                continue;
+            }
+            let in_range = modules
+                .iter()
+                .any(|m| m.ranges.iter().any(|(s, e)| f.vma >= *s && f.vma < *e));
+            assert!(
+                in_range,
+                "VMA {:#x} does not fall within any drained module's ranges",
+                f.vma
+            );
+        }
+    }
+
+    #[test]
+    fn test_zero_vma_resolves_to_unknown() {
+        let frames = vec![CapturedFrame { vma: 0 }];
+        let resolved = ResolvedBacktrace::from_unresolved(&frames, &[]);
+        assert_eq!(resolved.frames.len(), 1);
+        assert_eq!(resolved.frames[0].function_name, "<unknown>");
+        assert!(resolved.frames[0].file_name.is_none());
+    }
+
+    #[test]
     fn test_resolved_has_symbols() {
         let mut engine = BacktraceEngine::new(["selene_frame"], 0);
         let bt_ref = cap_synth_backtrace(&mut engine, 5);
         let frames = frames_of(bt_ref);
-        let modules = drain_modules_as_map(&mut engine);
+        let modules = drain_modules(&mut engine);
         let resolved = ResolvedBacktrace::from_unresolved(&frames, &modules);
         assert_eq!(
             resolved.frames.len() >= frames.len(),
@@ -777,12 +1002,16 @@ mod tests {
         // run dsymutil by default, so we skip the strict check when no
         // debug info is reachable. On Linux PIE this normally works
         // out of the box.
-        let debug_info_available = modules.values().any(|m| {
+        let debug_info_available = modules.iter().any(|m| {
             Loader::new(&m.path)
                 .ok()
                 .map(|l| {
                     frames.iter().any(|f| {
-                        let probe = f.svma.wrapping_add(l.relative_address_base());
+                        if f.vma == 0 {
+                            return false;
+                        }
+                        let svma = f.vma.wrapping_sub(m.bias);
+                        let probe = svma.wrapping_add(l.relative_address_base());
                         l.find_location(probe).ok().flatten().is_some()
                     })
                 })
@@ -809,7 +1038,7 @@ mod tests {
         let mut engine = BacktraceEngine::new(["selene_frame"], 0);
         let bt_ref = cap_synth_backtrace(&mut engine, 3);
         let frames = frames_of(bt_ref);
-        let modules = drain_modules_as_map(&mut engine);
+        let modules = drain_modules(&mut engine);
         let resolved = ResolvedBacktrace::from_unresolved(&frames, &modules);
         let bytes = resolved.serialize_msgpack().expect("serialization failed");
         let decoded: ResolvedBacktrace =
@@ -875,7 +1104,7 @@ mod tests {
 
         let frames_a = frames_of(bt_a);
         let frames_b = frames_of(bt_b);
-        let modules = drain_modules_as_map(&mut engine);
+        let modules = drain_modules(&mut engine);
 
         let resolved_a = ResolvedBacktrace::from_unresolved(&frames_a, &modules);
         let resolved_b = ResolvedBacktrace::from_unresolved(&frames_b, &modules);
