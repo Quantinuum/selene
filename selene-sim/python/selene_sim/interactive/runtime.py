@@ -1,62 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import ctypes
+import struct
 
 from selene_core import Gate, Gateset, Runtime
+from selene_core.c_abi import RuntimeCTypes, ffi
 import random
 
 from ._library import load_selene_global
 
 
-class SeleneRuntimeInstance(ctypes.Structure):
-    pass
-
-
-SeleneRuntimeGetOperationInstance = ctypes.c_void_p
-
-GATE_CB = ctypes.CFUNCTYPE(
-    None,
-    SeleneRuntimeGetOperationInstance,
-    ctypes.POINTER(ctypes.c_uint8),
-    ctypes.c_size_t,
-)
-
-MEASURE_CB = ctypes.CFUNCTYPE(
-    None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_uint64
-)
-MEASURE_LEAKED_CB = ctypes.CFUNCTYPE(
-    None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_uint64
-)
-RESET_CB = ctypes.CFUNCTYPE(None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64)
-CUSTOM_CB = ctypes.CFUNCTYPE(
-    None,
-    SeleneRuntimeGetOperationInstance,
-    ctypes.c_size_t,
-    ctypes.c_void_p,
-    ctypes.c_size_t,
-)
-SET_BATCH_TIME_CB = ctypes.CFUNCTYPE(
-    None, SeleneRuntimeGetOperationInstance, ctypes.c_uint64, ctypes.c_uint64
-)
-
-
-class SeleneRuntimeGetOperationInterface(ctypes.Structure):
-    _fields_ = [
-        ("measure_fn", MEASURE_CB),
-        ("measure_leaked_fn", MEASURE_LEAKED_CB),
-        ("reset_fn", RESET_CB),
-        ("custom_fn", CUSTOM_CB),
-        ("set_batch_time_fn", SET_BATCH_TIME_CB),
-        ("gate_fn", GATE_CB),
-    ]
-
-
-class SeleneRuntimeGetOperationHandle(ctypes.Structure):
-    _fields_ = [
-        ("instance", SeleneRuntimeGetOperationInstance),
-        ("interface", SeleneRuntimeGetOperationInterface),
-    ]
+_FFI = ffi()
 
 
 @dataclass
@@ -87,12 +41,19 @@ class MeasureLeakedOperation:
     result_id: int
 
 
+@dataclass
+class PostselectOperation:
+    qubit_id: int
+    target_value: bool
+
+
 RuntimeOperation = (
     MeasureOperation
     | ResetOperation
     | GateOperation
     | CustomOperation
     | MeasureLeakedOperation
+    | PostselectOperation
 )
 
 
@@ -120,6 +81,10 @@ class OperationBatch:
         self.operations.append(MeasureLeakedOperation(qubit_id, result_id))
         self.invoked = True
 
+    def postselect(self, qubit_id: int, target_value: bool):
+        self.operations.append(PostselectOperation(qubit_id, target_value))
+        self.invoked = True
+
     def reset(self, qubit_id: int):
         self.operations.append(ResetOperation(qubit_id))
         self.invoked = True
@@ -132,222 +97,241 @@ class OperationBatch:
         return f"OperationBatch(start_time_nanos={self.start_time_nanos}, duration_nanos={self.duration_nanos}, operations={self.operations})"
 
     @staticmethod
-    def from_ptr(ptr: SeleneRuntimeGetOperationInstance) -> OperationBatch:
-        return ctypes.cast(ptr, ctypes.POINTER(ctypes.py_object)).contents.value
+    def from_handle(handle) -> OperationBatch:
+        return _FFI.from_handle(handle)
 
 
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, const uint8_t *, size_t)")
 def callback_gate(
-    instance: SeleneRuntimeGetOperationInstance,
-    data_ptr: ctypes.c_void_p,
+    instance,
+    data_ptr,
     data_len: int,
 ):
-    OperationBatch.from_ptr(instance).gate(
-        Gate.deserialize(ctypes.string_at(data_ptr, data_len))
+    OperationBatch.from_handle(instance).gate(
+        Gate.deserialize(bytes(_FFI.buffer(data_ptr, data_len)))
     )
 
 
-def callback_measure(
-    instance: SeleneRuntimeGetOperationInstance, qubit_id: int, result_id: int
-):
-    OperationBatch.from_ptr(instance).measure(qubit_id, result_id)
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, uint64_t, uint64_t)")
+def callback_measure(instance, qubit_id: int, result_id: int):
+    OperationBatch.from_handle(instance).measure(qubit_id, result_id)
 
 
-def callback_measure_leaked(
-    instance: SeleneRuntimeGetOperationInstance, qubit_id: int, result_id: int
-):
-    OperationBatch.from_ptr(instance).measure_leaked(qubit_id, result_id)
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, uint64_t, uint64_t)")
+def callback_measure_leaked(instance, qubit_id: int, result_id: int):
+    OperationBatch.from_handle(instance).measure_leaked(qubit_id, result_id)
 
 
-def callback_reset(instance: SeleneRuntimeGetOperationInstance, qubit_id: int):
-    OperationBatch.from_ptr(instance).reset(qubit_id)
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, uint64_t, bool)")
+def callback_postselect(instance, qubit_id: int, target_value: bool):
+    OperationBatch.from_handle(instance).postselect(qubit_id, target_value)
 
 
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, uint64_t)")
+def callback_reset(instance, qubit_id: int):
+    OperationBatch.from_handle(instance).reset(qubit_id)
+
+
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, size_t, const void *, size_t)")
 def callback_custom(
-    instance: SeleneRuntimeGetOperationInstance,
+    instance,
     tag: int,
-    data_ptr: ctypes.c_void_p,
+    data_ptr,
     data_len: int,
 ):
-    data = ctypes.string_at(data_ptr, data_len)
-    OperationBatch.from_ptr(instance).custom(tag, data)
+    data = bytes(_FFI.buffer(data_ptr, data_len))
+    OperationBatch.from_handle(instance).custom(tag, data)
 
 
-def callback_set_batch_time(
-    instance: SeleneRuntimeGetOperationInstance, start_time: int, duration: int
-):
-    OperationBatch.from_ptr(instance).set_time(start_time, duration)
+@_FFI.callback("void(SeleneRuntimeGetOperationInstance, uint64_t, uint64_t)")
+def callback_set_batch_time(instance, start_time: int, duration: int):
+    OperationBatch.from_handle(instance).set_time(start_time, duration)
 
 
-OPERATION_BATCH_CALLBACKS = SeleneRuntimeGetOperationInterface(
-    gate_fn=GATE_CB(callback_gate),
-    measure_fn=MEASURE_CB(callback_measure),
-    measure_leaked_fn=MEASURE_LEAKED_CB(callback_measure_leaked),
-    reset_fn=RESET_CB(callback_reset),
-    custom_fn=CUSTOM_CB(callback_custom),
-    set_batch_time_fn=SET_BATCH_TIME_CB(callback_set_batch_time),
-)
-
-SeleneRuntimeInstancePtr = ctypes.POINTER(SeleneRuntimeInstance)
-SeleneRuntimeInstancePtrPtr = ctypes.POINTER(SeleneRuntimeInstancePtr)
-Errno = ctypes.c_int32
-
-RuntimeInitFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneRuntimeInstancePtrPtr,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_uint32,
-    ctypes.POINTER(ctypes.c_char_p),
-)
-RuntimeExitFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr)
-RuntimeShotStartFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_uint64
-)
-RuntimeShotEndFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr)
-RuntimeGetNextOpsFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneRuntimeInstancePtr,
-    SeleneRuntimeGetOperationHandle,
-)
-RuntimeQallocFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.POINTER(ctypes.c_uint64)
-)
-RuntimeQfreeFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
-RuntimeMeasureFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
-)
-RuntimeMeasureLeakedFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
-)
-RuntimeResetFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
-RuntimeForceResultFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64
-)
-RuntimeGetBoolResultFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_int8)
-)
-RuntimeGetU64ResultFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)
-)
-RuntimeSetBoolResultFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_bool
-)
-RuntimeSetU64ResultFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64, ctypes.c_uint64
-)
-RuntimeIncFutureFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
-RuntimeDecFutureFn = ctypes.CFUNCTYPE(Errno, SeleneRuntimeInstancePtr, ctypes.c_uint64)
-RuntimeCustomCallFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneRuntimeInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_void_p,
-    ctypes.c_size_t,
-    ctypes.POINTER(ctypes.c_uint64),
-)
-RuntimeGateFn = ctypes.CFUNCTYPE(
-    Errno, SeleneRuntimeInstancePtr, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t
-)
-RuntimeNegotiateGatesetFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneRuntimeInstancePtr,
-    ctypes.POINTER(ctypes.c_uint8),
-    ctypes.c_size_t,
-    ctypes.POINTER(ctypes.c_uint8),
-    ctypes.c_size_t,
-    ctypes.POINTER(ctypes.c_size_t),
-)
-
-
-class RuntimePluginDescriptorV1(ctypes.Structure):
-    _fields_ = [
-        ("struct_size", ctypes.c_uint64),
-        ("api_version", ctypes.c_uint64),
-        ("init_fn", RuntimeInitFn),
-        ("exit_fn", RuntimeExitFn),
-        ("get_next_operations_fn", RuntimeGetNextOpsFn),
-        ("shot_start_fn", RuntimeShotStartFn),
-        ("shot_end_fn", RuntimeShotEndFn),
-        ("get_metrics_fn", ctypes.c_void_p),
-        ("qalloc_fn", RuntimeQallocFn),
-        ("qfree_fn", RuntimeQfreeFn),
-        ("local_barrier_fn", ctypes.c_void_p),
-        ("global_barrier_fn", ctypes.c_void_p),
-        ("measure_fn", RuntimeMeasureFn),
-        ("measure_leaked_fn", RuntimeMeasureLeakedFn),
-        ("reset_fn", RuntimeResetFn),
-        ("force_result_fn", RuntimeForceResultFn),
-        ("get_bool_result_fn", RuntimeGetBoolResultFn),
-        ("get_u64_result_fn", RuntimeGetU64ResultFn),
-        ("set_bool_result_fn", RuntimeSetBoolResultFn),
-        ("set_u64_result_fn", RuntimeSetU64ResultFn),
-        ("increment_future_refcount_fn", RuntimeIncFutureFn),
-        ("decrement_future_refcount_fn", RuntimeDecFutureFn),
-        ("custom_call_fn", RuntimeCustomCallFn),
-        ("simulate_delay_fn", ctypes.c_void_p),
-        ("gate_fn", RuntimeGateFn),
-        ("negotiate_gateset_fn", RuntimeNegotiateGatesetFn),
-    ]
-
-
-GetRuntimeDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(RuntimePluginDescriptorV1))
-
-
-class SeleneSimRuntimeLib(ctypes.CDLL):
+class SeleneSimRuntimeLib:
     def __init__(self, runtime: Runtime) -> None:
         load_selene_global()
-        super().__init__(str(runtime.library_file))
-        self._configure_signatures()
-
-    def _configure_signatures(self):
-        descriptor: RuntimePluginDescriptorV1 | None = None
+        self.ffi = ffi()
+        self.types = RuntimeCTypes(self.ffi)
+        self.lib = self.ffi.dlopen(str(runtime.library_file))
         try:
-            descriptor = RuntimePluginDescriptorV1.in_dll(
-                self, "selene_runtime_plugin_descriptor_v1"
-            )
-        except ValueError:
-            getter = GetRuntimeDescriptorFn(
-                ("selene_runtime_get_plugin_descriptor_v1", self)
-            )
-            descriptor_ptr = getter()
-            if bool(descriptor_ptr):
-                descriptor = descriptor_ptr.contents
-        if descriptor is None:
+            self.descriptor = self.lib.selene_runtime_plugin_descriptor_v1
+        except AttributeError as exc:
             raise RuntimeError(
-                "Runtime plugin did not expose descriptor symbol or accessor"
-            )
+                "Runtime plugin did not expose descriptor symbol"
+            ) from exc
 
-        self.selene_runtime_init = descriptor.init_fn
-        self.selene_runtime_exit = descriptor.exit_fn
-        self.selene_runtime_shot_start = descriptor.shot_start_fn
-        self.selene_runtime_shot_end = descriptor.shot_end_fn
-        self.selene_runtime_custom_call = descriptor.custom_call_fn
-        self.selene_runtime_get_next_operations = descriptor.get_next_operations_fn
-        self.selene_runtime_qalloc = descriptor.qalloc_fn
-        self.selene_runtime_qfree = descriptor.qfree_fn
-        self.selene_runtime_measure = descriptor.measure_fn
-        self.selene_runtime_measure_leaked = descriptor.measure_leaked_fn
-        self.selene_runtime_reset = descriptor.reset_fn
-        self.selene_runtime_force_result = descriptor.force_result_fn
-        self.selene_runtime_get_bool_result = descriptor.get_bool_result_fn
-        self.selene_runtime_get_u64_result = descriptor.get_u64_result_fn
-        self.selene_runtime_set_bool_result = descriptor.set_bool_result_fn
-        self.selene_runtime_set_u64_result = descriptor.set_u64_result_fn
-        self.selene_runtime_increment_future_refcount = (
-            descriptor.increment_future_refcount_fn
+        self.last_error_fn = self._required(
+            self.descriptor.header.last_error_fn, "last_error_fn"
         )
-        self.selene_runtime_decrement_future_refcount = (
-            descriptor.decrement_future_refcount_fn
+        self.get_name_fn = self._required(
+            self.descriptor.header.get_name_fn, "get_name_fn"
         )
-        self.selene_runtime_gate = descriptor.gate_fn
-        self.selene_runtime_negotiate_gateset = descriptor.negotiate_gateset_fn
+        self.init_fn = self._required(self.descriptor.init_fn, "init_fn")
+        self.get_next_operations_fn = self._required(
+            self.descriptor.get_next_operations_fn, "get_next_operations_fn"
+        )
+        self.shot_start_fn = self._required(
+            self.descriptor.shot_start_fn, "shot_start_fn"
+        )
+        self.shot_end_fn = self._required(self.descriptor.shot_end_fn, "shot_end_fn")
+        self.qalloc_fn = self._required(self.descriptor.qalloc_fn, "qalloc_fn")
+        self.qfree_fn = self._required(self.descriptor.qfree_fn, "qfree_fn")
+        self.local_barrier_fn = self._required(
+            self.descriptor.local_barrier_fn, "local_barrier_fn"
+        )
+        self.global_barrier_fn = self._required(
+            self.descriptor.global_barrier_fn, "global_barrier_fn"
+        )
+        self.measure_fn = self._required(self.descriptor.measure_fn, "measure_fn")
+        self.measure_leaked_fn = self._required(
+            self.descriptor.measure_leaked_fn, "measure_leaked_fn"
+        )
+        self.reset_fn = self._required(self.descriptor.reset_fn, "reset_fn")
+        self.force_result_fn = self._required(
+            self.descriptor.force_result_fn, "force_result_fn"
+        )
+        self.get_bool_result_fn = self._required(
+            self.descriptor.get_bool_result_fn, "get_bool_result_fn"
+        )
+        self.get_u64_result_fn = self._required(
+            self.descriptor.get_u64_result_fn, "get_u64_result_fn"
+        )
+        self.set_bool_result_fn = self._required(
+            self.descriptor.set_bool_result_fn, "set_bool_result_fn"
+        )
+        self.set_u64_result_fn = self._required(
+            self.descriptor.set_u64_result_fn, "set_u64_result_fn"
+        )
+        self.increment_future_refcount_fn = self._required(
+            self.descriptor.increment_future_refcount_fn,
+            "increment_future_refcount_fn",
+        )
+        self.decrement_future_refcount_fn = self._required(
+            self.descriptor.decrement_future_refcount_fn,
+            "decrement_future_refcount_fn",
+        )
+        self.gate_fn = self._required(self.descriptor.gate_fn, "gate_fn")
+        self.negotiate_gateset_fn = self._required(
+            self.descriptor.negotiate_gateset_fn, "negotiate_gateset_fn"
+        )
 
-        if self.selene_runtime_custom_call is None:
-            raise RuntimeError("Runtime plugin does not expose custom_call_fn")
-        if self.selene_runtime_gate is None:
-            raise RuntimeError("Runtime plugin does not expose gate_fn")
-        if self.selene_runtime_negotiate_gateset is None:
-            raise RuntimeError("Runtime plugin does not expose negotiate_gateset_fn")
+        self.exit_fn = self.descriptor.exit_fn
+        self.get_metrics_fn = self.descriptor.get_metrics_fn
+        self.custom_call_fn = self.descriptor.custom_call_fn
+        self.simulate_delay_fn = self.descriptor.simulate_delay_fn
+        self.operation_callbacks = self._operation_callbacks()
+
+    def _required(self, function, function_name: str):
+        if function == self.ffi.NULL:
+            raise RuntimeError(f"Runtime plugin does not expose {function_name}")
+        return function
+
+    def _operation_callbacks(self):
+        callbacks = self.ffi.new(self.types.runtime_get_operation_interface_ptr)
+        callbacks.measure_fn = callback_measure
+        callbacks.measure_leaked_fn = callback_measure_leaked
+        callbacks.postselect_fn = callback_postselect
+        callbacks.reset_fn = callback_reset
+        callbacks.custom_fn = callback_custom
+        callbacks.set_batch_time_fn = callback_set_batch_time
+        callbacks.gate_fn = callback_gate
+        return callbacks[0]
+
+    def init(self, n_qubits: int, start_time_nanos: int, args: list[str]):
+        handle = self.ffi.new(self.types.runtime_instance_ptr)
+        encoded_args = [
+            self.ffi.new(self.types.char_array, arg.encode("utf-8")) for arg in args
+        ]
+        argv = self.ffi.new(self.types.char_ptr_array, encoded_args)
+        errno = self.init_fn(handle, n_qubits, start_time_nanos, len(args), argv)
+        if errno != 0:
+            raise RuntimeError("Failed to initialize Selene runtime")
+        return handle[0]
+
+    def shot_start(self, instance, shot_id: int, seed: int):
+        return self.shot_start_fn(instance, shot_id, seed)
+
+    def shot_end(self, instance):
+        return self.shot_end_fn(instance)
+
+    def negotiate_gateset(self, instance, payload: bytes) -> bytes:
+        input_data = self.ffi.new(self.types.uint8_array, payload)
+        written = self.ffi.new(self.types.size_ptr)
+        errno = self.negotiate_gateset_fn(
+            instance, input_data, len(payload), self.ffi.NULL, 0, written
+        )
+        if errno != 0:
+            raise RuntimeError("Failed to negotiate gateset with Selene runtime")
+        output_data = self.ffi.new(self.types.uint8_array, written[0])
+        errno = self.negotiate_gateset_fn(
+            instance, input_data, len(payload), output_data, written[0], written
+        )
+        if errno != 0:
+            raise RuntimeError("Failed to negotiate gateset with Selene runtime")
+        return bytes(self.ffi.buffer(output_data, written[0]))
+
+    def get_next_operations(self, instance, batch: OperationBatch):
+        batch_handle = self.ffi.new_handle(batch)
+        handle = self.ffi.new(self.types.runtime_get_operation_handle_ptr)
+        handle.instance = batch_handle
+        handle.interface = self.operation_callbacks
+        return self.get_next_operations_fn(instance, handle[0])
+
+    def qalloc(self, instance):
+        qubit_id = self.ffi.new(self.types.uint64_ptr)
+        errno = self.qalloc_fn(instance, qubit_id)
+        return errno, int(qubit_id[0])
+
+    def qfree(self, instance, qubit_id: int):
+        return self.qfree_fn(instance, qubit_id)
+
+    def gate(self, instance, payload: bytes):
+        data = self.ffi.new(self.types.uint8_array, payload)
+        return self.gate_fn(instance, data, len(payload))
+
+    def measure(self, instance, qubit: int):
+        future_ref = self.ffi.new(self.types.uint64_ptr)
+        errno = self.measure_fn(instance, qubit, future_ref)
+        return errno, int(future_ref[0])
+
+    def measure_leaked(self, instance, qubit: int):
+        future_ref = self.ffi.new(self.types.uint64_ptr)
+        errno = self.measure_leaked_fn(instance, qubit, future_ref)
+        return errno, int(future_ref[0])
+
+    def reset(self, instance, qubit: int):
+        return self.reset_fn(instance, qubit)
+
+    def force_result(self, instance, result_id: int):
+        return self.force_result_fn(instance, result_id)
+
+    def get_bool_result(self, instance, result_id: int):
+        value = self.ffi.new(self.types.int8_ptr)
+        errno = self.get_bool_result_fn(instance, result_id, value)
+        return errno, int(value[0])
+
+    def get_u64_result(self, instance, result_id: int):
+        value = self.ffi.new(self.types.uint64_ptr)
+        errno = self.get_u64_result_fn(instance, result_id, value)
+        return errno, int(value[0])
+
+    def set_bool_result(self, instance, result_id: int, value: bool):
+        return self.set_bool_result_fn(instance, result_id, value)
+
+    def set_u64_result(self, instance, result_id: int, value: int):
+        return self.set_u64_result_fn(instance, result_id, value)
+
+    def get_metric(self, instance, nth_metric: int):
+        if self.get_metrics_fn == self.ffi.NULL:
+            return None
+        name = self.ffi.new(self.types.char_array, 256)
+        datatype = self.ffi.new(self.types.uint8_ptr)
+        value = self.ffi.new(self.types.uint64_ptr)
+        errno = self.get_metrics_fn(instance, nth_metric, name, datatype, value)
+        if errno != 0:
+            return None
+        return self.ffi.string(name).decode("utf-8"), int(datatype[0]), int(value[0])
 
 
 class InteractiveRuntime:
@@ -360,7 +344,6 @@ class InteractiveRuntime:
         gateset: Gateset | None = None,
     ):
         self._lib = SeleneSimRuntimeLib(runtime)
-        self._instance = SeleneRuntimeInstancePtr()
         if runtime.random_seed is None:
             runtime.random_seed = random.randint(0, 2**64 - 1)
         self.runtime = runtime
@@ -369,46 +352,26 @@ class InteractiveRuntime:
         self.n_qubits = n_qubits
         self.shot_id = 0
         arguments = runtime.get_init_args()
-        # create an array of c_char_p from the list of strings
-        argc = len(arguments)
-        argv = (ctypes.c_char_p * argc)(*(arg.encode("utf-8") for arg in arguments))
-        if 0 != self._lib.selene_runtime_init(
-            ctypes.byref(self._instance), n_qubits, start_time_nanos, argc, argv
-        ):
-            raise RuntimeError("Failed to initialize Selene runtime")
+        self._instance = self._lib.init(n_qubits, start_time_nanos, arguments)
         if self.gateset is not None:
             self.emitted_gateset = self.register_gateset(self.gateset)
-        if 0 != self._lib.selene_runtime_shot_start(
-            self._instance, self.shot_id, self.runtime.random_seed
-        ):
+        seed = self.runtime.random_seed
+        assert seed is not None
+        if 0 != self._lib.shot_start(self._instance, self.shot_id, seed):
             raise RuntimeError("Failed to start first shot on Selene runtime")
 
     def register_gateset(self, gateset: Gateset) -> Gateset:
-        data = gateset.serialize()
-        input_buffer = (ctypes.c_uint8 * len(data)).from_buffer_copy(data)
-        written = ctypes.c_size_t()
-        if 0 != self._lib.selene_runtime_negotiate_gateset(
-            self._instance, input_buffer, len(data), None, 0, ctypes.byref(written)
-        ):
-            raise RuntimeError("Failed to negotiate gateset with Selene runtime")
-        output_buffer = (ctypes.c_uint8 * written.value)()
-        if 0 != self._lib.selene_runtime_negotiate_gateset(
-            self._instance,
-            input_buffer,
-            len(data),
-            output_buffer,
-            written.value,
-            ctypes.byref(written),
-        ):
-            raise RuntimeError("Failed to negotiate gateset with Selene runtime")
-        return Gateset.deserialize(bytes(output_buffer[: written.value]))
+        payload = gateset.serialize()
+        return Gateset.deserialize(self._lib.negotiate_gateset(self._instance, payload))
 
     def next_shot(self):
-        if 0 != self._lib.selene_runtime_shot_end(self._instance):
+        if 0 != self._lib.shot_end(self._instance):
             raise RuntimeError("Failed to end current shot on Selene runtime")
         self.shot_id += 1
-        if 0 != self._lib.selene_runtime_shot_start(
-            self._instance, self.shot_id, self.runtime.random_seed + self.shot_id
+        seed = self.runtime.random_seed
+        assert seed is not None
+        if 0 != self._lib.shot_start(
+            self._instance, self.shot_id, seed + self.shot_id
         ):
             raise RuntimeError("Failed to start next shot on Selene runtime")
 
@@ -416,16 +379,7 @@ class InteractiveRuntime:
         batches = []
         while True:
             batch = OperationBatch()
-            batch_ref = ctypes.py_object(batch)
-            instance = ctypes.cast(
-                ctypes.pointer(batch_ref), SeleneRuntimeGetOperationInstance
-            )
-            handle = SeleneRuntimeGetOperationHandle(
-                instance=instance, interface=OPERATION_BATCH_CALLBACKS
-            )
-            if 0 != self._lib.selene_runtime_get_next_operations(
-                self._instance, handle
-            ):
+            if 0 != self._lib.get_next_operations(self._instance, batch):
                 raise RuntimeError("Failed to get next operations from Selene runtime")
             if not batch.invoked:
                 break
@@ -433,79 +387,66 @@ class InteractiveRuntime:
         return batches
 
     def qalloc(self) -> int:
-        qubit_id = ctypes.c_uint64()
-        if 0 != self._lib.selene_runtime_qalloc(self._instance, ctypes.byref(qubit_id)):
+        errno, qubit_id = self._lib.qalloc(self._instance)
+        if errno != 0:
             raise RuntimeError("Failed to allocate qubit on Selene runtime")
-        if qubit_id.value == 2**64 - 1:
+        if qubit_id == 2**64 - 1:
             raise RuntimeError(
                 "Runtime returned UINT64_MAX, which is reserved to indicate failure (e.g. out of qubits), when trying to allocate a qubit"
             )
-        return qubit_id.value
+        return qubit_id
 
     def qfree(self, qubit_id: int):
-        if 0 != self._lib.selene_runtime_qfree(self._instance, qubit_id):
+        if 0 != self._lib.qfree(self._instance, qubit_id):
             raise RuntimeError("Failed to free qubit on Selene runtime")
 
     def gate(self, gate: Gate):
-        data = gate.serialize()
-        input_buffer = (ctypes.c_uint8 * len(data)).from_buffer_copy(data)
-        if 0 != self._lib.selene_runtime_gate(self._instance, input_buffer, len(data)):
+        payload = gate.serialize()
+        if 0 != self._lib.gate(self._instance, payload):
             raise RuntimeError(
                 "Failed to apply generic gate operation on Selene runtime"
             )
 
     def measure(self, qubit: int) -> int:
-        future_ref = ctypes.c_uint64()
-        if 0 != self._lib.selene_runtime_measure(
-            self._instance, qubit, ctypes.byref(future_ref)
-        ):
+        errno, future_ref = self._lib.measure(self._instance, qubit)
+        if errno != 0:
             raise RuntimeError("Failed to apply measure operation on Selene runtime")
-        return future_ref.value
+        return future_ref
 
     def measure_leaked(self, qubit: int) -> int:
-        future_ref = ctypes.c_uint64()
-        if 0 != self._lib.selene_runtime_measure_leaked(
-            self._instance, qubit, ctypes.byref(future_ref)
-        ):
+        errno, future_ref = self._lib.measure_leaked(self._instance, qubit)
+        if errno != 0:
             raise RuntimeError(
                 "Failed to apply measure_leaked operation on Selene runtime"
             )
-        return future_ref.value
+        return future_ref
 
     def reset(self, qubit: int):
-        if 0 != self._lib.selene_runtime_reset(self._instance, qubit):
+        if 0 != self._lib.reset(self._instance, qubit):
             raise RuntimeError("Failed to apply RESET operation on Selene runtime")
 
     def force_result(self, result_id: int):
-        if 0 != self._lib.selene_runtime_force_result(self._instance, result_id):
+        if 0 != self._lib.force_result(self._instance, result_id):
             raise RuntimeError("Failed to force result on Selene runtime")
 
     def get_bool_result(self, result_id: int) -> bool:
-        value = ctypes.c_uint8()
-        if 0 != self._lib.selene_runtime_get_bool_result(
-            self._instance, result_id, ctypes.byref(value)
-        ):
+        errno, value = self._lib.get_bool_result(self._instance, result_id)
+        if errno != 0:
             raise RuntimeError("Failed to get bool result from Selene runtime")
-        return bool(value.value)
+        return bool(value)
 
     def get_u64_result(self, result_id: int) -> int:
-        value = ctypes.c_uint64()
-        if 0 != self._lib.selene_runtime_get_u64_result(
-            self._instance, result_id, ctypes.byref(value)
-        ):
+        errno, value = self._lib.get_u64_result(self._instance, result_id)
+        if errno != 0:
             raise RuntimeError("Failed to get u64 result from Selene runtime")
-        return value.value
+        return value
 
     def set_bool_result(self, result_id: int, value: bool):
-        if 0 != self._lib.selene_runtime_set_bool_result(
-            self._instance, result_id, value
-        ):
+        if 0 != self._lib.set_bool_result(self._instance, result_id, value):
             raise RuntimeError("Failed to set bool result on Selene runtime")
 
     def set_u64_result(self, result_id: int, value: int):
-        if 0 != self._lib.selene_runtime_set_u64_result(
-            self._instance, result_id, value
-        ):
+        if 0 != self._lib.set_u64_result(self._instance, result_id, value):
             raise RuntimeError("Failed to set u64 result on Selene runtime")
 
     def get_metrics(self) -> dict[str, int | float | bool]:
@@ -517,31 +458,20 @@ class InteractiveRuntime:
         # if it returns 0, read the name, type and value, and add it to the results dict. If it returns nonzero, stop and return the results dict.
         results: dict[str, int | float | bool] = {}
         for i in range(256):
-            name_buffer = ctypes.create_string_buffer(256)
-            type_buffer = ctypes.c_uint8()
-            value_buffer = ctypes.c_uint64()
-            if 0 != self._lib.selene_runtime_get_metrics(
-                self._instance,
-                i,
-                name_buffer,
-                ctypes.byref(type_buffer),
-                ctypes.byref(value_buffer),
-            ):
+            metric = self._lib.get_metric(self._instance, i)
+            if metric is None:
                 break
-            name = name_buffer.value.decode("utf-8")
-            type_ = type_buffer.value
-            value = value_buffer.value
+            name, type_, value = metric
             if type_ == 0:
                 results[name] = bool(value)
             elif type_ == 1:
-                results[name] = ctypes.c_int64(value).value
+                results[name] = int.from_bytes(
+                    value.to_bytes(8, "little"), "little", signed=True
+                )
             elif type_ == 2:
                 results[name] = value
             elif type_ == 3:
-                results[name] = ctypes.cast(
-                    ctypes.pointer(ctypes.c_uint64(value)),
-                    ctypes.POINTER(ctypes.c_double),
-                ).contents.value
+                results[name] = struct.unpack("<d", value.to_bytes(8, "little"))[0]
             else:
                 raise RuntimeError(f"Unknown metric type {type_} for metric {name}")
         return results

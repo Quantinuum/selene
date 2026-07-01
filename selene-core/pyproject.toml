@@ -6,6 +6,7 @@ description = "The core interop library for Selene python interfaces"
 readme = "python/selene_core/README.md"
 dependencies = [
   "blake3>=1.0.0",
+  "cffi>=1.17.1",
   "hugr>=0.13.0",
   # required for inspecting object files to find defined and declared symbols
   "lief>=0.16.5",
