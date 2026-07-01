@@ -1,83 +1,33 @@
-/// Quest simulator plugin for Selene, implemented using the quest_sys crate.
-//
-// The version of quest_sys used here is only valid up until 0.17, after which
-// the crate removed support for almost everything we use. It is likely that we
-// will need to roll our own support later on, or move to using the QuEST C API
-// directly if we wish to continue using QuEST as a simulator backend.
+/// QuEST simulator plugin for Selene.
 //
 // Definitions of the various gates implemented here can be found in the accompanying
 // gate_definitions.py file, which provides the matrices used for each gate, as well
 // as giving their real/imaginary parts for simplicity. The outputs are provided
 // in the comments within the implementation of each gate within this source file.
+mod bindings;
+mod legacy_rng;
+mod wrapper;
+
 use anyhow::{Result, anyhow, bail};
+use legacy_rng::LegacyQuestRng;
 use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
-use selene_core::runtime::{BatchOperation, BuiltinGate, Operation};
+use selene_core::gatewire::builtin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
 use std::io::Write;
-
-use quest_sys::Qureg;
-#[cfg(all(target_os = "windows", target_env = "gnu"))]
-use std::ffi::{CStr, c_char};
-use std::mem::size_of;
-use std::os::raw::{c_int, c_ulong};
+use wrapper::QuestBackend;
 
 #[cfg(test)]
 mod tests;
 
-#[cfg(all(target_os = "windows", target_env = "gnu"))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn invalidQuESTInputError(err_msg: *const c_char, err_func: *const c_char) {
-    let err_msg = if err_msg.is_null() {
-        "Unknown QuEST error"
-    } else {
-        // SAFETY: `err_msg` is expected to be a valid null-terminated C string from QuEST.
-        CStr::from_ptr(err_msg)
-            .to_str()
-            .unwrap_or("Invalid UTF-8 in QuEST error message")
-    };
-    let err_func = if err_func.is_null() {
-        "unknown"
-    } else {
-        // SAFETY: `err_func` is expected to be a valid null-terminated C string from QuEST.
-        CStr::from_ptr(err_func)
-            .to_str()
-            .unwrap_or("Invalid UTF-8 in QuEST function name")
-    };
-    eprintln!("!!!");
-    eprintln!("QuEST Error in function {err_func}: {err_msg}");
-    eprintln!("!!!");
-    eprintln!("Exiting...");
-    std::process::exit(1);
-}
-
 pub struct QuestSimulator {
-    environment: quest_sys::QuESTEnv,
-    qureg: Qureg,
+    backend: QuestBackend,
+    rng: LegacyQuestRng,
     n_qubits: u64,
     cumulative_postselect_probability: f64,
-}
-
-impl QuestSimulator {
-    fn seed(&mut self, seed: u64) {
-        // seedQuest accepts an array of 'c_ulong's, so we need to split the
-        // provided seed accordingly.
-        //
-        // c_ulong does not have a standard size, so we find out how many c_ulongs we
-        // need and populate them with (low endian) bytes from the seed.
-        const N_ULONGS: usize = size_of::<u64>().div_ceil(size_of::<c_ulong>());
-        let mut seed_bytes = [0_u8; N_ULONGS * size_of::<c_ulong>()];
-        seed_bytes[..size_of::<u64>()].copy_from_slice(&seed.to_le_bytes());
-        unsafe {
-            quest_sys::seedQuEST(
-                &mut self.environment,
-                seed_bytes.as_mut_ptr() as *mut c_ulong,
-                N_ULONGS as i32,
-            );
-        }
-    }
 }
 
 impl SimulatorInterface for QuestSimulator {
@@ -86,9 +36,9 @@ impl SimulatorInterface for QuestSimulator {
     }
 
     fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
-        unsafe { quest_sys::initClassicalState(self.qureg, 0) };
+        self.backend.init_zero_state()?;
         self.cumulative_postselect_probability = 1.0;
-        self.seed(seed);
+        self.rng = LegacyQuestRng::seed_from_u64(seed);
         Ok(())
     }
 
@@ -100,26 +50,30 @@ impl SimulatorInterface for QuestSimulator {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::Gate { .. } => match operation.as_builtin_gate()? {
-                    Some(BuiltinGate::PhasedX {
-                        qubit_id,
-                        theta,
-                        phi,
-                    }) => self.phased_x(qubit_id, theta, phi)?,
-                    Some(BuiltinGate::ZZPhase {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                    }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
-                    Some(BuiltinGate::RZ { qubit_id, theta }) => self.rz(qubit_id, theta)?,
-                    Some(BuiltinGate::PhasedXX {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                        phi,
-                    }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
-                    None => {}
-                },
+                Operation::Gate { .. } => {
+                    match operation.as_gate_view::<builtin::QuantinuumGate>()? {
+                        Some(builtin::QuantinuumGate::PhasedX {
+                            qubit_id,
+                            theta,
+                            phi,
+                        }) => self.phased_x(qubit_id, theta, phi)?,
+                        Some(builtin::QuantinuumGate::ZZPhase {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                        }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
+                        Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
+                            self.rz(qubit_id, theta)?
+                        }
+                        Some(builtin::QuantinuumGate::PhasedXX {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                            phi,
+                        }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
+                        None => {}
+                    }
+                }
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -129,6 +83,10 @@ impl SimulatorInterface for QuestSimulator {
                     result_id,
                 } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
                 Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.do_postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -155,8 +113,7 @@ impl QuestSimulator {
             ))
         } else {
             // Use the built-in from QuEST
-            unsafe { quest_sys::rotateZ(self.qureg, q0 as c_int, theta) };
-            Ok(())
+            self.backend.rotate_z(q0 as u32, theta)
         }
     }
 
@@ -193,15 +150,14 @@ impl QuestSimulator {
             let sin_theta_2 = (theta / 2.0).sin();
             let cos_phi = phi.cos();
             let sin_phi = phi.sin();
-            let u = quest_sys::ComplexMatrix2 {
-                real: [
-                    [cos_theta_2, -sin_phi * sin_theta_2],
-                    [sin_phi * sin_theta_2, cos_theta_2],
-                ],
-                imag: [[0.0, -sin_theta_2 * cos_phi], [-sin_theta_2 * cos_phi, 0.0]],
-            };
-            unsafe { quest_sys::unitary(self.qureg, q0 as c_int, u) };
-            Ok(())
+            let real = [
+                cos_theta_2,
+                -sin_phi * sin_theta_2,
+                sin_phi * sin_theta_2,
+                cos_theta_2,
+            ];
+            let imag = [0.0, -sin_theta_2 * cos_phi, -sin_theta_2 * cos_phi, 0.0];
+            self.backend.matrix1(q0 as u32, &real, &imag)
         }
     }
 
@@ -238,24 +194,17 @@ impl QuestSimulator {
             // We implement this using a sub-diagonal operator in QuEST.
             let cos = theta.cos();
             let sin = theta.sin();
-            let mut targets: [c_int; 2] = [q0 as c_int, q1 as c_int];
             let diag_real: [f64; 4] = [1.0, cos, cos, 1.0];
             let diag_imag: [f64; 4] = [0.0, sin, sin, 0.0];
-            unsafe {
-                let op = quest_sys::createSubDiagonalOp(2);
-                std::ptr::copy_nonoverlapping(diag_real.as_ptr(), op.real, 4);
-                std::ptr::copy_nonoverlapping(diag_imag.as_ptr(), op.imag, 4);
-                quest_sys::applySubDiagonalOp(self.qureg, targets.as_mut_ptr(), 2, op);
-                quest_sys::destroySubDiagonalOp(op);
-            }
-            Ok(())
+            self.backend
+                .diag_matrix2(q0 as u32, q1 as u32, &diag_real, &diag_imag)
         }
     }
 
     fn phased_xx(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
-        if q0 >= self.n_qubits {
+        if q0 >= self.n_qubits || q1 >= self.n_qubits {
             Err(anyhow!(
-                "PhasedXX(q0={q0}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                "PhasedXX(q0={q0}, q1={q1}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
                 self.n_qubits
             ))
         } else {
@@ -300,22 +249,43 @@ impl QuestSimulator {
             let sin_theta_2 = (theta / 2.0).sin();
             let cos_2phi = (2.0 * phi).cos();
             let sin_2phi = (2.0 * phi).sin();
-            let u = quest_sys::ComplexMatrix4 {
-                real: [
-                    [cos_theta_2, 0.0, 0.0, -sin_2phi * sin_theta_2],
-                    [0.0, cos_theta_2, 0.0, 0.0],
-                    [0.0, 0.0, cos_theta_2, 0.0],
-                    [sin_2phi * sin_theta_2, 0.0, 0.0, cos_theta_2],
-                ],
-                imag: [
-                    [0.0, 0.0, 0.0, -sin_theta_2 * cos_2phi],
-                    [0.0, 0.0, -sin_theta_2, 0.0],
-                    [0.0, -sin_theta_2, 0.0, 0.0],
-                    [-sin_theta_2 * cos_2phi, 0.0, 0.0, 0.0],
-                ],
-            };
-            unsafe { quest_sys::twoQubitUnitary(self.qureg, q0 as c_int, q1 as c_int, u) };
-            Ok(())
+            let real = [
+                cos_theta_2,
+                0.0,
+                0.0,
+                -sin_2phi * sin_theta_2,
+                0.0,
+                cos_theta_2,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                cos_theta_2,
+                0.0,
+                sin_2phi * sin_theta_2,
+                0.0,
+                0.0,
+                cos_theta_2,
+            ];
+            let imag = [
+                0.0,
+                0.0,
+                0.0,
+                -sin_theta_2 * cos_2phi,
+                0.0,
+                0.0,
+                -sin_theta_2,
+                0.0,
+                0.0,
+                -sin_theta_2,
+                0.0,
+                0.0,
+                -sin_theta_2 * cos_2phi,
+                0.0,
+                0.0,
+                0.0,
+            ];
+            self.backend.matrix2(q0 as u32, q1 as u32, &real, &imag)
         }
     }
 
@@ -326,7 +296,17 @@ impl QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            Ok(unsafe { quest_sys::measure(self.qureg, q0 as i32) } > 0)
+            const REAL_EPS: f64 = 1e-13;
+            let probability_zero = self.backend.prob_of_outcome(q0 as u32, false)?;
+            let outcome = if probability_zero < REAL_EPS {
+                true
+            } else if 1.0 - probability_zero < REAL_EPS {
+                false
+            } else {
+                self.rng.genrand_real1() > probability_zero
+            };
+            self.backend.collapse_to_outcome(q0 as u32, outcome)?;
+            Ok(outcome)
         }
     }
 
@@ -337,25 +317,13 @@ impl QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            let target_value = if target_value { 1 } else { 0 };
-            unsafe {
-                quest_sys::applyProjector(self.qureg, q0 as i32, target_value);
-            }
-            let postselect_probability = unsafe { quest_sys::calcTotalProb(self.qureg) };
+            let postselect_probability =
+                self.backend.collapse_to_outcome(q0 as u32, target_value)?;
             self.cumulative_postselect_probability *= postselect_probability;
             if postselect_probability < 1e-10 {
                 return Err(anyhow!(
                     "Postselection of {target_value} on qubit {q0} is too unlikely to postselect. The probability of this outcome is {postselect_probability:.2e}.",
                 ));
-            }
-            let scale = 1.0 / postselect_probability.sqrt();
-            // Rescale the state vector to maintain normalization
-            let mat = quest_sys::ComplexMatrix2 {
-                real: [[scale, 0.0], [0.0, scale]],
-                imag: [[0.0, 0.0], [0.0, 0.0]],
-            };
-            unsafe {
-                quest_sys::applyMatrix2(self.qureg, q0 as i32, mat);
             }
             Ok(())
         }
@@ -368,9 +336,9 @@ impl QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            let outcome = unsafe { quest_sys::measure(self.qureg, q0 as i32) };
-            if outcome == 1 {
-                unsafe { quest_sys::pauliX(self.qureg, q0 as i32) };
+            let outcome = self.measure(q0)?;
+            if outcome {
+                self.backend.pauli_x(q0 as u32)?;
             }
             Ok(())
         }
@@ -393,11 +361,8 @@ impl QuestSimulator {
         for &q in qubits {
             writer.write_all(q.to_le_bytes().as_slice())?;
         }
-        let reals: *const f64 = self.qureg.stateVec.real;
-        let imags: *const f64 = self.qureg.stateVec.imag;
         for i in 0..(1 << self.n_qubits) {
-            let real: f64 = unsafe { *reals.add(i as usize) };
-            let imag: f64 = unsafe { *imags.add(i as usize) };
+            let (real, imag) = self.backend.amp(i)?;
             writer.write_all(real.to_le_bytes().as_slice())?;
             writer.write_all(imag.to_le_bytes().as_slice())?;
         }
@@ -444,6 +409,10 @@ fn check_memory(n_qubits: u64) -> Result<()> {
 impl SimulatorInterfaceFactory for QuestSimulatorFactory {
     type Interface = QuestSimulator;
 
+    fn name(&self) -> &str {
+        "Quest"
+    }
+
     fn init(
         self: std::sync::Arc<Self>,
         n_qubits: u64,
@@ -458,11 +427,10 @@ impl SimulatorInterfaceFactory for QuestSimulatorFactory {
             );
         }
         check_memory(n_qubits)?;
-        let environment = unsafe { quest_sys::createQuESTEnv() };
-        let qureg = unsafe { quest_sys::createQureg(n_qubits.try_into().unwrap(), environment) };
+        let backend = QuestBackend::new(n_qubits.try_into().unwrap())?;
         Ok(Box::new(QuestSimulator {
-            environment,
-            qureg,
+            backend,
+            rng: LegacyQuestRng::seed_from_u64(0),
             n_qubits,
             cumulative_postselect_probability: 1.0,
         }))

@@ -573,15 +573,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quest-sys"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3193d99e88ae9aa9e058b786727d139e366364e5bc15fb1b9041716783d3bead"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -761,8 +752,7 @@ version = "0.3.0-alpha.1"
 dependencies = [
  "anyhow",
  "bytesize",
- "cc",
- "quest-sys",
+ "cmake",
  "selene-core",
  "sysinfo",
 ]
