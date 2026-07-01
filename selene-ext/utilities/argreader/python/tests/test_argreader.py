@@ -237,6 +237,7 @@ def test_arg_reader_trace(snapshot, interface):
     json = trace.model_dump_json(indent=2)
     snapshot.assert_match(json, "trace.json")
 
+
 @pytest.mark.parametrize("interface", [HeliosInterface(), SolInterface()])
 def test_arg_reader_zero_length_arrays(snapshot, interface):
     llvm_file = Path(__file__).parent / "resources/argreader_zero_length_arrays.ll"

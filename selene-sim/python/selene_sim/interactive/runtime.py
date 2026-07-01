@@ -370,9 +370,7 @@ class InteractiveRuntime:
         self.shot_id += 1
         seed = self.runtime.random_seed
         assert seed is not None
-        if 0 != self._lib.shot_start(
-            self._instance, self.shot_id, seed + self.shot_id
-        ):
+        if 0 != self._lib.shot_start(self._instance, self.shot_id, seed + self.shot_id):
             raise RuntimeError("Failed to start next shot on Selene runtime")
 
     def get_operations(self) -> list[OperationBatch]:

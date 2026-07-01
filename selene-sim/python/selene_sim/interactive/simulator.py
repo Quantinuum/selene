@@ -96,7 +96,9 @@ class SeleneSimSimulatorLib:
                         output_handle.instance, operation[1], operation[2]
                     )
                 elif kind == "reset":
-                    output_handle.interface.reset_fn(output_handle.instance, operation[1])
+                    output_handle.interface.reset_fn(
+                        output_handle.instance, operation[1]
+                    )
                 else:
                     raise RuntimeError(f"unsupported simulator operation {kind!r}")
 
@@ -123,16 +125,20 @@ class SeleneSimSimulatorLib:
 
         result_ref = self.ffi.new_handle(result)
         refs.extend([result_ref, set_bool, set_u64])
-        return self.ffi.new(
-            self.types.operation_result_handle,
-            {
-                "instance": result_ref,
-                "interface": {
-                    "set_bool_result_fn": set_bool,
-                    "set_u64_result_fn": set_u64,
+        return (
+            self.ffi.new(
+                self.types.operation_result_handle,
+                {
+                    "instance": result_ref,
+                    "interface": {
+                        "set_bool_result_fn": set_bool,
+                        "set_u64_result_fn": set_u64,
+                    },
                 },
-            },
-        ), result, refs
+            ),
+            result,
+            refs,
+        )
 
     def _handle_operations(self, instance, operations: list[Any]):
         batch, batch_refs = self._batch_handle(operations)
@@ -166,7 +172,9 @@ class SeleneSimSimulatorLib:
         return errno
 
     def postselect(self, instance, qubit: int, value: bool):
-        errno, result = self._handle_operations(instance, [("postselect", qubit, value)])
+        errno, result = self._handle_operations(
+            instance, [("postselect", qubit, value)]
+        )
         if errno == 0 and (result["bool"] or result["u64"]):
             return -1
         return errno
@@ -271,9 +279,7 @@ class InteractiveSimulator:
         return self._apply_measure_operation(qubit)
 
     def reset(self, qubit: int):
-        self._apply_void_operation(
-            self._lib.reset(self._instance, qubit), "RESET"
-        )
+        self._apply_void_operation(self._lib.reset(self._instance, qubit), "RESET")
 
     def postselect(self, qubit: int, value: bool):
         self._apply_void_operation(

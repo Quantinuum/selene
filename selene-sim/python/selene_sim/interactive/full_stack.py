@@ -31,7 +31,9 @@ PathLike = str | os.PathLike | bytes | bytearray
 DEFAULT_SHOT_SPEC = ShotSpec(count=1000, offset=0, increment=1)
 
 _SELENE_HEADER = Path(__file__).parents[2] / "_dist/include/selene/selene.h"
-_SOURCE_SELENE_HEADER = Path(__file__).parents[4] / "selene-sim/c/include/selene/selene.h"
+_SOURCE_SELENE_HEADER = (
+    Path(__file__).parents[4] / "selene-sim/c/include/selene/selene.h"
+)
 if _SOURCE_SELENE_HEADER.exists():
     _SELENE_HEADER = _SOURCE_SELENE_HEADER
 _FFI = ffi((_SELENE_HEADER,))
@@ -120,7 +122,9 @@ class SeleneSimLib:
 
     def fetch_output(self, instance, chunk_size: int) -> bytes:
         chunk = self.ffi.new(self.types.uint8_array, chunk_size)
-        bytes_read = int(_unwrap_value(self.lib.selene_fetch_output(instance, chunk, chunk_size)))
+        bytes_read = int(
+            _unwrap_value(self.lib.selene_fetch_output(instance, chunk, chunk_size))
+        )
         if bytes_read == 0:
             raise BlockingIOError
         return bytes(self.ffi.buffer(chunk, bytes_read))
