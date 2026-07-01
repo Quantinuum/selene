@@ -4,7 +4,13 @@
 
 // compiled user program entrypoint
 extern uint64_t qmain(uint64_t);
+extern struct selene_void_result_t selene_register_linked_utilities(SeleneInstance* instance);
 
 int main(int argc, char** argv) {
-    return selene_helios_run(argc, argv, qmain);
+    return selene_helios_run_with_utilities(
+        argc,
+        argv,
+        qmain,
+        selene_register_linked_utilities
+    );
 }

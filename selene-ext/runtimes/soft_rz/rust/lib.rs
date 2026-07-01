@@ -5,12 +5,25 @@ use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
     gatewire::{DynamicGateSet, OwnedGateInstance, builtin},
-    runtime::{
-        BatchOperation, BuiltinGate, Operation, RuntimeInterface,
-        interface::RuntimeInterfaceFactory,
-    },
+    runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
+
+selene_core::define_gateset! {
+    enum SoftRZEmittedGateSet {
+        PhasedX(builtin::PhasedX),
+        ZZPhase(builtin::ZZPhase),
+    }
+}
+
+impl SoftRZEmittedGateSet {
+    fn dynamic() -> DynamicGateSet {
+        DynamicGateSet::from_declarations(
+            <Self as selene_core::gatewire::GateSetSpec>::declarations(),
+        )
+        .expect("SoftRZ emitted gate declarations are unique")
+    }
+}
 
 #[derive(Parser, Debug)]
 struct Params {
@@ -89,9 +102,9 @@ impl SoftRZRuntime {
             self.operation_queue[append_idx].add_operation(op);
         } else {
             // We didn't find a batch to append to, so we need to create a new batch for this operation.
-            let duration = match op.as_builtin_gate() {
-                Ok(Some(BuiltinGate::PhasedX { .. })) => self.params.duration_ns_phased_x,
-                Ok(Some(BuiltinGate::ZZPhase { .. })) => self.params.duration_ns_zz_phase,
+            let duration = match op.as_gate::<SoftRZEmittedGateSet>() {
+                Ok(Some(SoftRZEmittedGateSet::PhasedX(_))) => self.params.duration_ns_phased_x,
+                Ok(Some(SoftRZEmittedGateSet::ZZPhase(_))) => self.params.duration_ns_zz_phase,
                 _ => match op {
                     Operation::Measure { .. } => self.params.duration_ns_measure,
                     Operation::Reset { .. } => self.params.duration_ns_reset,
@@ -133,13 +146,16 @@ impl SoftRZRuntime {
         let same_type = batch.iter_ops().all(|batch_op| match (batch_op, op) {
             (Operation::Gate { .. }, Operation::Gate { .. }) => {
                 matches!(
-                    (batch_op.as_builtin_gate(), op.as_builtin_gate()),
                     (
-                        Ok(Some(BuiltinGate::PhasedX { .. })),
-                        Ok(Some(BuiltinGate::PhasedX { .. }))
+                        batch_op.as_gate::<SoftRZEmittedGateSet>(),
+                        op.as_gate::<SoftRZEmittedGateSet>()
+                    ),
+                    (
+                        Ok(Some(SoftRZEmittedGateSet::PhasedX(_))),
+                        Ok(Some(SoftRZEmittedGateSet::PhasedX(_)))
                     ) | (
-                        Ok(Some(BuiltinGate::ZZPhase { .. })),
-                        Ok(Some(BuiltinGate::ZZPhase { .. }))
+                        Ok(Some(SoftRZEmittedGateSet::ZZPhase(_))),
+                        Ok(Some(SoftRZEmittedGateSet::ZZPhase(_)))
                     )
                 )
             }
@@ -171,7 +187,6 @@ impl RuntimeInterface for SoftRZRuntime {
         self.future_results.clear();
         Ok(())
     }
-    // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         debug_assert!(
             self.flush_size <= self.operation_queue.len(),
@@ -195,19 +210,11 @@ impl RuntimeInterface for SoftRZRuntime {
         Ok(())
     }
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
-        let accepted = DynamicGateSet::from_declarations([
-            builtin::RZ::declaration(),
-            builtin::PhasedX::declaration(),
-            builtin::ZZPhase::declaration(),
-        ])?;
+        let accepted = builtin::HeliosGateSet::dynamic();
         if let Some(decl) = gateset.first_unsupported_by(&accepted) {
             bail!("SoftRZRuntime does not support gate {}", decl.name);
         }
-        DynamicGateSet::from_declarations([
-            builtin::PhasedX::declaration(),
-            builtin::ZZPhase::declaration(),
-        ])
-        .map_err(Into::into)
+        Ok(SoftRZEmittedGateSet::dynamic())
     }
     fn global_barrier(&mut self, _sleep_ns: u64) -> Result<()> {
         self.flush_size = self.operation_queue.len();
@@ -250,8 +257,8 @@ impl RuntimeInterface for SoftRZRuntime {
         }
     }
     fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
-        match Operation::from_gate_instance(gate.clone())?.as_builtin_gate()? {
-            Some(BuiltinGate::PhasedX {
+        match Operation::gate_as_view::<builtin::HeliosGate>(gate)? {
+            Some(builtin::HeliosGate::PhasedX {
                 qubit_id,
                 theta,
                 phi,
@@ -265,7 +272,7 @@ impl RuntimeInterface for SoftRZRuntime {
                 self.push(Operation::phased_x(qubit_id, theta, phi - phase)?);
                 Ok(())
             }
-            Some(BuiltinGate::ZZPhase {
+            Some(builtin::HeliosGate::ZZPhase {
                 qubit_id_1,
                 qubit_id_2,
                 theta,
@@ -279,7 +286,7 @@ impl RuntimeInterface for SoftRZRuntime {
                 self.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
                 Ok(())
             }
-            Some(BuiltinGate::RZ { qubit_id, theta }) => {
+            Some(builtin::HeliosGate::RZ { qubit_id, theta }) => {
                 if qubit_id >= self.qubits.len() as u64 {
                     bail!("applying RZ gate to out-of-bounds qubit {qubit_id}");
                 }
@@ -290,9 +297,6 @@ impl RuntimeInterface for SoftRZRuntime {
                     phase: phase + theta,
                 };
                 Ok(())
-            }
-            Some(BuiltinGate::PhasedXX { .. }) => {
-                bail!("The PhasedXX gate is not compatible with the SoftRZRuntime")
             }
             None => bail!("SoftRZRuntime does not support this gate"),
         }
@@ -414,6 +418,10 @@ struct SoftRZRuntimeFactory;
 
 impl RuntimeInterfaceFactory for SoftRZRuntimeFactory {
     type Interface = SoftRZRuntime;
+
+    fn name(&self) -> &str {
+        "SoftRZ"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

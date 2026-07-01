@@ -40,7 +40,7 @@ impl GateMetricLabels {
 
 impl Default for GateMetricLabels {
     fn default() -> Self {
-        Self::from_gateset(&builtin::all())
+        Self::from_gateset(&builtin::QuantinuumGateSet::dynamic())
     }
 }
 

@@ -3,8 +3,9 @@ from pathlib import Path
 
 import yaml
 from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
-from selene_sim import Quest
+from selene_sim import Quest, SoftRZRuntime
 from selene_sim.build import build
+from selene_sim.exceptions import SeleneStartupError
 from selene_helios_qis_plugin import HeliosInterface
 from selene_sol_qis_plugin import SolInterface
 
@@ -91,6 +92,28 @@ def test_qis_circuit_log(snapshot, program_name: str):
     }
 
     snapshot.assert_match(yaml.dump(circuits), f"{program_name}_circuits.yaml")
+
+
+def test_full_stack_gateset_handshake_rejects_unsupported_downstream_gate():
+    sol_file = QIS_RESOURCE_DIR / "sol" / "add_3_11-any.ll"
+    assert sol_file.exists()
+
+    runner = build(sol_file, interface=SolInterface())
+
+    with pytest.raises(SeleneStartupError) as exc_info:
+        list(
+            list(shot)
+            for shot in runner.run_shots(
+                Quest(),
+                runtime=SoftRZRuntime(),
+                n_qubits=10,
+                n_shots=1,
+                random_seed=1024,
+            )
+        )
+
+    error = exc_info.value
+    assert "SoftRZRuntime does not support gate PhasedXX" in error.message
 
 
 def test_simulate_delay():

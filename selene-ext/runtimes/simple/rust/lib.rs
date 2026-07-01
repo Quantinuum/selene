@@ -5,10 +5,7 @@ use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
     gatewire::{DynamicGateSet, OwnedGateInstance, builtin},
-    runtime::{
-        BatchOperation, BuiltinGate, Operation, RuntimeInterface,
-        interface::RuntimeInterfaceFactory,
-    },
+    runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
 
@@ -65,11 +62,11 @@ impl SimpleRuntime {
     }
 
     pub fn push(&mut self, op: Operation) {
-        let duration_ns = match op.as_builtin_gate() {
-            Ok(Some(BuiltinGate::PhasedX { .. })) => self.params.duration_ns_phased_x,
-            Ok(Some(BuiltinGate::ZZPhase { .. })) => self.params.duration_ns_zz_phase,
-            Ok(Some(BuiltinGate::RZ { .. })) => self.params.duration_ns_rz,
-            Ok(Some(BuiltinGate::PhasedXX { .. })) => self.params.duration_ns_phased_xx,
+        let duration_ns = match op.as_gate_view::<builtin::QuantinuumGate>() {
+            Ok(Some(builtin::QuantinuumGate::PhasedX { .. })) => self.params.duration_ns_phased_x,
+            Ok(Some(builtin::QuantinuumGate::ZZPhase { .. })) => self.params.duration_ns_zz_phase,
+            Ok(Some(builtin::QuantinuumGate::RZ { .. })) => self.params.duration_ns_rz,
+            Ok(Some(builtin::QuantinuumGate::PhasedXX { .. })) => self.params.duration_ns_phased_xx,
             _ => match op {
                 Operation::Measure { .. } => self.params.duration_ns_measure,
                 Operation::Reset { .. } => self.params.duration_ns_reset,
@@ -93,7 +90,6 @@ impl RuntimeInterface for SimpleRuntime {
         self.future_results.clear();
         Ok(())
     }
-    // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         Ok(self.operation_queue.pop_front())
     }
@@ -108,7 +104,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
-        let supported = builtin::all();
+        let supported = builtin::QuantinuumGateSet::dynamic();
         if let Some(decl) = gateset.first_unsupported_by(&supported) {
             bail!("SimpleRuntime does not support gate {}", decl.name);
         }
@@ -143,8 +139,8 @@ impl RuntimeInterface for SimpleRuntime {
         }
     }
     fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
-        match Operation::from_gate_instance(gate.clone())?.as_builtin_gate()? {
-            Some(BuiltinGate::PhasedX {
+        match Operation::gate_as_view::<builtin::QuantinuumGate>(gate)? {
+            Some(builtin::QuantinuumGate::PhasedX {
                 qubit_id,
                 theta,
                 phi,
@@ -158,7 +154,7 @@ impl RuntimeInterface for SimpleRuntime {
                 self.push(Operation::phased_x(qubit_id, theta, phi)?);
                 Ok(())
             }
-            Some(BuiltinGate::ZZPhase {
+            Some(builtin::QuantinuumGate::ZZPhase {
                 qubit_id_1,
                 qubit_id_2,
                 theta,
@@ -172,7 +168,7 @@ impl RuntimeInterface for SimpleRuntime {
                 self.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
                 Ok(())
             }
-            Some(BuiltinGate::RZ { qubit_id, theta }) => {
+            Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
                 if qubit_id >= self.qubits.len() as u64 {
                     bail!("applying RZ gate to out-of-bounds qubit {qubit_id}");
                 }
@@ -182,7 +178,7 @@ impl RuntimeInterface for SimpleRuntime {
                 self.push(Operation::rz(qubit_id, theta)?);
                 Ok(())
             }
-            Some(BuiltinGate::PhasedXX {
+            Some(builtin::QuantinuumGate::PhasedXX {
                 qubit_id_1,
                 qubit_id_2,
                 theta,
@@ -312,6 +308,10 @@ struct SimpleRuntimeFactory;
 
 impl RuntimeInterfaceFactory for SimpleRuntimeFactory {
     type Interface = SimpleRuntime;
+
+    fn name(&self) -> &str {
+        "SimpleRuntime"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

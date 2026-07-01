@@ -1,6 +1,17 @@
 #include "selene_stim_c_interface/interface.h"
 #include "tableau_simulator_min.h"
 
+namespace {
+
+void write_owned_string(std::string const& str, char** write) {
+    char* cstr = new char[str.size() + 1];
+    std::copy(str.begin(), str.end(), cstr);
+    cstr[str.size()] = '\0';
+    *write = cstr;
+}
+
+} // namespace
+
 extern "C" {
 
 TableauSimulatorMin* stim_tableausimulator_min_create(
@@ -98,14 +109,18 @@ bool stim_tableausimulator_min_do_POSTSELECT_Z(TableauSimulatorMin* sim, unsigne
 }
 
 void stim_tableausimulator_min_get_stabilizers(TableauSimulatorMin* sim, char** write) {
-    std::string str = sim->get_stabilizers();
-    char* cstr = new char[str.size() + 1];
-    std::copy(str.begin(), str.end(), cstr);
-    cstr[str.size()] = '\0';
-    *write = cstr;
+    write_owned_string(sim->get_stabilizers(), write);
 }
 
 void stim_tableausimulator_min_free_stabilizers(char* written) {
+    delete[] written;
+}
+
+void stim_tableausimulator_min_get_last_error(TableauSimulatorMin* sim, char** write) {
+    write_owned_string(sim->get_last_error(), write);
+}
+
+void stim_tableausimulator_min_free_last_error(char* written) {
     delete[] written;
 }
 

@@ -2,7 +2,8 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
-use selene_core::runtime::{BatchOperation, BuiltinGate, Operation};
+use selene_core::gatewire::builtin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::simulator::{Simulator, SimulatorInterface};
 use selene_core::utils::MetricValue;
@@ -196,26 +197,30 @@ impl SimulatorInterface for QuantumReplaySimulator {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::Gate { .. } => match operation.as_builtin_gate()? {
-                    Some(BuiltinGate::PhasedX {
-                        qubit_id,
-                        theta,
-                        phi,
-                    }) => self.phased_x(qubit_id, theta, phi)?,
-                    Some(BuiltinGate::ZZPhase {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                    }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
-                    Some(BuiltinGate::RZ { qubit_id, theta }) => self.rz(qubit_id, theta)?,
-                    Some(BuiltinGate::PhasedXX {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                        phi,
-                    }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
-                    None => {}
-                },
+                Operation::Gate { .. } => {
+                    match operation.as_gate_view::<builtin::QuantinuumGate>()? {
+                        Some(builtin::QuantinuumGate::PhasedX {
+                            qubit_id,
+                            theta,
+                            phi,
+                        }) => self.phased_x(qubit_id, theta, phi)?,
+                        Some(builtin::QuantinuumGate::ZZPhase {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                        }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
+                        Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
+                            self.rz(qubit_id, theta)?
+                        }
+                        Some(builtin::QuantinuumGate::PhasedXX {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                            phi,
+                        }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
+                        None => {}
+                    }
+                }
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -225,6 +230,10 @@ impl SimulatorInterface for QuantumReplaySimulator {
                     result_id,
                 } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
                 Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.wrapped.postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -255,6 +264,10 @@ pub struct QuantumReplaySimulatorFactory;
 
 impl SimulatorInterfaceFactory for QuantumReplaySimulatorFactory {
     type Interface = QuantumReplaySimulator;
+
+    fn name(&self) -> &str {
+        "QuantumReplay"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

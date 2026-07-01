@@ -5,7 +5,7 @@ use rand_pcg::Pcg64Mcg;
 use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
-use selene_core::gatewire::{DynamicGateSet, GateDecl, builtin};
+use selene_core::gatewire::{DynamicGateSet, builtin};
 use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -58,6 +58,22 @@ pub enum ErrorType {
     X,
     Y,
     Z,
+}
+
+selene_core::define_gateset! {
+    enum DepolarizingCorrectionGateSet {
+        RZ(builtin::RZ),
+        PhasedX(builtin::PhasedX),
+    }
+}
+
+impl DepolarizingCorrectionGateSet {
+    fn dynamic() -> DynamicGateSet {
+        DynamicGateSet::from_declarations(
+            <Self as selene_core::gatewire::GateSetSpec>::declarations(),
+        )
+        .expect("depolarizing correction gate declarations are unique")
+    }
 }
 
 pub struct DepolarizingErrorModel {
@@ -209,24 +225,6 @@ impl DepolarizingErrorModel {
         }
         Ok(None)
     }
-
-    fn ensure_output_gate(declarations: &mut Vec<GateDecl>, required: GateDecl) -> Result<()> {
-        match declarations
-            .iter_mut()
-            .find(|decl| decl.semantic_id == required.semantic_id)
-        {
-            Some(existing) if *existing == required => Ok(()),
-            Some(existing) => bail!(
-                "DepolarizingErrorModel requires builtin gate {}, but the incoming gateset uses the same semantic ID for incompatible gate {}",
-                required.name,
-                existing.name
-            ),
-            None => {
-                declarations.push(required);
-                Ok(())
-            }
-        }
-    }
 }
 
 impl ErrorModelInterface for DepolarizingErrorModel {
@@ -240,10 +238,9 @@ impl ErrorModelInterface for DepolarizingErrorModel {
     }
 
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
-        let mut declarations: Vec<_> = gateset.declarations().cloned().collect();
-        Self::ensure_output_gate(&mut declarations, builtin::RZ::declaration())?;
-        Self::ensure_output_gate(&mut declarations, builtin::PhasedX::declaration())?;
-        DynamicGateSet::from_declarations(declarations).map_err(Into::into)
+        gateset
+            .union(&DepolarizingCorrectionGateSet::dynamic())
+            .map_err(Into::into)
     }
 
     fn exit(&mut self) -> Result<()> {
@@ -319,6 +316,16 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     if let Some(error) = self.maybe_flip_on_init(qubit_id)? {
                         pending.push(error);
                     }
+                }
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => {
+                    pending.push(Operation::Postselect {
+                        qubit_id,
+                        target_value,
+                    });
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
@@ -440,6 +447,10 @@ pub struct DepolarizingErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for DepolarizingErrorModelFactory {
     type Interface = DepolarizingErrorModel;
+
+    fn name(&self) -> &str {
+        "Depolarizing"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

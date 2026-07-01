@@ -24,7 +24,7 @@ impl ErrorModelInterface for IdealErrorModel {
     }
 
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
-        let supported = builtin::all();
+        let supported = builtin::QuantinuumGateSet::dynamic();
         if let Some(decl) = gateset.first_unsupported_by(&supported) {
             bail!("IdealErrorModel does not support gate {}", decl.name);
         }
@@ -40,9 +40,10 @@ impl ErrorModelInterface for IdealErrorModel {
         let mut pending = Vec::new();
         for op in operations {
             match op {
-                Operation::Gate { .. } | Operation::Measure { .. } | Operation::Reset { .. } => {
-                    pending.push(op)
-                }
+                Operation::Gate { .. }
+                | Operation::Measure { .. }
+                | Operation::Postselect { .. }
+                | Operation::Reset { .. } => pending.push(op),
                 Operation::MeasureLeaked {
                     qubit_id,
                     result_id,
@@ -89,6 +90,10 @@ pub struct IdealErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for IdealErrorModelFactory {
     type Interface = IdealErrorModel;
+
+    fn name(&self) -> &str {
+        "Ideal"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

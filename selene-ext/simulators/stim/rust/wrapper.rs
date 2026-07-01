@@ -77,17 +77,29 @@ impl TableauSimulatorMin {
     pub fn get_stabilisers(&mut self) -> String {
         let mut stringptr = std::ptr::null_mut();
         unsafe { bindings::stim_tableausimulator_min_get_stabilizers(self.ptr, &mut stringptr) };
-        let result: String = unsafe {
-            if stringptr.is_null() {
-                String::new()
-            } else {
-                std::ffi::CStr::from_ptr(stringptr)
-                    .to_string_lossy()
-                    .into_owned()
-            }
-        };
+        let result = owned_c_string(stringptr);
         unsafe { bindings::stim_tableausimulator_min_free_stabilizers(stringptr) };
         result
+    }
+
+    pub fn last_error(&mut self) -> String {
+        let mut stringptr = std::ptr::null_mut();
+        unsafe { bindings::stim_tableausimulator_min_get_last_error(self.ptr, &mut stringptr) };
+        let result = owned_c_string(stringptr);
+        unsafe { bindings::stim_tableausimulator_min_free_last_error(stringptr) };
+        result
+    }
+}
+
+fn owned_c_string(stringptr: *mut std::ffi::c_char) -> String {
+    unsafe {
+        if stringptr.is_null() {
+            String::new()
+        } else {
+            std::ffi::CStr::from_ptr(stringptr)
+                .to_string_lossy()
+                .into_owned()
+        }
     }
 }
 

@@ -11,10 +11,13 @@
 #define SELENE_STIM_TABLEAU_SIMULATOR_MIN_H
 
 #include "stim.h"
+#include <sstream>
+#include <string>
 
 struct TableauSimulatorMin{
     stim::Tableau<64> inverse_state;
     std::mt19937_64 rng;
+    std::string last_error;
     TableauSimulatorMin(size_t n_qubits, uint64_t random_seed)
     :
         inverse_state{stim::Tableau<64>::identity(n_qubits)},
@@ -108,21 +111,22 @@ struct TableauSimulatorMin{
         return result;
     }
     bool do_POSTSELECT_Z(unsigned int q, bool target_result) {
+        last_error.clear();
         bool result = collapse_qubit_z(q, target_result ? -1 : +1);
         if (result == target_result) {
             return true;
         }
-        // Can't postselect - write an error and return false.
-        fprintf(
-            stderr,
-            "Error: Postselection impossible.\n"
-            "Qubit %u was asked to postselect to state |%d>, "
-            "but was in the perpendicular state |%d>.",
-            q,
-            target_result ? 1 : 0,
-            target_result ? 0 : 1
-        );
+        std::stringstream ss;
+        ss << "Postselection impossible.\n"
+           << "Qubit " << q << " was asked to postselect to state |"
+           << (target_result ? 1 : 0) << ">, but was in the perpendicular state |"
+           << (target_result ? 0 : 1) << ">.";
+        last_error = ss.str();
         return false;
+    }
+
+    std::string get_last_error() {
+        return last_error;
     }
 
     std::string get_stabilizers() {

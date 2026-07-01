@@ -9,7 +9,8 @@ use clap::Parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
-use selene_core::runtime::{BatchOperation, BuiltinGate, Operation};
+use selene_core::gatewire::builtin;
+use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
 use selene_core::utils::MetricValue;
@@ -95,26 +96,30 @@ impl SimulatorInterface for StimSimulator {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::Gate { .. } => match operation.as_builtin_gate()? {
-                    Some(BuiltinGate::PhasedX {
-                        qubit_id,
-                        theta,
-                        phi,
-                    }) => self.phased_x(qubit_id, theta, phi)?,
-                    Some(BuiltinGate::ZZPhase {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                    }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
-                    Some(BuiltinGate::RZ { qubit_id, theta }) => self.rz(qubit_id, theta)?,
-                    Some(BuiltinGate::PhasedXX {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                        phi,
-                    }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
-                    None => {}
-                },
+                Operation::Gate { .. } => {
+                    match operation.as_gate_view::<builtin::QuantinuumGate>()? {
+                        Some(builtin::QuantinuumGate::PhasedX {
+                            qubit_id,
+                            theta,
+                            phi,
+                        }) => self.phased_x(qubit_id, theta, phi)?,
+                        Some(builtin::QuantinuumGate::ZZPhase {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                        }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
+                        Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
+                            self.rz(qubit_id, theta)?
+                        }
+                        Some(builtin::QuantinuumGate::PhasedXX {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                            phi,
+                        }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
+                        None => {}
+                    }
+                }
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -124,6 +129,10 @@ impl SimulatorInterface for StimSimulator {
                     result_id,
                 } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
                 Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.do_postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -515,9 +524,17 @@ impl StimSimulator {
             let q_u32: u32 = qubit.try_into()?;
             match self.simulator.postselect_z(q_u32, target_value) {
                 true => Ok(()),
-                false => Err(anyhow!(
-                    "Postselect(qubit={qubit}, target_value={target_value}) failed.",
-                )),
+                false => {
+                    let detail = self.simulator.last_error();
+                    let detail = detail.trim();
+                    if detail.is_empty() {
+                        Err(anyhow!(
+                            "Postselect(qubit={qubit}, target_value={target_value}) failed.",
+                        ))
+                    } else {
+                        Err(anyhow!("{detail}"))
+                    }
+                }
             }
         }
     }
@@ -562,6 +579,10 @@ pub struct StimSimulatorFactory;
 
 impl SimulatorInterfaceFactory for StimSimulatorFactory {
     type Interface = StimSimulator;
+
+    fn name(&self) -> &str {
+        "Stim"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

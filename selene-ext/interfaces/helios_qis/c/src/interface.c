@@ -76,7 +76,12 @@ static int register_helios_gateset(void) {
 
 
 
-int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
+int selene_helios_run_with_utilities(
+    int argc,
+    char** argv,
+    uint64_t (*entrypoint)(uint64_t),
+    selene_utility_registrar_t register_utilities
+) {
     DIAGNOSTIC("selene_init() with args:\n");
     for (int i = 0; i < argc; ++i) {
         DIAGNOSTIC("   %d: %s\n", i, argv[i]);
@@ -94,6 +99,13 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     int register_result = register_helios_gateset();
     if (register_result != 0) {
         return register_result;
+    }
+    if (register_utilities != NULL) {
+        void_result = register_utilities(selene_instance);
+        if (void_result.error_code != 0) {
+            ERROR("Error registering linked utilities: error code %" PRIu32 "\n", void_result.error_code);
+            return void_result.error_code;
+        }
     }
     struct selene_u64_result_t n_shots = selene_shot_count(selene_instance);
     if (n_shots.error_code != 0) {
@@ -123,4 +135,8 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     }
     selene_exit(selene_instance);
     return 0;
+}
+
+int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
+    return selene_helios_run_with_utilities(argc, argv, entrypoint, NULL);
 }
