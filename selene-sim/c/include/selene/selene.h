@@ -20,12 +20,6 @@ typedef struct selene_void_result_t {
   uint32_t error_code;
 } selene_void_result_t;
 
-typedef struct SeleneUtilityEventCallbacksV1 {
-  void *context;
-  struct selene_void_result_t (*on_shot_start)(void *context, uint64_t shot_id);
-  struct selene_void_result_t (*on_shot_end)(void *context, uint64_t shot_id);
-} SeleneUtilityEventCallbacksV1;
-
 typedef struct selene_string_t {
   const char *data;
   uint64_t length;
@@ -51,6 +45,14 @@ typedef struct selene_u32_result_t {
   uint32_t error_code;
   uint32_t value;
 } selene_u32_result_t;
+
+typedef struct selene_void_result_t (*UtilityShotEventFn)(void *context, uint64_t shot_id);
+
+typedef struct SeleneUtilityEventCallbacksV1 {
+  void *context;
+  UtilityShotEventFn on_shot_start;
+  UtilityShotEventFn on_shot_end;
+} SeleneUtilityEventCallbacksV1;
 
 /**
  * Some runtimes have additional capabilities outside of the core API. These can be triggered
@@ -195,9 +197,6 @@ struct selene_u64_result_t selene_qalloc(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_qfree(struct SeleneInstance *instance, uint64_t q);
 
-struct selene_void_result_t selene_register_utility_event_callbacks(struct SeleneInstance *instance,
-                                                                    struct SeleneUtilityEventCallbacksV1 callbacks);
-
 /**
  * Performs a lazy measurement
  */
@@ -273,6 +272,9 @@ struct selene_void_result_t selene_register_gateset(struct SeleneInstance *insta
                                                     uint8_t *output,
                                                     size_t output_len,
                                                     size_t *written);
+
+struct selene_void_result_t selene_register_utility_event_callbacks(struct SeleneInstance *instance,
+                                                                    struct SeleneUtilityEventCallbacksV1 callbacks);
 
 struct selene_void_result_t selene_set_tc(struct SeleneInstance *instance, uint64_t tc);
 

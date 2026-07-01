@@ -1,15 +1,14 @@
-#ifndef SELENE_SIMULATOR_H
-#define SELENE_SIMULATOR_H
-
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "selene/gatewire.h"
-#include "selene/operation.h"
-#include "selene/plugin.h"
-#define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000200ULL
+#include "selene/core_types.h"
+#define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000101ULL
+
+typedef struct Option_last_error_fn Option_last_error_fn;
+
+typedef struct Option_plugin_name_fn Option_plugin_name_fn;
 
 typedef struct SeleneSimulatorAPIVersion {
   /**
@@ -32,49 +31,81 @@ typedef struct SeleneSimulatorAPIVersion {
 
 typedef void *SeleneSimulatorInstance;
 
-typedef struct SimulatorOperationInterface {
-  SeleneErrno (*exit_fn)(SeleneSimulatorInstance instance);
-  SeleneErrno (*last_error_fn)(char *output,
-                               size_t output_len,
-                               size_t *written);
-  SeleneErrno (*shot_start_fn)(SeleneSimulatorInstance instance,
-                               uint64_t shot_id,
-                               uint64_t seed);
-  SeleneErrno (*shot_end_fn)(SeleneSimulatorInstance instance);
-  SeleneErrno (*handle_operations_fn)(SeleneSimulatorInstance instance,
-                                      struct RuntimeExtractOperationHandle batch,
-                                      struct OperationResultHandle result);
-  SeleneErrno (*measure_fn)(SeleneSimulatorInstance instance,
-                            uint64_t qubit);
-  SeleneErrno (*reset_fn)(SeleneSimulatorInstance instance,
-                          uint64_t qubit);
-  SeleneErrno (*get_metric_fn)(SeleneSimulatorInstance instance,
-                               uint8_t nth_metric,
-                               char *tag_ptr,
-                               uint8_t *datatype_ptr,
-                               uint64_t *data_ptr);
-  SeleneErrno (*dump_state_fn)(SeleneSimulatorInstance instance,
-                               const char *file,
-                               const uint64_t *qubits,
-                               uint64_t n_qubits);
-  SeleneErrno (*gate_fn)(SeleneSimulatorInstance instance,
-                         const uint8_t *data,
-                         size_t len);
-  SeleneErrno (*negotiate_gateset_fn)(SeleneSimulatorInstance instance,
-                                      const uint8_t *input,
-                                      size_t input_len,
-                                      uint8_t *output,
-                                      size_t output_len,
-                                      size_t *written);
-} SimulatorOperationInterface;
+typedef struct PluginDescriptorHeaderV1 {
+  uint64_t struct_size;
+  uint64_t api_version;
+  struct Option_last_error_fn last_error_fn;
+  struct Option_plugin_name_fn get_name_fn;
+} PluginDescriptorHeaderV1;
 
-typedef struct SimulatorHandle {
-  SeleneSimulatorInstance instance;
-  struct SimulatorOperationInterface interface;
-} SimulatorHandle;
+typedef int32_t SeleneErrno;
+
+typedef void *RuntimeExtractOperationInstance;
+
+/**
+ * An instance is provided to `selene_runtime_get_next_operations`, which must
+ * pass that back to any function it calls in its provided
+ * [RuntimeGetOperationInterface].
+ */
+typedef void *RuntimeGetOperationInstance;
+
+typedef struct RuntimeGetOperationInterface {
+  void (*measure_fn)(RuntimeGetOperationInstance,
+                     uint64_t,
+                     uint64_t);
+  void (*measure_leaked_fn)(RuntimeGetOperationInstance,
+                            uint64_t,
+                            uint64_t);
+  void (*postselect_fn)(RuntimeGetOperationInstance,
+                        uint64_t,
+                        bool);
+  void (*reset_fn)(RuntimeGetOperationInstance,
+                   uint64_t);
+  void (*custom_fn)(RuntimeGetOperationInstance,
+                    size_t,
+                    const void*,
+                    size_t);
+  void (*set_batch_time_fn)(RuntimeGetOperationInstance,
+                            uint64_t,
+                            uint64_t);
+  void (*gate_fn)(RuntimeGetOperationInstance,
+                  const uint8_t*,
+                  size_t);
+} RuntimeGetOperationInterface;
+
+typedef struct RuntimeGetOperationHandle {
+  RuntimeGetOperationInstance instance;
+  struct RuntimeGetOperationInterface interface;
+} RuntimeGetOperationHandle;
+
+typedef struct RuntimeExtractOperationInterface {
+  void (*extract_fn)(const struct RuntimeExtractOperationHandle*,
+                     struct RuntimeGetOperationHandle);
+} RuntimeExtractOperationInterface;
+
+typedef struct RuntimeExtractOperationHandle {
+  RuntimeExtractOperationInstance instance;
+  struct RuntimeExtractOperationInterface interface;
+} RuntimeExtractOperationHandle;
+
+typedef void *OperationResultInstance;
+
+typedef struct OperationResultInterface {
+  void (*set_bool_result_fn)(OperationResultInstance,
+                             uint64_t,
+                             bool);
+  void (*set_u64_result_fn)(OperationResultInstance,
+                            uint64_t,
+                            uint64_t);
+} OperationResultInterface;
+
+typedef struct OperationResultHandle {
+  OperationResultInstance instance;
+  struct OperationResultInterface interface;
+} OperationResultHandle;
 
 typedef struct SeleneSimulatorPluginDescriptorV1 {
-  SelenePluginDescriptorV1 header;
+  struct PluginDescriptorHeaderV1 header;
   SeleneErrno (*init_fn)(SeleneSimulatorInstance *handle,
                          uint64_t n_qubits,
                          uint32_t argc,
@@ -108,8 +139,6 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
 extern "C" {
 #endif // __cplusplus
 
-extern SeleneSimulatorPluginDescriptorV1 selene_simulator_plugin_descriptor_v1;
-
 GwStatus gw_decoded_gate_qubit_operand_count(const GwDecodedGate *gate,
                                              size_t *out);
 
@@ -120,5 +149,3 @@ GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate,
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
-
-#endif /* SELENE_SIMULATOR_H */
