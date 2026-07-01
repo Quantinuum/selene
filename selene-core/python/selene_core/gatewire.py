@@ -169,6 +169,22 @@ class Gateset:
     def definitions(self) -> tuple[GateDefinition, ...]:
         return self._definitions
 
+    def union(self, *others: Gateset) -> Gateset:
+        definitions = list(self._definitions)
+        seen = {definition.semantic_id: definition for definition in definitions}
+        for other in others:
+            for definition in other:
+                existing = seen.get(definition.semantic_id)
+                if existing is not None:
+                    if existing != definition:
+                        raise ValueError(
+                            f"duplicate gate semantic_id for {definition.name}"
+                        )
+                    continue
+                definitions.append(definition)
+                seen[definition.semantic_id] = definition
+        return Gateset(definitions)
+
     def bind(self, gate: bytes | bytearray | memoryview | GateDefinition) -> BoundGate:
         return BoundGate(self.definition(gate))
 
@@ -401,9 +417,13 @@ PhasedXX = _builtin(
     "PhasedXX", [("q0", QUBIT), ("q1", QUBIT), ("theta", F64), ("phi", F64)]
 )
 
+HeliosGateSet: Gateset = Gateset(RZ, PhasedX, ZZPhase)
+SolGateSet: Gateset = Gateset(RZ, PhasedX, PhasedXX)
+QuantinuumGateSet: Gateset = HeliosGateSet.union(SolGateSet)
+
 
 def builtin_gateset() -> Gateset:
-    return Gateset(RZ, PhasedX, ZZPhase, PhasedXX)
+    return QuantinuumGateSet
 
 
 def rz(q0: int, theta: float) -> Gate:

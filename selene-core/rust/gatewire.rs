@@ -31,14 +31,14 @@ pub use operand::{
     GW_OPERAND_KIND_U8, GW_OPERAND_KIND_U64, GateOperand, GateValue, OperandKind, Qubit,
     SmallGateValues,
 };
-pub use typed::{GateSet, GateSetSpec, GateSpec, TryDecode};
+pub use typed::{GateSet, GateSetSpec, GateSpec, GateView, TryDecode};
 
 pub mod prelude {
     pub use crate::gatewire::builtin;
     pub use crate::gatewire::{
         Angle, DynamicGateSet, GateDecl, GateError, GateOperand, GateSemanticId, GateSet,
-        GateSetSpec, GateSpec, GateValue, OperandKind, OperandSpec, OwnedGateInstance, Qubit,
-        TryDecode,
+        GateSetSpec, GateSpec, GateValue, GateView, OperandKind, OperandSpec, OwnedGateInstance,
+        Qubit, TryDecode,
     };
 }
 

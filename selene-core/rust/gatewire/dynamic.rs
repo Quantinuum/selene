@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LocalGateId(pub u32);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynamicGateSet {
     declarations: IndexMap<GateSemanticId, GateDecl>,
 }
@@ -34,6 +34,25 @@ impl DynamicGateSet {
         let local_id = LocalGateId(self.declarations.len() as u32);
         self.declarations.insert(decl.semantic_id, decl);
         Ok(local_id)
+    }
+
+    pub fn add_all(&mut self, other: &Self) -> Result<(), GateError> {
+        for decl in other.declarations() {
+            if let Some(existing) = self.declaration(decl.semantic_id) {
+                if existing != decl {
+                    return Err(GateError::DuplicateGate(decl.name.clone()));
+                }
+                continue;
+            }
+            self.add(decl.clone())?;
+        }
+        Ok(())
+    }
+
+    pub fn union(&self, other: &Self) -> Result<Self, GateError> {
+        let mut union = self.clone();
+        union.add_all(other)?;
+        Ok(union)
     }
 
     pub fn len(&self) -> usize {

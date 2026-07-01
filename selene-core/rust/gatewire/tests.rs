@@ -1,5 +1,6 @@
-use super::builtin::{PhasedX, PhasedXX, RZ, ZZPhase};
+use super::builtin::{PhasedX, PhasedXX, QuantinuumGate, RZ, ZZPhase};
 use crate::gatewire::{Angle, DynamicGateSet, GateSet, Qubit};
+use crate::runtime::Operation;
 
 crate::define_gateset! {
     enum ExampleGateSet {
@@ -58,5 +59,43 @@ fn dynamic_gateset_subset_and_superset_use_semantic_ids() {
             .first_unsupported_by(&all)
             .map(|decl| decl.name.as_str()),
         Some("PhasedXX")
+    );
+}
+
+#[test]
+fn dynamic_gateset_union_ignores_identical_duplicates() {
+    let union = super::builtin::HeliosGateSet::dynamic()
+        .union(&super::builtin::SolGateSet::dynamic())
+        .unwrap();
+
+    assert!(union.contains(RZ::semantic_id()));
+    assert!(union.contains(PhasedX::semantic_id()));
+    assert!(union.contains(ZZPhase::semantic_id()));
+    assert!(union.contains(PhasedXX::semantic_id()));
+    assert_eq!(union.len(), 4);
+    assert_eq!(union, super::builtin::QuantinuumGateSet::dynamic());
+}
+
+#[test]
+fn helios_gateset_is_compatible_with_quantinuum_accepting_plugins() {
+    let incoming = super::builtin::HeliosGateSet::dynamic();
+    let accepted = super::builtin::QuantinuumGateSet::dynamic();
+
+    assert!(incoming.is_subset_of(&accepted));
+    assert_eq!(incoming.first_unsupported_by(&accepted), None);
+}
+
+#[test]
+fn builtin_gate_view_decodes_to_plain_fields() {
+    let op = Operation::phased_xx(1, 2, 0.25, 0.75).unwrap();
+
+    assert_eq!(
+        op.as_gate_view::<QuantinuumGate>().unwrap(),
+        Some(QuantinuumGate::PhasedXX {
+            qubit_id_1: 1,
+            qubit_id_2: 2,
+            theta: 0.25,
+            phi: 0.75,
+        })
     );
 }

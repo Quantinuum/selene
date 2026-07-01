@@ -82,7 +82,7 @@ pub unsafe extern "C" fn gw_builtin_gateset_new(out: *mut *mut GwGateSet) -> GwS
         if out.is_null() {
             return Err(GateError::NullPointer);
         }
-        *out = Box::into_raw(Box::new(builtin::all())) as *mut GwGateSet;
+        *out = Box::into_raw(Box::new(builtin::QuantinuumGateSet::dynamic())) as *mut GwGateSet;
         Ok(())
     })
 }

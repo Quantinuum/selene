@@ -20,6 +20,12 @@ pub trait GateSetSpec: Clone + Sized {
     fn try_from_instance(instance: &OwnedGateInstance) -> Result<Option<Self>, GateError>;
 }
 
+pub trait GateView: Sized {
+    type GateSet: GateSetSpec;
+
+    fn from_gate(gate: Self::GateSet) -> Self;
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum TryDecode<G> {
     Decoded(G),
