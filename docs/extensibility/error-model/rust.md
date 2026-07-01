@@ -207,6 +207,10 @@ struct MyErrorModelFactory;
 impl ErrorModelInterfaceFactory for MyErrorModelFactory {
     type Interface = MyErrorModel;
 
+    fn name(&self) -> &str {
+        "MyErrorModel"
+    }
+
     fn init(
         self: Arc<Self>,
         _n_qubits: u64,

@@ -93,9 +93,10 @@ impl RuntimeInterface for MyRuntime {
 }
 ```
 
-If you omit `negotiate_gateset`, Selene assumes identity negotiation. Public
-runtimes should implement it explicitly so unsupported gates fail at
-configuration time.
+Rust trait implementations may use helper defaults while prototyping, but
+exported plugins must provide `negotiate_gateset_fn` in their descriptor. A
+runtime that accepts and emits the same gateset should still validate the input
+and return it explicitly so unsupported gates fail at configuration time.
 
 ## 5. Accept Generic Gates
 
@@ -227,6 +228,10 @@ struct MyRuntimeFactory;
 
 impl RuntimeInterfaceFactory for MyRuntimeFactory {
     type Interface = MyRuntime;
+
+    fn name(&self) -> &str {
+        "MyRuntime"
+    }
 
     fn init(
         self: Arc<Self>,

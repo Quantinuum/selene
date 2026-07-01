@@ -100,15 +100,20 @@ static SeleneErrno my_simulator_negotiate_gateset(SeleneSimulatorInstance handle
 For a restricted simulator, build a smaller supported set and reject anything
 outside it.
 
-## 3. Decode and Apply Gates
+## 3. Handle Operation Batches
 
-`gate_fn` receives serialized gate bytes:
+The simulator's first-class operation entry point is `handle_operations_fn`.
+Selene passes a batch extractor and a result writer. Your simulator provides a
+small collector, asks Selene to replay the batch into it, and writes measurement
+results as they are produced.
 
 ```c
-static SeleneErrno my_simulator_gate(SeleneSimulatorInstance handle,
-                                     const uint8_t *data,
-                                     size_t len) {
-    MySimulator *sim = (MySimulator *)handle;
+typedef struct {
+    MySimulator *sim;
+    struct OperationResultHandle results;
+} SimulatorCollector;
+
+static int apply_gate(MySimulator *sim, const uint8_t *data, size_t len) {
     GwDecodedGate *gate = NULL;
     if (gw_gate_deserialize(data, len, &gate) != GW_STATUS_OK) {
         return 1;
@@ -134,28 +139,107 @@ static SeleneErrno my_simulator_gate(SeleneSimulatorInstance handle,
     gw_decoded_gate_free(gate);
     return 0;
 }
-```
 
-Validate operand kinds before using them in production code.
-
-## 4. Measure, Reset, and Postselect
-
-Simulator measurement returns the value directly as the function return code:
-
-```c
-static SeleneErrno my_simulator_measure(SeleneSimulatorInstance handle,
-                                        uint64_t qubit) {
-    MySimulator *sim = (MySimulator *)handle;
+static bool apply_measure(MySimulator *sim, uint64_t qubit) {
+    (void)qubit;
     sim->measurements++;
-    /* Return 0 for false, 1 for true, or another nonzero value for error. */
-    return backend_measure(sim, qubit) ? 1 : 0;
+    return false;
+}
+
+static void collect_gate(SeleneRuntimeGetOperationInstance instance,
+                         const uint8_t *data,
+                         size_t len) {
+    SimulatorCollector *collector = (SimulatorCollector *)instance;
+    (void)apply_gate(collector->sim, data, len);
+}
+
+static void collect_measure(SeleneRuntimeGetOperationInstance instance,
+                            uint64_t qubit,
+                            uint64_t result_id) {
+    SimulatorCollector *collector = (SimulatorCollector *)instance;
+    bool result = apply_measure(collector->sim, qubit);
+    collector->results.interface.set_bool_result_fn(
+        collector->results.instance,
+        result_id,
+        result
+    );
+}
+
+static void collect_measure_leaked(SeleneRuntimeGetOperationInstance instance,
+                                   uint64_t qubit,
+                                   uint64_t result_id) {
+    SimulatorCollector *collector = (SimulatorCollector *)instance;
+    bool result = apply_measure(collector->sim, qubit);
+    collector->results.interface.set_u64_result_fn(
+        collector->results.instance,
+        result_id,
+        result ? 1 : 0
+    );
+}
+
+static void collect_postselect(SeleneRuntimeGetOperationInstance instance,
+                               uint64_t qubit,
+                               bool target_value) {
+    SimulatorCollector *collector = (SimulatorCollector *)instance;
+    (void)collector;
+    (void)qubit;
+    (void)target_value;
+    /* backend_postselect(collector->sim, qubit, target_value); */
+}
+
+static void collect_reset(SeleneRuntimeGetOperationInstance instance,
+                          uint64_t qubit) {
+    SimulatorCollector *collector = (SimulatorCollector *)instance;
+    (void)collector;
+    (void)qubit;
+    /* backend_reset(collector->sim, qubit); */
+}
+
+static void collect_custom(SeleneRuntimeGetOperationInstance instance,
+                           size_t tag,
+                           const void *data,
+                           size_t len) {
+    (void)instance;
+    (void)tag;
+    (void)data;
+    (void)len;
+}
+
+static void collect_batch_time(SeleneRuntimeGetOperationInstance instance,
+                               uint64_t start,
+                               uint64_t duration) {
+    (void)instance;
+    (void)start;
+    (void)duration;
+}
+
+static SeleneErrno my_simulator_handle_operations(
+    SeleneSimulatorInstance handle,
+    struct RuntimeExtractOperationHandle batch,
+    struct OperationResultHandle results
+) {
+    SimulatorCollector collector = {(MySimulator *)handle, results};
+    struct RuntimeGetOperationHandle output = {
+        .instance = &collector,
+        .interface = {
+            .measure_fn = collect_measure,
+            .measure_leaked_fn = collect_measure_leaked,
+            .postselect_fn = collect_postselect,
+            .reset_fn = collect_reset,
+            .custom_fn = collect_custom,
+            .set_batch_time_fn = collect_batch_time,
+            .gate_fn = collect_gate,
+        },
+    };
+    batch.interface.extract_fn(&batch, output);
+    return 0;
 }
 ```
 
-Reset should apply a physical reset in the backend. Postselection is optional:
-return a nonzero error if unsupported.
+Validate operand kinds before using them in production code. Postselection is
+part of the same operation batch as gates, measurements, and resets.
 
-## 5. Metrics and Lifecycle
+## 4. Metrics and Lifecycle
 
 `shot_start` should initialize the quantum state for a shot and seed any RNG.
 `shot_end` should validate and clean up per-shot state. `get_metrics_fn` is
@@ -178,27 +262,26 @@ static SeleneErrno my_simulator_get_metrics(SeleneSimulatorInstance handle,
 }
 ```
 
-## 6. Export the Descriptor
+## 5. Export the Descriptor
 
 ```c
 const SeleneSimulatorPluginDescriptorV1 selene_simulator_plugin_descriptor_v1 = {
-    .struct_size = sizeof(SeleneSimulatorPluginDescriptorV1),
-    .api_version = SELENE_SIMULATOR_CURRENT_API_VERSION,
-    .get_name_fn = my_simulator_get_name,
+    .header = {
+        .struct_size = sizeof(SeleneSimulatorPluginDescriptorV1),
+        .api_version = SELENE_SIMULATOR_CURRENT_API_VERSION,
+        .last_error_fn = my_simulator_last_error,
+        .get_name_fn = my_simulator_get_name,
+    },
     .init_fn = my_simulator_init,
     .exit_fn = my_simulator_exit,
     .shot_start_fn = my_simulator_shot_start,
     .shot_end_fn = my_simulator_shot_end,
-    .measure_fn = my_simulator_measure,
-    .postselect_fn = my_simulator_postselect,
-    .reset_fn = my_simulator_reset,
+    .handle_operations_fn = my_simulator_handle_operations,
     .get_metrics_fn = my_simulator_get_metrics,
     .dump_state_fn = my_simulator_dump_state,
-    .gate_fn = my_simulator_gate,
     .negotiate_gateset_fn = my_simulator_negotiate_gateset,
 };
 ```
 
 Use `NULL` only for callbacks documented as optional. Required callbacks are
 validated when Selene loads the plugin.
-

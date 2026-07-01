@@ -58,8 +58,8 @@ negotiation.
 
 ## Decode an Incoming Gate
 
-Runtime and simulator `gate_fn` callbacks receive gate bytes. Decode them before
-inspecting operands:
+Runtime callbacks and operation-batch collectors receive gate bytes. Decode them
+before inspecting operands:
 
 ```c
 static int handle_gate(const uint8_t *data, size_t len) {

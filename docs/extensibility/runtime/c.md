@@ -214,8 +214,12 @@ The descriptor is the public ABI Selene loads:
 
 ```c
 const SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descriptor_v1 = {
-    .struct_size = sizeof(SeleneRuntimePluginDescriptorV1),
-    .api_version = SELENE_RUNTIME_CURRENT_API_VERSION,
+    .header = {
+        .struct_size = sizeof(SeleneRuntimePluginDescriptorV1),
+        .api_version = SELENE_RUNTIME_CURRENT_API_VERSION,
+        .last_error_fn = my_runtime_last_error,
+        .get_name_fn = my_runtime_get_name,
+    },
     .init_fn = my_runtime_init,
     .exit_fn = my_runtime_exit,
     .get_next_operations_fn = my_runtime_get_next_operations,
@@ -245,4 +249,3 @@ const SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descriptor_v1 = {
 
 Use clear failures for unsupported features. For example, if your runtime does
 not support `custom_call`, return nonzero rather than silently ignoring it.
-

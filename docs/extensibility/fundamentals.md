@@ -101,14 +101,19 @@ implementing:
 #include <selene/runtime.h>
 
 const SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descriptor_v1 = {
-    .struct_size = sizeof(SeleneRuntimePluginDescriptorV1),
-    .api_version = SELENE_RUNTIME_CURRENT_API_VERSION,
+    .header = {
+        .struct_size = sizeof(SeleneRuntimePluginDescriptorV1),
+        .api_version = SELENE_RUNTIME_CURRENT_API_VERSION,
+        .last_error_fn = my_runtime_last_error,
+        .get_name_fn = my_runtime_get_name,
+    },
     /* callbacks */
 };
 ```
 
-For Rust plugins, use the export macro. It fills in `struct_size` and the
-current API version for you.
+For Rust plugins, use the export macro. It fills in the shared descriptor header
+for you from the factory's `name()` method and the plugin type's current API
+version.
 
 ## Instances and Ownership
 
@@ -123,6 +128,25 @@ every callback, and frees it during `exit`.
 
 The Rust helpers map that pattern onto boxed trait objects. Your plugin owns a
 normal Rust struct; the export macro handles the opaque pointer conversion.
+
+## Reporting Errors
+
+Callbacks return `0` on success and a nonzero errno on failure. C and C++
+plugins should not print callback failures to stderr. Instead, store a short
+thread-local error message and expose it through the descriptor's
+`last_error_fn` callback. Selene calls `last_error_fn` after a failing callback
+and includes that message in the host-side error.
+
+`last_error_fn` uses the same two-call buffer shape as gateset negotiation:
+
+1. Selene calls it with `output == NULL` and `output_len == 0`.
+   The plugin writes the number of bytes in the UTF-8 message to `written`.
+2. Selene allocates a buffer and calls again. The plugin writes the message
+   bytes into `output` and writes the byte count to `written`.
+
+Rust plugins exported with Selene's helper macros get this behavior
+automatically: any error returned from a callback is captured and reported
+through `last_error_fn`.
 
 ## Gatewire and Gatesets
 
@@ -157,7 +181,7 @@ gate before calling Selene.
 
 ## Gateset Negotiation
 
-Every plugin type can implement `negotiate_gateset`.
+Every plugin type must provide `negotiate_gateset_fn`.
 
 The input is the gateset the previous layer may send. The output is the gateset
 this plugin may send to the next layer. A plugin can:
@@ -178,10 +202,10 @@ The C ABI uses a two-call buffer protocol for gateset negotiation:
 2. Selene allocates a buffer and calls again. The plugin writes serialized
    gateset bytes into `output` and writes the byte count to `written`.
 
-If the plugin leaves `negotiate_gateset_fn` null, Selene treats that as
-"identity negotiation": the plugin accepts and emits the same gateset. Prefer an
-explicit implementation for public plugins, because it documents the gates you
-actually support.
+`negotiate_gateset_fn` is mandatory. A plugin that accepts and emits the same
+gateset should still implement the callback explicitly by validating the input
+and returning it unchanged. This keeps the supported gates visible in the plugin
+contract instead of relying on an implicit fallback.
 
 ## Operations and Batches
 
@@ -208,7 +232,7 @@ Runtimes must maintain reference counts for result IDs. Once a result's
 reference count reaches zero, it is invalid to refer to it again.
 
 Error models report measurement results back through an
-`ErrorModelSetResultHandle`. Simulators return measurement outcomes to the error
+`OperationResultHandle`. Simulators return measurement outcomes to the error
 model immediately.
 
 ## Randomness and Reproducibility
@@ -247,4 +271,3 @@ multiple instances, and future execution modes may run independent instances at
 the same time. Keep instance state behind the instance pointer or Rust struct.
 If you use process-global state, protect it explicitly and document why it is
 shared.
-

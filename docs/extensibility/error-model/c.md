@@ -107,7 +107,7 @@ A minimal collector looks like this:
 ```c
 typedef struct {
     struct SimulatorHandle simulator;
-    struct ErrorModelSetResultHandle results;
+    struct OperationResultHandle results;
     MyErrorModel *model;
 } Collector;
 
@@ -200,7 +200,7 @@ static SeleneErrno my_error_model_handle_operations(
     SeleneErrorModelInstance handle,
     struct RuntimeExtractOperationHandle batch,
     struct SimulatorHandle simulator,
-    struct ErrorModelSetResultHandle results
+    struct OperationResultHandle results
 ) {
     Collector collector = {
         .simulator = simulator,
@@ -222,7 +222,7 @@ static SeleneErrno my_error_model_handle_operations(
         .interface = interface,
     };
 
-    batch.interface.extract_fn(batch, sink);
+    batch.interface.extract_fn(&batch, sink);
     return 0;
 }
 ```
@@ -316,8 +316,12 @@ static SeleneErrno my_error_model_get_metrics(SeleneErrorModelInstance handle,
 
 ```c
 const SeleneErrorModelPluginDescriptorV1 selene_error_model_plugin_descriptor_v1 = {
-    .struct_size = sizeof(SeleneErrorModelPluginDescriptorV1),
-    .api_version = SELENE_ERROR_MODEL_CURRENT_API_VERSION,
+    .header = {
+        .struct_size = sizeof(SeleneErrorModelPluginDescriptorV1),
+        .api_version = SELENE_ERROR_MODEL_CURRENT_API_VERSION,
+        .last_error_fn = my_error_model_last_error,
+        .get_name_fn = my_error_model_get_name,
+    },
     .init_fn = my_error_model_init,
     .exit_fn = my_error_model_exit,
     .shot_start_fn = my_error_model_shot_start,

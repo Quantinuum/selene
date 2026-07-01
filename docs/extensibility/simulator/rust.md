@@ -149,8 +149,9 @@ impl MySimulator {
 should validate and release per-shot resources. `exit` should make the instance
 unusable.
 
-Postselection and state dumping are optional. If unsupported, return a clear
-error. Metrics are dynamic:
+Postselection is represented as an operation in `handle_operations`. State
+dumping remains optional; if unsupported, return a clear error. Metrics are
+dynamic:
 
 ```rust
 fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
@@ -172,6 +173,10 @@ struct MySimulatorFactory;
 impl SimulatorInterfaceFactory for MySimulatorFactory {
     type Interface = MySimulator;
 
+    fn name(&self) -> &str {
+        "MySimulator"
+    }
+
     fn init(
         self: Arc<Self>,
         n_qubits: u64,
@@ -188,4 +193,3 @@ selene_core::export_simulator_plugin!(MySimulatorFactory);
 ```
 
 After building the shared library, configure Selene to load it as a simulator.
-
