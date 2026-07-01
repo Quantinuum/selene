@@ -1,4 +1,5 @@
 use super::{BatchOperation, Operation, RuntimeBatchSource};
+use crate::error_model::{BatchResult, BoolResult, U64Result};
 use core::slice;
 use std::ffi;
 
@@ -66,6 +67,20 @@ impl BatchBuilder {
         )
     }
 
+    unsafe extern "C" fn postselect(
+        interface: RuntimeGetOperationInstance,
+        qubit_id: u64,
+        target_value: bool,
+    ) {
+        Self::push(
+            interface,
+            Operation::Postselect {
+                qubit_id,
+                target_value,
+            },
+        )
+    }
+
     unsafe extern "C" fn reset(interface: RuntimeGetOperationInstance, qubit_id: u64) {
         Self::push(interface, Operation::Reset { qubit_id })
     }
@@ -109,6 +124,7 @@ impl BatchBuilder {
             interface: RuntimeGetOperationInterface {
                 measure_fn: Self::measure,
                 measure_leaked_fn: Self::measure_leaked,
+                postselect_fn: Self::postselect,
                 reset_fn: Self::reset,
                 custom_fn: Self::custom,
                 set_batch_time_fn: Self::set_batch_time,
@@ -133,6 +149,7 @@ pub type RuntimeGetOperationInstance = *mut ffi::c_void;
 pub struct RuntimeGetOperationInterface {
     pub measure_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
     pub measure_leaked_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, u64),
+    pub postselect_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64, bool),
     pub reset_fn: unsafe extern "C" fn(RuntimeGetOperationInstance, u64),
     pub custom_fn:
         unsafe extern "C" fn(RuntimeGetOperationInstance, usize, *const ffi::c_void, usize),
@@ -149,14 +166,16 @@ impl BatchExtractor {
     }
 
     pub unsafe extern "C" fn extract(
-        input: RuntimeExtractOperationHandle,
+        input: *const RuntimeExtractOperationHandle,
         output: RuntimeGetOperationHandle,
     ) {
+        let input = unsafe { &*input };
         let batch_ptr = input.instance as *const BatchOperation;
         let batch: &BatchOperation = unsafe { &*batch_ptr };
         let RuntimeGetOperationInterface {
             measure_fn,
             measure_leaked_fn,
+            postselect_fn,
             reset_fn,
             custom_fn,
             set_batch_time_fn,
@@ -182,6 +201,10 @@ impl BatchExtractor {
                     qubit_id,
                     result_id,
                 } => unsafe { measure_leaked_fn(output.instance, *qubit_id, *result_id) },
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => unsafe { postselect_fn(output.instance, *qubit_id, *target_value) },
                 Operation::Reset { qubit_id } => unsafe { reset_fn(output.instance, *qubit_id) },
                 Operation::Gate { gate } => {
                     let data = gate.serialize();
@@ -205,11 +228,70 @@ impl BatchExtractor {
     }
 }
 
+#[derive(Default)]
+pub struct OperationResultBuilder(BatchResult);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct OperationResultHandle {
+    pub instance: OperationResultInstance,
+    pub interface: OperationResultInterface,
+}
+
+impl OperationResultBuilder {
+    unsafe extern "C" fn set_bool_result(
+        interface: OperationResultInstance,
+        result_id: u64,
+        value: bool,
+    ) {
+        let result = interface as *mut BatchResult;
+        (unsafe { &mut *result })
+            .bool_results
+            .push(BoolResult { result_id, value })
+    }
+
+    unsafe extern "C" fn set_u64_result(
+        interface: OperationResultInstance,
+        result_id: u64,
+        value: u64,
+    ) {
+        let result = interface as *mut BatchResult;
+        (unsafe { &mut *result })
+            .u64_results
+            .push(U64Result { result_id, value })
+    }
+
+    pub fn operation_result(&mut self) -> OperationResultHandle {
+        OperationResultHandle {
+            instance: &raw mut self.0 as OperationResultInstance,
+            interface: OperationResultInterface {
+                set_bool_result_fn: Self::set_bool_result,
+                set_u64_result_fn: Self::set_u64_result,
+            },
+        }
+    }
+
+    pub fn finish(self) -> BatchResult {
+        self.0
+    }
+}
+
+pub type OperationResultInstance = *mut ffi::c_void;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+#[non_exhaustive]
+pub struct OperationResultInterface {
+    pub set_bool_result_fn: unsafe extern "C" fn(OperationResultInstance, u64, bool),
+    pub set_u64_result_fn: unsafe extern "C" fn(OperationResultInstance, u64, u64),
+}
+
 pub type RuntimeExtractOperationInstance = *mut ffi::c_void;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 #[non_exhaustive]
 pub struct RuntimeExtractOperationInterface {
-    pub extract_fn: unsafe extern "C" fn(RuntimeExtractOperationHandle, RuntimeGetOperationHandle),
+    pub extract_fn:
+        unsafe extern "C" fn(*const RuntimeExtractOperationHandle, RuntimeGetOperationHandle),
 }

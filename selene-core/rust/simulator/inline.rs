@@ -1,10 +1,11 @@
 use super::{SimulatorInterface, plugin::SimulatorInstance};
 use crate::{
     gatewire::OwnedGateInstance,
-    plugin::write_negotiated_gateset,
+    operation::plugin::{BatchBuilder, OperationResultHandle, RuntimeExtractOperationHandle},
+    plugin::{LastErrorFn, write_negotiated_gateset},
     runtime::{BatchOperation, Operation},
     simulator::plugin::Errno,
-    utils::{result_of_errno_to_errno, result_to_errno},
+    utils::{result_of_errno_to_errno, result_to_errno, set_last_error},
 };
 use std::{ffi, marker::PhantomData};
 
@@ -28,12 +29,13 @@ pub fn borrowed_simulator_interface(
         instance: simulator as *mut &mut dyn SimulatorInterface as SimulatorInstance,
         interface: SimulatorOperationInterface {
             exit_fn: BorrowedSimulatorBridge::exit,
+            last_error_fn: BorrowedSimulatorBridge::last_error,
             shot_start_fn: BorrowedSimulatorBridge::shot_start,
             shot_end_fn: BorrowedSimulatorBridge::shot_end,
             negotiate_gateset_fn: BorrowedSimulatorBridge::negotiate_gateset,
+            handle_operations_fn: BorrowedSimulatorBridge::handle_operations,
             gate_fn: BorrowedSimulatorBridge::gate,
             measure_fn: BorrowedSimulatorBridge::measure,
-            postselect_fn: BorrowedSimulatorBridge::postselect,
             reset_fn: BorrowedSimulatorBridge::reset,
             get_metric_fn: BorrowedSimulatorBridge::get_metric,
             dump_state_fn: BorrowedSimulatorBridge::dump_state,
@@ -60,6 +62,13 @@ impl BorrowedSimulatorBridge {
         result_to_errno("BorrowedSimulatorBridge: exit failed", unsafe {
             Self::with_simulator(instance, |simulator| simulator.exit())
         })
+    }
+    unsafe extern "C" fn last_error(
+        output: *mut ffi::c_char,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        unsafe { crate::utils::last_error_message(output, output_len, written) }
     }
     unsafe extern "C" fn shot_start(instance: SimulatorInstance, shot_id: u64, seed: u64) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: shot_start failed", unsafe {
@@ -91,6 +100,38 @@ impl BorrowedSimulatorBridge {
                         written,
                         |gateset| simulator.negotiate_gateset(gateset),
                     )
+                })
+            },
+        )
+    }
+    unsafe extern "C" fn handle_operations(
+        instance: SimulatorInstance,
+        batch: RuntimeExtractOperationHandle,
+        result: OperationResultHandle,
+    ) -> Errno {
+        result_to_errno(
+            "BorrowedSimulatorBridge: handle_operations failed",
+            unsafe {
+                Self::with_simulator(instance, |simulator| {
+                    let mut batch_builder = BatchBuilder::default();
+                    let operations = batch_builder.runtime_get_operation();
+                    (batch.interface.extract_fn)(&raw const batch, operations);
+                    let results = simulator.handle_operations(batch_builder.finish())?;
+                    for bool_result in results.bool_results {
+                        (result.interface.set_bool_result_fn)(
+                            result.instance,
+                            bool_result.result_id,
+                            bool_result.value,
+                        );
+                    }
+                    for u64_result in results.u64_results {
+                        (result.interface.set_u64_result_fn)(
+                            result.instance,
+                            u64_result.result_id,
+                            u64_result.value,
+                        );
+                    }
+                    Ok::<(), anyhow::Error>(())
                 })
             },
         )
@@ -134,15 +175,6 @@ impl BorrowedSimulatorBridge {
             Ok(true) => 1,
             Err(_) => -1,
         }
-    }
-    unsafe extern "C" fn postselect(
-        instance: SimulatorInstance,
-        qubit: u64,
-        target: bool,
-    ) -> Errno {
-        result_to_errno("BorrowedSimulatorBridge: postselect failed", unsafe {
-            Self::with_simulator(instance, |simulator| simulator.postselect(qubit, target))
-        })
     }
     unsafe extern "C" fn reset(instance: SimulatorInstance, qubit: u64) -> Errno {
         result_to_errno("BorrowedSimulatorBridge: reset failed", unsafe {
@@ -205,12 +237,13 @@ impl SimulatorFFIAdapter {
             instance: &raw mut self.simulator as SimulatorInstance,
             interface: SimulatorOperationInterface {
                 exit_fn: Self::exit,
+                last_error_fn: Self::last_error,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
                 negotiate_gateset_fn: Self::negotiate_gateset,
+                handle_operations_fn: Self::handle_operations,
                 gate_fn: Self::gate,
                 measure_fn: Self::measure,
-                postselect_fn: Self::postselect,
                 reset_fn: Self::reset,
                 get_metric_fn: Self::get_metric,
                 dump_state_fn: Self::dump_state,
@@ -232,6 +265,14 @@ impl SimulatorFFIAdapter {
         result_to_errno("SimulatorFFIAdapter: exit failed", unsafe {
             Self::with_simulator(instance, |simulator| simulator.exit())
         })
+    }
+
+    unsafe extern "C" fn last_error(
+        output: *mut ffi::c_char,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        unsafe { crate::utils::last_error_message(output, output_len, written) }
     }
 
     unsafe extern "C" fn shot_start(instance: SimulatorInstance, shot_id: u64, seed: u64) -> Errno {
@@ -262,6 +303,36 @@ impl SimulatorFFIAdapter {
                 write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
                     simulator.negotiate_gateset(gateset)
                 })
+            })
+        })
+    }
+
+    unsafe extern "C" fn handle_operations(
+        instance: SimulatorInstance,
+        batch: RuntimeExtractOperationHandle,
+        result: OperationResultHandle,
+    ) -> Errno {
+        result_to_errno("SimulatorFFIAdapter: handle_operations failed", unsafe {
+            Self::with_simulator(instance, |simulator| {
+                let mut batch_builder = BatchBuilder::default();
+                let operations = batch_builder.runtime_get_operation();
+                (batch.interface.extract_fn)(&raw const batch, operations);
+                let results = simulator.handle_operations(batch_builder.finish())?;
+                for bool_result in results.bool_results {
+                    (result.interface.set_bool_result_fn)(
+                        result.instance,
+                        bool_result.result_id,
+                        bool_result.value,
+                    );
+                }
+                for u64_result in results.u64_results {
+                    (result.interface.set_u64_result_fn)(
+                        result.instance,
+                        u64_result.result_id,
+                        u64_result.value,
+                    );
+                }
+                Ok::<(), anyhow::Error>(())
             })
         })
     }
@@ -306,22 +377,10 @@ impl SimulatorFFIAdapter {
             Ok(false) => 0,
             Ok(true) => 1,
             Err(e) => {
-                eprintln!("SimulatorFFIAdapter: measure failed: {e:#}");
+                set_last_error(format!("{e:#}"));
                 -1
             }
         }
-    }
-
-    unsafe extern "C" fn postselect(
-        instance: SimulatorInstance,
-        qubit: u64,
-        target_value: bool,
-    ) -> Errno {
-        result_to_errno("SimulatorFFIAdapter: postselect failed", unsafe {
-            Self::with_simulator(instance, |simulator| {
-                simulator.postselect(qubit, target_value)
-            })
-        })
     }
 
     unsafe extern "C" fn reset(instance: SimulatorInstance, qubit: u64) -> Errno {
@@ -382,12 +441,16 @@ impl SimulatorFFIAdapter {
 #[non_exhaustive]
 pub struct SimulatorOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(instance: SimulatorInstance) -> Errno,
+    pub last_error_fn: LastErrorFn,
     pub shot_start_fn:
         unsafe extern "C" fn(instance: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(instance: SimulatorInstance) -> Errno,
+    pub handle_operations_fn: unsafe extern "C" fn(
+        instance: SimulatorInstance,
+        batch: RuntimeExtractOperationHandle,
+        result: OperationResultHandle,
+    ) -> Errno,
     pub measure_fn: unsafe extern "C" fn(instance: SimulatorInstance, qubit: u64) -> Errno,
-    pub postselect_fn:
-        unsafe extern "C" fn(instance: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
     pub reset_fn: unsafe extern "C" fn(instance: SimulatorInstance, qubit: u64) -> Errno,
     pub get_metric_fn: unsafe extern "C" fn(
         instance: SimulatorInstance,
@@ -419,10 +482,11 @@ impl SimulatorOperationInterface<'_> {
     pub fn into_static(self) -> SimulatorOperationInterface<'static> {
         SimulatorOperationInterface {
             exit_fn: self.exit_fn,
+            last_error_fn: self.last_error_fn,
             shot_start_fn: self.shot_start_fn,
             shot_end_fn: self.shot_end_fn,
+            handle_operations_fn: self.handle_operations_fn,
             measure_fn: self.measure_fn,
-            postselect_fn: self.postselect_fn,
             reset_fn: self.reset_fn,
             get_metric_fn: self.get_metric_fn,
             dump_state_fn: self.dump_state_fn,

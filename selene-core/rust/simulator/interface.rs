@@ -21,7 +21,7 @@ pub trait SimulatorInterface {
 
     // Validate the gates this simulator may receive.
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
-        let supported = builtin::all();
+        let supported = builtin::QuantinuumGateSet::dynamic();
         if let Some(decl) = gateset.first_unsupported_by(&supported) {
             bail!("The chosen simulator does not support gate {}", decl.name);
         }
@@ -36,8 +36,14 @@ pub trait SimulatorInterface {
     // If the post-selection isn't deemed possible, return an error.
     // This is optional functionality, and the default is to raise an
     // error.
-    fn postselect(&mut self, _qubit: u64, _target_value: bool) -> Result<()> {
-        bail!("Post-selection is not supported on the chosen simulator.");
+    fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
+        self.handle_operations(BatchOperation::simulator(vec![
+            crate::runtime::Operation::Postselect {
+                qubit_id: qubit,
+                target_value,
+            },
+        ]))?;
+        Ok(())
     }
 
     // Provide a metric to the output stream.
@@ -57,6 +63,7 @@ pub trait SimulatorInterface {
 
 pub trait SimulatorInterfaceFactory {
     type Interface: SimulatorInterface;
+    fn name(&self) -> &str;
     fn init(
         self: Arc<Self>,
         n_qubits: u64,

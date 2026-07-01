@@ -1,10 +1,15 @@
+#ifndef SELENE_SIMULATOR_H
+#define SELENE_SIMULATOR_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "selene/core_types.h"
-#define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000101ULL
+#include "selene/gatewire.h"
+#include "selene/operation.h"
+#include "selene/plugin.h"
+#define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000200ULL
 
 typedef struct SeleneSimulatorAPIVersion {
   /**
@@ -27,12 +32,49 @@ typedef struct SeleneSimulatorAPIVersion {
 
 typedef void *SeleneSimulatorInstance;
 
-typedef int32_t SeleneErrno;
+typedef struct SimulatorOperationInterface {
+  SeleneErrno (*exit_fn)(SeleneSimulatorInstance instance);
+  SeleneErrno (*last_error_fn)(char *output,
+                               size_t output_len,
+                               size_t *written);
+  SeleneErrno (*shot_start_fn)(SeleneSimulatorInstance instance,
+                               uint64_t shot_id,
+                               uint64_t seed);
+  SeleneErrno (*shot_end_fn)(SeleneSimulatorInstance instance);
+  SeleneErrno (*handle_operations_fn)(SeleneSimulatorInstance instance,
+                                      struct RuntimeExtractOperationHandle batch,
+                                      struct OperationResultHandle result);
+  SeleneErrno (*measure_fn)(SeleneSimulatorInstance instance,
+                            uint64_t qubit);
+  SeleneErrno (*reset_fn)(SeleneSimulatorInstance instance,
+                          uint64_t qubit);
+  SeleneErrno (*get_metric_fn)(SeleneSimulatorInstance instance,
+                               uint8_t nth_metric,
+                               char *tag_ptr,
+                               uint8_t *datatype_ptr,
+                               uint64_t *data_ptr);
+  SeleneErrno (*dump_state_fn)(SeleneSimulatorInstance instance,
+                               const char *file,
+                               const uint64_t *qubits,
+                               uint64_t n_qubits);
+  SeleneErrno (*gate_fn)(SeleneSimulatorInstance instance,
+                         const uint8_t *data,
+                         size_t len);
+  SeleneErrno (*negotiate_gateset_fn)(SeleneSimulatorInstance instance,
+                                      const uint8_t *input,
+                                      size_t input_len,
+                                      uint8_t *output,
+                                      size_t output_len,
+                                      size_t *written);
+} SimulatorOperationInterface;
+
+typedef struct SimulatorHandle {
+  SeleneSimulatorInstance instance;
+  struct SimulatorOperationInterface interface;
+} SimulatorHandle;
 
 typedef struct SeleneSimulatorPluginDescriptorV1 {
-  uint64_t struct_size;
-  uint64_t api_version;
-  const char *(*get_name_fn)(void);
+  SelenePluginDescriptorV1 header;
   SeleneErrno (*init_fn)(SeleneSimulatorInstance *handle,
                          uint64_t n_qubits,
                          uint32_t argc,
@@ -42,13 +84,9 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
                                uint64_t shot_id,
                                uint64_t seed);
   SeleneErrno (*shot_end_fn)(SeleneSimulatorInstance handle);
-  SeleneErrno (*measure_fn)(SeleneSimulatorInstance handle,
-                            uint64_t qubit);
-  SeleneErrno (*postselect_fn)(SeleneSimulatorInstance handle,
-                               uint64_t qubit,
-                               bool target_value);
-  SeleneErrno (*reset_fn)(SeleneSimulatorInstance handle,
-                          uint64_t qubit);
+  SeleneErrno (*handle_operations_fn)(SeleneSimulatorInstance handle,
+                                      struct RuntimeExtractOperationHandle batch,
+                                      struct OperationResultHandle result);
   SeleneErrno (*get_metrics_fn)(SeleneSimulatorInstance handle,
                                 uint8_t nth_metric,
                                 char *tag_out,
@@ -58,9 +96,6 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
                                const char *file,
                                const uint64_t *qubits,
                                uint64_t n_qubits);
-  SeleneErrno (*gate_fn)(SeleneSimulatorInstance handle,
-                         const uint8_t *data,
-                         size_t len);
   SeleneErrno (*negotiate_gateset_fn)(SeleneSimulatorInstance handle,
                                       const uint8_t *input,
                                       size_t input_len,
@@ -73,6 +108,8 @@ typedef struct SeleneSimulatorPluginDescriptorV1 {
 extern "C" {
 #endif // __cplusplus
 
+extern SeleneSimulatorPluginDescriptorV1 selene_simulator_plugin_descriptor_v1;
+
 GwStatus gw_decoded_gate_qubit_operand_count(const GwDecodedGate *gate,
                                              size_t *out);
 
@@ -83,3 +120,5 @@ GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate,
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
+
+#endif /* SELENE_SIMULATOR_H */

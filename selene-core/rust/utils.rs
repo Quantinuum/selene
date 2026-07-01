@@ -1,9 +1,61 @@
-use core::{ffi, fmt};
+use core::{cell::RefCell, ffi, fmt};
 use std::ffi::CString;
 
 use anyhow::bail;
 
 use crate::runtime::plugin::Errno;
+
+thread_local! {
+    static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+pub fn set_last_error(message: impl Into<String>) {
+    LAST_ERROR.with(|last_error| {
+        *last_error.borrow_mut() = Some(message.into());
+    });
+}
+
+fn clear_last_error() {
+    LAST_ERROR.with(|last_error| {
+        *last_error.borrow_mut() = None;
+    });
+}
+
+/// Write the last plugin error captured by Selene's Rust helper ABI.
+///
+/// `written` is set to the number of UTF-8 bytes in the message, excluding any
+/// trailing NUL. If `output` is non-null, up to `output_len` bytes are copied
+/// into it. The function returns -1 only when `written` is null or the provided
+/// output buffer is too small.
+///
+/// # Safety
+///
+/// If `output` is non-null it must be valid for writes of `output_len` bytes.
+/// `written` must be valid for one `usize` write.
+pub unsafe extern "C" fn last_error_message(
+    output: *mut ffi::c_char,
+    output_len: usize,
+    written: *mut usize,
+) -> Errno {
+    if written.is_null() {
+        return -1;
+    }
+    let message = LAST_ERROR.with(|last_error| last_error.borrow().clone().unwrap_or_default());
+    let bytes = message.as_bytes();
+    unsafe {
+        *written = bytes.len();
+    }
+    if output.is_null() {
+        return 0;
+    }
+    if output_len < bytes.len() {
+        return -1;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), output as *mut u8, bytes.len());
+    }
+    0
+}
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -147,17 +199,20 @@ pub fn check_errno<E>(errno: Errno, mut mk_err: impl FnMut() -> E) -> Result<(),
 ///
 /// # Arguments
 ///
-/// * `msg` - A message to print if the result is an error.
+/// * `msg` - Retained for call-site context; user-facing errors come from `r`.
 /// * `r` - The result to convert.
 ///
 /// # Returns
 ///
-/// Returns `0` if the result is `Ok`. Otherwise, prints the error message to
-/// stderr and returns `-1`.
-pub fn result_to_errno<E: fmt::Display>(msg: impl AsRef<str>, r: Result<(), E>) -> Errno {
-    let Err(e) = r else { return 0 };
+/// Returns `0` if the result is `Ok`. Otherwise, stores the error chain for
+/// the plugin's `last_error` callback and returns `-1`.
+pub fn result_to_errno<E: fmt::Display>(_msg: impl AsRef<str>, r: Result<(), E>) -> Errno {
+    let Err(e) = r else {
+        clear_last_error();
+        return 0;
+    };
 
-    eprintln!("Error: {}\n{e}", msg.as_ref());
+    set_last_error(format!("{e:#}"));
     -1
 }
 /// Converts a ~Result~ of ~errno~ to an errno value. If the
@@ -169,7 +224,7 @@ pub fn result_to_errno<E: fmt::Display>(msg: impl AsRef<str>, r: Result<(), E>) 
 ///
 /// # Arguments
 ///
-/// * `msg` - A message to print if the result is an error.
+/// * `msg` - Retained for call-site context; user-facing errors come from `r`.
 /// * `r` - The result to convert.
 ///
 /// # Returns
@@ -177,13 +232,16 @@ pub fn result_to_errno<E: fmt::Display>(msg: impl AsRef<str>, r: Result<(), E>) 
 /// Returns `n` if the result is `Ok(n)`.
 /// Returnns `-1` if the result is Err
 pub fn result_of_errno_to_errno<E: fmt::Display>(
-    msg: impl AsRef<str>,
+    _msg: impl AsRef<str>,
     r: Result<Errno, E>,
 ) -> Errno {
     match r {
-        Ok(n) => n,
+        Ok(n) => {
+            clear_last_error();
+            n
+        }
         Err(e) => {
-            eprintln!("Error: {}\n{e}", msg.as_ref());
+            set_last_error(format!("{e:#}"));
             -1
         }
     }

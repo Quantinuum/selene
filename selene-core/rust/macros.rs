@@ -1,10 +1,23 @@
 #[macro_export]
 macro_rules! export_plugin_descriptor_v1 {
-    ($symbol:ident, $descriptor_ty:ident, $api_version:expr, { $($field:ident : $value:expr),* $(,)? }) => {
+    (
+        $symbol:ident,
+        $descriptor_ty:ident,
+        $api_version:expr,
+        {
+            last_error_fn: $last_error_fn:expr,
+            get_name_fn: $get_name_fn:expr,
+            $($field:ident : $value:expr),* $(,)?
+        }
+    ) => {
         #[unsafe(no_mangle)]
         pub static mut $symbol: $descriptor_ty = $descriptor_ty {
-            struct_size: core::mem::size_of::<$descriptor_ty>() as u64,
-            api_version: $api_version,
+            header: $crate::plugin::PluginDescriptorHeaderV1 {
+                struct_size: core::mem::size_of::<$descriptor_ty>() as u64,
+                api_version: $api_version,
+                last_error_fn: $last_error_fn,
+                get_name_fn: Some($get_name_fn),
+            },
             $($field: $value,)*
         };
     };

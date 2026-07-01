@@ -3,7 +3,7 @@ pub mod error_model;
 pub mod gatewire;
 pub mod macros;
 pub mod operation;
-pub(crate) mod plugin;
+pub mod plugin;
 pub mod runtime;
 pub mod simulator;
 pub mod time;

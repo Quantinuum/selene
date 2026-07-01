@@ -238,6 +238,16 @@ impl ErrorModelInterface for ExampleErrorModel {
                         self.flip_qubit(simulator, qubit_id)?;
                     }
                 }
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.apply_simulator_void(
+                    simulator,
+                    Operation::Postselect {
+                        qubit_id,
+                        target_value,
+                    },
+                )?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -273,6 +283,10 @@ pub struct ExampleErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for ExampleErrorModelFactory {
     type Interface = ExampleErrorModel;
+
+    fn name(&self) -> &str {
+        "ExampleErrorModel"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

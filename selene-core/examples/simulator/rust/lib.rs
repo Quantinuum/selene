@@ -152,6 +152,10 @@ impl SimulatorInterface for ExampleSimulator {
                     result_id,
                 } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
                 Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -192,6 +196,10 @@ pub struct ExampleSimulatorFactory;
 
 impl SimulatorInterfaceFactory for ExampleSimulatorFactory {
     type Interface = ExampleSimulator;
+
+    fn name(&self) -> &str {
+        "ExampleSimulator"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

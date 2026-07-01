@@ -12,13 +12,14 @@ pub use inline::{SimulatorFFIAdapter, SimulatorHandle, SimulatorOperationInterfa
 pub use interface::{SimulatorInterface, SimulatorInterfaceFactory};
 pub use version::SimulatorAPIVersion;
 
-use crate::utils::{MetricValue, check_errno, read_raw_metric};
+use crate::utils::{MetricValue, read_raw_metric};
 use anyhow::{Result, anyhow};
 
 use crate::error_model::BatchResult;
 use crate::gatewire::DynamicGateSet;
+use crate::operation::plugin::{BatchExtractor, OperationResultBuilder};
 use crate::plugin as plugin_utils;
-use crate::runtime::{BatchOperation, Operation};
+use crate::runtime::BatchOperation;
 
 enum SimulatorBacking {
     Adapter { _adapter: Box<SimulatorFFIAdapter> },
@@ -33,14 +34,23 @@ enum SimulatorBacking {
 pub struct Simulator {
     handle: SimulatorHandle<'static>,
     backing: SimulatorBacking,
+    name: String,
 }
 
 impl Simulator {
     pub fn from_boxed(interface: Box<dyn SimulatorInterface>) -> Self {
+        Self::from_boxed_named("Unknown", interface)
+    }
+
+    pub fn from_boxed_named(
+        name: impl Into<String>,
+        interface: Box<dyn SimulatorInterface>,
+    ) -> Self {
         let mut adapter = Box::new(SimulatorFFIAdapter::new(interface));
         Self {
             handle: adapter.ffi_interface(),
             backing: SimulatorBacking::Adapter { _adapter: adapter },
+            name: name.into(),
         }
     }
 
@@ -54,8 +64,9 @@ impl Simulator {
         n_qubits: u64,
         args: &[impl AsRef<str>],
     ) -> Result<Self> {
+        let name = factory.name().to_string();
         let interface: Box<dyn SimulatorInterface> = factory.init(n_qubits, args)?;
-        Ok(Self::from_boxed(interface))
+        Ok(Self::from_boxed_named(name, interface))
     }
 
     pub fn load_from_file(
@@ -71,11 +82,28 @@ impl Simulator {
         Self {
             handle: handle.into_static(),
             backing: SimulatorBacking::Borrowed,
+            name: "Borrowed".to_string(),
         }
     }
 
     pub(crate) fn ffi_parts(&mut self) -> SimulatorHandle<'static> {
         self.handle
+    }
+
+    fn context(&self, message: &'static str) -> String {
+        format!("Simulator ({}): {message}", self.name)
+    }
+
+    fn label(&self) -> String {
+        format!("Simulator ({})", self.name)
+    }
+
+    fn check_errno(&self, errno: plugin_utils::Errno, message: &'static str) -> Result<()> {
+        plugin_utils::check_plugin_errno_with_context(
+            errno,
+            Some(self.handle.interface.last_error_fn),
+            || anyhow!("{}", self.context(message)),
+        )
     }
 }
 
@@ -94,93 +122,65 @@ impl AsMut<dyn SimulatorInterface> for Simulator {
 impl SimulatorInterface for Simulator {
     fn exit(&mut self) -> Result<()> {
         let _ = &self.backing;
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.exit_fn)(self.handle.instance) },
-            || anyhow!("Simulator: exit failed"),
+            "exit failed",
         )
     }
 
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.shot_start_fn)(self.handle.instance, shot_id, seed) },
-            || anyhow!("Simulator: shot_start failed"),
+            "shot_start failed",
         )
     }
 
     fn shot_end(&mut self) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.shot_end_fn)(self.handle.instance) },
-            || anyhow!("Simulator: shot_end failed"),
+            "shot_end failed",
         )
     }
 
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
         plugin_utils::negotiate_gateset(
-            "Simulator",
+            &self.label(),
             self.handle.instance,
-            Some(self.handle.interface.negotiate_gateset_fn),
+            self.handle.interface.negotiate_gateset_fn,
+            Some(self.handle.interface.last_error_fn),
             gateset,
         )
     }
 
     fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
-        let mut results = BatchResult::default();
-        for operation in operations {
-            match operation {
-                Operation::Gate { gate } => {
-                    let data = gate.serialize();
-                    check_errno(
-                        unsafe {
-                            (self.handle.interface.gate_fn)(
-                                self.handle.instance,
-                                data.as_ptr(),
-                                data.len(),
-                            )
-                        },
-                        || anyhow!("Simulator: gate failed"),
-                    )?;
-                }
-                Operation::Measure {
-                    qubit_id,
-                    result_id,
-                } => match unsafe {
-                    (self.handle.interface.measure_fn)(self.handle.instance, qubit_id)
-                } {
-                    0 => results.set_bool_result(result_id, false),
-                    1 => results.set_bool_result(result_id, true),
-                    _ => return Err(anyhow!("Simulator: measure failed")),
-                },
-                Operation::MeasureLeaked {
-                    qubit_id,
-                    result_id,
-                } => match unsafe {
-                    (self.handle.interface.measure_fn)(self.handle.instance, qubit_id)
-                } {
-                    0 => results.set_u64_result(result_id, 0),
-                    1 => results.set_u64_result(result_id, 1),
-                    _ => return Err(anyhow!("Simulator: measure leaked failed")),
-                },
-                Operation::Reset { qubit_id } => {
-                    check_errno(
-                        unsafe { (self.handle.interface.reset_fn)(self.handle.instance, qubit_id) },
-                        || anyhow!("Simulator: reset failed"),
-                    )?;
-                }
-                Operation::Custom { .. } => {
-                    return Err(anyhow!("Simulator: custom operations are not supported"));
-                }
-            }
-        }
-        Ok(results)
+        let mut batch_extractor = BatchExtractor::from_batch_operation(operations);
+        let batch = batch_extractor.runtime_batch_extraction();
+        let mut result_builder = OperationResultBuilder::default();
+        let result = result_builder.operation_result();
+        self.check_errno(
+            unsafe {
+                (self.handle.interface.handle_operations_fn)(self.handle.instance, batch, result)
+            },
+            "handle_operations failed",
+        )?;
+        Ok(result_builder.finish())
     }
 
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.handle.interface.postselect_fn)(self.handle.instance, qubit, target_value)
+        let results = self.handle_operations(BatchOperation::simulator(vec![
+            crate::runtime::Operation::Postselect {
+                qubit_id: qubit,
+                target_value,
             },
-            || anyhow!("Simulator: postselect failed"),
-        )
+        ]))?;
+        if results.bool_results.is_empty() && results.u64_results.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "{}",
+                self.context("postselect unexpectedly produced results")
+            ))
+        }
     }
 
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
@@ -196,13 +196,19 @@ impl SimulatorInterface for Simulator {
     }
 
     fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
-        let filename = file
-            .to_str()
-            .ok_or_else(|| anyhow!("Simulator: dump_state failed due to invalid UTF-8 path"))?;
-        let filename = CString::new(filename).map_err(|_| {
-            anyhow!("Simulator: dump_state failed due to embedded null byte in path")
+        let filename = file.to_str().ok_or_else(|| {
+            anyhow!(
+                "{}",
+                self.context("dump_state failed due to invalid UTF-8 path")
+            )
         })?;
-        check_errno(
+        let filename = CString::new(filename).map_err(|_| {
+            anyhow!(
+                "{}",
+                self.context("dump_state failed due to embedded null byte in path")
+            )
+        })?;
+        self.check_errno(
             unsafe {
                 (self.handle.interface.dump_state_fn)(
                     self.handle.instance,
@@ -211,7 +217,7 @@ impl SimulatorInterface for Simulator {
                     qubits.len() as u64,
                 )
             },
-            || anyhow!("Simulator: dump_state failed"),
+            "dump_state failed",
         )
     }
 }

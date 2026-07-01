@@ -67,6 +67,7 @@ pub trait ErrorModelInterface {
 
 pub trait ErrorModelInterfaceFactory {
     type Interface: ErrorModelInterface;
+    fn name(&self) -> &str;
 
     fn init(
         self: Arc<Self>,

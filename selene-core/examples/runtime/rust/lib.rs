@@ -63,7 +63,6 @@ impl RuntimeInterface for ExampleRuntime {
         self.future_results.clear();
         Ok(())
     }
-    // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         debug_assert!(
             self.flush_size <= self.operation_queue.len(),
@@ -291,6 +290,10 @@ struct ExampleRuntimeFactory;
 
 impl RuntimeInterfaceFactory for ExampleRuntimeFactory {
     type Interface = ExampleRuntime;
+
+    fn name(&self) -> &str {
+        "ExampleRuntime"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

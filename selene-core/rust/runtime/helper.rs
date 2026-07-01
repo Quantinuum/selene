@@ -7,7 +7,9 @@ use std::{ffi, mem, sync::Arc};
 use crate::gatewire::OwnedGateInstance;
 use crate::operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface};
 use crate::plugin::write_negotiated_gateset;
-use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
+use crate::utils::{
+    convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno, set_last_error,
+};
 
 use super::{
     Operation, RuntimeInterface,
@@ -54,7 +56,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         argv: *const *const ffi::c_char,
     ) -> i32 {
         if instance.is_null() {
-            eprintln!("cannot initialize runtime plugin: provided instance is null");
+            set_last_error("cannot initialize runtime plugin: provided instance is null");
             return -1;
         }
 
@@ -99,6 +101,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                 let RuntimeGetOperationInterface {
                     measure_fn,
                     measure_leaked_fn,
+                    postselect_fn,
                     reset_fn,
                     custom_fn,
                     set_batch_time_fn,
@@ -124,6 +127,10 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             qubit_id,
                             result_id,
                         } => unsafe { measure_leaked_fn(ops.instance, qubit_id, result_id) },
+                        Operation::Postselect {
+                            qubit_id,
+                            target_value,
+                        } => unsafe { postselect_fn(ops.instance, qubit_id, target_value) },
                         Operation::Reset { qubit_id } => unsafe {
                             reset_fn(ops.instance, qubit_id)
                         },
@@ -428,6 +435,23 @@ macro_rules! export_runtime_plugin {
                 fn _assert_impl<F: RuntimeInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
+
+            unsafe extern "C" fn selene_runtime_last_error(
+                output: *mut c_char,
+                output_len: usize,
+                written: *mut usize,
+            ) -> Errno {
+                unsafe { selene_core::utils::last_error_message(output, output_len, written) }
+            }
+
+            unsafe extern "C" fn selene_runtime_get_name() -> *const c_char {
+                static NAME: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+                NAME.get_or_init(|| {
+                    std::ffi::CString::new(<$factory_type>::default().name())
+                        .expect("plugin names must not contain embedded null bytes")
+                })
+                .as_ptr()
+            }
 
             /// When Selene is initialised, it is provided with a default argument
             /// (the maximum number of qubits) and some custom arguments for the runtime.
@@ -739,6 +763,8 @@ macro_rules! export_runtime_plugin {
                 RuntimePluginDescriptorV1,
                 current_api_version().as_u64(),
                 {
+                    last_error_fn: Some(selene_runtime_last_error),
+                    get_name_fn: selene_runtime_get_name,
                     init_fn: Some(selene_runtime_init),
                     exit_fn: Some(selene_runtime_exit),
                     get_next_operations_fn: Some(selene_runtime_get_next_operations),

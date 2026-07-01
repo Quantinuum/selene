@@ -3,11 +3,12 @@ pub mod plugin;
 use std::collections::HashSet;
 use std::iter;
 
-use crate::gatewire::{Angle, GateSpec, OwnedGateInstance, Qubit, builtin};
+use crate::gatewire::{Angle, GateSetSpec, GateSpec, GateView, OwnedGateInstance, Qubit, builtin};
 use anyhow::{Result, bail};
 
 pub use plugin::{
-    BatchBuilder, BatchExtractor, RuntimeExtractOperationInstance,
+    BatchBuilder, BatchExtractor, OperationResultBuilder, OperationResultHandle,
+    OperationResultInstance, OperationResultInterface, RuntimeExtractOperationInstance,
     RuntimeExtractOperationInterface, RuntimeGetOperationInstance, RuntimeGetOperationInterface,
 };
 
@@ -84,6 +85,7 @@ pub enum BuiltinGate {
 #[repr(C)]
 pub enum Operation {
     Measure { qubit_id: u64, result_id: u64 },
+    Postselect { qubit_id: u64, target_value: bool },
     Reset { qubit_id: u64 },
     Custom { custom_tag: usize, data: Box<[u8]> },
     MeasureLeaked { qubit_id: u64, result_id: u64 },
@@ -150,6 +152,25 @@ impl Operation {
         }
     }
 
+    pub fn as_gate<G: GateSetSpec>(&self) -> Result<Option<G>> {
+        let Self::Gate { gate } = self else {
+            return Ok(None);
+        };
+        Ok(G::try_from_instance(gate)?)
+    }
+
+    pub fn gate_as<G: GateSetSpec>(gate: &OwnedGateInstance) -> Result<Option<G>> {
+        Ok(G::try_from_instance(gate)?)
+    }
+
+    pub fn as_gate_view<V: GateView>(&self) -> Result<Option<V>> {
+        Ok(self.as_gate::<V::GateSet>()?.map(V::from_gate))
+    }
+
+    pub fn gate_as_view<V: GateView>(gate: &OwnedGateInstance) -> Result<Option<V>> {
+        Ok(Self::gate_as::<V::GateSet>(gate)?.map(V::from_gate))
+    }
+
     pub fn as_builtin_gate(&self) -> Result<Option<BuiltinGate>> {
         let Self::Gate { gate } = self else {
             return Ok(None);
@@ -188,6 +209,7 @@ impl Operation {
     pub fn get_qubit_ids(&self) -> HashSet<u64> {
         match self {
             Operation::Measure { qubit_id, .. }
+            | Operation::Postselect { qubit_id, .. }
             | Operation::Reset { qubit_id }
             | Operation::MeasureLeaked { qubit_id, .. } => {
                 let mut set = HashSet::new();

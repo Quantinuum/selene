@@ -5,7 +5,7 @@ use super::{
 use crate::{
     gatewire::OwnedGateInstance,
     operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface},
-    plugin::write_negotiated_gateset,
+    plugin::{LastErrorFn, write_negotiated_gateset},
     runtime::Operation,
     utils::{result_of_errno_to_errno, result_to_errno},
 };
@@ -34,6 +34,7 @@ impl RuntimeFFIAdapter {
             instance: &raw mut self.runtime as RuntimeInstance,
             interface: RuntimeOperationInterface {
                 exit_fn: Self::exit,
+                last_error_fn: Self::last_error,
                 get_next_operations_fn: Self::get_next_operations,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
@@ -76,6 +77,14 @@ impl RuntimeFFIAdapter {
         })
     }
 
+    unsafe extern "C" fn last_error(
+        output: *mut ffi::c_char,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        unsafe { crate::utils::last_error_message(output, output_len, written) }
+    }
+
     unsafe extern "C" fn get_next_operations(
         instance: RuntimeInstance,
         ops: RuntimeGetOperationHandle,
@@ -88,6 +97,7 @@ impl RuntimeFFIAdapter {
                 let RuntimeGetOperationInterface {
                     measure_fn,
                     measure_leaked_fn,
+                    postselect_fn,
                     reset_fn,
                     custom_fn,
                     set_batch_time_fn,
@@ -111,6 +121,10 @@ impl RuntimeFFIAdapter {
                             qubit_id,
                             result_id,
                         } => measure_leaked_fn(ops.instance, *qubit_id, *result_id),
+                        Operation::Postselect {
+                            qubit_id,
+                            target_value,
+                        } => postselect_fn(ops.instance, *qubit_id, *target_value),
                         Operation::Reset { qubit_id } => reset_fn(ops.instance, *qubit_id),
                         Operation::Gate { gate } => {
                             let data = gate.serialize();
@@ -369,6 +383,7 @@ impl RuntimeFFIAdapter {
 #[non_exhaustive]
 pub struct RuntimeOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
+    pub last_error_fn: LastErrorFn,
     pub get_next_operations_fn:
         unsafe extern "C" fn(RuntimeInstance, RuntimeGetOperationHandle) -> Errno,
     pub shot_start_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64) -> Errno,

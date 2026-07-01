@@ -5,15 +5,18 @@
 use super::{
     ErrorModelInterface,
     interface::ErrorModelInterfaceFactory,
-    plugin::{Errno, ErrorModelInstance, ErrorModelSetResultHandle, ErrorModelSetResultInterface},
+    plugin::{Errno, ErrorModelInstance},
 };
 use crate::operation::plugin::{
-    BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
+    BatchBuilder, OperationResultHandle, OperationResultInterface, RuntimeExtractOperationHandle,
+    RuntimeExtractOperationInterface,
 };
 use crate::plugin::write_negotiated_gateset;
 use crate::simulator::Simulator;
 use crate::simulator::inline::SimulatorHandle;
-use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
+use crate::utils::{
+    convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno, set_last_error,
+};
 use std::{ffi, mem, sync::Arc};
 
 #[derive(Default)]
@@ -54,7 +57,7 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
         error_model_argv: *const *const ffi::c_char,
     ) -> Errno {
         if instance.is_null() {
-            eprintln!("cannot initialize error model plugin: provided instance is null");
+            set_last_error("cannot initialize error model plugin: provided instance is null");
             return -1;
         }
 
@@ -119,7 +122,7 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
         instance: ErrorModelInstance,
         batch: RuntimeExtractOperationHandle,
         simulator: SimulatorHandle<'static>,
-        result: ErrorModelSetResultHandle,
+        result: OperationResultHandle,
     ) -> Errno {
         result_to_errno(
             "Failed to handle operations",
@@ -127,11 +130,11 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
                 let mut batch_builder: BatchBuilder = BatchBuilder::default();
                 let builder = batch_builder.runtime_get_operation();
                 let RuntimeExtractOperationInterface { extract_fn, .. } = batch.interface;
-                extract_fn(batch, builder);
+                extract_fn(&raw const batch, builder);
                 let mut simulator = Simulator::from_raw_parts(simulator);
                 let results =
                     error_model.handle_operations(batch_builder.finish(), &mut simulator)?;
-                let ErrorModelSetResultInterface {
+                let OperationResultInterface {
                     set_bool_result_fn,
                     set_u64_result_fn,
                     ..
@@ -188,14 +191,13 @@ macro_rules! export_error_model_plugin {
                     ErrorModelInterfaceFactory,
                     plugin::{
                         Errno, ErrorModelInstance, ErrorModelPluginDescriptorV1,
-                        ErrorModelSetResultHandle, ErrorModelSetResultInstance,
-                        ErrorModelSetResultInterface,
                     },
                     version::current_api_version,
                 },
                 operation::plugin::{
-                    BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInstance,
-                    RuntimeExtractOperationInterface,
+                    BatchBuilder, OperationResultHandle, OperationResultInstance,
+                    OperationResultInterface, RuntimeExtractOperationHandle,
+                    RuntimeExtractOperationInstance, RuntimeExtractOperationInterface,
                 },
             };
 
@@ -209,6 +211,23 @@ macro_rules! export_error_model_plugin {
                 fn _assert_impl<T: ErrorModelInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
+
+            unsafe extern "C" fn selene_error_model_last_error(
+                output: *mut c_char,
+                output_len: usize,
+                written: *mut usize,
+            ) -> Errno {
+                unsafe { selene_core::utils::last_error_message(output, output_len, written) }
+            }
+
+            unsafe extern "C" fn selene_error_model_get_name() -> *const c_char {
+                static NAME: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+                NAME.get_or_init(|| {
+                    std::ffi::CString::new(<$factory_type>::default().name())
+                        .expect("plugin names must not contain embedded null bytes")
+                })
+                .as_ptr()
+            }
 
             /// When Selene is initialised, it is provided with some default arguments
             /// (the maximum number of qubits, the path to a simulator plugin to use, etc)
@@ -308,13 +327,13 @@ macro_rules! export_error_model_plugin {
             /// and [RuntimeExtractOperationInstance] for more details.
             ///
             /// Likewise, as the results of the operations are also in the form of a container,
-            /// we provide an ErrorModelSetResultInterface that allows the error model to set
+            /// we provide an OperationResultInterface that allows the error model to set
             /// the results of the measurements in the runtime.
             unsafe extern "C" fn selene_error_model_handle_operations(
                 instance: ErrorModelInstance,
                 batch: RuntimeExtractOperationHandle,
                 simulator: selene_core::simulator::inline::SimulatorHandle<'static>,
-                result: ErrorModelSetResultHandle,
+                result: OperationResultHandle,
             ) -> Errno {
                 Helper::handle_operations(instance, batch, simulator, result)
             }
@@ -380,6 +399,8 @@ macro_rules! export_error_model_plugin {
                 ErrorModelPluginDescriptorV1,
                 current_api_version().as_u64(),
                 {
+                    last_error_fn: Some(selene_error_model_last_error),
+                    get_name_fn: selene_error_model_get_name,
                     init_fn: Some(selene_error_model_init),
                     exit_fn: Some(selene_error_model_exit),
                     shot_start_fn: Some(selene_error_model_shot_start),

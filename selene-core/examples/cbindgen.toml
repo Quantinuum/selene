@@ -25,8 +25,8 @@ include = [
   "SimulatorPluginDescriptorV1",
   "ErrorModelAPIVersion",
   "ErrorModelInstance",
-  "ErrorModelSetResultInterface",
-  "ErrorModelSetResultInstance",
+  "OperationResultInterface",
+  "OperationResultInstance",
   "SimulatorAPIVersion",
   "SimulatorInstance",
   "RuntimeAPIVersion",
@@ -42,8 +42,8 @@ renaming_overrides_prefixing = false
 [export.rename]
 "ErrorModelAPIVersion" = "SeleneErrorModelAPIVersion"
 "ErrorModelInstance" = "SeleneErrorModelInstance"
-"ErrorModelSetResultInterface" = "SeleneErrorModelSetResultInterface"
-"ErrorModelSetResultInstance" = "SeleneErrorModelSetResultInstance"
+"OperationResultInterface" = "SeleneOperationResultInterface"
+"OperationResultInstance" = "SeleneOperationResultInstance"
 "SimulatorAPIVersion" = "SeleneSimulatorAPIVersion"
 "SimulatorInstance" = "SeleneSimulatorInstance"
 "RuntimeAPIVersion" = "SeleneRuntimeAPIVersion"

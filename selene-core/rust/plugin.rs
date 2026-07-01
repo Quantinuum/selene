@@ -1,17 +1,37 @@
 use anyhow::{Result, anyhow, bail};
 use libloading::Library;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, c_char};
 
 use crate::gatewire::DynamicGateSet;
 use crate::utils::check_errno;
 
 pub type Errno = i32;
 
+pub type LastErrorFn =
+    unsafe extern "C" fn(output: *mut c_char, output_len: usize, written: *mut usize) -> Errno;
+pub type PluginNameFn = unsafe extern "C" fn() -> *const c_char;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct PluginDescriptorHeaderV1 {
+    pub struct_size: u64,
+    pub api_version: u64,
+    pub last_error_fn: Option<LastErrorFn>,
+    pub get_name_fn: Option<PluginNameFn>,
+}
+
 pub(crate) trait PluginDescriptorV1: Copy {
     const KIND: &'static str;
 
-    fn struct_size(&self) -> u64;
-    fn api_version(&self) -> u64;
+    fn header(&self) -> &PluginDescriptorHeaderV1;
+
+    fn struct_size(&self) -> u64 {
+        self.header().struct_size
+    }
+
+    fn api_version(&self) -> u64 {
+        self.header().api_version
+    }
 }
 
 pub(crate) fn load_library(kind: &str, plugin_file: &impl AsRef<OsStr>) -> Result<Library> {
@@ -80,6 +100,88 @@ pub(crate) fn require_callback<T>(
     })
 }
 
+pub(crate) fn read_last_error(last_error_fn: Option<LastErrorFn>) -> Option<String> {
+    let last_error_fn = last_error_fn?;
+    let mut written = 0usize;
+    check_errno(
+        unsafe { last_error_fn(std::ptr::null_mut(), 0, &mut written) },
+        || (),
+    )
+    .ok()?;
+    if written == 0 {
+        return None;
+    }
+
+    let mut output = vec![0u8; written];
+    check_errno(
+        unsafe {
+            last_error_fn(
+                output.as_mut_ptr() as *mut c_char,
+                output.len(),
+                &mut written,
+            )
+        },
+        || (),
+    )
+    .ok()?;
+    output.truncate(written);
+    Some(String::from_utf8_lossy(&output).into_owned())
+}
+
+pub(crate) fn read_plugin_name(kind: &str, get_name_fn: PluginNameFn) -> Result<String> {
+    let ptr = unsafe { get_name_fn() };
+    if ptr.is_null() {
+        return Err(anyhow!("{kind} plugin get_name_fn returned null"));
+    }
+    let name = unsafe { std::ffi::CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned();
+    if name.trim().is_empty() {
+        return Err(anyhow!("{kind} plugin get_name_fn returned an empty name"));
+    }
+    Ok(name)
+}
+
+pub(crate) fn check_plugin_errno<E: std::fmt::Display>(
+    errno: Errno,
+    last_error_fn: Option<LastErrorFn>,
+    mk_err: impl FnOnce() -> E,
+) -> Result<(), anyhow::Error> {
+    if errno == 0 {
+        return Ok(());
+    }
+
+    if let Some(detail) = read_last_error(last_error_fn) {
+        let detail = detail.trim();
+        if !detail.is_empty() {
+            return Err(anyhow!("{detail}"));
+        }
+    }
+
+    let fallback = mk_err();
+    Err(anyhow!("{fallback}"))
+}
+
+pub(crate) fn check_plugin_errno_with_context<E: std::fmt::Display>(
+    errno: Errno,
+    last_error_fn: Option<LastErrorFn>,
+    mk_err: impl FnOnce() -> E,
+) -> Result<(), anyhow::Error> {
+    if errno == 0 {
+        return Ok(());
+    }
+
+    let fallback = mk_err();
+    if let Some(detail) = read_last_error(last_error_fn) {
+        let detail = detail.trim();
+        if !detail.is_empty() {
+            return Err(anyhow!("{fallback}: {detail}"));
+        }
+    }
+
+    Err(anyhow!("{fallback}"))
+}
+
 pub(crate) type NegotiateGatesetFn<I> = unsafe extern "C" fn(
     handle: I,
     input: *const u8,
@@ -92,16 +194,13 @@ pub(crate) type NegotiateGatesetFn<I> = unsafe extern "C" fn(
 pub(crate) fn negotiate_gateset<I: Copy>(
     kind: &str,
     instance: I,
-    negotiate_gateset_fn: Option<NegotiateGatesetFn<I>>,
+    negotiate_gateset_fn: NegotiateGatesetFn<I>,
+    last_error_fn: Option<LastErrorFn>,
     gateset: &DynamicGateSet,
 ) -> Result<DynamicGateSet> {
-    let Some(negotiate_gateset_fn) = negotiate_gateset_fn else {
-        return Ok(gateset.clone());
-    };
-
     let input = gateset.serialize();
     let mut written = 0usize;
-    check_errno(
+    check_plugin_errno(
         unsafe {
             negotiate_gateset_fn(
                 instance,
@@ -112,11 +211,12 @@ pub(crate) fn negotiate_gateset<I: Copy>(
                 &mut written,
             )
         },
+        last_error_fn,
         || anyhow!("{kind}: negotiate_gateset failed"),
     )?;
 
     let mut output = vec![0u8; written];
-    check_errno(
+    check_plugin_errno(
         unsafe {
             negotiate_gateset_fn(
                 instance,
@@ -127,6 +227,7 @@ pub(crate) fn negotiate_gateset<I: Copy>(
                 &mut written,
             )
         },
+        last_error_fn,
         || anyhow!("{kind}: negotiate_gateset failed"),
     )?;
 
@@ -178,27 +279,26 @@ mod tests {
 
     #[derive(Clone, Copy)]
     struct TestDescriptor {
-        struct_size: u64,
-        api_version: u64,
+        header: PluginDescriptorHeaderV1,
     }
 
     impl PluginDescriptorV1 for TestDescriptor {
         const KIND: &'static str = "Test";
 
-        fn struct_size(&self) -> u64 {
-            self.struct_size
-        }
-
-        fn api_version(&self) -> u64 {
-            self.api_version
+        fn header(&self) -> &PluginDescriptorHeaderV1 {
+            &self.header
         }
     }
 
     #[test]
     fn descriptor_validation_checks_version_and_size() {
         let descriptor = TestDescriptor {
-            struct_size: core::mem::size_of::<TestDescriptor>() as u64,
-            api_version: 7,
+            header: PluginDescriptorHeaderV1 {
+                struct_size: core::mem::size_of::<TestDescriptor>() as u64,
+                api_version: 7,
+                last_error_fn: None,
+                get_name_fn: None,
+            },
         };
         validate_descriptor_v1(&descriptor, |version| {
             assert_eq!(version, 7);
@@ -207,8 +307,12 @@ mod tests {
         .unwrap();
 
         let descriptor = TestDescriptor {
-            struct_size: 0,
-            api_version: 7,
+            header: PluginDescriptorHeaderV1 {
+                struct_size: 0,
+                api_version: 7,
+                last_error_fn: None,
+                get_name_fn: None,
+            },
         };
         let error = validate_descriptor_v1(&descriptor, |_| Ok(())).unwrap_err();
         assert!(
@@ -218,8 +322,12 @@ mod tests {
         );
 
         let descriptor = TestDescriptor {
-            struct_size: core::mem::size_of::<TestDescriptor>() as u64,
-            api_version: 7,
+            header: PluginDescriptorHeaderV1 {
+                struct_size: core::mem::size_of::<TestDescriptor>() as u64,
+                api_version: 7,
+                last_error_fn: None,
+                get_name_fn: None,
+            },
         };
         let error =
             validate_descriptor_v1(&descriptor, |_| Err(anyhow!("bad version"))).unwrap_err();
@@ -261,22 +369,60 @@ mod tests {
 
     #[test]
     fn negotiate_gateset_uses_two_call_output_protocol() {
-        let gateset = builtin::all();
+        let gateset = builtin::QuantinuumGateSet::dynamic();
         let negotiated =
-            negotiate_gateset("TestPlugin", 0usize, Some(echo_gateset), &gateset).unwrap();
+            negotiate_gateset("TestPlugin", 0usize, echo_gateset, None, &gateset).unwrap();
         assert_eq!(negotiated.serialize(), gateset.serialize());
     }
 
     #[test]
-    fn negotiate_gateset_defaults_to_input_when_callback_is_absent() {
-        let gateset = builtin::all();
-        let negotiated = negotiate_gateset::<usize>("TestPlugin", 0usize, None, &gateset).unwrap();
-        assert_eq!(negotiated.serialize(), gateset.serialize());
+    fn negotiate_gateset_callback_is_required() {
+        let error =
+            require_callback::<NegotiateGatesetFn<usize>>("Test", "negotiate_gateset_fn", None)
+                .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Test plugin descriptor is missing required callback negotiate_gateset_fn"
+        );
+    }
+
+    unsafe extern "C" fn fixed_last_error(
+        output: *mut c_char,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        let message = b"plugin-specific failure";
+        unsafe {
+            *written = message.len();
+            if output.is_null() {
+                return 0;
+            }
+            if output_len < message.len() {
+                return -1;
+            }
+            std::ptr::copy_nonoverlapping(message.as_ptr(), output.cast::<u8>(), message.len());
+        }
+        0
+    }
+
+    #[test]
+    fn check_plugin_errno_prefers_last_error_detail() {
+        let error =
+            check_plugin_errno(-1, Some(fixed_last_error), || anyhow!("Host failure")).unwrap_err();
+        assert_eq!(error.to_string(), "plugin-specific failure");
+    }
+
+    #[test]
+    fn check_plugin_errno_with_context_includes_public_context_and_last_error_detail() {
+        let error =
+            check_plugin_errno_with_context(-1, Some(fixed_last_error), || anyhow!("Host failure"))
+                .unwrap_err();
+        assert_eq!(error.to_string(), "Host failure: plugin-specific failure");
     }
 
     #[test]
     fn write_negotiated_gateset_validates_null_pointers() {
-        let gateset = builtin::all();
+        let gateset = builtin::QuantinuumGateSet::dynamic();
         let data = gateset.serialize();
         let mut written = 0usize;
 

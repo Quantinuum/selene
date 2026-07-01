@@ -20,8 +20,8 @@ usize_is_size_t = true
 include = [
   "ErrorModelAPIVersion",
   "ErrorModelInstance",
-  "ErrorModelSetResultInterface",
-  "ErrorModelSetResultInstance",
+  "OperationResultInterface",
+  "OperationResultInstance",
   "ErrorModelPluginDescriptorV1",
   "RuntimeGetOperationInstance",
   "RuntimeExtractOperationInterface",
@@ -95,8 +95,8 @@ renaming_overrides_prefixing = false
 [export.rename]
 "ErrorModelAPIVersion" = "SeleneErrorModelAPIVersion"
 "ErrorModelInstance" = "SeleneErrorModelInstance"
-"ErrorModelSetResultInterface" = "SeleneErrorModelSetResultInterface"
-"ErrorModelSetResultInstance" = "SeleneErrorModelSetResultInstance"
+"OperationResultInterface" = "SeleneOperationResultInterface"
+"OperationResultInstance" = "SeleneOperationResultInstance"
 "ErrorModelPluginDescriptorV1" = "SeleneErrorModelPluginDescriptorV1"
 "RuntimeGetOperationInstance" = "SeleneRuntimeGetOperationInstance"
 "RuntimeExtractOperationInterface" = "SeleneRuntimeExtractOperationInterface"

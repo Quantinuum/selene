@@ -141,6 +141,7 @@ pub trait RuntimeInterface {
 
 pub trait RuntimeInterfaceFactory {
     type Interface: RuntimeInterface;
+    fn name(&self) -> &str;
     fn init(
         self: Arc<Self>,
         n_qubits: u64,
