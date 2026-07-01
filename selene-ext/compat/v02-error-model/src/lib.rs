@@ -16,7 +16,7 @@ use selene_core::{
     utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs},
 };
 use selene_v02_compat_common::{
-    Errno, Instance, LegacyErrorModelSetResultInterface, LegacyGate,
+    Errno, Instance, LegacyGate, LegacyOperationResultInterface,
     LegacyRuntimeExtractOperationInterface, LegacyRuntimeGetOperationInterface,
     V02_ERROR_MODEL_API_VERSION, V02_SIMULATOR_API_VERSION, load_library, negotiate_legacy_gateset,
     optional_symbol, required_symbol, validate_api_version,
@@ -39,7 +39,7 @@ type HandleOperationsFn = unsafe extern "C" fn(
     Instance,
     *const LegacyRuntimeExtractOperationInterface,
     Instance,
-    *const LegacyErrorModelSetResultInterface,
+    *const LegacyOperationResultInterface,
 ) -> Errno;
 type MetricFn = unsafe extern "C" fn(Instance, u8, *mut c_char, *mut u8, *mut u64) -> Errno;
 
@@ -216,10 +216,10 @@ impl LegacyResultBuilder {
         result.set_u64_result(result_id, value);
     }
 
-    fn interface(&mut self) -> (Instance, LegacyErrorModelSetResultInterface) {
+    fn interface(&mut self) -> (Instance, LegacyOperationResultInterface) {
         (
             &mut self.0 as *mut BatchResult as Instance,
-            LegacyErrorModelSetResultInterface {
+            LegacyOperationResultInterface {
                 set_bool_result_fn: Self::set_bool_result,
                 set_u64_result_fn: Self::set_u64_result,
             },
@@ -324,6 +324,10 @@ struct LegacyErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for LegacyErrorModelFactory {
     type Interface = LegacyErrorModel;
+
+    fn name(&self) -> &str {
+        "v0.2 Error Model Compat"
+    }
 
     fn init(
         self: Arc<Self>,

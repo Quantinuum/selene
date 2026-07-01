@@ -490,6 +490,10 @@ struct LegacyRuntimeFactory;
 impl RuntimeInterfaceFactory for LegacyRuntimeFactory {
     type Interface = LegacyRuntime;
 
+    fn name(&self) -> &str {
+        "v0.2 Runtime Compat"
+    }
+
     fn init(
         self: Arc<Self>,
         n_qubits: u64,

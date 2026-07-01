@@ -182,8 +182,11 @@ impl SimulatorInterface for LegacySimulator {
                     unsafe { (self.library.reset)(self.instance, qubit_id) },
                     || anyhow!("v02 simulator adapter: legacy reset failed"),
                 )?,
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
-                _ => bail!("v02 simulator adapter: unsupported operation kind"),
             }
         }
         Ok(results)
@@ -232,6 +235,10 @@ struct LegacySimulatorFactory;
 
 impl SimulatorInterfaceFactory for LegacySimulatorFactory {
     type Interface = LegacySimulator;
+
+    fn name(&self) -> &str {
+        "v0.2 Simulator Compat"
+    }
 
     fn init(
         self: Arc<Self>,

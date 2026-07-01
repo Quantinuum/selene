@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use libloading::Library;
 use selene_core::{
     gatewire::{DynamicGateSet, OwnedGateInstance, builtin},
-    runtime::{BuiltinGate, Operation},
+    runtime::Operation,
 };
 
 pub type Errno = i32;
@@ -15,12 +15,7 @@ pub const V02_RUNTIME_API_VERSION: u64 = 0x0000_0201;
 pub const V02_ERROR_MODEL_API_VERSION: u64 = 0x0000_0200;
 
 pub fn legacy_gateset() -> DynamicGateSet {
-    DynamicGateSet::from_declarations([
-        builtin::RZ::declaration(),
-        builtin::PhasedX::declaration(),
-        builtin::ZZPhase::declaration(),
-    ])
-    .expect("legacy builtin declarations are unique")
+    builtin::HeliosGateSet::dynamic()
 }
 
 pub fn negotiate_legacy_gateset(kind: &str, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
@@ -54,13 +49,12 @@ pub enum LegacyGate {
 
 impl LegacyGate {
     pub fn from_gate_instance(gate: &OwnedGateInstance) -> Result<Self> {
-        let op = Operation::from_gate_instance(gate.clone())?;
-        match op.as_builtin_gate()? {
-            Some(BuiltinGate::RZ { qubit_id, theta }) => Ok(Self::Rz {
+        match Operation::gate_as_view::<builtin::HeliosGate>(gate)? {
+            Some(builtin::HeliosGate::RZ { qubit_id, theta }) => Ok(Self::Rz {
                 qubit: qubit_id,
                 theta,
             }),
-            Some(BuiltinGate::PhasedX {
+            Some(builtin::HeliosGate::PhasedX {
                 qubit_id,
                 theta,
                 phi,
@@ -69,7 +63,7 @@ impl LegacyGate {
                 theta,
                 phi,
             }),
-            Some(BuiltinGate::ZZPhase {
+            Some(builtin::HeliosGate::ZZPhase {
                 qubit_id_1,
                 qubit_id_2,
                 theta,
@@ -78,9 +72,7 @@ impl LegacyGate {
                 qubit1: qubit_id_2,
                 theta,
             }),
-            Some(BuiltinGate::PhasedXX { .. }) | None => {
-                bail!("0.2 compatibility adapter cannot translate this gate")
-            }
+            None => bail!("0.2 compatibility adapter cannot translate this gate"),
         }
     }
 }
@@ -146,7 +138,7 @@ pub struct LegacyRuntimeExtractOperationInterface {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct LegacyErrorModelSetResultInterface {
+pub struct LegacyOperationResultInterface {
     pub set_bool_result_fn: unsafe extern "C" fn(Instance, u64, bool),
     pub set_u64_result_fn: unsafe extern "C" fn(Instance, u64, u64),
 }
