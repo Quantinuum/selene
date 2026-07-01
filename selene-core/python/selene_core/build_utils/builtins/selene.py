@@ -127,9 +127,11 @@ class SeleneObjectToSeleneExecutableStep(Step):
                 raise RuntimeError(f"Unsupported OS {sys.platform}")
         link_flags = []
         library_search_dirs = [selene_lib_dir]
+        libraries = []
         for dep in build_ctx.deps:
             link_flags.extend(dep.link_flags)
             library_search_dirs.extend(dep.library_search_dirs)
+            libraries.append(dep.path)
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
@@ -141,6 +143,7 @@ class SeleneObjectToSeleneExecutableStep(Step):
             out_path,
             input_artifact.resource,
             selene_lib,
+            *libraries,
             *link_flags,
             cache_dir=zig_cache_dir,
         )
