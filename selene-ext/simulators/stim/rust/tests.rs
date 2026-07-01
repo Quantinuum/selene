@@ -29,7 +29,7 @@ fn impossible_postselection_reports_simulator_detail() {
 
     assert_eq!(
         error.to_string(),
-        "Simulator (Stim): postselect failed: Postselection impossible.\n\
+        "Simulator (Stim): handle_operations failed: Postselection impossible.\n\
          Qubit 0 was asked to postselect to state |0>, but was in the perpendicular state |1>."
     );
 }
