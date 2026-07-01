@@ -150,6 +150,10 @@ impl SimulatorInterface for CliffordTTraceSimulator {
                     self.classical_state[qubit_id as usize] = false;
                     self.trace.push(TraceEntry(format!("RESET q{qubit_id}")));
                 }
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }

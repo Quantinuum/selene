@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -193,14 +192,18 @@ GateIds parse_gateset(const uint8_t* data, size_t len) {
     return ids;
 }
 
+thread_local std::string last_error_message;
+
 int fail(const char* context, const std::exception& error) {
-    std::cerr << "selene_example_clifford_t_qrack: " << context << ": " << error.what() << "\n";
+    last_error_message =
+        std::string("selene_example_clifford_t_qrack: ") + context + ": " + error.what();
     return -1;
 }
 
 template <typename Fn> int wrap_errno(const char* context, Fn fn) {
     try {
         fn();
+        last_error_message.clear();
         return 0;
     } catch (const std::exception& error) {
         return fail(context, error);
@@ -219,6 +222,21 @@ QrackSimulator& instance(SeleneSimulatorInstance handle) {
 using namespace selene_example_qrack;
 
 extern "C" const char* qrack_get_name() { return "Qrack Clifford+T stabilizer-hybrid simulator"; }
+
+extern "C" SeleneErrno qrack_last_error(char* output, size_t output_len, size_t* written) {
+    if (written == nullptr) {
+        return -1;
+    }
+    *written = last_error_message.size();
+    if (output == nullptr) {
+        return 0;
+    }
+    if (output_len < last_error_message.size()) {
+        return -1;
+    }
+    std::memcpy(output, last_error_message.data(), last_error_message.size());
+    return 0;
+}
 
 extern "C" SeleneErrno qrack_init(
     SeleneSimulatorInstance* handle, uint64_t n_qubits, uint32_t, const char* const*) {
@@ -255,72 +273,130 @@ extern "C" SeleneErrno qrack_shot_end(SeleneSimulatorInstance handle) {
     return wrap_errno("shot_end", [&]() { ensure_no_engine_fallback(instance(handle)); });
 }
 
-extern "C" SeleneErrno qrack_gate(SeleneSimulatorInstance handle, const uint8_t* data, size_t len) {
-    return wrap_errno("gate", [&]() {
-        auto& simulator = instance(handle);
-        invalidate_measured_register_sample(simulator);
-        auto gate = decode_gate(data, len);
-        GwSemanticId gate_id{};
-        check_gw(gw_decoded_gate_semantic_id(gate.get(), &gate_id), "read gate semantic id");
+void apply_gate(QrackSimulator& simulator, const uint8_t* data, size_t len) {
+    invalidate_measured_register_sample(simulator);
+    auto gate = decode_gate(data, len);
+    GwSemanticId gate_id{};
+    check_gw(gw_decoded_gate_semantic_id(gate.get(), &gate_id), "read gate semantic id");
 
-        if (id_eq(simulator.ids.h, gate_id)) {
-            const auto q = qubit_operand(gate.get(), 0);
-            ensure_qubit(simulator, q);
-            simulator.sim->H(static_cast<bitLenInt>(q));
-        } else if (id_eq(simulator.ids.s, gate_id)) {
-            const auto q = qubit_operand(gate.get(), 0);
-            ensure_qubit(simulator, q);
-            simulator.sim->S(static_cast<bitLenInt>(q));
-        } else if (id_eq(simulator.ids.sdg, gate_id)) {
-            const auto q = qubit_operand(gate.get(), 0);
-            ensure_qubit(simulator, q);
-            simulator.sim->IS(static_cast<bitLenInt>(q));
-        } else if (id_eq(simulator.ids.t, gate_id)) {
-            const auto q = qubit_operand(gate.get(), 0);
-            ensure_qubit(simulator, q);
-            simulator.sim->T(static_cast<bitLenInt>(q));
-        } else if (id_eq(simulator.ids.tdg, gate_id)) {
-            const auto q = qubit_operand(gate.get(), 0);
-            ensure_qubit(simulator, q);
-            simulator.sim->IT(static_cast<bitLenInt>(q));
-        } else if (id_eq(simulator.ids.x, gate_id)) {
-            const auto q = qubit_operand(gate.get(), 0);
-            ensure_qubit(simulator, q);
-            simulator.sim->X(static_cast<bitLenInt>(q));
-        } else if (id_eq(simulator.ids.cnot, gate_id)) {
-            const auto control = qubit_operand(gate.get(), 0);
-            const auto target = qubit_operand(gate.get(), 1);
-            ensure_qubit(simulator, control);
-            ensure_qubit(simulator, target);
-            simulator.sim->CNOT(
-                static_cast<bitLenInt>(control), static_cast<bitLenInt>(target));
-        } else {
-            throw std::runtime_error("gate is not in the negotiated Clifford+T gateset");
-        }
+    if (id_eq(simulator.ids.h, gate_id)) {
+        const auto q = qubit_operand(gate.get(), 0);
+        ensure_qubit(simulator, q);
+        simulator.sim->H(static_cast<bitLenInt>(q));
+    } else if (id_eq(simulator.ids.s, gate_id)) {
+        const auto q = qubit_operand(gate.get(), 0);
+        ensure_qubit(simulator, q);
+        simulator.sim->S(static_cast<bitLenInt>(q));
+    } else if (id_eq(simulator.ids.sdg, gate_id)) {
+        const auto q = qubit_operand(gate.get(), 0);
+        ensure_qubit(simulator, q);
+        simulator.sim->IS(static_cast<bitLenInt>(q));
+    } else if (id_eq(simulator.ids.t, gate_id)) {
+        const auto q = qubit_operand(gate.get(), 0);
+        ensure_qubit(simulator, q);
+        simulator.sim->T(static_cast<bitLenInt>(q));
+    } else if (id_eq(simulator.ids.tdg, gate_id)) {
+        const auto q = qubit_operand(gate.get(), 0);
+        ensure_qubit(simulator, q);
+        simulator.sim->IT(static_cast<bitLenInt>(q));
+    } else if (id_eq(simulator.ids.x, gate_id)) {
+        const auto q = qubit_operand(gate.get(), 0);
+        ensure_qubit(simulator, q);
+        simulator.sim->X(static_cast<bitLenInt>(q));
+    } else if (id_eq(simulator.ids.cnot, gate_id)) {
+        const auto control = qubit_operand(gate.get(), 0);
+        const auto target = qubit_operand(gate.get(), 1);
+        ensure_qubit(simulator, control);
+        ensure_qubit(simulator, target);
+        simulator.sim->CNOT(static_cast<bitLenInt>(control), static_cast<bitLenInt>(target));
+    } else {
+        throw std::runtime_error("gate is not in the negotiated Clifford+T gateset");
+    }
 
-        ++simulator.gates_seen;
-        ensure_no_engine_fallback(simulator);
-    });
+    ++simulator.gates_seen;
+    ensure_no_engine_fallback(simulator);
 }
 
-extern "C" SeleneErrno qrack_measure(SeleneSimulatorInstance handle, uint64_t qubit) {
-    try {
-        auto& simulator = instance(handle);
-        ensure_qubit(simulator, qubit);
-        bool result = false;
+bool apply_measure(QrackSimulator& simulator, uint64_t qubit) {
+    ensure_qubit(simulator, qubit);
 
-        if (!simulator.measured_register_sample.has_value()) {
-            const bitCapInt sample = simulator.sim->MAll();
-            simulator.measured_register_sample = sample;
-        }
-        result = sample_bit(*simulator.measured_register_sample, qubit);
-
-        ++simulator.measurements;
-        ensure_no_engine_fallback(simulator);
-        return result ? 1 : 0;
-    } catch (const std::exception& error) {
-        return fail("measure", error);
+    if (!simulator.measured_register_sample.has_value()) {
+        const bitCapInt sample = simulator.sim->MAll();
+        simulator.measured_register_sample = sample;
     }
+    const bool result = sample_bit(*simulator.measured_register_sample, qubit);
+
+    ++simulator.measurements;
+    ensure_no_engine_fallback(simulator);
+    return result;
+}
+
+void apply_reset(QrackSimulator& simulator, uint64_t qubit) {
+    invalidate_measured_register_sample(simulator);
+    ensure_qubit(simulator, qubit);
+    simulator.sim->SetBit(static_cast<bitLenInt>(qubit), false);
+    ensure_no_engine_fallback(simulator);
+}
+
+struct OperationSink {
+    QrackSimulator* simulator;
+    OperationResultHandle result;
+};
+
+void sink_gate(SeleneRuntimeGetOperationInstance instance, const uint8_t* data, size_t len) {
+    auto* sink = static_cast<OperationSink*>(instance);
+    apply_gate(*sink->simulator, data, len);
+}
+
+void sink_measure(SeleneRuntimeGetOperationInstance instance, uint64_t qubit, uint64_t result_id) {
+    auto* sink = static_cast<OperationSink*>(instance);
+    const bool result = apply_measure(*sink->simulator, qubit);
+    sink->result.interface.set_bool_result_fn(sink->result.instance, result_id, result);
+}
+
+void sink_measure_leaked(SeleneRuntimeGetOperationInstance instance, uint64_t qubit, uint64_t result_id) {
+    auto* sink = static_cast<OperationSink*>(instance);
+    const bool result = apply_measure(*sink->simulator, qubit);
+    sink->result.interface.set_u64_result_fn(sink->result.instance, result_id, result ? 1 : 0);
+}
+
+void sink_postselect(SeleneRuntimeGetOperationInstance instance, uint64_t qubit, bool target_value) {
+    auto* sink = static_cast<OperationSink*>(instance);
+    invalidate_measured_register_sample(*sink->simulator);
+    ensure_qubit(*sink->simulator, qubit);
+    (void)sink->simulator->sim->ForceM(static_cast<bitLenInt>(qubit), target_value, true, true);
+    ensure_no_engine_fallback(*sink->simulator);
+}
+
+void sink_reset(SeleneRuntimeGetOperationInstance instance, uint64_t qubit) {
+    auto* sink = static_cast<OperationSink*>(instance);
+    apply_reset(*sink->simulator, qubit);
+}
+
+void sink_custom(SeleneRuntimeGetOperationInstance, size_t, const void*, size_t) {
+    throw std::runtime_error("custom operations are not supported by the Qrack simulator");
+}
+
+void sink_set_batch_time(SeleneRuntimeGetOperationInstance, uint64_t, uint64_t) {}
+
+extern "C" SeleneErrno qrack_handle_operations(
+    SeleneSimulatorInstance handle, RuntimeExtractOperationHandle batch, OperationResultHandle result) {
+    return wrap_errno("handle_operations", [&]() {
+        OperationSink sink{&instance(handle), result};
+        RuntimeGetOperationHandle output{
+            &sink,
+            {
+                sink_measure,
+                sink_measure_leaked,
+                sink_postselect,
+                sink_reset,
+                sink_custom,
+                sink_set_batch_time,
+                sink_gate,
+            },
+        };
+        batch.interface.extract_fn(&batch, output);
+    });
 }
 
 extern "C" SeleneErrno qrack_postselect(
@@ -335,13 +411,7 @@ extern "C" SeleneErrno qrack_postselect(
 }
 
 extern "C" SeleneErrno qrack_reset(SeleneSimulatorInstance handle, uint64_t qubit) {
-    return wrap_errno("reset", [&]() {
-        auto& simulator = instance(handle);
-        invalidate_measured_register_sample(simulator);
-        ensure_qubit(simulator, qubit);
-        simulator.sim->SetBit(static_cast<bitLenInt>(qubit), false);
-        ensure_no_engine_fallback(simulator);
-    });
+    return wrap_errno("reset", [&]() { apply_reset(instance(handle), qubit); });
 }
 
 void write_metric(const char* tag, uint8_t datatype, uint64_t value, char* tag_out, uint8_t* datatype_out,
@@ -358,12 +428,15 @@ extern "C" SeleneErrno qrack_get_metrics(
         switch (nth_metric) {
         case 0:
             write_metric("gates_seen", 2, simulator.gates_seen, tag_out, datatype_out, value_out);
+            last_error_message.clear();
             return 0;
         case 1:
             write_metric("measurements", 2, simulator.measurements, tag_out, datatype_out, value_out);
+            last_error_message.clear();
             return 0;
         case 2:
             write_metric("engine_fallbacks", 2, simulator.engine_fallbacks, tag_out, datatype_out, value_out);
+            last_error_message.clear();
             return 0;
         default:
             return 1;
@@ -374,8 +447,7 @@ extern "C" SeleneErrno qrack_get_metrics(
 }
 
 extern "C" SeleneErrno qrack_dump_state(SeleneSimulatorInstance, const char*, const uint64_t*, uint64_t) {
-    std::cerr << "selene_example_clifford_t_qrack: dump_state is not implemented\n";
-    return -1;
+    return wrap_errno("dump_state", []() { throw std::runtime_error("dump_state is not implemented"); });
 }
 
 extern "C" SeleneErrno qrack_negotiate_gateset(SeleneSimulatorInstance handle, const uint8_t* input,
@@ -402,17 +474,15 @@ extern "C" SeleneErrno qrack_negotiate_gateset(SeleneSimulatorInstance handle, c
 extern "C" SeleneSimulatorPluginDescriptorV1 selene_simulator_plugin_descriptor_v1 = {
     sizeof(SeleneSimulatorPluginDescriptorV1),
     SELENE_SIMULATOR_CURRENT_API_VERSION,
+    qrack_last_error,
     qrack_get_name,
     qrack_init,
     qrack_exit,
     qrack_shot_start,
     qrack_shot_end,
-    qrack_measure,
-    qrack_postselect,
-    qrack_reset,
+    qrack_handle_operations,
     qrack_get_metrics,
     qrack_dump_state,
-    qrack_gate,
     qrack_negotiate_gateset,
 };
 

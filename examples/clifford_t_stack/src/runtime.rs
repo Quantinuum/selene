@@ -217,6 +217,10 @@ pub struct CliffordTRuntimeFactory;
 impl RuntimeInterfaceFactory for CliffordTRuntimeFactory {
     type Interface = CliffordTRuntime;
 
+    fn name(&self) -> &str {
+        "CliffordT"
+    }
+
     fn init(
         self: std::sync::Arc<Self>,
         n_qubits: u64,

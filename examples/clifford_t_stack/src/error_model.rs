@@ -126,6 +126,15 @@ impl ErrorModelInterface for CliffordTErrorModel {
                 Operation::Reset { qubit_id } => {
                     Self::send(simulator, Operation::Reset { qubit_id })?;
                 }
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => {
+                    Self::send(simulator, Operation::Postselect {
+                        qubit_id,
+                        target_value,
+                    })?;
+                }
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -149,6 +158,10 @@ pub struct CliffordTErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for CliffordTErrorModelFactory {
     type Interface = CliffordTErrorModel;
+
+    fn name(&self) -> &str {
+        "CliffordT"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,
