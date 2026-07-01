@@ -20,6 +20,12 @@ typedef struct selene_void_result_t {
   uint32_t error_code;
 } selene_void_result_t;
 
+typedef struct SeleneUtilityEventCallbacksV1 {
+  void *context;
+  struct selene_void_result_t (*on_shot_start)(void *context, uint64_t shot_id);
+  struct selene_void_result_t (*on_shot_end)(void *context, uint64_t shot_id);
+} SeleneUtilityEventCallbacksV1;
+
 typedef struct selene_string_t {
   const char *data;
   uint64_t length;
@@ -188,6 +194,9 @@ struct selene_void_result_t selene_print_u64_array(struct SeleneInstance *instan
 struct selene_u64_result_t selene_qalloc(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_qfree(struct SeleneInstance *instance, uint64_t q);
+
+struct selene_void_result_t selene_register_utility_event_callbacks(struct SeleneInstance *instance,
+                                                                    struct SeleneUtilityEventCallbacksV1 callbacks);
 
 /**
  * Performs a lazy measurement

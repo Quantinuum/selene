@@ -55,3 +55,16 @@ def test_pickle_and_unpickle_selene_startup_error(error_class, kwargs):
 
     for k, v in kwargs.items():
         assert getattr(unpickled, k) == v
+
+
+def test_panic_error_str_omits_process_logs():
+    error = SelenePanicError(
+        "Postselection impossible.",
+        100001,
+        stdout="debug stdout",
+        stderr="debug stderr",
+    )
+
+    assert str(error) == "Panic (#100001): Postselection impossible."
+    assert error.stdout == "debug stdout"
+    assert error.stderr == "debug stderr"

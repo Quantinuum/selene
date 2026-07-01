@@ -70,7 +70,12 @@ impl SimulatorInterface for HookedSimulator {
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
         let operation = Operation::Postselect(qubit, target_value);
         time_simulator_call(&self.event_hooks, &operation, || {
-            self.inner.postselect(qubit, target_value)
+            self.inner
+                .handle_operations(singleton_batch(RuntimeOperation::Postselect {
+                    qubit_id: qubit,
+                    target_value,
+                }))?;
+            Ok(())
         })
     }
 

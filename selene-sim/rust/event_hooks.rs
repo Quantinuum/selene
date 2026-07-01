@@ -41,6 +41,10 @@ impl Operation {
             selene_core::runtime::Operation::MeasureLeaked { qubit_id, .. } => {
                 Operation::FutureRead(*qubit_id)
             }
+            selene_core::runtime::Operation::Postselect {
+                qubit_id,
+                target_value,
+            } => Operation::Postselect(*qubit_id, *target_value),
             selene_core::runtime::Operation::Custom { custom_tag, data } => {
                 Operation::Custom(*custom_tag as u64, data.to_vec())
             }
@@ -61,6 +65,10 @@ impl Operation {
             selene_core::runtime::Operation::MeasureLeaked { qubit_id, .. } => {
                 Operation::MeasureLeakedRequest(*qubit_id)
             }
+            selene_core::runtime::Operation::Postselect {
+                qubit_id,
+                target_value,
+            } => Operation::Postselect(*qubit_id, *target_value),
             selene_core::runtime::Operation::Custom { custom_tag, data } => {
                 Operation::Custom(*custom_tag as u64, data.to_vec())
             }

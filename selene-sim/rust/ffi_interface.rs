@@ -2,6 +2,7 @@ use super::selene_instance::SeleneInstance;
 use crate::selene_instance::configuration::Configuration;
 use anyhow::Result;
 use selene_core::gatewire::DynamicGateSet;
+use std::ffi::c_void;
 
 #[repr(C)]
 pub struct VoidResult {
@@ -14,6 +15,17 @@ impl VoidResult {
     pub fn err(error_code: u32) -> Self {
         VoidResult { error_code }
     }
+}
+
+pub type UtilityShotEventFn =
+    Option<unsafe extern "C" fn(context: *mut c_void, shot_id: u64) -> VoidResult>;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SeleneUtilityEventCallbacksV1 {
+    pub context: *mut c_void,
+    pub on_shot_start: UtilityShotEventFn,
+    pub on_shot_end: UtilityShotEventFn,
 }
 #[repr(C)]
 pub struct U64Result {
@@ -201,6 +213,17 @@ where
     } else {
         VoidResult::ok()
     }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_register_utility_event_callbacks(
+    instance: *mut SeleneInstance,
+    callbacks: SeleneUtilityEventCallbacksV1,
+) -> VoidResult {
+    with_instance_void(instance, |instance| {
+        instance.register_utility_event_callbacks(callbacks);
+        Ok(())
+    })
 }
 fn with_instance_bool<F>(instance: *mut SeleneInstance, f: F) -> BoolResult
 where
