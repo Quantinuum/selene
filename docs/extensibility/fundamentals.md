@@ -73,11 +73,17 @@ Selene finds that descriptor either as a public symbol named
 `selene_<kind>_plugin_descriptor_v1` or through a getter function named
 `selene_<kind>_get_plugin_descriptor_v1`.
 
-The descriptor contains:
+Every descriptor begins with the same `PluginDescriptorHeaderV1`:
 
 - `struct_size`, so Selene can detect a descriptor compiled against a different
   struct layout.
 - `api_version`, so Selene can reject an incompatible ABI version.
+- `last_error_fn`, so callback failures can carry a useful plugin-provided
+  message.
+- `get_name_fn`, so errors can say which plugin failed.
+
+The rest of the descriptor contains:
+
 - Function pointers for the plugin lifecycle and operation callbacks.
 
 Rust plugins usually do not write the descriptor by hand. They implement a
@@ -90,9 +96,12 @@ Descriptor validation is intentionally boring:
 - `struct_size` must match the descriptor type Selene expects.
 - The API version reserved byte must be zero.
 - The major and minor API versions must match Selene's current API.
-- Required callbacks must be present.
-- Optional callbacks may be null, in which case Selene uses the documented
-  default behavior for that feature.
+- Required callbacks must be present. `last_error_fn`, `get_name_fn`, and
+  `negotiate_gateset_fn` are mandatory for every runtime, error-model, and
+  simulator plugin.
+- Optional callbacks may be null only where the header for that plugin type
+  documents them as optional. Missing optional functionality should fail when
+  the feature is used, not while the plugin is loaded.
 
 For C plugins, use the version macro from the header for the plugin type you are
 implementing:
@@ -148,6 +157,23 @@ Rust plugins exported with Selene's helper macros get this behavior
 automatically: any error returned from a callback is captured and reported
 through `last_error_fn`.
 
+## Header Ownership
+
+The C headers are split by layer:
+
+- `selene-core` owns plugin ABI headers such as `selene/runtime.h`,
+  `selene/error_model.h`, `selene/simulator.h`, `selene/plugin.h`, and
+  `selene/gatewire.h`.
+- `selene-sim` owns the frontend C API in `selene/selene.h`, including
+  `selene_load_config`, `selene_register_gateset`, `selene_gate`, result stream
+  operations, and utility callback registration.
+
+Third-party plugin packages should build against the headers provided by
+`selene-core`. Frontends and QIS shims that call into a running Selene instance
+also include `selene/selene.h` from `selene-sim`. If a C file uses gatewire
+types or `gw_*` helpers, include `selene/gatewire.h` explicitly; do not rely on
+`selene/selene.h` to pull it in.
+
 ## Gatewire and Gatesets
 
 Gatewire is the gate transport layer. It solves two problems:
@@ -195,6 +221,11 @@ emit only `PhasedX` and `ZZPhase` after lowering. The simulator should validate
 the gateset it actually receives from the error model, not the gateset the user
 originally requested.
 
+In Rust, prefer `DynamicGateSet::is_subset_of`,
+`DynamicGateSet::is_superset_of`, or `DynamicGateSet::first_unsupported_by`
+instead of open-coding declaration loops in every plugin. In C, use the
+`GwGateSet` helpers from `selene/gatewire.h`.
+
 The C ABI uses a two-call buffer protocol for gateset negotiation:
 
 1. Selene calls the callback with `output == NULL` and `output_len == 0`.
@@ -234,6 +265,10 @@ reference count reaches zero, it is invalid to refer to it again.
 Error models report measurement results back through an
 `OperationResultHandle`. Simulators return measurement outcomes to the error
 model immediately.
+
+Postselection is part of the operation stream. A simulator should handle it
+through its batch operation entry point and return a clear simulator error when
+the requested postselection is impossible.
 
 ## Randomness and Reproducibility
 

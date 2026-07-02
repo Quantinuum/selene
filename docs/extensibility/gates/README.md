@@ -24,6 +24,13 @@ The builtin names are the names used by the plugin API. Older names such as
 `rz`, `rxy`, `rzz`, and `rpp` belong at compatibility boundaries such as QIS
 parsers, not inside plugin implementations.
 
+Convenience gatesets are available where the common platform vocabulary is
+useful:
+
+- `HeliosGateSet`: `RZ`, `PhasedX`, `ZZPhase`.
+- `SolGateSet`: `RZ`, `PhasedX`, `PhasedXX`.
+- `QuantinuumGateSet`: the union of the Helios and Sol gatesets.
+
 ## Custom Gates
 
 Use a custom gate when a runtime, error model, and simulator need to agree on an
@@ -59,4 +66,3 @@ and then the Rust guide for your plugin type.
 If you are writing a plugin in C, start with [Writing gates in C](c.md). The C
 plugin tutorials assume you are comfortable with serialized gatewire bytes and
 the `gw_*` functions.
-

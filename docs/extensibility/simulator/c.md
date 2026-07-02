@@ -146,14 +146,14 @@ static bool apply_measure(MySimulator *sim, uint64_t qubit) {
     return false;
 }
 
-static void collect_gate(SeleneRuntimeGetOperationInstance instance,
+static void collect_gate(RuntimeGetOperationInstance instance,
                          const uint8_t *data,
                          size_t len) {
     SimulatorCollector *collector = (SimulatorCollector *)instance;
     (void)apply_gate(collector->sim, data, len);
 }
 
-static void collect_measure(SeleneRuntimeGetOperationInstance instance,
+static void collect_measure(RuntimeGetOperationInstance instance,
                             uint64_t qubit,
                             uint64_t result_id) {
     SimulatorCollector *collector = (SimulatorCollector *)instance;
@@ -165,7 +165,7 @@ static void collect_measure(SeleneRuntimeGetOperationInstance instance,
     );
 }
 
-static void collect_measure_leaked(SeleneRuntimeGetOperationInstance instance,
+static void collect_measure_leaked(RuntimeGetOperationInstance instance,
                                    uint64_t qubit,
                                    uint64_t result_id) {
     SimulatorCollector *collector = (SimulatorCollector *)instance;
@@ -177,7 +177,7 @@ static void collect_measure_leaked(SeleneRuntimeGetOperationInstance instance,
     );
 }
 
-static void collect_postselect(SeleneRuntimeGetOperationInstance instance,
+static void collect_postselect(RuntimeGetOperationInstance instance,
                                uint64_t qubit,
                                bool target_value) {
     SimulatorCollector *collector = (SimulatorCollector *)instance;
@@ -187,7 +187,7 @@ static void collect_postselect(SeleneRuntimeGetOperationInstance instance,
     /* backend_postselect(collector->sim, qubit, target_value); */
 }
 
-static void collect_reset(SeleneRuntimeGetOperationInstance instance,
+static void collect_reset(RuntimeGetOperationInstance instance,
                           uint64_t qubit) {
     SimulatorCollector *collector = (SimulatorCollector *)instance;
     (void)collector;
@@ -195,7 +195,7 @@ static void collect_reset(SeleneRuntimeGetOperationInstance instance,
     /* backend_reset(collector->sim, qubit); */
 }
 
-static void collect_custom(SeleneRuntimeGetOperationInstance instance,
+static void collect_custom(RuntimeGetOperationInstance instance,
                            size_t tag,
                            const void *data,
                            size_t len) {
@@ -205,7 +205,7 @@ static void collect_custom(SeleneRuntimeGetOperationInstance instance,
     (void)len;
 }
 
-static void collect_batch_time(SeleneRuntimeGetOperationInstance instance,
+static void collect_batch_time(RuntimeGetOperationInstance instance,
                                uint64_t start,
                                uint64_t duration) {
     (void)instance;

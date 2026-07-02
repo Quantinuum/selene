@@ -38,9 +38,11 @@ define_gateset! {
 }
 ```
 
-If the runtime lowers gates, define a second gateset for output. The input
-gateset is what the interface may send. The output gateset is what the runtime
-may emit downstream.
+If the runtime accepts one of Selene's builtin platform vocabularies unchanged,
+prefer `HeliosGateSet::dynamic()`, `SolGateSet::dynamic()`, or
+`QuantinuumGateSet::dynamic()` over redefining the same enum. If the runtime
+lowers gates, define a second gateset for output. The input gateset is what the
+interface may send. The output gateset is what the runtime may emit downstream.
 
 ## 3. Store Runtime State
 
@@ -81,10 +83,8 @@ impl MyRuntime {
 impl RuntimeInterface for MyRuntime {
     fn negotiate_gateset(&mut self, input: &DynamicGateSet) -> Result<DynamicGateSet> {
         let accepted = Self::output_gateset();
-        for decl in input.declarations() {
-            if !accepted.contains(decl.semantic_id) {
-                bail!("runtime does not accept gate {}", decl.name);
-            }
+        if let Some(unsupported) = input.first_unsupported_by(&accepted) {
+            bail!("runtime does not accept gate {}", unsupported.name);
         }
         Ok(accepted)
     }

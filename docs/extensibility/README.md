@@ -32,14 +32,17 @@ Read these in order if you are new to Selene plugins:
    gatesets, metrics, and memory rules shared by all plugin types.
 2. [Gates and gatesets](gates/README.md) explains builtin gates, custom gate
    definitions, and gatewire transport.
-3. [Worked examples](examples/README.md) shows a complete custom-gateset stack
-   from interface registration to simulator validation.
+3. [The Clifford+T example](../../examples/clifford_t_stack/README.md) shows a
+   complete custom-gateset stack from interface registration to simulator
+   validation.
 4. [Runtime plugins](runtime/README.md) explains how a runtime receives user
    operations and emits batches.
 5. [Error model plugins](error-model/README.md) explains how stochastic errors
    are injected.
 6. [Simulator plugins](simulator/README.md) explains how a backend executes the
    final operation stream.
+7. [Utility plugins](utility/README.md) explains link-time extensions that
+   expose classical helper symbols to user programs.
 
 Each plugin section has a Rust tutorial and a C tutorial. Rust plugins normally
 use Selene's traits and export macros. C plugins implement the descriptor ABI
@@ -61,3 +64,8 @@ negotiation rather than silently approximating them.
 
 Define gates when the builtin gates are not enough. Gates are not plugins by
 themselves; they are the shared vocabulary that interfaces and plugins negotiate.
+
+Write a utility when a compiled user program needs extra classical symbols at
+link time. Utilities are linked into the final executable rather than loaded
+from the runtime configuration, and they may optionally register shot lifecycle
+callbacks after Selene has been configured.

@@ -28,6 +28,17 @@ let gateset = GateSet::<RzOnly>::new()?;
 let bytes = gateset.serialize_gate(&RzOnly::RZ(gate))?;
 ```
 
+For the bundled platform vocabularies you usually do not need to define the enum
+yourself. Use the builtin gatesets:
+
+```rust
+use selene_core::gatewire::builtin::{HeliosGateSet, QuantinuumGateSet, SolGateSet};
+
+let helios = HeliosGateSet::dynamic();
+let sol = SolGateSet::dynamic();
+let quantinuum = QuantinuumGateSet::dynamic();
+```
+
 For a set containing several gate types, define an enum:
 
 ```rust
@@ -92,15 +103,13 @@ fn output_gateset() -> DynamicGateSet {
 }
 
 fn negotiate_gateset(input: &DynamicGateSet) -> Result<DynamicGateSet> {
-    for decl in input.declarations() {
-        // Reject gates you cannot accept from the previous layer.
-        if !output_gateset().contains(decl.semantic_id) {
-            anyhow::bail!("unsupported input gate {}", decl.name);
-        }
+    let output = output_gateset();
+    if let Some(unsupported) = input.first_unsupported_by(&output) {
+        anyhow::bail!("unsupported input gate {}", unsupported.name);
     }
 
     // Return the gates this plugin may emit downstream.
-    Ok(output_gateset())
+    Ok(output)
 }
 ```
 
@@ -126,6 +135,24 @@ match HeliosGates::try_from_instance(gate)? {
         // use zz.q0, zz.q1, zz.theta
     }
     None => anyhow::bail!("gate was not part of HeliosGates"),
+}
+```
+
+Builtin view enums give a compact shape when you want plain values:
+
+```rust
+use selene_core::gatewire::builtin::{QuantinuumGate, QuantinuumGateSet};
+use selene_core::gatewire::{GateSetSpec, GateView};
+
+match QuantinuumGateSet::try_from_instance(gate)?.map(QuantinuumGate::from_gate) {
+    Some(QuantinuumGate::PhasedX { qubit_id, theta, phi }) => {
+        // use qubit_id, theta, phi
+    }
+    Some(QuantinuumGate::ZZPhase { qubit_id_1, qubit_id_2, theta }) => {
+        // use qubit_id_1, qubit_id_2, theta
+    }
+    Some(_) => {}
+    None => anyhow::bail!("gate was not part of QuantinuumGateSet"),
 }
 ```
 

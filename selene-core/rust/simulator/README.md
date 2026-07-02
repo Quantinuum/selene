@@ -1,120 +1,53 @@
 # Simulator Design
 
-Selene is designed to accept simulators as plugins. These plugins are provided
-to selene from outside of selene itself, and thus the interface to them is primarily
-designed around extern "C" function calls in order to provide a stable ABI.
+Selene accepts simulators as plugins. A simulator owns the quantum state, while
+Selene owns the pipeline that feeds operations into it.
 
-This leads to some design decisions that aim to strike a balance between ownership
-of resources (by the plugin), while providing selene with the ability to own the
-simulator's lifecycle.
+The simulator API has two layers:
 
-## The extern "C" mindset for simulators
+- `SimulatorInterface` in [interface.rs](interface.rs) is the idiomatic Rust
+  trait implemented by Rust simulators.
+- The descriptor and function-table ABI in [plugin.rs](plugin.rs) and
+  [inline.rs](inline.rs) is the C-compatible shape used by dynamically loaded
+  plugins and in-process adapters.
 
-Fundamentally, simulators are objects. They have state, and they have methods
-that mutate this state.
+## Rust Trait Shape
 
-Of course, C has a somewhat tenuous relationship with object oriented programming.
-Rather than the interface one might be used to from C++:
+A Rust simulator implements:
 
-```cpp
-class MySimulator{
-    QuantumRegister register;
-public:
-    MySimulator(std::uint64_t n_qubits);
-    ~MySimulator();
-    void next_shot(std::uint64_t seed);
-    void gate(const GateInstance& gate);
-    bool measure(std::uint64_t q);
-    void reset(std::uint64_t q);
-}
-```
+- lifecycle callbacks: `shot_start`, `shot_end`, and `exit`;
+- `negotiate_gateset`, which validates the final gateset the simulator may
+  receive;
+- `handle_operations`, which applies a batch and returns measurement results;
+- optional state dumping and dynamic metrics.
 
-or Rust:
+`handle_operations` is the first-class operation entry point. Gates,
+measurements, resets, postselection, timing, and custom operations all travel in
+the same batch representation. This keeps the simulator ABI aligned with the
+runtime and error-model APIs and avoids a split between direct per-operation
+callbacks and batched execution.
 
-```
-struct MySimulator {
-    register: QuantumRegister,
-}
-impl MySimulator {
-    fn new(n_qubits: u64) -> Self;
-    fn next_shot(seed: u64);
-    fn gate(&mut self, gate: &OwnedGateInstance);
-    fn measure(&mut self, q: u64) -> bool;
-    fn reset(&mut self, q: u64);
-}
-```
+## Gate Compatibility
 
-A C interface in which the type of the internal state is exposed
-to the user might look like:
+The default `negotiate_gateset` implementation accepts the builtin
+`QuantinuumGateSet`. Simulators with a smaller domain should override this
+method and reject unsupported gates before any shot starts. For example, a
+Clifford-only simulator should fail negotiation for a gateset containing a
+non-Clifford gate rather than attempting to approximate it later.
 
-```c
-struct MySimulator {
-    QuantumRegister register;
-};
+Simulators decode generic gate instances by semantic ID through gatewire. They
+should not branch on frontend names such as historical `rxy` or `rzz`.
 
-void MySimulator_create(struct MySimulator** sim, uint64_t n_qubits);
-void MySimulator_destroy(struct MySimulator* sim);
-void MySimulator_next_shot(struct MySimulator* sim, uint64_t seed);
-void MySimulator_gate(struct MySimulator* sim, const GateInstance* gate);
-bool MySimulator_measure(struct MySimulator* sim, uint64_t q);
-void MySimulator_reset(struct MySimulator* sim, uint64_t q);
-```
+## C ABI Shape
 
-and one that does not expose the internal state might look like:
+The C-compatible descriptor begins with `PluginDescriptorHeaderV1`, including
+the mandatory plugin name and last-error callbacks. The simulator descriptor
+then provides lifecycle callbacks, `handle_operations_fn`,
+`negotiate_gateset_fn`, metrics, and optional state dumping.
 
-```c
-void MySimulator_create(void** sim, uint64_t n_qubits, uint64_t random_seed);
-void MySimulator_destroy(void* sim);
-void MySimulator_next_shot(void* sim, uint64_t seed);
-void MySimulator_gate(void* sim, const GateInstance* gate);
-bool MySimulator_measure(void* sim, uint64_t q);
-void MySimulator_reset(void* sim, uint64_t q);
-```
+The helper macro `export_simulator_plugin!(FactoryType)` in [helper.rs](helper.rs)
+turns a Rust `SimulatorInterfaceFactory` implementation into that descriptor and
+captures Rust callback errors for `last_error_fn`.
 
-Note that in the second example, the internal state of the simulator is generic for
-the purposes of a user. They cannot know of the type of `MySimulator`, they cannot
-easily access internal fields of `MySimulator`, or keep its state on the stack (as
-its size is unknown). What they can do, though is keep track of a memory address
-through a void pointer:
-
-```c
-void* instance_1;
-void* instance_2;
-MySimulator_create(&instance_1, 10);
-MySimulator_create(&instance_2, 10);
-MySimulator_next_shot(instance_1, 1234);
-MySimulator_next_shot(instance_2, 1235);
-MySimulator_gate(instance_1, &gate_1);
-MySimulator_gate(instance_2, &gate_2);
-MySimulator_destroy(instance_1);
-MySimulator_destroy(instance_2);
-```
-
-In this case, you are entrusting ownership of the state of the simulator entirely
-to the simulator itself, but you still have sufficient information to pick and choose
-between different simulator instances. The C implementation could later completely change
-the memory contents of its internal state and the implementation of its functions, yet
-it would still function with the above code.
-
-## The actual simulator interface
-
-With the above in mind, let's discuss the interface that selene provides for
-simulators.
-
-Simulators can be plugged into various interfaces to selene functionality as a
-shared object (from a built dynamic library), and they can be provided as a
-struct that acts as a function table. In the case of a shared object, libloading
-is used to load the shared object and retrieve the function table, and this is
-done in [plugin.rs](./plugin.rs). In the case of a function table, this interface
-is defined in [inline.rs](./inline.rs).
-
-In both cases, the interface is wrapped in a struct that adheres to the SimulationInterface trait
-defined in [./interface.rs](./interface.rs). For the purposes of simulation, a
-`GenericSimulationInterface` is provided, which wraps an Arc<dyn SimulationInterface>,
-allowing the simulation interface to be shared generically around selene as it sees fit,
-and keeping lifetime management simple.
-
-One can define both of these with help from [helper.rs](./helper.rs), which allows
-them to use a normal Rust struct and implement the SimulatorHelper trait. A
-`export_simulator_plugin!(YourStructName)` macro invocation will provide
-`pub extern "C"` functions automatically.
+For user-facing simulator plugin tutorials, see
+[the extensibility simulator docs](../../../docs/extensibility/simulator/README.md).

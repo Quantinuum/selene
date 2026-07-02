@@ -20,7 +20,14 @@ selene-core = { path = "../../path/to/selene-core/rust" }
 
 ## 2. Define Supported Gates
 
-If your simulator supports the standard native gates, define a gateset enum:
+If your simulator supports the standard Quantinuum builtin vocabulary, use the
+builtin union gateset and view enum:
+
+```rust
+use selene_core::gatewire::builtin::{QuantinuumGate, QuantinuumGateSet};
+```
+
+If you need a different set, define your own gateset enum:
 
 ```rust
 use selene_core::define_gateset;
@@ -44,7 +51,8 @@ example, should reject non-Clifford declarations in `negotiate_gateset`.
 ```rust
 use anyhow::{Result, bail};
 use selene_core::error_model::BatchResult;
-use selene_core::gatewire::{DynamicGateSet, GateSetSpec};
+use selene_core::gatewire::{DynamicGateSet, GateSetSpec, GateView};
+use selene_core::gatewire::builtin::{QuantinuumGate, QuantinuumGateSet};
 use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -65,18 +73,15 @@ The simulator validates the final gateset:
 ```rust
 impl MySimulator {
     fn supported_gateset() -> DynamicGateSet {
-        DynamicGateSet::from_declarations(SimulatorGates::declarations())
-            .expect("simulator gate declarations are unique")
+        QuantinuumGateSet::dynamic()
     }
 }
 
 impl SimulatorInterface for MySimulator {
     fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
         let supported = Self::supported_gateset();
-        for decl in gateset.declarations() {
-            if !supported.contains(decl.semantic_id) {
-                bail!("simulator does not support gate {}", decl.name);
-            }
+        if let Some(unsupported) = gateset.first_unsupported_by(&supported) {
+            bail!("simulator does not support gate {}", unsupported.name);
         }
         Ok(gateset.clone())
     }
@@ -98,7 +103,9 @@ fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResul
     for op in operations {
         match op {
             Operation::Gate { gate } => {
-                let Some(gate) = SimulatorGates::try_from_instance(&gate)? else {
+                let Some(gate) = QuantinuumGateSet::try_from_instance(&gate)?
+                    .map(QuantinuumGate::from_gate)
+                else {
                     bail!("simulator received an unnegotiated gate");
                 };
                 self.apply_gate(gate)?;
@@ -130,13 +137,17 @@ Decode gates by semantic ID, not by display string:
 
 ```rust
 impl MySimulator {
-    fn apply_gate(&mut self, gate: SimulatorGates) -> Result<()> {
+    fn apply_gate(&mut self, gate: QuantinuumGate) -> Result<()> {
         match gate {
-            SimulatorGates::RZ(g) => self.apply_rz(g.q0.0.into(), g.theta.0),
-            SimulatorGates::PhasedX(g) => self.apply_phased_x(g.q0.0.into(), g.theta.0, g.phi.0),
-            SimulatorGates::ZZPhase(g) => self.apply_zz_phase(g.q0.0.into(), g.q1.0.into(), g.theta.0),
-            SimulatorGates::PhasedXX(g) => {
-                self.apply_phased_xx(g.q0.0.into(), g.q1.0.into(), g.theta.0, g.phi.0)
+            QuantinuumGate::RZ { qubit_id, theta } => self.apply_rz(qubit_id, theta),
+            QuantinuumGate::PhasedX { qubit_id, theta, phi } => {
+                self.apply_phased_x(qubit_id, theta, phi)
+            }
+            QuantinuumGate::ZZPhase { qubit_id_1, qubit_id_2, theta } => {
+                self.apply_zz_phase(qubit_id_1, qubit_id_2, theta)
+            }
+            QuantinuumGate::PhasedXX { qubit_id_1, qubit_id_2, theta, phi } => {
+                self.apply_phased_xx(qubit_id_1, qubit_id_2, theta, phi)
             }
         }
     }

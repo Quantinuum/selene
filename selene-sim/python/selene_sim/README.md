@@ -4,7 +4,8 @@
 Selene is a quantum computer emulation platform written primarily in Rust with a python frontend.
 
 Selene is built with flexibility in mind. This includes:
-- A plugin system for the addition of additional components including simulators, error models, quantum runtimes to be provided within Selene or as third party plugins
+- A descriptor-based plugin system for simulators, error models, quantum runtimes, and link-time utilities provided either within Selene or as third-party packages.
+- Gatewire gatesets, allowing interfaces and plugins to negotiate custom gate vocabularies before a run starts.
 - Support for custom input formats and device APIs through [the selene-core build system](https://github.com/quantinuum/selene/tree/main/selene-core/python/selene_core/build_utils).
 
 ## What's included
@@ -12,7 +13,7 @@ Selene is built with flexibility in mind. This includes:
 Out of the box, Selene provides first-class support for the [HUGR](https://github.com/quantinuum/hugr) ecosystem, including execution of [Guppy](https://github.com/quantinuum/guppy) programs in an emulation environment, making use of our [open-source compiler](https://github.com/quantinuum/tket2/tree/main/qis-compiler/). You can find many examples of guppy usage in our [unit tests](https://github.com/quantinuum/selene/tree/main/selene-sim/python/tests/test_guppy.py).
 
 Selene provides a range of simulators, including:
-- Statevector simulation using [QuEST](https://github.com/QuEST-Kit/QuEST) and the [quest-sys crate](https://crates.io/crates/quest-sys).
+- Statevector simulation using [QuEST](https://github.com/QuEST-Kit/QuEST).
 - Stabilizer simulation using [Stim](https://github.com/quantumlib/Stim)
 - Coinflip simulation with customisable bias
 - Classical Replay, for running pre-recorded measurements without direct simulation
@@ -25,6 +26,9 @@ Error models that are currently provided include:
 And we offer two example quantum runtimes, including:
 - Simple, which executes the program as-is, without any modifications
 - SoftRZ, which elides Z rotations through PhasedX gates, providing the same observable behaviour with fewer quantum operations
+
+For plugin, utility, and custom-gateset documentation, see the
+[Selene extensibility docs](https://github.com/quantinuum/selene/tree/main/docs/extensibility).
 
 ## Usage example
 
@@ -78,7 +82,7 @@ print(shot)
 # run_shots runs efficient multi-shot simulations
 # n_processes provides multi-processing across shots
 # deterministic results can be achieved by providing a random seed
-shots = QsysShot(runner.run(
+shots = QsysResult(runner.run_shots(
     simulator=Stim(random_seed=5),
     n_qubits=10,
     n_shots=100,

@@ -95,75 +95,103 @@ static SeleneErrno my_error_model_negotiate_gateset(SeleneErrorModelInstance han
 }
 ```
 
-## 3. Understand Batch Extraction
+## 3. Forward a Batch
 
-Selene does not expose the runtime batch as a raw array. Instead, the error
-model passes a collector to `batch.interface.extract_fn`. Selene replays the
-batch into that collector through callbacks such as `gate_fn`, `measure_fn`, and
+The simulator's first-class entry point is `handle_operations_fn`. An error
+model that only forwards operations can pass Selene's batch extractor straight
+through to the simulator and let the simulator write measurement results into
+the result handle:
+
+```c
+static SeleneErrno my_error_model_handle_operations(
+    SeleneErrorModelInstance handle,
+    struct RuntimeExtractOperationHandle batch,
+    struct SimulatorHandle simulator,
+    struct OperationResultHandle results
+) {
+    (void)handle;
+    return simulator.interface.handle_operations_fn(
+        simulator.instance,
+        batch,
+        results
+    );
+}
+```
+
+This is the preferred path for pass-through models. It preserves whatever
+operation kinds Selene knows about without requiring your C code to decode and
+re-emit them.
+
+## 4. Inspect a Batch
+
+If the model needs to inspect or mutate operations, Selene still does not expose
+the runtime batch as a raw array. Instead, pass a collector to
+`batch.interface.extract_fn`. Selene replays the batch into that collector
+through callbacks such as `gate_fn`, `measure_fn`, `postselect_fn`, and
 `reset_fn`.
 
-A minimal collector looks like this:
+A collector usually stores decoded operations in model-owned memory, records an
+error flag if any callback fails, then builds one or more simulator batches.
+This stripped-down collector only records that a one-qubit gate was observed:
 
 ```c
 typedef struct {
-    struct SimulatorHandle simulator;
-    struct OperationResultHandle results;
     MyErrorModel *model;
+    int failed;
 } Collector;
 
 static void collect_gate(SeleneRuntimeGetOperationInstance instance,
                          const uint8_t *data,
                          size_t len) {
     Collector *collector = (Collector *)instance;
+    GwDecodedGate *gate = NULL;
+    if (gw_gate_deserialize(data, len, &gate) != GW_STATUS_OK) {
+        collector->failed = 1;
+        return;
+    }
 
-    collector->simulator.interface.gate_fn(
-        collector->simulator.instance,
-        data,
-        len
-    );
+    size_t qubits = 0;
+    if (gw_decoded_gate_qubit_operand_count(gate, &qubits) != GW_STATUS_OK) {
+        collector->failed = 1;
+    } else if (qubits == 1) {
+        collector->model->injected_errors += 1;
+    }
 
-    /* You can decode data with gw_gate_deserialize and inject extra gates here. */
+    gw_decoded_gate_free(gate);
 }
 
 static void collect_measure(SeleneRuntimeGetOperationInstance instance,
                             uint64_t qubit,
                             uint64_t result_id) {
-    Collector *collector = (Collector *)instance;
-    SeleneErrno measured = collector->simulator.interface.measure_fn(
-        collector->simulator.instance,
-        qubit
-    );
-
-    if (measured == 0 || measured == 1) {
-        collector->results.interface.set_bool_result_fn(
-            collector->results.instance,
-            result_id,
-            measured == 1
-        );
-    }
+    (void)instance;
+    (void)qubit;
+    (void)result_id;
+    /* Store or forward the measurement operation in production code. */
 }
 
 static void collect_reset(SeleneRuntimeGetOperationInstance instance,
                           uint64_t qubit) {
-    Collector *collector = (Collector *)instance;
-    collector->simulator.interface.reset_fn(collector->simulator.instance, qubit);
+    (void)instance;
+    (void)qubit;
+    /* Store or forward the reset operation in production code. */
+}
+
+static void collect_postselect(SeleneRuntimeGetOperationInstance instance,
+                               uint64_t qubit,
+                               bool target_value) {
+    (void)instance;
+    (void)qubit;
+    (void)target_value;
+    /* Store or forward the postselection operation in production code. */
 }
 
 static void collect_measure_leaked(SeleneRuntimeGetOperationInstance instance,
                                    uint64_t qubit,
                                    uint64_t result_id) {
-    Collector *collector = (Collector *)instance;
-    SeleneErrno measured = collector->simulator.interface.measure_fn(
-        collector->simulator.instance,
-        qubit
-    );
-    if (measured == 0 || measured == 1) {
-        collector->results.interface.set_u64_result_fn(
-            collector->results.instance,
-            result_id,
-            (uint64_t)measured
-        );
-    }
+    (void)instance;
+    (void)qubit;
+    (void)result_id;
+    /* Store or forward the leakage measurement operation in production code. */
 }
 
 static void collect_custom(SeleneRuntimeGetOperationInstance instance,
@@ -187,13 +215,11 @@ static void collect_batch_time(SeleneRuntimeGetOperationInstance instance,
 }
 ```
 
-The simulator measurement convention is the same as the simulator C API:
-`0` means false, `1` means true, and any other value is an error.
-
-## 4. Handle a Runtime Batch
+## 5. Extract and Then Call the Simulator
 
 Build a `RuntimeGetOperationHandle` from your collector and ask Selene to
-extract the batch:
+extract the batch. After inspection, call `simulator.interface.handle_operations_fn`
+with the original batch, a newly built batch, or both, depending on your model.
 
 ```c
 static SeleneErrno my_error_model_handle_operations(
@@ -203,14 +229,14 @@ static SeleneErrno my_error_model_handle_operations(
     struct OperationResultHandle results
 ) {
     Collector collector = {
-        .simulator = simulator,
-        .results = results,
         .model = (MyErrorModel *)handle,
+        .failed = 0,
     };
 
     struct RuntimeGetOperationInterface interface = {
         .measure_fn = collect_measure,
         .measure_leaked_fn = collect_measure_leaked,
+        .postselect_fn = collect_postselect,
         .reset_fn = collect_reset,
         .custom_fn = collect_custom,
         .set_batch_time_fn = collect_batch_time,
@@ -223,23 +249,33 @@ static SeleneErrno my_error_model_handle_operations(
     };
 
     batch.interface.extract_fn(&batch, sink);
-    return 0;
+    if (collector.failed) {
+        return 1;
+    }
+
+    return simulator.interface.handle_operations_fn(
+        simulator.instance,
+        batch,
+        results
+    );
 }
 ```
 
-Production code should collect errors from callbacks and return nonzero if any
-simulator call fails. A small collector struct is usually the cleanest way to
-store that error state.
+Production code that mutates the operation stream should construct a fresh
+`RuntimeExtractOperationHandle` for the operations it wants to send downstream.
+The simulator writes measurement results into `results`; the error model should
+not treat errno return values as measurement values.
 
-## 5. Inject Gates
+## 6. Inject Gates
 
-To inject a gate, serialize a `GwGateInstanceView` and call the simulator's
-`gate_fn`:
+To inject a gate, serialize a `GwGateInstanceView` and include it in a simulator
+batch. The serialization step looks like this:
 
 ```c
-static SeleneErrno inject_rz(struct SimulatorHandle simulator,
-                             uint32_t qubit,
-                             double theta) {
+static SeleneErrno serialize_rz(uint32_t qubit,
+                                double theta,
+                                uint8_t **out,
+                                size_t *out_len) {
     GwGateValue values[2] = {
         {
             .abi_size = sizeof(GwGateValue),
@@ -272,18 +308,21 @@ static SeleneErrno inject_rz(struct SimulatorHandle simulator,
 
     size_t written = 0;
     GwStatus status = gw_gate_serialize(&gate, buffer, len, &written);
-    if (status == GW_STATUS_OK) {
-        status = simulator.interface.gate_fn(simulator.instance, buffer, written) == 0
-            ? GW_STATUS_OK
-            : GW_STATUS_PANIC;
+    if (status != GW_STATUS_OK) {
+        free(buffer);
+        return 1;
     }
 
-    free(buffer);
-    return status == GW_STATUS_OK ? 0 : 1;
+    *out = buffer;
+    *out_len = written;
+    return 0;
 }
 ```
 
-## 6. Reseed and Report Metrics
+The injected bytes can then be emitted from the extractor callback for the
+simulator batch you construct.
+
+## 7. Reseed and Report Metrics
 
 ```c
 static SeleneErrno my_error_model_shot_start(SeleneErrorModelInstance handle,
@@ -312,7 +351,7 @@ static SeleneErrno my_error_model_get_metrics(SeleneErrorModelInstance handle,
 }
 ```
 
-## 7. Export the Descriptor
+## 8. Export the Descriptor
 
 ```c
 const SeleneErrorModelPluginDescriptorV1 selene_error_model_plugin_descriptor_v1 = {

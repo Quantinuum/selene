@@ -1,6 +1,5 @@
 import datetime
 import importlib
-import sys
 from pathlib import Path
 from textwrap import dedent
 
@@ -391,14 +390,7 @@ def test_rus(compiled_guppy):
         )
     )
     measured = "".join(shots.register_bitstrings()["result"])
-    # TODO: try to get emulators to match RNG behaviour
-    #      across OSes. This is primarily in the hands
-    #      of upstream deps, but if there's a way we can
-    #      force it to behave the same then we should.
-    if sys.platform in ["win32", "cygwin"]:
-        assert measured == "0001000010"
-    else:
-        assert measured == "1000100100"
+    assert measured == "1000100100"
 
 
 def test_get_current_shot(compiled_guppy):
