@@ -191,27 +191,32 @@ impl EventHook for InstructionLog {
     ) -> Result<(), OutputStreamError> {
         encoder.begin_message(time_cursor)?;
         encoder.write("INSTRUCTIONLOG")?;
+        // Emit any newly-discovered module blobs once up front (as
+        // Custom { DEBUG_MODULE_TAG }) before walking the instructions.
+        // Module metadata is global to the engine, not per-instruction,
+        // so there's no need to re-check on every entry.
+        if let Some(engine) = backtrace_engine.as_deref_mut() {
+            let module_blobs = engine
+                .serialize_pending_modules()
+                .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
+            let source_id: u64 = Source::RuntimeOptimiser as u64;
+            for blob in module_blobs {
+                encoder.write(source_id)?;
+                encoder.write(9u64)?;
+                encoder.write(DEBUG_MODULE_TAG as u64)?;
+                encoder.write(&blob[..])?;
+            }
+        }
         for instruction in self.entries.iter() {
-            // Lazily resolve backtrace metadata: emit any newly-discovered
-            // module blobs first (as Custom { DEBUG_MODULE_TAG }), then the
-            // backtrace payload (as Custom { DEBUG_INFO_TAG }), then the
-            // actual instruction. All synthesised events share the
-            // instruction's source (typically RuntimeOptimiser).
+            // Lazily resolve the per-instruction backtrace payload (as
+            // Custom { DEBUG_INFO_TAG }) immediately before the
+            // instruction itself, sharing the instruction's source.
             if instruction.metadata != selene_core::runtime::NO_METADATA {
                 if let Some(engine) = backtrace_engine.as_deref_mut() {
-                    let module_blobs = engine
-                        .serialize_pending_modules()
-                        .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
-                    let source_id: u64 = instruction.source.clone() as u64;
-                    for blob in module_blobs {
-                        encoder.write(source_id)?;
-                        encoder.write(9u64)?;
-                        encoder.write(DEBUG_MODULE_TAG as u64)?;
-                        encoder.write(&blob[..])?;
-                    }
                     let payload = engine
                         .serialize_backtrace(instruction.metadata)
                         .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
+                    let source_id: u64 = instruction.source.clone() as u64;
                     encoder.write(source_id)?;
                     encoder.write(9u64)?;
                     encoder.write(DEBUG_INFO_TAG as u64)?;
