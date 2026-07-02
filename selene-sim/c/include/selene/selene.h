@@ -6,7 +6,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "selene/gatewire.h"
 
 
 typedef struct SeleneInstance SeleneInstance;

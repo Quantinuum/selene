@@ -143,16 +143,10 @@ impl SimulatorPluginInterface {
         validate_descriptor_v1(&descriptor, |api_version| {
             SimulatorAPIVersion::from(api_version).validate()
         })?;
-        let get_name_fn =
-            require_callback("Simulator", "get_name_fn", descriptor.header.get_name_fn)?;
-        let name = read_plugin_name("Simulator", get_name_fn)?;
+        let name = read_plugin_name("Simulator", descriptor.header.get_name_fn)?;
         Ok(Arc::new(Self {
             _lib: lib,
-            last_error_fn: require_callback(
-                "Simulator",
-                "last_error_fn",
-                descriptor.header.last_error_fn,
-            )?,
+            last_error_fn: descriptor.header.last_error_fn,
             name,
             init_fn: require_callback("Simulator", "init_fn", descriptor.init_fn)?,
             exit_fn: descriptor.exit_fn,
@@ -203,7 +197,7 @@ impl SimulatorInterfaceFactory for SimulatorPluginInterface {
         with_strings_to_cargs(args, |argc, argv| {
             check_plugin_errno(
                 unsafe { (self.init_fn)(&mut instance, n_qubits, argc, argv) },
-                Some(self.last_error_fn),
+                self.last_error_fn,
                 || anyhow!("SimulatorPlugin: init failed"),
             )
         })?;
@@ -221,14 +215,14 @@ impl SimulatorInterface for SimulatorPlugin {
         };
         check_plugin_errno(
             unsafe { exit_fn(self.instance) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("SimulatorPlugin: exit failed"),
         )
     }
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || {
                 anyhow!(
                     "SimulatorPlugin({}): shot_start failed",
@@ -240,7 +234,7 @@ impl SimulatorInterface for SimulatorPlugin {
     fn shot_end(&mut self) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.shot_end_fn)(self.instance) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("SimulatorPlugin({}): shot_end failed", &self.interface.name),
         )
     }
@@ -251,7 +245,7 @@ impl SimulatorInterface for SimulatorPlugin {
             &plugin,
             self.instance,
             self.interface.negotiate_gateset_fn,
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             gateset,
         )
     }
@@ -262,7 +256,7 @@ impl SimulatorInterface for SimulatorPlugin {
         let result = result_builder.operation_result();
         check_plugin_errno(
             unsafe { (self.interface.handle_operations_fn)(self.instance, batch, result) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || {
                 anyhow!(
                     "SimulatorPlugin({}): handle_operations failed",
@@ -299,7 +293,7 @@ impl SimulatorInterface for SimulatorPlugin {
                     qubit_count,
                 )
             },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || {
                 anyhow!(
                     "SimulatorPlugin({}): dump_state failed",

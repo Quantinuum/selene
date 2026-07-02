@@ -1,3 +1,6 @@
+#ifndef SELENE_CORE_TYPES_H
+#define SELENE_CORE_TYPES_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -23,3 +26,5 @@ GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate,
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
+
+#endif  /* SELENE_CORE_TYPES_H */

@@ -208,16 +208,10 @@ impl RuntimePluginInterface {
         validate_descriptor_v1(&descriptor, |api_version| {
             RuntimeAPIVersion::from(api_version).validate()
         })?;
-        let get_name_fn =
-            require_callback("Runtime", "get_name_fn", descriptor.header.get_name_fn)?;
-        let name = read_plugin_name("Runtime", get_name_fn)?;
+        let name = read_plugin_name("Runtime", descriptor.header.get_name_fn)?;
         Ok(Arc::new(Self {
             _lib: lib,
-            last_error_fn: require_callback(
-                "Runtime",
-                "last_error_fn",
-                descriptor.header.last_error_fn,
-            )?,
+            last_error_fn: descriptor.header.last_error_fn,
             name,
             init_fn: require_callback("Runtime", "init_fn", descriptor.init_fn)?,
             exit_fn: descriptor.exit_fn,
@@ -312,7 +306,7 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
         with_strings_to_cargs(args, |argc, argv| {
             check_plugin_errno(
                 unsafe { (self.init_fn)(&mut instance, n_qubits, start.into(), argc, argv) },
-                Some(self.last_error_fn),
+                self.last_error_fn,
                 || anyhow!("RuntimePluginInterface: init failed"),
             )
         })?;
@@ -335,7 +329,7 @@ impl RuntimeInterface for RuntimePlugin {
         };
         check_plugin_errno(
             unsafe { exit_fn(self.instance) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: exit failed"),
         )
     }
@@ -345,7 +339,7 @@ impl RuntimeInterface for RuntimePlugin {
         let ops = batch_builder.runtime_get_operation();
         check_plugin_errno(
             unsafe { (self.interface.get_next_operations_fn)(self.instance, ops) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: get_next_operations failed"),
         )?;
         Ok(Some(batch_builder.finish()).filter(|b| !b.is_empty()))
@@ -354,7 +348,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: shot_start failed"),
         )
     }
@@ -362,7 +356,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn shot_end(&mut self) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.shot_end_fn)(self.instance) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: shot_end failed"),
         )
     }
@@ -372,7 +366,7 @@ impl RuntimeInterface for RuntimePlugin {
             "RuntimePlugin",
             self.instance,
             self.interface.negotiate_gateset_fn,
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             gateset,
         )
     }
@@ -391,7 +385,7 @@ impl RuntimeInterface for RuntimePlugin {
         let result_ref = &mut result;
         check_plugin_errno(
             unsafe { (self.interface.qalloc_fn)(self.instance, result_ref as *mut _) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: qalloc failed"),
         )?;
         Ok(result)
@@ -400,7 +394,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn qfree(&mut self, qubit_id: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.qfree_fn)(self.instance, qubit_id) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: qfree failed"),
         )
     }
@@ -408,7 +402,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn global_barrier(&mut self, sleep_ns: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.global_barrier_fn)(self.instance, sleep_ns) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: global barrier failed"),
         )
     }
@@ -425,7 +419,7 @@ impl RuntimeInterface for RuntimePlugin {
                     sleep_ns,
                 )
             },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: local barrier failed"),
         )
     }
@@ -434,7 +428,7 @@ impl RuntimeInterface for RuntimePlugin {
         let data = gate.serialize();
         check_plugin_errno(
             unsafe { (self.interface.gate_fn)(self.instance, data.as_ptr(), data.len()) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: gate failed"),
         )
     }
@@ -444,7 +438,7 @@ impl RuntimeInterface for RuntimePlugin {
         let result_ref = &mut result;
         check_plugin_errno(
             unsafe { (self.interface.measure_fn)(self.instance, qubit_id, result_ref as *mut _) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: measure failed"),
         )?;
         Ok(result)
@@ -457,7 +451,7 @@ impl RuntimeInterface for RuntimePlugin {
             unsafe {
                 (self.interface.measure_leaked_fn)(self.instance, qubit_id, result_ref as *mut _)
             },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: measure failed"),
         )?;
         Ok(result)
@@ -466,7 +460,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn reset(&mut self, qubit_id: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.reset_fn)(self.instance, qubit_id) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: reset failed"),
         )
     }
@@ -474,7 +468,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn force_result(&mut self, result_id: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.force_result_fn)(self.instance, result_id) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: force_result failed"),
         )
     }
@@ -486,7 +480,7 @@ impl RuntimeInterface for RuntimePlugin {
             unsafe {
                 (self.interface.get_bool_result_fn)(self.instance, result_id, result_ref as *mut _)
             },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: get_bool_result failed"),
         )?;
         // TODO document this
@@ -504,7 +498,7 @@ impl RuntimeInterface for RuntimePlugin {
             unsafe {
                 (self.interface.get_u64_result_fn)(self.instance, result_id, result_ref as *mut u64)
             },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: get_u64_result failed"),
         )?;
         // TODO document this
@@ -517,7 +511,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn set_bool_result(&mut self, result_id: u64, result: bool) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.set_bool_result_fn)(self.instance, result_id, result) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: set_bool_result failed"),
         )
     }
@@ -525,7 +519,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn set_u64_result(&mut self, result_id: u64, result: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.set_u64_result_fn)(self.instance, result_id, result) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: set_u64_result failed"),
         )
     }
@@ -533,7 +527,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn increment_future_refcount(&mut self, future_ref: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.increment_future_refcount_fn)(self.instance, future_ref) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: increment_future_refcount failed"),
         )
     }
@@ -541,7 +535,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn decrement_future_refcount(&mut self, future_ref: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.decrement_future_refcount_fn)(self.instance, future_ref) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("RuntimePlugin: decrement_future_refcount failed"),
         )
     }
@@ -560,7 +554,7 @@ impl RuntimeInterface for RuntimePlugin {
                         result_ref as *mut _,
                     )
                 },
-                Some(self.interface.last_error_fn),
+                self.interface.last_error_fn,
                 || anyhow!("RuntimePlugin: custom_call failed"),
             )?;
             Ok(result)
@@ -575,7 +569,7 @@ impl RuntimeInterface for RuntimePlugin {
         if let Some(simulate_delay_fn) = self.interface.simulate_delay_fn {
             check_plugin_errno(
                 unsafe { simulate_delay_fn(self.instance, delay_ns) },
-                Some(self.interface.last_error_fn),
+                self.interface.last_error_fn,
                 || anyhow!("RuntimePlugin: simulate_delay failed"),
             )
         } else {

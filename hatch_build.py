@@ -421,6 +421,9 @@ class BundleBuildHook(BuildHookInterface):
         selene_sim_dir = Path(self.root) / "selene-sim"
         dist_dir = selene_sim_dir / "python/selene_sim/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
+        include_dir = dist_dir / "include"
+        if include_dir.exists():
+            shutil.rmtree(include_dir)
 
         cmake_source_dir = selene_sim_dir / "c"
 
@@ -571,6 +574,7 @@ class BundleBuildHook(BuildHookInterface):
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
         dist_dir = platform_qis_dir / f"python/selene_{platform}_qis_plugin/_dist"
         dist_dir.mkdir(parents=True, exist_ok=True)
+        selene_core_include_dir = Path(self.root) / "selene-core/c/include"
         selene_sim_dist_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist"
         base_qis_dist_dir = (
             Path(self.root)
@@ -616,6 +620,7 @@ class BundleBuildHook(BuildHookInterface):
                 ]
             ),
             "-DCMAKE_BUILD_TYPE=Release",
+            f"-DSELENE_CORE_INCLUDE_DIR={selene_core_include_dir}",
             f"-DCMAKE_PREFIX_PATH={selene_sim_dist_dir};{base_qis_dist_dir}",
             f"{cmake_source_dir}",
         ]

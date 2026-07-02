@@ -10,7 +10,7 @@ import random
 from ._library import load_selene_global
 
 
-_FFI = ffi()
+_FFI = ffi(builtin_headers=("gatewire.h", "runtime.h"))
 
 
 @dataclass
@@ -151,15 +151,10 @@ def callback_set_batch_time(instance, start_time: int, duration: int):
 class SeleneSimRuntimeLib:
     def __init__(self, runtime: Runtime) -> None:
         load_selene_global()
-        self.ffi = ffi()
+        self.ffi = ffi(builtin_headers=("gatewire.h", "runtime.h"))
         self.types = RuntimeCTypes(self.ffi)
         self.lib = self.ffi.dlopen(str(runtime.library_file))
-        try:
-            self.descriptor = self.lib.selene_runtime_plugin_descriptor_v1
-        except AttributeError as exc:
-            raise RuntimeError(
-                "Runtime plugin did not expose descriptor symbol"
-            ) from exc
+        self.descriptor = self._descriptor()
 
         self.last_error_fn = self._required(
             self.descriptor.header.last_error_fn, "last_error_fn"
@@ -226,6 +221,20 @@ class SeleneSimRuntimeLib:
         if function == self.ffi.NULL:
             raise RuntimeError(f"Runtime plugin does not expose {function_name}")
         return function
+
+    def _descriptor(self):
+        try:
+            return self.lib.selene_runtime_get_plugin_descriptor_v1()[0]
+        except AttributeError:
+            pass
+        try:
+            return self.ffi.addressof(self.lib, "selene_runtime_plugin_descriptor_v1")[
+                0
+            ]
+        except (AttributeError, KeyError, NotImplementedError) as exc:
+            raise RuntimeError(
+                "Runtime plugin did not expose descriptor symbol"
+            ) from exc
 
     def _operation_callbacks(self):
         callbacks = self.ffi.new(self.types.runtime_get_operation_interface_ptr)

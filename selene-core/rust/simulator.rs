@@ -101,7 +101,7 @@ impl Simulator {
     fn check_errno(&self, errno: plugin_utils::Errno, message: &'static str) -> Result<()> {
         plugin_utils::check_plugin_errno_with_context(
             errno,
-            Some(self.handle.interface.last_error_fn),
+            self.handle.interface.last_error_fn,
             || anyhow!("{}", self.context(message)),
         )
     }
@@ -147,7 +147,7 @@ impl SimulatorInterface for Simulator {
             &self.label(),
             self.handle.instance,
             self.handle.interface.negotiate_gateset_fn,
-            Some(self.handle.interface.last_error_fn),
+            self.handle.interface.last_error_fn,
             gateset,
         )
     }

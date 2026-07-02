@@ -36,17 +36,28 @@ def _cdef_header(path: Path) -> str:
     return "\n".join(lines)
 
 
+_EXTRA_DECLARATIONS = {
+    "runtime.h": """
+        extern const SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descriptor_v1;
+        const SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descriptor_v1(void);
+    """,
+    "simulator.h": """
+        extern const SeleneSimulatorPluginDescriptorV1 selene_simulator_plugin_descriptor_v1;
+        const SeleneSimulatorPluginDescriptorV1 *selene_simulator_get_plugin_descriptor_v1(void);
+    """,
+}
+
+
 @cache
-def ffi(extra_headers: tuple[Path, ...] = ()) -> FFI:
+def ffi(
+    extra_headers: tuple[Path, ...] = (),
+    builtin_headers: tuple[str, ...] = ("gatewire.h",),
+) -> FFI:
     result = FFI()
-    for builtin_header in (
-        "gatewire.h",
-        "operation.h",
-        "plugin.h",
-        "simulator.h",
-        "runtime.h",
-    ):
+    for builtin_header in builtin_headers:
         result.cdef(_cdef_header(_header_path(builtin_header)), override=True)
+        if extra_declarations := _EXTRA_DECLARATIONS.get(builtin_header):
+            result.cdef(extra_declarations, override=True)
     for extra_header in extra_headers:
         result.cdef(_cdef_header(extra_header), override=True)
     return result

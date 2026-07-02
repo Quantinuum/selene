@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <selene/gatewire.h>
 #include <selene/selene.h>
 #include <base_qis/selene_lifetime.h>
 #include <base_qis/program_lifetime.h>

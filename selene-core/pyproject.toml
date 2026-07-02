@@ -44,9 +44,6 @@ path = "hatch_build.py"
 
 [tool.uv]
 cache-keys = [
-  { file = "examples/**/*.rs" },
-  { file = "examples/**/Cargo.lock" },
-  { file = "examples/**/Cargo.toml" },
   { file = "python/selene_core/trace.py" },
   { file = "c/include/selene/*.h" },
   { file = "Cargo.toml" },

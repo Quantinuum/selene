@@ -763,7 +763,7 @@ macro_rules! export_runtime_plugin {
                 RuntimePluginDescriptorV1,
                 current_api_version().as_u64(),
                 {
-                    last_error_fn: Some(selene_runtime_last_error),
+                    last_error_fn: selene_runtime_last_error,
                     get_name_fn: selene_runtime_get_name,
                     init_fn: Some(selene_runtime_init),
                     exit_fn: Some(selene_runtime_exit),

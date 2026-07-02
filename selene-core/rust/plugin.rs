@@ -16,8 +16,8 @@ pub type PluginNameFn = unsafe extern "C" fn() -> *const c_char;
 pub struct PluginDescriptorHeaderV1 {
     pub struct_size: u64,
     pub api_version: u64,
-    pub last_error_fn: Option<LastErrorFn>,
-    pub get_name_fn: Option<PluginNameFn>,
+    pub last_error_fn: LastErrorFn,
+    pub get_name_fn: PluginNameFn,
 }
 
 pub(crate) trait PluginDescriptorV1: Copy {
@@ -100,8 +100,7 @@ pub(crate) fn require_callback<T>(
     })
 }
 
-pub(crate) fn read_last_error(last_error_fn: Option<LastErrorFn>) -> Option<String> {
-    let last_error_fn = last_error_fn?;
+pub(crate) fn read_last_error(last_error_fn: LastErrorFn) -> Option<String> {
     let mut written = 0usize;
     check_errno(
         unsafe { last_error_fn(std::ptr::null_mut(), 0, &mut written) },
@@ -144,7 +143,7 @@ pub(crate) fn read_plugin_name(kind: &str, get_name_fn: PluginNameFn) -> Result<
 
 pub(crate) fn check_plugin_errno<E: std::fmt::Display>(
     errno: Errno,
-    last_error_fn: Option<LastErrorFn>,
+    last_error_fn: LastErrorFn,
     mk_err: impl FnOnce() -> E,
 ) -> Result<(), anyhow::Error> {
     if errno == 0 {
@@ -164,7 +163,7 @@ pub(crate) fn check_plugin_errno<E: std::fmt::Display>(
 
 pub(crate) fn check_plugin_errno_with_context<E: std::fmt::Display>(
     errno: Errno,
-    last_error_fn: Option<LastErrorFn>,
+    last_error_fn: LastErrorFn,
     mk_err: impl FnOnce() -> E,
 ) -> Result<(), anyhow::Error> {
     if errno == 0 {
@@ -195,7 +194,7 @@ pub(crate) fn negotiate_gateset<I: Copy>(
     kind: &str,
     instance: I,
     negotiate_gateset_fn: NegotiateGatesetFn<I>,
-    last_error_fn: Option<LastErrorFn>,
+    last_error_fn: LastErrorFn,
     gateset: &DynamicGateSet,
 ) -> Result<DynamicGateSet> {
     let input = gateset.serialize();
@@ -290,14 +289,29 @@ mod tests {
         }
     }
 
+    unsafe extern "C" fn no_last_error(
+        _output: *mut c_char,
+        _output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        unsafe {
+            *written = 0;
+        }
+        0
+    }
+
+    unsafe extern "C" fn test_plugin_name() -> *const c_char {
+        c"Test".as_ptr()
+    }
+
     #[test]
     fn descriptor_validation_checks_version_and_size() {
         let descriptor = TestDescriptor {
             header: PluginDescriptorHeaderV1 {
                 struct_size: core::mem::size_of::<TestDescriptor>() as u64,
                 api_version: 7,
-                last_error_fn: None,
-                get_name_fn: None,
+                last_error_fn: no_last_error,
+                get_name_fn: test_plugin_name,
             },
         };
         validate_descriptor_v1(&descriptor, |version| {
@@ -310,8 +324,8 @@ mod tests {
             header: PluginDescriptorHeaderV1 {
                 struct_size: 0,
                 api_version: 7,
-                last_error_fn: None,
-                get_name_fn: None,
+                last_error_fn: no_last_error,
+                get_name_fn: test_plugin_name,
             },
         };
         let error = validate_descriptor_v1(&descriptor, |_| Ok(())).unwrap_err();
@@ -325,8 +339,8 @@ mod tests {
             header: PluginDescriptorHeaderV1 {
                 struct_size: core::mem::size_of::<TestDescriptor>() as u64,
                 api_version: 7,
-                last_error_fn: None,
-                get_name_fn: None,
+                last_error_fn: no_last_error,
+                get_name_fn: test_plugin_name,
             },
         };
         let error =
@@ -371,7 +385,7 @@ mod tests {
     fn negotiate_gateset_uses_two_call_output_protocol() {
         let gateset = builtin::QuantinuumGateSet::dynamic();
         let negotiated =
-            negotiate_gateset("TestPlugin", 0usize, echo_gateset, None, &gateset).unwrap();
+            negotiate_gateset("TestPlugin", 0usize, echo_gateset, no_last_error, &gateset).unwrap();
         assert_eq!(negotiated.serialize(), gateset.serialize());
     }
 
@@ -408,14 +422,14 @@ mod tests {
     #[test]
     fn check_plugin_errno_prefers_last_error_detail() {
         let error =
-            check_plugin_errno(-1, Some(fixed_last_error), || anyhow!("Host failure")).unwrap_err();
+            check_plugin_errno(-1, fixed_last_error, || anyhow!("Host failure")).unwrap_err();
         assert_eq!(error.to_string(), "plugin-specific failure");
     }
 
     #[test]
     fn check_plugin_errno_with_context_includes_public_context_and_last_error_detail() {
         let error =
-            check_plugin_errno_with_context(-1, Some(fixed_last_error), || anyhow!("Host failure"))
+            check_plugin_errno_with_context(-1, fixed_last_error, || anyhow!("Host failure"))
                 .unwrap_err();
         assert_eq!(error.to_string(), "Host failure: plugin-specific failure");
     }

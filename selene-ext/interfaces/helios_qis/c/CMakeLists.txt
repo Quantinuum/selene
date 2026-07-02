@@ -9,6 +9,10 @@ find_package(Selene REQUIRED)
 find_package(BaseQISSeleneInterface REQUIRED)
 get_target_property(selene_include_dirs Selene::Selene INTERFACE_INCLUDE_DIRECTORIES)
 
+set(SELENE_CORE_INCLUDE_DIR "" CACHE PATH "Directory containing selene-core C headers")
+if(NOT SELENE_CORE_INCLUDE_DIR)
+    message(FATAL_ERROR "SELENE_CORE_INCLUDE_DIR is required to build the Helios QIS interface")
+endif()
 
 add_library(helios_qis_selene_interface INTERFACE)
 target_include_directories(helios_qis_selene_interface INTERFACE
@@ -62,6 +66,7 @@ function(build_helios_interface log_level suffix)
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     )
+    target_include_directories(${interface_target} PRIVATE "${SELENE_CORE_INCLUDE_DIR}")
     target_link_libraries(${interface_target} PRIVATE Selene::Selene)
     target_link_libraries(${interface_target} PUBLIC BaseQISSeleneInterface::base_qis_selene_interface_logging_${suffix})
     if(MSVC)

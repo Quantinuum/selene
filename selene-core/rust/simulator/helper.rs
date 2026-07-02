@@ -364,7 +364,7 @@ macro_rules! export_simulator_plugin {
                 SimulatorPluginDescriptorV1,
                 current_api_version().as_u64(),
                 {
-                    last_error_fn: Some(selene_simulator_last_error),
+                    last_error_fn: selene_simulator_last_error,
                     get_name_fn: selene_simulator_get_name,
                     init_fn: Some(selene_simulator_init),
                     exit_fn: Some(selene_simulator_exit),

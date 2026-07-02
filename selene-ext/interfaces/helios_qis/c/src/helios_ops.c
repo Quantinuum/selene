@@ -1,5 +1,6 @@
 #include <helios_qis/helios_ops.h>
 
+#include <selene/gatewire.h>
 #include <selene/selene.h> // selene_ functions
 #include <base_qis/selene_lifetime.h> // selene_instance
 #include <base_qis/unwrap.h> // unwrap

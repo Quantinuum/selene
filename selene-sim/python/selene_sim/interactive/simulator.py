@@ -14,15 +14,10 @@ from ._library import load_selene_global
 class SeleneSimSimulatorLib:
     def __init__(self, simulator: Simulator) -> None:
         load_selene_global()
-        self.ffi = ffi()
+        self.ffi = ffi(builtin_headers=("gatewire.h", "simulator.h"))
         self.types = SimulatorCTypes(self.ffi)
         self.lib = self.ffi.dlopen(str(simulator.library_file))
-        try:
-            self.descriptor = self.lib.selene_simulator_plugin_descriptor_v1
-        except AttributeError as exc:
-            raise RuntimeError(
-                "Simulator plugin did not expose descriptor symbol"
-            ) from exc
+        self.descriptor = self._descriptor()
 
         self.last_error_fn = self._required(
             self.descriptor.header.last_error_fn, "last_error_fn"
@@ -52,6 +47,20 @@ class SeleneSimSimulatorLib:
         if function == self.ffi.NULL:
             raise RuntimeError(f"Simulator plugin does not expose {function_name}")
         return function
+
+    def _descriptor(self):
+        try:
+            return self.lib.selene_simulator_get_plugin_descriptor_v1()[0]
+        except AttributeError:
+            pass
+        try:
+            return self.ffi.addressof(
+                self.lib, "selene_simulator_plugin_descriptor_v1"
+            )[0]
+        except (AttributeError, KeyError, NotImplementedError) as exc:
+            raise RuntimeError(
+                "Simulator plugin did not expose descriptor symbol"
+            ) from exc
 
     def init(self, n_qubits: int, args: list[str]):
         handle = self.ffi.new(self.types.simulator_instance_ptr)
@@ -113,12 +122,12 @@ class SeleneSimSimulatorLib:
         result = {"bool": {}, "u64": {}}
         refs: list[Any] = []
 
-        @self.ffi.callback("void(SeleneOperationResultInstance, uint64_t, bool)")
+        @self.ffi.callback("void(OperationResultInstance, uint64_t, bool)")
         def set_bool(instance, result_id, value):
             target = self.ffi.from_handle(instance)
             target["bool"][int(result_id)] = bool(value)
 
-        @self.ffi.callback("void(SeleneOperationResultInstance, uint64_t, uint64_t)")
+        @self.ffi.callback("void(OperationResultInstance, uint64_t, uint64_t)")
         def set_u64(instance, result_id, value):
             target = self.ffi.from_handle(instance)
             target["u64"][int(result_id)] = int(value)

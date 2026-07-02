@@ -399,7 +399,7 @@ macro_rules! export_error_model_plugin {
                 ErrorModelPluginDescriptorV1,
                 current_api_version().as_u64(),
                 {
-                    last_error_fn: Some(selene_error_model_last_error),
+                    last_error_fn: selene_error_model_last_error,
                     get_name_fn: selene_error_model_get_name,
                     init_fn: Some(selene_error_model_init),
                     exit_fn: Some(selene_error_model_exit),

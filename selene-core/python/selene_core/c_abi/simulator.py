@@ -12,7 +12,6 @@ class SimulatorCTypes:
         self.runtime_extract_operation_handle = cffi.typeof(
             "RuntimeExtractOperationHandle *"
         )
-        self.runtime_get_operation_handle = cffi.typeof("RuntimeGetOperationHandle *")
         self.operation_result_handle = cffi.typeof("OperationResultHandle *")
         self.uint8_array = cffi.typeof("uint8_t[]")
         self.uint8_ptr = cffi.typeof("uint8_t *")

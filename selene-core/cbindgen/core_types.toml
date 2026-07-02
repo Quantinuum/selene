@@ -1,6 +1,6 @@
 language = "C"
-
 include_version = false
+include_guard = "SELENE_CORE_TYPES_H"
 namespaces = []
 using_namespaces = []
 sys_includes = []

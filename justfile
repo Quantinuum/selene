@@ -56,6 +56,13 @@ generate-selene-core-headers:
       --crate selene-core \
       --output selene-core/c/include/selene/gatewire.h
 
+    just sync-selene-core-headers
+
+sync-selene-core-headers:
+    rm -rf selene-core/python/selene_core/_dist/include
+    mkdir -p selene-core/python/selene_core/_dist
+    cp -R selene-core/c/include selene-core/python/selene_core/_dist/include
+
 generate-headers:
     just generate-selene-core-headers
     just generate-selene-sim-headers

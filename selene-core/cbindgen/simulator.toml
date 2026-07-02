@@ -2,6 +2,7 @@ language = "C"
 
 include_version = false
 includes = ["selene/core_types.h"]
+include_guard = "SELENE_SIMULATOR_H"
 no_includes = false
 cpp_compat = true
 after_includes = "#define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000101ULL"

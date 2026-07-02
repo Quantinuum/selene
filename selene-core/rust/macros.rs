@@ -16,7 +16,7 @@ macro_rules! export_plugin_descriptor_v1 {
                 struct_size: core::mem::size_of::<$descriptor_ty>() as u64,
                 api_version: $api_version,
                 last_error_fn: $last_error_fn,
-                get_name_fn: Some($get_name_fn),
+                get_name_fn: $get_name_fn,
             },
             $($field: $value,)*
         };

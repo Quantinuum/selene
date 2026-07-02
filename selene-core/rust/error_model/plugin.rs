@@ -132,16 +132,10 @@ impl ErrorModelPluginInterface {
         validate_descriptor_v1(&descriptor, |api_version| {
             ErrorModelAPIVersion::from(api_version).validate()
         })?;
-        let get_name_fn =
-            require_callback("Error model", "get_name_fn", descriptor.header.get_name_fn)?;
-        let name = read_plugin_name("Error model", get_name_fn)?;
+        let name = read_plugin_name("Error model", descriptor.header.get_name_fn)?;
         Ok(Arc::new(Self {
             _lib: lib,
-            last_error_fn: require_callback(
-                "Error model",
-                "last_error_fn",
-                descriptor.header.last_error_fn,
-            )?,
+            last_error_fn: descriptor.header.last_error_fn,
             name,
             init_fn: require_callback("Error model", "init_fn", descriptor.init_fn)?,
             exit_fn: descriptor.exit_fn,
@@ -184,7 +178,7 @@ impl ErrorModelInterfaceFactory for ErrorModelPluginInterface {
                 unsafe {
                     (self.init_fn)(&mut instance, n_qubits, error_model_argc, error_model_argv)
                 },
-                Some(self.last_error_fn),
+                self.last_error_fn,
                 || anyhow!("ErrorModelPluginInterface: init failed"),
             )
         })?;
@@ -207,21 +201,21 @@ impl ErrorModelInterface for ErrorModelPlugin {
         };
         check_plugin_errno(
             unsafe { exit_fn(self.instance) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: exit failed"),
         )
     }
     fn shot_start(&mut self, shot_id: u64, error_model_seed: u64) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, error_model_seed) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: shot_start failed"),
         )
     }
     fn shot_end(&mut self) -> Result<()> {
         check_plugin_errno(
             unsafe { (self.interface.shot_end_fn)(self.instance) },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: shot_end failed"),
         )
     }
@@ -231,7 +225,7 @@ impl ErrorModelInterface for ErrorModelPlugin {
             "ErrorModelPlugin",
             self.instance,
             self.interface.negotiate_gateset_fn,
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             gateset,
         )
     }
@@ -252,7 +246,7 @@ impl ErrorModelInterface for ErrorModelPlugin {
             unsafe {
                 (self.interface.handle_operations_fn)(self.instance, batch, simulator, result)
             },
-            Some(self.interface.last_error_fn),
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: handle_operations failed"),
         )?;
         Ok(result_builder.finish())

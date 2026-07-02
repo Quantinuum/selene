@@ -1,3 +1,6 @@
+#ifndef SELENE_SIMULATOR_H
+#define SELENE_SIMULATOR_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -5,10 +8,6 @@
 #include <stdlib.h>
 #include "selene/core_types.h"
 #define SELENE_SIMULATOR_CURRENT_API_VERSION 0x00000101ULL
-
-typedef struct Option_last_error_fn Option_last_error_fn;
-
-typedef struct Option_plugin_name_fn Option_plugin_name_fn;
 
 typedef struct SeleneSimulatorAPIVersion {
   /**
@@ -31,14 +30,20 @@ typedef struct SeleneSimulatorAPIVersion {
 
 typedef void *SeleneSimulatorInstance;
 
+typedef int32_t SeleneErrno;
+
+typedef SeleneErrno (*LastErrorFn)(char *output,
+                                   size_t output_len,
+                                   size_t *written);
+
+typedef const char *(*PluginNameFn)(void);
+
 typedef struct PluginDescriptorHeaderV1 {
   uint64_t struct_size;
   uint64_t api_version;
-  struct Option_last_error_fn last_error_fn;
-  struct Option_plugin_name_fn get_name_fn;
+  LastErrorFn last_error_fn;
+  PluginNameFn get_name_fn;
 } PluginDescriptorHeaderV1;
-
-typedef int32_t SeleneErrno;
 
 typedef void *RuntimeExtractOperationInstance;
 
@@ -149,3 +154,5 @@ GwStatus gw_decoded_gate_qubit_operand_at(const GwDecodedGate *gate,
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
+
+#endif  /* SELENE_SIMULATOR_H */

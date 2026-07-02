@@ -27,9 +27,6 @@ target_link_libraries(Selene INTERFACE
 install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../selene-core/c/include/selene/gatewire.h"
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/selene
-)
 
 # Install the interface target (this now works!)
 install(

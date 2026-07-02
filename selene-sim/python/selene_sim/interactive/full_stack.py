@@ -30,13 +30,10 @@ PathLike = str | os.PathLike | bytes | bytearray
 
 DEFAULT_SHOT_SPEC = ShotSpec(count=1000, offset=0, increment=1)
 
-_SELENE_HEADER = Path(__file__).parents[2] / "_dist/include/selene/selene.h"
-_SOURCE_SELENE_HEADER = (
-    Path(__file__).parents[4] / "selene-sim/c/include/selene/selene.h"
+_FFI = ffi(
+    (selene_dist / "include/selene/selene.h",),
+    builtin_headers=("gatewire.h",),
 )
-if _SOURCE_SELENE_HEADER.exists():
-    _SELENE_HEADER = _SOURCE_SELENE_HEADER
-_FFI = ffi((_SELENE_HEADER,))
 
 
 def _component_config(component: SeleneComponent, default_seed: int | None) -> dict:
