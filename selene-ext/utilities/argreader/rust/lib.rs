@@ -84,7 +84,7 @@ unsafe extern "C" {
     // the selene result stream based on a C string rather than a CL string.
     fn panic_str(error_code: u32, message: *const std::ffi::c_char) -> !;
     fn log_utility_call(tag: u64, data_ptr: *const u8, data_len: u64);
-    fn selene_register_utility_event_callbacks(
+    fn register_utility_event_callbacks(
         instance: *mut c_void,
         callbacks: SeleneUtilityEventCallbacksV1,
     ) -> SeleneVoidResult;
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn selene_argreader_register_utility(
         on_shot_start: Some(argreader_on_shot_start),
         on_shot_end: Some(argreader_on_shot_end),
     };
-    unsafe { selene_register_utility_event_callbacks(instance, callbacks) }
+    unsafe { register_utility_event_callbacks(instance, callbacks) }
 }
 
 fn get_key(key_ptr: *const u8) -> String {

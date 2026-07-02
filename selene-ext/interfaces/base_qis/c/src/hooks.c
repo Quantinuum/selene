@@ -29,3 +29,11 @@ void log_utility_call(uint64_t tag, void* data, uint64_t data_len) {
     }
     unwrap(selene_log_utility_call(selene_instance, tag, data, data_len));
 }
+
+struct selene_void_result_t register_utility_event_callbacks(
+    SeleneInstance* instance,
+    SeleneUtilityEventCallbacksV1 callbacks
+) {
+    DIAGNOSTIC("register_utility_event_callbacks(%p, ...)\n", instance);
+    return selene_register_utility_event_callbacks(instance, callbacks);
+}
