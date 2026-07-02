@@ -10,7 +10,7 @@ The compiled library implements the Selene descriptor ABI, and the Python
 component provides configuration, link information, and the path to the compiled
 library to the Selene frontend.
 
-## The python module
+## The Python Module
 
 The `selene-core` Python module provides base classes for plugin packages to
 adhere to. It also provides a bundled include directory containing the C headers
@@ -30,15 +30,15 @@ through:
 By exporting the relevant descriptor, the plugin can be dynamically loaded by
 Selene at runtime.
 
-## The rust crate
+## The Rust Crate
 
-The selene-core rust crate defines the compiled plugin interfaces for the Selene
-backend to use. It additionally provides helper functionality for rust-based plugins
+The `selene-core` Rust crate defines the compiled plugin interfaces for the Selene
+backend to use. It additionally provides helper functionality for Rust-based plugins
 to expose the Selene plugin APIs while providing a more idiomatic trait
 interface. The same crate owns the gatewire Rust API, including builtin gatesets
 such as `HeliosGateSet`, `SolGateSet`, and `QuantinuumGateSet`.
 
 For current plugin documentation, start with
-[the extensibility docs](../docs/extensibility/README.md). For a complete
-custom-gateset project, see
-[the Clifford+T stack example](../examples/clifford_t_stack/README.md).
+[the extensibility docs](https://github.com/quantinuum/selene/tree/main/docs/extensibility).
+For a complete custom-gateset project, see
+[the Clifford+T stack example](https://github.com/quantinuum/selene/tree/main/examples/clifford_t_stack).

@@ -124,11 +124,12 @@ re-emit them.
 
 ## 4. Inspect a Batch
 
-If the model needs to inspect or mutate operations, Selene still does not expose
-the runtime batch as a raw array. Instead, pass a collector to
-`batch.interface.extract_fn`. Selene replays the batch into that collector
+If the model needs to inspect or mutate operations, use the batch extractor
+rather than assuming an in-memory array layout. Pass a collector to
+`batch.interface.extract_fn`; Selene replays the batch into that collector
 through callbacks such as `gate_fn`, `measure_fn`, `postselect_fn`, and
-`reset_fn`.
+`reset_fn`. This keeps the C ABI independent of Selene's internal batch
+representation.
 
 A collector usually stores decoded operations in model-owned memory, records an
 error flag if any callback fails, then builds one or more simulator batches.

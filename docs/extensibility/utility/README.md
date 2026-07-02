@@ -57,7 +57,7 @@ It can call `selene_register_utility_event_callbacks(...)` directly, or, when
 the utility links against the Base QIS helper library, call the wrapper
 `register_utility_event_callbacks(...)` from `base_qis/hooks.h`.
 
-The callback struct currently supports:
+The callback struct supports:
 
 - `on_shot_start(context, shot_id)`;
 - `on_shot_end(context, shot_id)`.

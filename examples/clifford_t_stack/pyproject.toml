@@ -9,8 +9,8 @@ requires-python = ">=3.10"
 description = "A worked Selene custom-gateset example using Clifford+T plugins"
 readme = "README.md"
 dependencies = [
-  "selene-core~=0.3.0a0",
-  "selene-sim~=0.3.0a0",
+  "selene-core~=1.0.0a0",
+  "selene-sim~=1.0.0a0",
 ]
 
 [tool.uv.sources]

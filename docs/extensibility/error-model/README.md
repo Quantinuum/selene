@@ -4,10 +4,9 @@ An error model plugin sits between the runtime and simulator. It receives
 batches of operations from the runtime, applies a stochastic model, calls the
 simulator, and reports measurement results back to Selene.
 
-Selene's current error-model API is operation-level. Noise is represented by
-injecting gates, resets, measurements, delays, or other operation mutations. It
-does not currently expose a density-matrix channel API to error models, although
-that may be added later.
+Selene's error-model API is operation-level. Noise is represented by injecting
+gates, resets, measurements, delays, or other operation mutations. It does not
+expose a density-matrix channel API to error models.
 
 Use an error model plugin when you want to model behavior such as:
 

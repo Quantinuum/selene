@@ -10,7 +10,9 @@ on:
   push:
     branches:
       - main
+      - 0.2-series
       - 0.3-series
+      - 1.0-series
 
 env:
   CARGO_TERM_COLOR: always

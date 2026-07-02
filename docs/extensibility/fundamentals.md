@@ -302,7 +302,6 @@ gateset was invalid, the buffer was too small, or a pointer argument was wrong.
 ## Threading and Reentrancy
 
 Plugin callbacks should not assume they are globally unique. Selene may create
-multiple instances, and future execution modes may run independent instances at
-the same time. Keep instance state behind the instance pointer or Rust struct.
-If you use process-global state, protect it explicitly and document why it is
-shared.
+multiple instances, and independent instances should not share mutable state by
+accident. Keep instance state behind the instance pointer or Rust struct. If you
+use process-global state, protect it explicitly and document why it is shared.

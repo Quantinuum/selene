@@ -20,9 +20,10 @@ Selene ships four builtin gate declarations:
 - `ZZPhase(q0, q1, theta)`
 - `PhasedXX(q0, q1, theta, phi)`
 
-The builtin names are the names used by the plugin API. Older names such as
-`rz`, `rxy`, `rzz`, and `rpp` belong at compatibility boundaries such as QIS
-parsers, not inside plugin implementations.
+The builtin names are the names used by the plugin API. Older 0.2 names such as
+`rz`, `rxy`, and `rzz` belong at compatibility boundaries such as QIS parsers,
+not inside plugin implementations. In 0.3 we have also added `PhasedXX` as a
+new builtin gate for the Sol gateset.
 
 Convenience gatesets are available where the common platform vocabulary is
 useful:
