@@ -7,7 +7,6 @@ access to the source code at its compiled location.
 from guppylang.decorator import guppy
 from guppylang.std.quantum import qubit, measure, h, cx
 from guppylang.std.builtins import result
-from guppylang_internals.debug_mode import turn_on_debug_mode, turn_off_debug_mode
 
 
 from selene_sim import Coinflip, build
@@ -23,61 +22,12 @@ from selene_core.gate_metadata import (
     DEBUG_INFO_TAG,
     resolve_debug_info,
 )
+from selene_core.testing import (
+    compile_guppy_with_debug,
+    validate_event_source_location,
+)
 
 from selene_simple_runtime_plugin import SimpleRuntimePlugin
-
-ONE_QUBIT_GATES = {
-    "h",
-    "x",
-    "y",
-    "z",
-    "s",
-    "sdg",
-    "t",
-    "tdg",
-    "v",
-    "vdg",
-    "ht",
-    "rx",
-    "ry",
-    "rz",
-    "phased_x",
-}
-TWO_QUBIT_GATES = {"cx", "cy", "cz", "ch", "crz", "toffoli", "zz_phase", "zz_max"}
-
-
-def _validate_event_source_location(record):
-    """Check that the innermost debug info frame points to a source line consistent
-    with the type of operation in the record."""
-    frame = record.event.metadata.frames[0]
-    assert frame.line is not None, "frame.line should be populated"
-    assert frame.line >= 1, f"frame.line must be >= 1, got {frame.line}"
-    with open(frame.file_name) as f:
-        lines = f.readlines()
-    source_line = lines[frame.line - 1]
-
-    event = record.event
-    if isinstance(event, MeasurementEvent):
-        assert "measure" in source_line, (
-            f"Expected 'measure' in source line for MeasurementEvent, got: {source_line!r}"
-        )
-    elif isinstance(event, ResetEvent):
-        assert "qubit(" in source_line, (
-            f"Expected 'qubit(' in source line for ResetEvent, got: {source_line!r}"
-        )
-    elif isinstance(event, GateEvent):
-        if event.gate_name == "Rxy":
-            assert any(f"{name}(" in source_line for name in ONE_QUBIT_GATES), (
-                f"Expected a one-qubit gate call in source line for Rxy, got: {source_line!r}"
-            )
-        elif event.gate_name == "Rzz":
-            assert any(f"{name}(" in source_line for name in TWO_QUBIT_GATES), (
-                f"Expected a two-qubit gate call in source line for Rzz, got: {source_line!r}"
-            )
-        elif event.gate_name == "QAlloc":
-            assert "qubit(" in source_line, (
-                f"Expected 'qubit(' in source line for QAlloc, got: {source_line!r}"
-            )
 
 
 def validate_debug_info(hugr):
@@ -185,7 +135,7 @@ def validate_debug_info(hugr):
 
     # Validate that innermost frames point to correct source operations
     for record in events_with_metadata:
-        _validate_event_source_location(record)
+        validate_event_source_location(record)
 
 
 def test_metadata_simple():
@@ -199,7 +149,5 @@ def test_metadata_simple():
         result("c0", measure(q0).read())
         result("c1", measure(q1).read())
 
-    turn_on_debug_mode()
-    hugr = main.compile()
-    turn_off_debug_mode()
+    hugr = compile_guppy_with_debug(main)
     validate_debug_info(hugr)
