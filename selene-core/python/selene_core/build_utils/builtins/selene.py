@@ -18,7 +18,7 @@ from typing import Any
 
 from ..planner import BuildPlanner
 from ..types import ArtifactKind, Step, BuildCtx, Artifact
-from ..utils import invoke_zig
+from ..utils import invoke_zig, invoke_dsymutil
 from ..symbols import get_symbols_from_object
 
 
@@ -131,6 +131,8 @@ class SeleneObjectToSeleneExecutableStep(Step):
             link_flags.extend(dep.link_flags)
             library_search_dirs.extend(dep.library_search_dirs)
 
+        emit_debug = build_ctx.cfg.get("emit_debug", False)
+
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
         zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
@@ -143,7 +145,10 @@ class SeleneObjectToSeleneExecutableStep(Step):
             selene_lib,
             *link_flags,
             cache_dir=zig_cache_dir,
+            emit_debug=emit_debug,
         )
+        if emit_debug and platform.system() == "Darwin":
+            invoke_dsymutil(out_path, verbose=build_ctx.verbose)
         return cls._make_artifact(
             out_path,
             metadata={"library_search_dirs": library_search_dirs},

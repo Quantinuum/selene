@@ -284,7 +284,6 @@ class SolObjectFileToSeleneExecutableStep(Step):
 
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
-
         match platform.system():
             case "Linux":
                 executable_filename = "program.selene.x"
