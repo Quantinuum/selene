@@ -4,7 +4,6 @@ from typing import Iterator
 from dataclasses import dataclass
 import yaml
 
-
 from selene_core import SeleneComponent, Simulator, ErrorModel, Runtime
 
 from .backends import SimpleRuntime, IdealErrorModel
@@ -341,3 +340,133 @@ class SeleneInstance:
 
         with one_shot_context() as context:
             yield from context
+
+    def profile(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        n_shots: int = 1,
+        error_model: ErrorModel = IdealErrorModel(),
+        runtime: Runtime = SimpleRuntime(),
+        event_hook: EventHook = NoEventHook(),
+        verbose: bool = False,
+        timeout: TimeoutInput = None,
+        results_logfile: Path | None = None,
+        random_seed: int | None = None,
+        shot_offset: int = 0,
+        shot_increment: int = 1,
+        parse_results: bool = True,
+        output_file: Path | None = None,
+    ) -> Iterator[Iterator[TaggedResult]]:
+        """
+        Run the compiled program under ``samply record`` for CPU profiling.
+
+        By default samply opens the Firefox Profiler in the browser once the
+        process finishes. Pass ``output_file`` to instead save the profile to
+        disk without opening the browser (uses ``samply record --save-only``).
+
+        Note: profiling always uses a single process regardless of shot count.
+        For useful profiling data, build the program with ``emit_debug=True``.
+
+        Args:
+            simulator: The simulator plugin to use.
+            n_qubits: The maximum number of qubits to simulate.
+            n_shots: The number of shots to run.
+            error_model: The error model plugin to use.
+            runtime: The runtime plugin to use.
+            event_hook: Event hook for additional output.
+            verbose: Whether to print verbose output.
+            timeout: Timeout configuration for the overall run.
+            results_logfile: File to write the raw results stream to.
+            random_seed: Random seed for the simulator, error model, and runtime.
+            shot_offset: Shot number of the first shot.
+            shot_increment: Increment between successive shot numbers.
+            parse_results: Whether to interpret tags in the result stream.
+            output_file: If provided, save the samply profile to this path
+                         (``--save-only``) instead of opening the browser.
+
+        Yields:
+            One iterator of :class:`~selene_sim.result_handling.TaggedResult`
+            per shot, in the same structure as :meth:`run_shots`.
+
+        Raises:
+            RuntimeError: If ``samply`` is not found on ``PATH``.
+        """
+        samply_path = shutil.which("samply")
+        if samply_path is None:
+            raise RuntimeError(
+                "Could not find `samply` on PATH. "
+                "Install it from https://github.com/mstange/samply and ensure "
+                "it is available on your PATH before calling profile()."
+            )
+
+        self._check_health()
+
+        command_prefix = [samply_path, "record"]
+        if output_file is not None:
+            command_prefix += ["--save-only", "--output", str(output_file)]
+
+        timeout = Timeout.resolve_input(timeout)
+
+        library_search_dirs = self.library_search_dirs.copy()
+        for component in (simulator, error_model, runtime):
+            library_search_dirs.extend(component.library_search_dirs)
+        global_configuration = {
+            "event_hooks": {flag: True for flag in event_hook.get_selene_flags()},
+            "n_qubits": n_qubits,
+            "simulator": self._get_component_config(simulator, random_seed),
+            "error_model": self._get_component_config(error_model, random_seed),
+            "runtime": self._get_component_config(runtime, random_seed),
+        }
+
+        # Profiling always uses a single process so that samply wraps exactly
+        # one executable instance.
+        shot_spec = ShotSpec(
+            offset=shot_offset,
+            increment=shot_increment,
+            count=n_shots,
+        )
+        run_directory = self._create_new_run_directory()
+        artifact_directory = run_directory / "artifacts"
+        artifact_directory.mkdir(parents=True, exist_ok=True)
+
+        with TCPStream(
+            timeout=timeout,
+            logfile=results_logfile,
+            shot_offset=shot_offset,
+            shot_increment=shot_increment,
+        ) as data_stream:
+            global_configuration["output_stream"] = data_stream.get_uri()
+            configuration = global_configuration | {
+                "shots": shot_spec,
+                "artifact_dir": artifact_directory,
+            }
+            process = SeleneProcess(
+                executable=self.executable,
+                library_search_dirs=library_search_dirs,
+                configuration=configuration,
+                run_directory=run_directory,
+                command_prefix=command_prefix,
+            )
+            processes = SeleneProcessList()
+            processes.add(process)
+            processes.spawn()
+
+            result_stream = ResultStream(data_stream)
+            for i in range(n_shots):
+                shot_idx = shot_offset + (i * shot_increment)
+                if verbose:
+                    print(f"Processing shot {shot_idx}")
+                if data_stream.done:
+                    raise Exception(
+                        "Results stream has ended before all shots are processed"
+                    )
+                event_hook.on_new_shot()
+                yield parse_shot(
+                    stream=result_stream,
+                    event_hook=event_hook,
+                    full=parse_results,
+                    process=process,
+                )
+
+        processes.wait(check_return_code=not result_stream.tainted)

@@ -29,11 +29,13 @@ class SeleneProcess:
         library_search_dirs: list[Path],
         run_directory: Path,
         configuration: dict,
+        command_prefix: list[str] | None = None,
     ):
         self.executable = executable
         self.library_search_dirs = library_search_dirs
         self.configuration = configuration
         self.run_directory = run_directory
+        self.command_prefix = command_prefix or []
         (self.run_directory / "configuration.yaml").write_text(
             yaml.safe_dump(configuration)
         )
@@ -90,7 +92,7 @@ class SeleneProcess:
         """
         Spawn the process and return the Popen object.
         """
-        argv = [
+        argv = self.command_prefix + [
             str(self.executable),
             "--configuration",
             str(self.run_directory / "configuration.yaml"),
