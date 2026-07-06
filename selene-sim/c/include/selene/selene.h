@@ -275,6 +275,58 @@ struct selene_void_result_t selene_rzz(struct SeleneInstance *instance,
 
 struct selene_void_result_t selene_set_tc(struct SeleneInstance *instance, uint64_t tc);
 
+/**
+ * Create a shared-memory FIFO with the given data-region capacity in bytes.
+ *
+ * Returns an opaque handle pointer on success, or a null pointer on failure.
+ * The returned handle owns the segment and must be released with
+ * `selene_shmem_destroy`, which also unlinks the underlying segment.
+ */
+void *selene_shmem_create(uint64_t capacity);
+
+/**
+ * Destroy a FIFO handle previously returned by `selene_shmem_create`. The
+ * underlying shared-memory segment is unlinked.
+ *
+ * # Safety
+ * `handle` must have been returned by `selene_shmem_create` and not already
+ * destroyed.
+ */
+struct selene_void_result_t selene_shmem_destroy(void *handle);
+
+/**
+ * Copy the FIFO's OS id (UTF-8, not null-terminated) into `out_ptr`, writing at
+ * most `out_max_len` bytes. Returns the full length of the OS id in the
+ * `value` field; if this exceeds `out_max_len` the buffer was too small and the
+ * caller should retry with a larger buffer.
+ *
+ * # Safety
+ * `handle` must be a valid handle from `selene_shmem_create` and `out_ptr` must
+ * be valid for writes of `out_max_len` bytes.
+ */
+struct selene_u64_result_t selene_shmem_get_os_id(void *handle,
+                                                  uint8_t *out_ptr,
+                                                  uint64_t out_max_len);
+
+/**
+ * Read up to `out_max_len` bytes currently available in the FIFO into
+ * `out_ptr`, without blocking. Returns the number of bytes read in `value`
+ * (which may be zero if the FIFO is currently empty).
+ *
+ * # Safety
+ * `handle` must be a valid handle from `selene_shmem_create` and `out_ptr` must
+ * be valid for writes of `out_max_len` bytes.
+ */
+struct selene_u64_result_t selene_shmem_read(void *handle, uint8_t *out_ptr, uint64_t out_max_len);
+
+/**
+ * Return whether the writer side has closed the FIFO.
+ *
+ * # Safety
+ * `handle` must be a valid handle from `selene_shmem_create`.
+ */
+struct selene_bool_result_t selene_shmem_writer_closed(void *handle);
+
 struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
 
 /**

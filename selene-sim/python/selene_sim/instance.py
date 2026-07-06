@@ -10,6 +10,8 @@ from .backends import SimpleRuntime, IdealErrorModel
 from .result_handling import TaggedResult
 from .event_hooks import EventHook, NoEventHook
 from .result_handling import ResultStream, TCPStream, parse_shot
+from .result_handling import DataStream, ShmemStream
+from .result_handling.shmem_stream import DEFAULT_CAPACITY
 from .timeout import Timeout, TimeoutInput
 from .process import SeleneProcess, SeleneProcessList
 
@@ -147,6 +149,39 @@ class SeleneInstance:
             print("Warning: The runs directory does not exist. Creating it again.")
             self.runs.mkdir(parents=True, exist_ok=True)
 
+    def _make_data_stream(
+        self,
+        transport: str,
+        timeout: Timeout,
+        logfile: Path | None,
+        shot_offset: int,
+        shot_increment: int,
+        shmem_capacity: int,
+    ) -> DataStream:
+        """
+        Construct the results-stream transport for a run.
+        """
+        match transport:
+            case "tcp":
+                return TCPStream(
+                    timeout=timeout,
+                    logfile=logfile,
+                    shot_offset=shot_offset,
+                    shot_increment=shot_increment,
+                )
+            case "shmem":
+                return ShmemStream(
+                    capacity=shmem_capacity,
+                    timeout=timeout,
+                    logfile=logfile,
+                    shot_offset=shot_offset,
+                    shot_increment=shot_increment,
+                )
+            case _:
+                raise ValueError(
+                    f"Unknown transport '{transport}'. Expected 'tcp' or 'shmem'."
+                )
+
     def run_shots(
         self,
         simulator: Simulator,
@@ -163,6 +198,8 @@ class SeleneInstance:
         shot_increment: int = 1,
         n_processes: int = 1,
         parse_results: bool = True,
+        transport: str = "tcp",
+        shmem_capacity: int = DEFAULT_CAPACITY,
     ) -> Iterator[Iterator[TaggedResult]]:
         """
         Run the compiled program through multiple selene shots.
@@ -206,11 +243,29 @@ class SeleneInstance:
                 Setting to True provides the high level Selene interface, and
                 using False allows for Selene to be used as an intermediate
                 component for use with an external result stream handler.
+            transport:
+                The results-stream transport to use. Either "tcp" (default),
+                which streams results over a loopback TCP socket and supports
+                multiple writer processes, or "shmem", which streams results
+                through a fixed-size, single-writer/single-reader shared-memory
+                FIFO created and destroyed by this process. The "shmem"
+                transport only supports a single writer process, so
+                `n_processes` must be 1.
+            shmem_capacity:
+                The capacity in bytes of the shared-memory FIFO when
+                `transport="shmem"`. Ignored for other transports.
         """
 
         self._check_health()
         n_processes = max(1, n_processes)
         n_processes = min(n_processes, n_shots)
+
+        if transport == "shmem" and n_processes > 1:
+            raise ValueError(
+                "The 'shmem' transport is single-writer/single-reader and "
+                f"only supports a single process, but n_processes={n_processes} "
+                "was requested. Use transport='tcp' for multi-process runs."
+            )
 
         timeout = Timeout.resolve_input(timeout)
 
@@ -225,11 +280,13 @@ class SeleneInstance:
             "error_model": self._get_component_config(error_model, random_seed),
             "runtime": self._get_component_config(runtime, random_seed),
         }
-        with TCPStream(
+        with self._make_data_stream(
+            transport=transport,
             timeout=timeout,
             logfile=results_logfile,
             shot_offset=shot_offset,
             shot_increment=shot_increment,
+            shmem_capacity=shmem_capacity,
         ) as data_stream:
             global_configuration["output_stream"] = data_stream.get_uri()
 
@@ -290,6 +347,8 @@ class SeleneInstance:
         random_seed: int | None = None,
         shot_offset: int = 0,
         parse_results: bool = True,
+        transport: str = "tcp",
+        shmem_capacity: int = DEFAULT_CAPACITY,
     ) -> Iterator[TaggedResult]:
         """
         Run the compiled program through a single selene shot.
@@ -321,6 +380,8 @@ class SeleneInstance:
             random_seed=random_seed,
             shot_offset=shot_offset,
             parse_results=parse_results,
+            transport=transport,
+            shmem_capacity=shmem_capacity,
         )
         # We cannot simply yield from the shot generator, as this can
         # cause lifetime issues with the run_shots generator.
@@ -357,6 +418,8 @@ class SeleneInstance:
         shot_increment: int = 1,
         parse_results: bool = True,
         output_file: Path | None = None,
+        transport: str = "tcp",
+        shmem_capacity: int = DEFAULT_CAPACITY,
     ) -> Iterator[Iterator[TaggedResult]]:
         """
         Run the compiled program under ``samply record`` for CPU profiling.
@@ -384,6 +447,11 @@ class SeleneInstance:
             parse_results: Whether to interpret tags in the result stream.
             output_file: If provided, save the samply profile to this path
                          (``--save-only``) instead of opening the browser.
+            transport: The results-stream transport to use, either "tcp"
+                       (default) or "shmem". Profiling always uses a single
+                       process, so both transports are supported.
+            shmem_capacity: The capacity in bytes of the shared-memory FIFO
+                            when ``transport="shmem"``. Ignored otherwise.
 
         Yields:
             One iterator of :class:`~selene_sim.result_handling.TaggedResult`
@@ -430,11 +498,13 @@ class SeleneInstance:
         artifact_directory = run_directory / "artifacts"
         artifact_directory.mkdir(parents=True, exist_ok=True)
 
-        with TCPStream(
+        with self._make_data_stream(
+            transport=transport,
             timeout=timeout,
             logfile=results_logfile,
             shot_offset=shot_offset,
             shot_increment=shot_increment,
+            shmem_capacity=shmem_capacity,
         ) as data_stream:
             global_configuration["output_stream"] = data_stream.get_uri()
             configuration = global_configuration | {

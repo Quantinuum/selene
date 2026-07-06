@@ -2,6 +2,7 @@ pub mod encoder;
 pub mod error_model;
 pub mod operation;
 pub mod runtime;
+pub mod shmem_fifo;
 pub mod simulator;
 pub mod time;
 pub mod utils;

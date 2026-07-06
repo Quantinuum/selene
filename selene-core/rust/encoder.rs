@@ -1,3 +1,4 @@
+use crate::shmem_fifo::ShmemWriter;
 use std::io::Write;
 use thiserror::Error;
 
@@ -165,6 +166,7 @@ pub enum OutputWriter {
     Stderr(std::io::Stderr),
     File(std::fs::File),
     Tcp(std::net::TcpStream),
+    Shmem(ShmemWriter),
 }
 impl Write for OutputWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
@@ -174,6 +176,7 @@ impl Write for OutputWriter {
             OutputWriter::Stderr(stderr) => stderr.write(buf),
             OutputWriter::File(file) => file.write(buf),
             OutputWriter::Tcp(tcp) => tcp.write(buf),
+            OutputWriter::Shmem(shmem) => shmem.write(buf),
         }
     }
     fn flush(&mut self) -> std::io::Result<()> {
@@ -183,6 +186,7 @@ impl Write for OutputWriter {
             OutputWriter::Stderr(stderr) => stderr.flush(),
             OutputWriter::File(file) => file.flush(),
             OutputWriter::Tcp(tcp) => tcp.flush(),
+            OutputWriter::Shmem(shmem) => shmem.flush(),
         }
     }
 }

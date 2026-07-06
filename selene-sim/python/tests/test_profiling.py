@@ -113,6 +113,23 @@ def test_profile_raises_when_samply_missing(tmp_path):
             list(instance.profile(simulator=Quest(), n_qubits=1))
 
 
+def test_profile_rejects_unknown_transport(tmp_path):
+    """profile() validates the transport param via _make_data_stream."""
+    from selene_sim import Quest
+
+    instance = _make_mock_instance(tmp_path)
+
+    # Pretend samply is available so we reach the transport selection without
+    # actually spawning a process.
+    with patch("shutil.which", return_value="/usr/bin/samply"):
+        with pytest.raises(ValueError, match="Unknown transport"):
+            list(
+                instance.profile(
+                    simulator=Quest(), n_qubits=1, transport="not-a-transport"
+                )
+            )
+
+
 # ---------------------------------------------------------------------------
 # SeleneObjectToSeleneExecutableStep: emit_debug forwarding
 # ---------------------------------------------------------------------------

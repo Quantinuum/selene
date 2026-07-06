@@ -59,6 +59,19 @@ impl Configuration {
             "stdout" => OutputWriter::Stdout(std::io::stdout()),
             "stderr" => OutputWriter::Stderr(std::io::stderr()),
             "internal" => OutputWriter::Internal(InternalBuffer::default()),
+            uri if uri.starts_with("shmem:") => {
+                // The reader (the process that called run_shots) has already
+                // created the segment; the writer only opens it. The OS id is
+                // carried verbatim after the `shmem:` prefix. It is not parsed
+                // as a URL because OS ids may contain characters (e.g. a
+                // leading '/') that are not valid URL hosts.
+                let os_id = &uri["shmem:".len()..];
+                let writer =
+                    selene_core::shmem_fifo::ShmemWriter::open(os_id).unwrap_or_else(|e| {
+                        panic!("Failed to open shared memory segment '{os_id}': {e}")
+                    });
+                OutputWriter::Shmem(writer)
+            }
             uri => {
                 let url = Url::parse(uri).unwrap();
                 match url.scheme() {
