@@ -227,11 +227,13 @@ impl ShmemFifo {
 
 /// A blocking, `Write`-based adapter over a [`ShmemFifo`] for the writer side.
 ///
-/// Writes block (spin/poll with a short sleep) until all bytes have been placed
-/// into the FIFO, applying backpressure when the ring buffer is full. When the
-/// writer is dropped it marks the FIFO as closed so the reader can detect the
-/// end of the stream even if no explicit end-of-stream marker was written (for
-/// example after a crash).
+/// Writes block until all bytes have been placed into the FIFO, applying
+/// backpressure when the ring buffer is full. While full, the writer spins
+/// in-process with exponential backoff (using [`std::hint::spin_loop`]) rather
+/// than yielding to the OS, doubling the spin count up to a cap and resetting
+/// on progress. When the writer is dropped it marks the FIFO as closed so the
+/// reader can detect the end of the stream even if no explicit end-of-stream
+/// marker was written (for example after a crash).
 pub struct ShmemWriter {
     fifo: ShmemFifo,
 }
@@ -250,15 +252,26 @@ impl ShmemWriter {
 
 impl std::io::Write for ShmemWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // Lower and upper bounds for the exponential backoff spin count.
+        const MIN_SPINS: u32 = 1;
+        const MAX_SPINS: u32 = 1 << 12;
+
         let mut written = 0;
+        let mut spins = MIN_SPINS;
         while written < buf.len() {
             let n = self.fifo.write(&buf[written..]);
             if n == 0 {
-                // FIFO is full; wait briefly for the reader to make space.
-                std::thread::sleep(std::time::Duration::from_micros(50));
+                // FIFO is full. Busy-wait in-process with exponential backoff
+                // until the reader frees space, avoiding an OS sleep.
+                for _ in 0..spins {
+                    std::hint::spin_loop();
+                }
+                spins = (spins << 1).min(MAX_SPINS);
                 continue;
             }
             written += n;
+            // Made progress; reset the backoff.
+            spins = MIN_SPINS;
         }
         Ok(written)
     }
