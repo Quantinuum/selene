@@ -24,14 +24,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Reset",
       "qubit": 0
     }
@@ -51,14 +43,6 @@
       "op": "BatchStart",
       "start_time_ns": 0,
       "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
     }
   },
   {
@@ -95,14 +79,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Reset",
       "qubit": 1
     }
@@ -127,14 +103,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rxy",
       "qubit": 1,
       "theta": 3.141592653589793,
@@ -161,9 +129,227 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": -1.5707963267948966,
+      "phi": 1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 1,
+      "theta": 1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rzz",
+      "qubit0": 0,
+      "qubit1": 1,
+      "theta": 1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 0,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 0,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": 1.5707963267948966,
+      "phi": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": 1.5707963267948966,
+      "phi": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 1,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 1,
+      "theta": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": 1.5707963267948966,
+      "phi": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": 1.5707963267948966,
+      "phi": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 1,
+      "theta": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 1,
+      "theta": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 0,
+      "theta": 1.5707963267948966,
+      "phi": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 0,
+      "theta": 1.5707963267948966,
+      "phi": -1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 0,
+      "theta": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "Rz",
+      "qubit": 0,
+      "theta": 3.141592653589793
+    }
+  },
+  {
+    "source": "Source.USER",
+    "operation": {
+      "op": "Rxy",
+      "qubit": 1,
+      "theta": -1.5707963267948966,
+      "phi": 1.5707963267948966
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "BatchStart",
+      "start_time_ns": 0,
+      "duration_ns": 0
     }
   },
   {
@@ -195,14 +381,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rzz",
       "qubit0": 0,
       "qubit1": 1,
@@ -228,14 +406,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rz",
       "qubit": 0,
       "theta": -1.5707963267948966
@@ -261,14 +431,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rxy",
       "qubit": 1,
       "theta": 1.5707963267948966,
@@ -289,312 +451,6 @@
       "op": "BatchStart",
       "start_time_ns": 0,
       "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 1.5707963267948966,
-      "phi": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 0,
-      "theta": 1.5707963267948966,
-      "phi": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": -1.5707963267948966,
-      "phi": 1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rzz",
-      "qubit0": 0,
-      "qubit1": 1,
-      "theta": 1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 0,
-      "theta": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "Rxy",
-      "qubit": 1,
-      "theta": 1.5707963267948966,
-      "phi": 3.141592653589793
-    }
-  },
-  {
-    "source": "Source.USER",
-    "operation": {
-      "op": "Rz",
-      "qubit": 1,
-      "theta": -1.5707963267948966
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "BatchStart",
-      "start_time_ns": 0,
-      "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
     }
   },
   {
@@ -630,14 +486,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Reset",
       "qubit": 2
     }
@@ -660,14 +508,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "FutureRead",
       "qubit": 0
     }
@@ -699,14 +539,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rxy",
       "qubit": 2,
       "theta": -1.5707963267948966,
@@ -733,14 +565,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rzz",
       "qubit0": 1,
       "qubit1": 2,
@@ -766,14 +590,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rz",
       "qubit": 1,
       "theta": -1.5707963267948966
@@ -799,14 +615,6 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
       "op": "Rxy",
       "qubit": 2,
       "theta": 1.5707963267948966,
@@ -827,14 +635,6 @@
       "op": "BatchStart",
       "start_time_ns": 0,
       "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
     }
   },
   {
@@ -865,14 +665,6 @@
       "op": "BatchStart",
       "start_time_ns": 0,
       "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
     }
   },
   {
@@ -909,14 +701,6 @@
       "op": "BatchStart",
       "start_time_ns": 0,
       "duration_ns": 0
-    }
-  },
-  {
-    "source": "Source.OPTIMISER",
-    "operation": {
-      "op": "CustomOperation",
-      "tag": 8056874943318669035,
-      "data": "81a66672616d65739284ad66756e6374696f6e5f6e616d65b95f5f5f687567725f5f2e5f5f6d61696e5f5f2e6d61696e2e31a966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec084ad66756e6374696f6e5f6e616d65a65f716d61696ea966696c655f6e616d65c0a46c696e65c0a6636f6c756d6ec0"
     }
   },
   {

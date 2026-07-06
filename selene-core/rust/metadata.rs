@@ -527,15 +527,15 @@ impl<'bump> BacktraceEngine<'bump> {
                 break;
             }
 
-            if let Some(name) = Self::symbol_name_for_ip(ip) {
-                if self.is_interface_fn_name(&name) {
-                    // Found the interface frame. We want the *caller* of
-                    // the interface frame, which is one frame above.
-                    skip_count += 1;
-                    eprintln!("[BT cal] => skip_count = {skip_count}");
-                    self.site_frame_skips.insert(call_site_ip, skip_count);
-                    return skip_count;
-                }
+            if let Some(name) = Self::symbol_name_for_ip(ip)
+                && self.is_interface_fn_name(&name)
+            {
+                // Found the interface frame. We want the *caller* of
+                // the interface frame, which is one frame above.
+                skip_count += 1;
+                eprintln!("[BT cal] => skip_count = {skip_count}");
+                self.site_frame_skips.insert(call_site_ip, skip_count);
+                return skip_count;
             }
 
             skip_count += 1;

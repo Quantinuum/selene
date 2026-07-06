@@ -101,14 +101,18 @@ impl Emulator {
         self.error_model.dump_simulator_state(file, qubits)
     }
     pub fn user_issued_qalloc(&mut self) -> Result<u64> {
+        let metadata = self.capture_metadata();
         let address = self.runtime.qalloc()?;
-        self.event_hooks.on_user_call(&Operation::QAlloc(address));
+        self.event_hooks
+            .on_user_call(&Operation::QAlloc(address, metadata));
         self.process_runtime()?;
         Ok(address)
     }
     pub fn user_issued_qfree(&mut self, address: u64) -> Result<()> {
+        let metadata = self.capture_metadata();
         self.runtime.qfree(address)?;
-        self.event_hooks.on_user_call(&Operation::QFree(address));
+        self.event_hooks
+            .on_user_call(&Operation::QFree(address, metadata));
         self.process_runtime()
     }
     pub fn user_issued_local_barrier(&mut self, qubits: &[u64], sleep_time: u64) -> Result<()> {

@@ -22,12 +22,12 @@ struct UserProgramMetrics {
 impl UserProgramMetrics {
     pub fn update(&mut self, operation: &Operation) {
         match operation {
-            Operation::QAlloc(_) => {
+            Operation::QAlloc(..) => {
                 self.qalloc_count += 1;
                 self.currently_allocated += 1;
                 self.max_allocated = self.max_allocated.max(self.currently_allocated);
             }
-            Operation::QFree(_) => {
+            Operation::QFree(..) => {
                 self.qfree_count += 1;
                 self.currently_allocated -= 1;
             }

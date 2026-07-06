@@ -1,7 +1,7 @@
 use selene_core::encoder::{OutputStream, OutputStreamError};
 use selene_core::error_model::BatchResult;
 use selene_core::metadata::BacktraceEngine;
-use selene_core::runtime::BatchOperation;
+use selene_core::runtime::{BatchOperation, OpMetadata};
 
 pub mod instruction_log;
 pub mod measurement_log;
@@ -9,8 +9,8 @@ pub mod metrics;
 
 #[derive(Clone)]
 pub enum Operation {
-    QFree(u64),
-    QAlloc(u64),
+    QFree(u64, OpMetadata),
+    QAlloc(u64, OpMetadata),
     RXY(u64, f64, f64),
     RZZ(u64, u64, f64),
     RZ(u64, f64),

@@ -30,11 +30,11 @@ impl Instruction {
                 encoder.write(*start_time)?;
                 encoder.write(*duration)?;
             }
-            Operation::QAlloc(address) => {
+            Operation::QAlloc(address, _) => {
                 encoder.write(1u64)?;
                 encoder.write(*address)?;
             }
-            Operation::QFree(address) => {
+            Operation::QFree(address, _) => {
                 encoder.write(2u64)?;
                 encoder.write(*address)?;
             }
@@ -119,10 +119,14 @@ pub struct InstructionLog {
 
 impl EventHook for InstructionLog {
     fn on_user_call(&mut self, operation: &Operation) {
+        let metadata = match operation {
+            Operation::QAlloc(_, metadata) | Operation::QFree(_, metadata) => *metadata,
+            _ => selene_core::runtime::NO_METADATA,
+        };
         self.entries.push(Instruction {
             source: Source::UserProgram,
             operation: operation.clone(),
-            metadata: selene_core::runtime::NO_METADATA,
+            metadata,
         });
     }
     fn on_runtime_batch(&mut self, batch: &BatchOperation) {
@@ -211,17 +215,17 @@ impl EventHook for InstructionLog {
             // Lazily resolve the per-instruction backtrace payload (as
             // Custom { DEBUG_INFO_TAG }) immediately before the
             // instruction itself, sharing the instruction's source.
-            if instruction.metadata != selene_core::runtime::NO_METADATA {
-                if let Some(engine) = backtrace_engine.as_deref_mut() {
-                    let payload = engine
-                        .serialize_backtrace(instruction.metadata)
-                        .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
-                    let source_id: u64 = instruction.source.clone() as u64;
-                    encoder.write(source_id)?;
-                    encoder.write(9u64)?;
-                    encoder.write(DEBUG_INFO_TAG as u64)?;
-                    encoder.write(&payload[..])?;
-                }
+            if instruction.metadata != selene_core::runtime::NO_METADATA
+                && let Some(engine) = backtrace_engine.as_deref_mut()
+            {
+                let payload = engine
+                    .serialize_backtrace(instruction.metadata)
+                    .map_err(|e| OutputStreamError::OtherError(e.to_string()))?;
+                let source_id: u64 = instruction.source.clone() as u64;
+                encoder.write(source_id)?;
+                encoder.write(9u64)?;
+                encoder.write(DEBUG_INFO_TAG as u64)?;
+                encoder.write(&payload[..])?;
             }
             instruction.write(encoder)?;
         }

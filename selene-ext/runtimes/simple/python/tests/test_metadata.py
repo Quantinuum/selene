@@ -74,6 +74,10 @@ def _validate_event_source_location(record):
             assert any(f"{name}(" in source_line for name in TWO_QUBIT_GATES), (
                 f"Expected a two-qubit gate call in source line for Rzz, got: {source_line!r}"
             )
+        elif event.gate_name == "QAlloc":
+            assert "qubit(" in source_line, (
+                f"Expected 'qubit(' in source line for QAlloc, got: {source_line!r}"
+            )
 
 
 def validate_debug_info(hugr):
@@ -134,6 +138,24 @@ def validate_debug_info(hugr):
     assert len(events_with_metadata) > 0, (
         "Expected at least one gate/measure/reset with metadata after transform"
     )
+
+    # QAlloc and QFree events must also carry backtrace metadata.
+    for gate_name in ("QAlloc", "QFree"):
+        alloc_free_events = [
+            r
+            for r in transformed_trace.events
+            if isinstance(r.event, GateEvent) and r.event.gate_name == gate_name
+        ]
+        assert len(alloc_free_events) > 0, (
+            f"Expected at least one {gate_name} event in trace"
+        )
+        for record in alloc_free_events:
+            assert record.event.metadata is not None, (
+                f"Expected {gate_name} event to have backtrace metadata"
+            )
+            assert len(record.event.metadata.frames) > 0, (
+                f"Expected {gate_name} metadata to have at least one frame"
+            )
 
     # Validate structure of attached metadata
     for record in events_with_metadata:

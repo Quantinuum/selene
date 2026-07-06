@@ -4,6 +4,8 @@ import json
 from selene_sim.build import build
 from selene_sim import Quest, SimpleRuntime, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore, CircuitExtractor, MultiEventHook
+from selene_core.gate_metadata import DEBUG_INFO_TAG, DEBUG_MODULE_TAG
+from selene_sim.event_hooks.instruction_log import CustomOperation
 
 
 def test_simple_vs_softrz(snapshot, compiled_guppy):
@@ -93,14 +95,25 @@ def test_simple_vs_softrz(snapshot, compiled_guppy):
         simple_metrics, "individual_count"
     )
 
-    # snapshot the instruction logs for each mode.
+    # snapshot the instruction logs for each mode, excluding debug-info custom ops
+    # (DEBUG_INFO_TAG / DEBUG_MODULE_TAG) which contain backtrace implementation
+    # details (raw VMAs or function names) that are build/machine-specific.
+    def is_debug_custom(event) -> bool:
+        op = event.operation
+        return isinstance(op, CustomOperation) and op.tag in (
+            DEBUG_INFO_TAG,
+            DEBUG_MODULE_TAG,
+        )
+
     simple_events = [
         {"source": str(event.source), "operation": event.operation.to_dict()}
         for event in simple_instructions
+        if not is_debug_custom(event)
     ]
     soft_events = [
         {"source": str(event.source), "operation": event.operation.to_dict()}
         for event in soft_instructions
+        if not is_debug_custom(event)
     ]
     snapshot.assert_match(json.dumps(simple_events, indent=2), "simple_events.json")
     snapshot.assert_match(json.dumps(soft_events, indent=2), "soft_events.json")
