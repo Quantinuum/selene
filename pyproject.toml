@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
-  "selene-core==1.0.0a0", # x-release-please-version
+  "selene-core==1.0.0-alpha.1a0", # x-release-please-version
   "tqdm>=4.67.1",
 ]
 authors = [
