@@ -4,7 +4,7 @@ The Sol QIS interface is split into two conceptual parts.
 The first is a dynamic library (interface) comprising the shims from QIS
 functionality (specific to Sol) to the Selene library functions, e.g.:
 ```
-    ___rp(qubit, theta, phi) -> selene_rxy(selene_instance, qubit, theta, phi)
+    ___rp(qubit, theta, phi) -> selene_gate(selene_instance, PhasedX(...))
 ```
 it also contains a function to invoke a callback through a shot loop.
 It is linked to a base QIS interface that exposes common functions, e.g.

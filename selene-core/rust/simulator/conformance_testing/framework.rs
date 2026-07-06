@@ -95,10 +95,10 @@ const HALF_PI: f64 = std::f64::consts::FRAC_PI_2;
 pub const QUARTER_PI: f64 = std::f64::consts::FRAC_PI_4;
 
 enum Operation {
-    Rz(u64, f64),
-    Rxy(u64, f64, f64),
-    Rzz(u64, u64, f64),
-    Rpp(u64, u64, f64, f64),
+    RZ(u64, f64),
+    PhasedX(u64, f64, f64),
+    ZZPhase(u64, u64, f64),
+    PhasedXX(u64, u64, f64, f64),
     Reset(u64),
     Measure(u64),
 }
@@ -128,30 +128,20 @@ impl EngineState {
     }
     pub fn run_operation(&mut self, operation: &Operation) {
         match operation {
-            Operation::Rz(q, theta) => {
+            Operation::RZ(q, theta) => {
                 self.qubit_phases[*q as usize] += theta;
             }
-            Operation::Rxy(q, theta, phi) => {
-                self.apply_void(SimulatorOperation::RXYGate {
-                    qubit_id: *q,
-                    theta: *theta,
-                    phi: *phi - self.qubit_phases[*q as usize],
-                });
+            Operation::PhasedX(q, theta, phi) => {
+                self.apply_void(
+                    SimulatorOperation::phased_x(*q, *theta, *phi - self.qubit_phases[*q as usize])
+                        .unwrap(),
+                );
             }
-            Operation::Rpp(q0, q1, theta, phi) => {
-                self.apply_void(SimulatorOperation::RPPGate {
-                    qubit_id_1: *q0,
-                    qubit_id_2: *q1,
-                    theta: *theta,
-                    phi: *phi,
-                });
+            Operation::PhasedXX(q0, q1, theta, phi) => {
+                self.apply_void(SimulatorOperation::phased_xx(*q0, *q1, *theta, *phi).unwrap());
             }
-            Operation::Rzz(q0, q1, theta) => {
-                self.apply_void(SimulatorOperation::RZZGate {
-                    qubit_id_1: *q0,
-                    qubit_id_2: *q1,
-                    theta: *theta,
-                });
+            Operation::ZZPhase(q0, q1, theta) => {
+                self.apply_void(SimulatorOperation::zz_phase(*q0, *q1, *theta).unwrap());
             }
             Operation::Reset(q) => {
                 self.apply_void(SimulatorOperation::Reset { qubit_id: *q });
@@ -298,19 +288,19 @@ impl TestFramework {
     }
 
     pub fn rz(&mut self, qubit: u64, theta: f64) -> &mut Self {
-        self.add_operation(Operation::Rz(qubit, theta));
+        self.add_operation(Operation::RZ(qubit, theta));
         self
     }
-    pub fn rxy(&mut self, qubit: u64, theta: f64, phi: f64) -> &mut Self {
-        self.add_operation(Operation::Rxy(qubit, theta, phi));
+    pub fn phased_x(&mut self, qubit: u64, theta: f64, phi: f64) -> &mut Self {
+        self.add_operation(Operation::PhasedX(qubit, theta, phi));
         self
     }
-    pub fn rzz(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> &mut Self {
-        self.add_operation(Operation::Rzz(qubit1, qubit2, theta));
+    pub fn zz_phase(&mut self, qubit1: u64, qubit2: u64, theta: f64) -> &mut Self {
+        self.add_operation(Operation::ZZPhase(qubit1, qubit2, theta));
         self
     }
-    pub fn rpp(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> &mut Self {
-        self.add_operation(Operation::Rpp(qubit1, qubit2, theta, phi));
+    pub fn phased_xx(&mut self, qubit1: u64, qubit2: u64, theta: f64, phi: f64) -> &mut Self {
+        self.add_operation(Operation::PhasedXX(qubit1, qubit2, theta, phi));
         self
     }
     pub fn reset(&mut self, qubit: u64) -> &mut Self {
@@ -323,11 +313,11 @@ impl TestFramework {
     }
 
     pub fn rx(&mut self, qubit: u64, theta: f64) -> &mut Self {
-        self.rxy(qubit, theta, 0.0);
+        self.phased_x(qubit, theta, 0.0);
         self
     }
     pub fn ry(&mut self, qubit: u64, theta: f64) -> &mut Self {
-        self.rxy(qubit, theta, HALF_PI);
+        self.phased_x(qubit, theta, HALF_PI);
         self
     }
     pub fn x(&mut self, qubit: u64) -> &mut Self {
@@ -344,16 +334,16 @@ impl TestFramework {
     }
 
     pub fn h(&mut self, qubit: u64) -> &mut Self {
-        self.rxy(qubit, HALF_PI, -HALF_PI);
+        self.phased_x(qubit, HALF_PI, -HALF_PI);
         self.z(qubit);
         self
     }
 
     pub fn cnot(&mut self, control: u64, target: u64) -> &mut Self {
-        self.rxy(target, -HALF_PI, HALF_PI);
-        self.rzz(control, target, HALF_PI);
+        self.phased_x(target, -HALF_PI, HALF_PI);
+        self.zz_phase(control, target, HALF_PI);
         self.rz(control, -HALF_PI);
-        self.rxy(target, HALF_PI, PI);
+        self.phased_x(target, HALF_PI, PI);
         self.rz(target, -HALF_PI);
         self
     }

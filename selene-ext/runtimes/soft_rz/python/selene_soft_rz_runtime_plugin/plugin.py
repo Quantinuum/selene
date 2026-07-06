@@ -16,16 +16,20 @@ class SoftRZRuntimePlugin(Runtime):
     retrieve the result.
     """
 
-    duration_ns_rxy: int = 0
-    duration_ns_rzz: int = 0
+    duration_ns_phased_x: int = 0
+    duration_ns_zz_phase: int = 0
     duration_ns_measure: int = 0
     duration_ns_reset: int = 0
     duration_ns_measure_leaked: int = 0
     max_batch_size: int = 1
 
     def __post_init__(self):
-        assert self.duration_ns_rxy >= 0, "duration_ns_rxy must be non-negative"
-        assert self.duration_ns_rzz >= 0, "duration_ns_rzz must be non-negative"
+        assert self.duration_ns_phased_x >= 0, (
+            "duration_ns_phased_x must be non-negative"
+        )
+        assert self.duration_ns_zz_phase >= 0, (
+            "duration_ns_zz_phase must be non-negative"
+        )
         assert self.duration_ns_measure >= 0, "duration_ns_measure must be non-negative"
         assert self.duration_ns_reset >= 0, "duration_ns_reset must be non-negative"
         assert self.duration_ns_measure_leaked >= 0, (
@@ -35,8 +39,8 @@ class SoftRZRuntimePlugin(Runtime):
 
     def get_init_args(self):
         return [
-            f"--duration-ns-rxy={self.duration_ns_rxy}",
-            f"--duration-ns-rzz={self.duration_ns_rzz}",
+            f"--duration-ns-phased-x={self.duration_ns_phased_x}",
+            f"--duration-ns-zz-phase={self.duration_ns_zz_phase}",
             f"--duration-ns-measure={self.duration_ns_measure}",
             f"--duration-ns-reset={self.duration_ns_reset}",
             f"--duration-ns-measure-leaked={self.duration_ns_measure_leaked}",

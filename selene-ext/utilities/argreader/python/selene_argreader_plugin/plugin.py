@@ -33,3 +33,7 @@ class ArgReaderPlugin(Utility):
             ]
         else:
             return []
+
+    @property
+    def registration_symbol(self) -> str:
+        return "selene_argreader_register_utility"

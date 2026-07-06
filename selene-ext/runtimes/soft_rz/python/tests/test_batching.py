@@ -44,8 +44,8 @@ def test_batching_behaviour(snapshot, compiled_guppy):
 
     # provide some dummy timing information for the runtimes
     defaults = {
-        "duration_ns_rxy": 1_200_000,  # 1.2ms
-        "duration_ns_rzz": 2_500_000,  # 2.5ms
+        "duration_ns_phased_x": 1_200_000,  # 1.2ms
+        "duration_ns_zz_phase": 2_500_000,  # 2.5ms
         "duration_ns_measure": 3_000_000,  # 3ms
         "duration_ns_reset": 500_000,  # 0.5ms
         "duration_ns_measure_leaked": 4_000_000,  # 4ms

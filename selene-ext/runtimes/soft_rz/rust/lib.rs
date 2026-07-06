@@ -4,16 +4,33 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
+    gatewire::{DynamicGateSet, OwnedGateInstance, builtin},
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
 
+selene_core::define_gateset! {
+    enum SoftRZEmittedGateSet {
+        PhasedX(builtin::PhasedX),
+        ZZPhase(builtin::ZZPhase),
+    }
+}
+
+impl SoftRZEmittedGateSet {
+    fn dynamic() -> DynamicGateSet {
+        DynamicGateSet::from_declarations(
+            <Self as selene_core::gatewire::GateSetSpec>::declarations(),
+        )
+        .expect("SoftRZ emitted gate declarations are unique")
+    }
+}
+
 #[derive(Parser, Debug)]
 struct Params {
     #[arg(long)]
-    duration_ns_rxy: u64,
+    duration_ns_phased_x: u64,
     #[arg(long)]
-    duration_ns_rzz: u64,
+    duration_ns_zz_phase: u64,
     #[arg(long)]
     duration_ns_measure: u64,
     #[arg(long)]
@@ -85,13 +102,15 @@ impl SoftRZRuntime {
             self.operation_queue[append_idx].add_operation(op);
         } else {
             // We didn't find a batch to append to, so we need to create a new batch for this operation.
-            let duration = match op {
-                Operation::RXYGate { .. } => self.params.duration_ns_rxy,
-                Operation::RZZGate { .. } => self.params.duration_ns_rzz,
-                Operation::Measure { .. } => self.params.duration_ns_measure,
-                Operation::Reset { .. } => self.params.duration_ns_reset,
-                Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
-                _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
+            let duration = match op.as_gate::<SoftRZEmittedGateSet>() {
+                Ok(Some(SoftRZEmittedGateSet::PhasedX(_))) => self.params.duration_ns_phased_x,
+                Ok(Some(SoftRZEmittedGateSet::ZZPhase(_))) => self.params.duration_ns_zz_phase,
+                _ => match op {
+                    Operation::Measure { .. } => self.params.duration_ns_measure,
+                    Operation::Reset { .. } => self.params.duration_ns_reset,
+                    Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
+                    _ => 0, // Unhandled ops have no duration, since we don't know their semantics.
+                },
             };
             self.operation_queue.push_back(BatchOperation::runtime(
                 vec![op],
@@ -125,9 +144,21 @@ impl SoftRZRuntime {
         }
         // next, check the type of the operations in this batch. If they aren't the same type as op, we can't append, but we can continue searching for an earlier batch that op might fit into.
         let same_type = batch.iter_ops().all(|batch_op| match (batch_op, op) {
-            (Operation::RXYGate { .. }, Operation::RXYGate { .. }) => true,
-            (Operation::RZGate { .. }, Operation::RZGate { .. }) => true,
-            (Operation::RZZGate { .. }, Operation::RZZGate { .. }) => true,
+            (Operation::Gate { .. }, Operation::Gate { .. }) => {
+                matches!(
+                    (
+                        batch_op.as_gate::<SoftRZEmittedGateSet>(),
+                        op.as_gate::<SoftRZEmittedGateSet>()
+                    ),
+                    (
+                        Ok(Some(SoftRZEmittedGateSet::PhasedX(_))),
+                        Ok(Some(SoftRZEmittedGateSet::PhasedX(_)))
+                    ) | (
+                        Ok(Some(SoftRZEmittedGateSet::ZZPhase(_))),
+                        Ok(Some(SoftRZEmittedGateSet::ZZPhase(_)))
+                    )
+                )
+            }
             (Operation::Measure { .. }, Operation::Measure { .. }) => true,
             (Operation::MeasureLeaked { .. }, Operation::MeasureLeaked { .. }) => true,
             (Operation::Reset { .. }, Operation::Reset { .. }) => true,
@@ -156,7 +187,6 @@ impl RuntimeInterface for SoftRZRuntime {
         self.future_results.clear();
         Ok(())
     }
-    // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         debug_assert!(
             self.flush_size <= self.operation_queue.len(),
@@ -178,6 +208,13 @@ impl RuntimeInterface for SoftRZRuntime {
         self.flush_size = 0;
         self.future_results.clear();
         Ok(())
+    }
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let accepted = builtin::HeliosGateSet::dynamic();
+        if let Some(decl) = gateset.first_unsupported_by(&accepted) {
+            bail!("SoftRZRuntime does not support gate {}", decl.name);
+        }
+        Ok(SoftRZEmittedGateSet::dynamic())
     }
     fn global_barrier(&mut self, _sleep_ns: u64) -> Result<()> {
         self.flush_size = self.operation_queue.len();
@@ -219,59 +256,50 @@ impl RuntimeInterface for SoftRZRuntime {
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
-            bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
+    fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
+        match Operation::gate_as_view::<builtin::HeliosGate>(gate)? {
+            Some(builtin::HeliosGate::PhasedX {
+                qubit_id,
+                theta,
+                phi,
+            }) => {
+                if qubit_id >= self.qubits.len() as u64 {
+                    bail!("applying PhasedX gate to out-of-bounds qubit {qubit_id}");
+                }
+                let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
+                    bail!("Qubit {qubit_id} is not active");
+                };
+                self.push(Operation::phased_x(qubit_id, theta, phi - phase)?);
+                Ok(())
+            }
+            Some(builtin::HeliosGate::ZZPhase {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            }) => {
+                if qubit_id_1 >= self.qubits.len() as u64 {
+                    bail!("applying ZZPhase gate to out-of-bounds qubit1 {qubit_id_1}");
+                }
+                if qubit_id_2 >= self.qubits.len() as u64 {
+                    bail!("applying ZZPhase gate to out-of-bounds qubit2 {qubit_id_2}");
+                }
+                self.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
+                Ok(())
+            }
+            Some(builtin::HeliosGate::RZ { qubit_id, theta }) => {
+                if qubit_id >= self.qubits.len() as u64 {
+                    bail!("applying RZ gate to out-of-bounds qubit {qubit_id}");
+                }
+                let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
+                    bail!("Qubit {qubit_id} is not active");
+                };
+                self.qubits[qubit_id as usize] = QubitStatus::Active {
+                    phase: phase + theta,
+                };
+                Ok(())
+            }
+            None => bail!("SoftRZRuntime does not support this gate"),
         }
-        let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
-            bail!("Qubit {qubit_id} is not active");
-        };
-        self.push(Operation::RXYGate {
-            qubit_id,
-            theta,
-            phi: phi - phase, // The Z phase is enacted here.
-        });
-        Ok(())
-    }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        if qubit_id_1 >= self.qubits.len() as u64 {
-            bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
-        }
-        if qubit_id_2 >= self.qubits.len() as u64 {
-            bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
-        }
-        self.push(Operation::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        });
-        Ok(())
-    }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
-            bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
-        }
-        let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
-            bail!("Qubit {qubit_id} is not active");
-        };
-        // We don't apply an RZ gate. Instead, we accumulate a phase, and mutate
-        // RXY gates' phi parameters to account for the phase shift. RZZ and measurement
-        // are unaffected.
-        self.qubits[qubit_id as usize] = QubitStatus::Active {
-            phase: phase + theta,
-        };
-        Ok(())
-    }
-    fn rpp_gate(
-        &mut self,
-        _qubit_id_1: u64,
-        _qubit_id_2: u64,
-        _theta: f64,
-        _phi: f64,
-    ) -> Result<()> {
-        bail!(
-            "The RPP gate is not compatible with the SoftRZRuntime, as it relies on the properties of rz's interaction with (rxy, rzz)."
-        );
     }
     // Lifetime ops
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {
@@ -390,6 +418,10 @@ struct SoftRZRuntimeFactory;
 
 impl RuntimeInterfaceFactory for SoftRZRuntimeFactory {
     type Interface = SoftRZRuntime;
+
+    fn name(&self) -> &str {
+        "SoftRZ"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

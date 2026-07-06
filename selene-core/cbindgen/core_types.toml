@@ -1,6 +1,6 @@
 language = "C"
-
 include_version = false
+include_guard = "SELENE_CORE_TYPES_H"
 namespaces = []
 using_namespaces = []
 sys_includes = []
@@ -21,6 +21,64 @@ usize_is_size_t = true
 
 [export]
 include = ["Errno", "Operation"]
+exclude = [
+  "GwStatus",
+  "GW_STATUS_OK",
+  "GW_STATUS_NULL_POINTER",
+  "GW_STATUS_INVALID_ARGUMENT",
+  "GW_STATUS_DUPLICATE_GATE",
+  "GW_STATUS_NOT_FOUND",
+  "GW_STATUS_BUFFER_TOO_SMALL",
+  "GW_STATUS_DECODE_ERROR",
+  "GW_STATUS_VALIDATION_ERROR",
+  "GW_STATUS_PANIC",
+  "GW_OPERAND_KIND_QUBIT",
+  "GW_OPERAND_KIND_F64",
+  "GW_OPERAND_KIND_U64",
+  "GW_OPERAND_KIND_I64",
+  "GW_OPERAND_KIND_U8",
+  "GW_OPERAND_KIND_BOOL",
+  "GwSemanticId",
+  "GwGateSet",
+  "GwOperandDeclView",
+  "GwGateDeclView",
+  "GwGateDeclInfo",
+  "GwOperandDeclInfo",
+  "GwGateValueData",
+  "GwGateValue",
+  "GwGateInstanceView",
+  "GwDecodedGate",
+  "gw_status_message",
+  "gw_semantic_id_from_text",
+  "gw_semantic_id_eq",
+  "gw_builtin_rz_semantic_id",
+  "gw_builtin_phased_x_semantic_id",
+  "gw_builtin_zz_phase_semantic_id",
+  "gw_builtin_phased_xx_semantic_id",
+  "gw_gateset_new",
+  "gw_builtin_gateset_new",
+  "gw_gateset_free",
+  "gw_gateset_add_decl",
+  "gw_gateset_add_builtin_rz",
+  "gw_gateset_add_builtin_phased_x",
+  "gw_gateset_add_builtin_zz_phase",
+  "gw_gateset_add_builtin_phased_xx",
+  "gw_gateset_len",
+  "gw_gateset_contains",
+  "gw_gateset_decl_at",
+  "gw_gateset_decl_operand_at",
+  "gw_gateset_serialized_len",
+  "gw_gateset_serialize",
+  "gw_gateset_deserialize",
+  "gw_gate_serialized_len",
+  "gw_gate_serialize",
+  "gw_gate_deserialize",
+  "gw_decoded_gate_free",
+  "gw_decoded_gate_semantic_id",
+  "gw_decoded_gate_value_count",
+  "gw_decoded_gate_value_at",
+  "gw_gateset_validate_decoded",
+]
 item_types = ["functions", "structs", "opaque", "enums", "typedefs"]
 renaming_overrides_prefixing = false
 

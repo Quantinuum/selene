@@ -6,7 +6,8 @@ Selene is a quantum computer emulation platform written primarily in Rust with a
 
 Selene is built with flexibility in mind. This includes:
 
-- A plugin system for the addition of additional components including simulators, error models, quantum runtimes to be provided within Selene or as third party plugins
+- A descriptor-based plugin system for simulators, error models, quantum runtimes, and link-time utilities provided either within Selene or as third-party packages.
+- Gatewire gatesets, allowing interfaces and plugins to negotiate custom gate vocabularies before a run starts.
 - Support for custom input formats and device APIs through [the selene-core build system](selene-core/python/selene_core/build_utils).
 
 ## What's included
@@ -32,7 +33,17 @@ Error models that are currently provided include:
 And we offer two example quantum runtimes, including:
 
 - Simple, which executes the program as-is, without any modifications
-- SoftRZ, which elides Z rotations through RXY gates, providing the same observable behaviour with fewer quantum operations
+- SoftRZ, which accepts `RZ` operations and elides physical Z rotations through subsequent gates, providing the same observable behaviour with fewer quantum operations
+
+## Documentation
+
+- [Extensibility docs](docs/extensibility/README.md) cover plugins, utilities,
+  custom gates, and the gatewire handshake.
+- [0.3 migration guide](docs/migration/0.3.md) covers the breaking plugin and
+  gate API changes from the 0.2 series.
+- [Clifford+T stack example](examples/clifford_t_stack/README.md) is a complete
+  custom-gateset project with Python bindings, Rust runtime/error-model
+  plugins, and a C++ simulator plugin.
 
 ## Installation
 

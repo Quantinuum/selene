@@ -2,6 +2,7 @@ use crate::event_hooks::{Operation, SharedEventHook};
 use crate::selene_instance::configuration::Configuration;
 use anyhow::{Result, anyhow};
 use selene_core::error_model::{BatchResult, ErrorModel, ErrorModelInterface};
+use selene_core::gatewire::DynamicGateSet;
 use selene_core::runtime::{
     BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInterface,
 };
@@ -49,6 +50,10 @@ impl SimulatorInterface for HookedSimulator {
         self.inner.shot_end()
     }
 
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        self.inner.negotiate_gateset(gateset)
+    }
+
     fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
         let mut results = BatchResult::default();
         for operation in operations {
@@ -65,7 +70,12 @@ impl SimulatorInterface for HookedSimulator {
     fn postselect(&mut self, qubit: u64, target_value: bool) -> Result<()> {
         let operation = Operation::Postselect(qubit, target_value);
         time_simulator_call(&self.event_hooks, &operation, || {
-            self.inner.postselect(qubit, target_value)
+            self.inner
+                .handle_operations(singleton_batch(RuntimeOperation::Postselect {
+                    qubit_id: qubit,
+                    target_value,
+                }))?;
+            Ok(())
         })
     }
 
@@ -207,27 +217,14 @@ impl Emulator {
             .on_user_call(&Operation::GlobalBarrier(sleep_time));
         self.process_runtime()
     }
-    pub fn user_issued_rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
-        self.runtime.rxy_gate(q0, theta, phi)?;
+    pub fn user_issued_gate(
+        &mut self,
+        gate: &selene_core::gatewire::OwnedGateInstance,
+    ) -> Result<()> {
+        self.runtime.gate(gate)?;
+        let operation = RuntimeOperation::from_gate_instance(gate.clone())?;
         self.event_hooks
-            .on_user_call(&Operation::RXY(q0, theta, phi));
-        self.process_runtime()
-    }
-    pub fn user_issued_rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
-        self.runtime.rzz_gate(q0, q1, theta)?;
-        self.event_hooks
-            .on_user_call(&Operation::RZZ(q0, q1, theta));
-        self.process_runtime()
-    }
-    pub fn user_issued_rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
-        self.runtime.rpp_gate(q0, q1, theta, phi)?;
-        self.event_hooks
-            .on_user_call(&Operation::RPP(q0, q1, theta, phi));
-        self.process_runtime()
-    }
-    pub fn user_issued_rz(&mut self, q0: u64, theta: f64) -> Result<()> {
-        self.runtime.rz_gate(q0, theta)?;
-        self.event_hooks.on_user_call(&Operation::RZ(q0, theta));
+            .on_user_call(&Operation::from_runtime_operation(&operation));
         self.process_runtime()
     }
     pub fn user_issued_reset(&mut self, q0: u64) -> Result<()> {
@@ -313,6 +310,15 @@ impl Emulator {
         self.event_hooks
             .on_user_call(&Operation::ClassicalDelay(delay_ns));
         self.process_runtime()
+    }
+
+    pub fn register_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let runtime_gateset = self.runtime.negotiate_gateset(gateset)?;
+        let error_model_gateset = self.error_model.negotiate_gateset(&runtime_gateset)?;
+        self.simulator.negotiate_gateset(&error_model_gateset)?;
+        self.event_hooks
+            .on_gatesets_registered(gateset, &runtime_gateset);
+        Ok(runtime_gateset)
     }
 }
 

@@ -1,11 +1,77 @@
 #include <helios_qis/helios_ops.h>
 
+#include <selene/gatewire.h>
 #include <selene/selene.h> // selene_ functions
 #include <base_qis/selene_lifetime.h> // selene_instance
 #include <base_qis/unwrap.h> // unwrap
 
+#include <stdlib.h>
+
 #include "logging.h" // DIAGNOSTIC
 
+static GwSemanticId rz_id;
+static GwSemanticId phased_x_id;
+static GwSemanticId zz_phase_id;
+static bool gate_ids_initialized = false;
+
+static void check_gw(GwStatus status) {
+    if (status != GW_STATUS_OK) {
+        ERROR("gatewire error: %s\n", gw_status_message(status));
+        abort();
+    }
+}
+
+static void init_gate_ids(void) {
+    if (gate_ids_initialized) {
+        return;
+    }
+    rz_id = gw_builtin_rz_semantic_id();
+    phased_x_id = gw_builtin_phased_x_semantic_id();
+    zz_phase_id = gw_builtin_zz_phase_semantic_id();
+    gate_ids_initialized = true;
+}
+
+static GwGateValue qubit_value(uint64_t q) {
+    GwGateValue value = {
+        .abi_size = sizeof(GwGateValue),
+        .kind = GW_OPERAND_KIND_QUBIT,
+        .data.qubit = (uint32_t)q,
+        .bytes_ptr = NULL,
+        .bytes_len = 0,
+    };
+    return value;
+}
+
+static GwGateValue angle_value(double angle) {
+    GwGateValue value = {
+        .abi_size = sizeof(GwGateValue),
+        .kind = GW_OPERAND_KIND_F64,
+        .data.f64_value = angle,
+        .bytes_ptr = NULL,
+        .bytes_len = 0,
+    };
+    return value;
+}
+
+static void emit_gate(GwSemanticId semantic_id, GwGateValue const* values, size_t values_len) {
+    GwGateInstanceView gate = {
+        .abi_size = sizeof(GwGateInstanceView),
+        .semantic_id = semantic_id,
+        .values_ptr = values,
+        .values_len = values_len,
+    };
+    size_t len = 0;
+    check_gw(gw_gate_serialized_len(&gate, &len));
+    uint8_t* buffer = malloc(len);
+    if (buffer == NULL) {
+        ERROR("failed to allocate gate buffer\n");
+        abort();
+    }
+    size_t written = 0;
+    check_gw(gw_gate_serialize(&gate, buffer, len, &written));
+    unwrap(selene_gate(selene_instance, buffer, written));
+    free(buffer);
+}
 
 uint64_t ___qalloc() {
     DIAGNOSTIC("___qalloc()\n");
@@ -20,17 +86,23 @@ void ___qfree(uint64_t q) {
 }
 void ___rxy(uint64_t q, double theta, double phi) {
     DIAGNOSTIC("___rxy(%" PRIu64 ", %f, %f)\n", q, theta, phi);
-    unwrap(selene_rxy(selene_instance, q, theta, phi));
+    init_gate_ids();
+    GwGateValue values[] = {qubit_value(q), angle_value(theta), angle_value(phi)};
+    emit_gate(phased_x_id, values, 3);
     DIAGNOSTIC("   [done]\n");
 }
 void ___rzz(uint64_t q1, uint64_t q2, double theta) {
     DIAGNOSTIC("___rzz(%" PRIu64 ", %" PRIu64 ", %f)\n", q1, q2, theta);
-    unwrap(selene_rzz(selene_instance, q1, q2, theta));
+    init_gate_ids();
+    GwGateValue values[] = {qubit_value(q1), qubit_value(q2), angle_value(theta)};
+    emit_gate(zz_phase_id, values, 3);
     DIAGNOSTIC("   [done]\n");
 }
 void ___rz(uint64_t q, double theta) {
     DIAGNOSTIC("___rz(%" PRIu64 ", %f)\n", q, theta);
-    unwrap(selene_rz(selene_instance, q, theta));
+    init_gate_ids();
+    GwGateValue values[] = {qubit_value(q), angle_value(theta)};
+    emit_gate(rz_id, values, 2);
     DIAGNOSTIC("   [done]\n");
 }
 void ___reset(uint64_t q) {

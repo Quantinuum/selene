@@ -5,6 +5,7 @@ use rand_pcg::Pcg64Mcg;
 use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
+use selene_core::gatewire::{DynamicGateSet, builtin};
 use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -59,6 +60,22 @@ pub enum ErrorType {
     Z,
 }
 
+selene_core::define_gateset! {
+    enum DepolarizingCorrectionGateSet {
+        RZ(builtin::RZ),
+        PhasedX(builtin::PhasedX),
+    }
+}
+
+impl DepolarizingCorrectionGateSet {
+    fn dynamic() -> DynamicGateSet {
+        DynamicGateSet::from_declarations(
+            <Self as selene_core::gatewire::GateSetSpec>::declarations(),
+        )
+        .expect("depolarizing correction gate declarations are unique")
+    }
+}
+
 pub struct DepolarizingErrorModel {
     n_qubits: u64,
     rng: Pcg64Mcg,
@@ -89,20 +106,12 @@ impl DepolarizingErrorModel {
     fn error_operation(&self, qubit: u64, error: ErrorType) -> Option<Operation> {
         match error {
             ErrorType::I => None,
-            ErrorType::X => Some(Operation::RXYGate {
-                qubit_id: qubit,
-                theta: std::f64::consts::PI,
-                phi: 0.0,
-            }),
-            ErrorType::Y => Some(Operation::RXYGate {
-                qubit_id: qubit,
-                theta: std::f64::consts::PI,
-                phi: std::f64::consts::PI / 2.0,
-            }),
-            ErrorType::Z => Some(Operation::RZGate {
-                qubit_id: qubit,
-                theta: std::f64::consts::PI,
-            }),
+            ErrorType::X => Some(Operation::phased_x(qubit, std::f64::consts::PI, 0.0).ok()?),
+            ErrorType::Y => Some(
+                Operation::phased_x(qubit, std::f64::consts::PI, std::f64::consts::PI / 2.0)
+                    .ok()?,
+            ),
+            ErrorType::Z => Some(Operation::rz(qubit, std::f64::consts::PI).ok()?),
         }
     }
     fn maybe_apply_1q_error(&mut self, q0: u64) -> Result<Option<Operation>> {
@@ -228,6 +237,12 @@ impl ErrorModelInterface for DepolarizingErrorModel {
         Ok(())
     }
 
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        gateset
+            .union(&DepolarizingCorrectionGateSet::dynamic())
+            .map_err(Into::into)
+    }
+
     fn exit(&mut self) -> Result<()> {
         Ok(())
     }
@@ -241,51 +256,20 @@ impl ErrorModelInterface for DepolarizingErrorModel {
         let mut pending = Vec::new();
         for op in operations {
             match op {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => {
-                    if let Some(error) = self.maybe_apply_1q_error(qubit_id)? {
-                        pending.push(error);
+                Operation::Gate { gate } => {
+                    let qubits: Vec<u64> = gate.qubit_operands().map(u64::from).collect();
+                    match qubits.as_slice() {
+                        [q0] => {
+                            if let Some(error) = self.maybe_apply_1q_error(*q0)? {
+                                pending.push(error);
+                            }
+                        }
+                        [q0, q1] => {
+                            pending.extend(self.maybe_apply_2q_error(*q0, *q1)?);
+                        }
+                        _ => {}
                     }
-                    pending.push(Operation::RXYGate {
-                        qubit_id,
-                        theta,
-                        phi,
-                    });
-                }
-                Operation::RZGate { qubit_id, theta } => {
-                    if let Some(error) = self.maybe_apply_1q_error(qubit_id)? {
-                        pending.push(error);
-                    }
-                    pending.push(Operation::RZGate { qubit_id, theta });
-                }
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => {
-                    pending.extend(self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?);
-                    pending.push(Operation::RZZGate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                    });
-                }
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => {
-                    pending.extend(self.maybe_apply_2q_error(qubit_id_1, qubit_id_2)?);
-                    pending.push(Operation::RPPGate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        theta,
-                        phi,
-                    });
+                    pending.push(Operation::from_gate_instance(gate)?);
                 }
                 Operation::Measure {
                     qubit_id,
@@ -332,6 +316,16 @@ impl ErrorModelInterface for DepolarizingErrorModel {
                     if let Some(error) = self.maybe_flip_on_init(qubit_id)? {
                         pending.push(error);
                     }
+                }
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => {
+                    pending.push(Operation::Postselect {
+                        qubit_id,
+                        target_value,
+                    });
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
                 }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
@@ -454,6 +448,10 @@ pub struct DepolarizingErrorModelFactory;
 impl ErrorModelInterfaceFactory for DepolarizingErrorModelFactory {
     type Interface = DepolarizingErrorModel;
 
+    fn name(&self) -> &str {
+        "Depolarizing"
+    }
+
     fn init(
         self: std::sync::Arc<Self>,
         n_qubits: u64,
@@ -471,6 +469,110 @@ impl ErrorModelInterfaceFactory for DepolarizingErrorModelFactory {
                 stats: Stats::default(),
             })),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use selene_core::gatewire::{
+        GateDecl, GateSemanticId, GateValue, OperandKind, OperandSpec, OwnedGateInstance,
+    };
+
+    struct RecordingSimulator {
+        operations: Vec<Operation>,
+    }
+
+    impl SimulatorInterface for RecordingSimulator {
+        fn exit(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        fn shot_start(&mut self, _shot_id: u64, _seed: u64) -> Result<()> {
+            Ok(())
+        }
+
+        fn shot_end(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+            self.operations.extend(operations);
+            Ok(BatchResult::default())
+        }
+
+        fn get_metric(&mut self, _nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+            Ok(None)
+        }
+    }
+
+    fn custom_1q_decl() -> GateDecl {
+        GateDecl::new(
+            GateSemanticId::from_text("test.custom.OneQ.v1"),
+            "OneQ",
+            [OperandSpec::new("q0", OperandKind::Qubit)],
+            1,
+        )
+    }
+
+    fn model_with_probabilities(p_1q: f64, p_2q: f64) -> DepolarizingErrorModel {
+        DepolarizingErrorModel {
+            n_qubits: 4,
+            rng: Pcg64Mcg::seed_from_u64(0),
+            error_params: Params {
+                p_1q,
+                p_2q,
+                p_meas: 0.0,
+                p_init: 0.0,
+            },
+            stats: Stats::default(),
+        }
+    }
+
+    #[test]
+    fn negotiation_accepts_custom_gates_and_adds_injection_gates() {
+        let custom = custom_1q_decl();
+        let custom_id = custom.semantic_id;
+        let gateset = DynamicGateSet::from_declarations([custom]).unwrap();
+        let mut model = model_with_probabilities(0.0, 0.0);
+
+        let negotiated = model.negotiate_gateset(&gateset).unwrap();
+
+        assert!(negotiated.contains(custom_id));
+        assert!(negotiated.contains(builtin::RZ::semantic_id()));
+        assert!(negotiated.contains(builtin::PhasedX::semantic_id()));
+    }
+
+    #[test]
+    fn one_qubit_custom_gate_is_noised_by_arity_without_gate_names() {
+        let custom = custom_1q_decl();
+        let gate = OwnedGateInstance::new(custom.semantic_id, [GateValue::Qubit(2)]);
+        let mut model = model_with_probabilities(1.0, 0.0);
+        let mut simulator = RecordingSimulator {
+            operations: Vec::new(),
+        };
+
+        model
+            .handle_operations(
+                BatchOperation::runtime(
+                    vec![Operation::from_gate_instance(gate.clone()).unwrap()],
+                    selene_core::time::Instant::from(0),
+                    selene_core::time::Duration::from(1),
+                ),
+                &mut simulator,
+            )
+            .unwrap();
+
+        assert_eq!(simulator.operations.len(), 2);
+        assert!(matches!(
+            simulator.operations[0],
+            Operation::Gate { ref gate } if gate.single_qubit_operand() == Some(2)
+        ));
+        assert_eq!(
+            simulator.operations[1],
+            Operation::from_gate_instance(gate).unwrap()
+        );
+        assert_eq!(model.stats.gate_count_1q, 1);
     }
 }
 

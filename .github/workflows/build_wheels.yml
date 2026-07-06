@@ -4,11 +4,15 @@ on:
   pull_request:
     branches:
       - main
+      - 0.2-series
       - 0.3-series
+      - 1.0-series
   push:
     branches:
       - main
+      - 0.2-series
       - 0.3-series
+      - 1.0-series
     tags:
       - "*"
   workflow_dispatch:

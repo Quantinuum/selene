@@ -6,7 +6,7 @@ pub enum OutputStreamError {
     #[error("IO Error: {0}")]
     IoError(std::io::Error),
     #[error("Empty arrays are not allowed")]
-    EmptyArrayError, // A zero-length array of non-string primatives is handled as a single
+    EmptyArrayError, // A zero-length array of non-string primitives is handled as a single
     // element.
     #[error("Array size {0} exceeds maximum size")]
     OversizeArrayError(usize),

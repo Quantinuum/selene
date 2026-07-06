@@ -8,17 +8,19 @@ use std::ffi::OsStr;
 use std::sync;
 
 pub use crate::operation::{
-    BatchOperation, BatchSource, ErrorModelBatchSource, Operation, RuntimeBatchSource,
+    BatchOperation, BatchSource, BuiltinGate, ErrorModelBatchSource, Operation, RuntimeBatchSource,
     SimulatorBatchSource,
 };
 pub use inline::{RuntimeFFIAdapter, RuntimeHandle, RuntimeOperationInterface};
 pub use interface::{RuntimeInterface, RuntimeInterfaceFactory};
 pub use version::RuntimeAPIVersion;
 
-use crate::utils::{MetricValue, check_errno, read_raw_metric};
+use crate::utils::{MetricValue, read_raw_metric};
 use anyhow::{Result, anyhow};
 
+use crate::gatewire::{DynamicGateSet, OwnedGateInstance};
 use crate::operation::plugin::BatchBuilder;
+use crate::plugin as plugin_utils;
 
 enum RuntimeBacking {
     Adapter { _adapter: Box<RuntimeFFIAdapter> },
@@ -32,14 +34,20 @@ enum RuntimeBacking {
 pub struct Runtime {
     handle: RuntimeHandle<'static>,
     backing: RuntimeBacking,
+    name: String,
 }
 
 impl Runtime {
     pub fn from_boxed(interface: Box<dyn RuntimeInterface>) -> Self {
+        Self::from_boxed_named("Unknown", interface)
+    }
+
+    pub fn from_boxed_named(name: impl Into<String>, interface: Box<dyn RuntimeInterface>) -> Self {
         let mut adapter = Box::new(RuntimeFFIAdapter::new(interface));
         Self {
             handle: adapter.ffi_interface(),
             backing: RuntimeBacking::Adapter { _adapter: adapter },
+            name: name.into(),
         }
     }
 
@@ -54,8 +62,9 @@ impl Runtime {
         start: crate::time::Instant,
         args: &[impl AsRef<str>],
     ) -> Result<Self> {
+        let name = factory.name().to_string();
         let interface: Box<dyn RuntimeInterface> = factory.init(n_qubits, start, args)?;
-        Ok(Self::from_boxed(interface))
+        Ok(Self::from_boxed_named(name, interface))
     }
 
     pub fn load_from_file(
@@ -66,6 +75,22 @@ impl Runtime {
     ) -> Result<Self> {
         let plugin = plugin::RuntimePluginInterface::new_from_file(plugin_path)?;
         Self::new(plugin, n_qubits, start, args)
+    }
+
+    fn context(&self, message: &'static str) -> String {
+        format!("Runtime ({}): {message}", self.name)
+    }
+
+    fn label(&self) -> String {
+        format!("Runtime ({})", self.name)
+    }
+
+    fn check_errno(&self, errno: plugin_utils::Errno, message: &'static str) -> Result<()> {
+        plugin_utils::check_plugin_errno_with_context(
+            errno,
+            self.handle.interface.last_error_fn,
+            || anyhow!("{}", self.context(message)),
+        )
     }
 }
 
@@ -84,18 +109,18 @@ impl AsMut<dyn RuntimeInterface> for Runtime {
 impl RuntimeInterface for Runtime {
     fn exit(&mut self) -> Result<()> {
         let _ = &self.backing;
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.exit_fn)(self.handle.instance) },
-            || anyhow!("Runtime: exit failed"),
+            "exit failed",
         )
     }
 
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         let mut batch_builder = BatchBuilder::default();
         let ops = batch_builder.runtime_get_operation();
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.get_next_operations_fn)(self.handle.instance, ops) },
-            || anyhow!("Runtime: get_next_operations failed"),
+            "get_next_operations failed",
         )?;
         let batch = batch_builder.finish();
         if batch.is_empty() {
@@ -106,22 +131,32 @@ impl RuntimeInterface for Runtime {
     }
 
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.shot_start_fn)(self.handle.instance, shot_id, seed) },
-            || anyhow!("Runtime: shot_start failed"),
+            "shot_start failed",
         )
     }
 
     fn shot_end(&mut self) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.shot_end_fn)(self.handle.instance) },
-            || anyhow!("Runtime: shot_end failed"),
+            "shot_end failed",
+        )
+    }
+
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        plugin_utils::negotiate_gateset(
+            &self.label(),
+            self.handle.instance,
+            self.handle.interface.negotiate_gateset_fn,
+            self.handle.interface.last_error_fn,
+            gateset,
         )
     }
 
     fn custom_call(&mut self, custom_tag: u64, data: &[u8]) -> Result<u64> {
         let mut result = 0;
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.custom_call_fn)(
                     self.handle.instance,
@@ -131,15 +166,15 @@ impl RuntimeInterface for Runtime {
                     &mut result,
                 )
             },
-            || anyhow!("Runtime: custom_call failed"),
+            "custom_call failed",
         )?;
         Ok(result)
     }
 
     fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.simulate_delay_fn)(self.handle.instance, delay_ns) },
-            || anyhow!("Runtime: simulate_delay failed"),
+            "simulate_delay failed",
         )
     }
 
@@ -157,79 +192,44 @@ impl RuntimeInterface for Runtime {
 
     fn qalloc(&mut self) -> Result<u64> {
         let mut result = 0;
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.qalloc_fn)(self.handle.instance, &mut result) },
-            || anyhow!("Runtime: qalloc failed"),
+            "qalloc failed",
         )?;
         Ok(result)
     }
 
     fn qfree(&mut self, qubit_id: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.qfree_fn)(self.handle.instance, qubit_id) },
-            || anyhow!("Runtime: qfree failed"),
+            "qfree failed",
         )
     }
 
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        check_errno(
+    fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
+        let data = gate.serialize();
+        self.check_errno(
             unsafe {
-                (self.handle.interface.rxy_gate_fn)(self.handle.instance, qubit_id, theta, phi)
+                (self.handle.interface.gate_fn)(self.handle.instance, data.as_ptr(), data.len())
             },
-            || anyhow!("Runtime: rxy_gate failed"),
-        )
-    }
-
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.handle.interface.rzz_gate_fn)(
-                    self.handle.instance,
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                )
-            },
-            || anyhow!("Runtime: rzz_gate failed"),
-        )
-    }
-
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        check_errno(
-            unsafe { (self.handle.interface.rz_gate_fn)(self.handle.instance, qubit_id, theta) },
-            || anyhow!("Runtime: rz_gate failed"),
-        )
-    }
-
-    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        check_errno(
-            unsafe {
-                (self.handle.interface.rpp_gate_fn)(
-                    self.handle.instance,
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                )
-            },
-            || anyhow!("Runtime: rpp_gate failed"),
+            "gate failed",
         )
     }
 
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {
         let mut result = 0;
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.measure_fn)(self.handle.instance, qubit_id, &mut result)
             },
-            || anyhow!("Runtime: measure failed"),
+            "measure failed",
         )?;
         Ok(result)
     }
 
     fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
         let mut result = 0;
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.measure_leaked_fn)(
                     self.handle.instance,
@@ -237,28 +237,28 @@ impl RuntimeInterface for Runtime {
                     &mut result,
                 )
             },
-            || anyhow!("Runtime: measure_leaked failed"),
+            "measure_leaked failed",
         )?;
         Ok(result)
     }
 
     fn reset(&mut self, qubit_id: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.reset_fn)(self.handle.instance, qubit_id) },
-            || anyhow!("Runtime: reset failed"),
+            "reset failed",
         )
     }
 
     fn force_result(&mut self, result_id: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.force_result_fn)(self.handle.instance, result_id) },
-            || anyhow!("Runtime: force_result failed"),
+            "force_result failed",
         )
     }
 
     fn get_bool_result(&mut self, result_id: u64) -> Result<Option<bool>> {
         let mut result = -1;
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.get_bool_result_fn)(
                     self.handle.instance,
@@ -266,21 +266,22 @@ impl RuntimeInterface for Runtime {
                     &mut result,
                 )
             },
-            || anyhow!("Runtime: get_bool_result failed"),
+            "get_bool_result failed",
         )?;
         match result {
             -1 => Ok(None),
             0 => Ok(Some(false)),
             1 => Ok(Some(true)),
             _ => Err(anyhow!(
-                "Runtime: get_bool_result returned an invalid value"
+                "{}",
+                self.context("get_bool_result returned an invalid value")
             )),
         }
     }
 
     fn get_u64_result(&mut self, result_id: u64) -> Result<Option<u64>> {
         let mut result = u64::MAX;
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.get_u64_result_fn)(
                     self.handle.instance,
@@ -288,7 +289,7 @@ impl RuntimeInterface for Runtime {
                     &mut result,
                 )
             },
-            || anyhow!("Runtime: get_u64_result failed"),
+            "get_u64_result failed",
         )?;
         if result == u64::MAX {
             Ok(None)
@@ -298,43 +299,43 @@ impl RuntimeInterface for Runtime {
     }
 
     fn set_bool_result(&mut self, result_id: u64, result: bool) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.set_bool_result_fn)(self.handle.instance, result_id, result)
             },
-            || anyhow!("Runtime: set_bool_result failed"),
+            "set_bool_result failed",
         )
     }
 
     fn set_u64_result(&mut self, result_id: u64, result: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.set_u64_result_fn)(self.handle.instance, result_id, result)
             },
-            || anyhow!("Runtime: set_u64_result failed"),
+            "set_u64_result failed",
         )
     }
 
     fn increment_future_refcount(&mut self, future: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.increment_future_refcount_fn)(self.handle.instance, future)
             },
-            || anyhow!("Runtime: increment_future_refcount failed"),
+            "increment_future_refcount failed",
         )
     }
 
     fn decrement_future_refcount(&mut self, future: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.decrement_future_refcount_fn)(self.handle.instance, future)
             },
-            || anyhow!("Runtime: decrement_future_refcount failed"),
+            "decrement_future_refcount failed",
         )
     }
 
     fn local_barrier(&mut self, qubits: &[u64], sleep_ns: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.local_barrier_fn)(
                     self.handle.instance,
@@ -343,14 +344,14 @@ impl RuntimeInterface for Runtime {
                     sleep_ns,
                 )
             },
-            || anyhow!("Runtime: local_barrier failed"),
+            "local_barrier failed",
         )
     }
 
     fn global_barrier(&mut self, sleep_ns: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.global_barrier_fn)(self.handle.instance, sleep_ns) },
-            || anyhow!("Runtime: global_barrier failed"),
+            "global_barrier failed",
         )
     }
 }

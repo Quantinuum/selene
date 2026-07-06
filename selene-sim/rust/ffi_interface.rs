@@ -1,6 +1,8 @@
 use super::selene_instance::SeleneInstance;
 use crate::selene_instance::configuration::Configuration;
 use anyhow::Result;
+use selene_core::gatewire::DynamicGateSet;
+use std::ffi::c_void;
 
 #[repr(C)]
 pub struct VoidResult {
@@ -13,6 +15,17 @@ impl VoidResult {
     pub fn err(error_code: u32) -> Self {
         VoidResult { error_code }
     }
+}
+
+pub type UtilityShotEventFn =
+    Option<unsafe extern "C" fn(context: *mut c_void, shot_id: u64) -> VoidResult>;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SeleneUtilityEventCallbacksV1 {
+    pub context: *mut c_void,
+    pub on_shot_start: UtilityShotEventFn,
+    pub on_shot_end: UtilityShotEventFn,
 }
 #[repr(C)]
 pub struct U64Result {
@@ -200,6 +213,17 @@ where
     } else {
         VoidResult::ok()
     }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_register_utility_event_callbacks(
+    instance: *mut SeleneInstance,
+    callbacks: SeleneUtilityEventCallbacksV1,
+) -> VoidResult {
+    with_instance_void(instance, |instance| {
+        instance.register_utility_event_callbacks(callbacks);
+        Ok(())
+    })
 }
 fn with_instance_bool<F>(instance: *mut SeleneInstance, f: F) -> BoolResult
 where
@@ -512,46 +536,49 @@ pub unsafe extern "C" fn selene_qfree(instance: *mut SeleneInstance, q: u64) -> 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn selene_rxy(
+pub unsafe extern "C" fn selene_gate(
     instance: *mut SeleneInstance,
-    qubit_id: u64,
-    theta: f64,
-    phi: f64,
-) -> VoidResult {
-    with_instance_void(instance, |instance| instance.rxy(qubit_id, theta, phi))
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn selene_rz(
-    instance: *mut SeleneInstance,
-    qubit_id: u64,
-    theta: f64,
-) -> VoidResult {
-    with_instance_void(instance, |instance| instance.rz(qubit_id, theta))
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn selene_rzz(
-    instance: *mut SeleneInstance,
-    qubit_id: u64,
-    qubit_id2: u64,
-    theta: f64,
+    data: *const u8,
+    data_len: usize,
 ) -> VoidResult {
     with_instance_void(instance, |instance| {
-        instance.rzz(qubit_id, qubit_id2, theta)
+        let gate = selene_core::gatewire::OwnedGateInstance::deserialize(unsafe {
+            std::slice::from_raw_parts(data, data_len)
+        })?;
+        instance.gate(&gate)
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn selene_rpp(
+pub unsafe extern "C" fn selene_register_gateset(
     instance: *mut SeleneInstance,
-    qubit_id: u64,
-    qubit_id2: u64,
-    theta: f64,
-    phi: f64,
+    input: *const u8,
+    input_len: usize,
+    output: *mut u8,
+    output_len: usize,
+    written: *mut usize,
 ) -> VoidResult {
     with_instance_void(instance, |instance| {
-        instance.rpp(qubit_id, qubit_id2, theta, phi)
+        if written.is_null() {
+            anyhow::bail!("written pointer is null");
+        }
+        let input = unsafe { std::slice::from_raw_parts(input, input_len) };
+        let incoming = DynamicGateSet::deserialize(input)?;
+        let outgoing = instance.register_gateset(&incoming)?;
+        let bytes = outgoing.serialize();
+        unsafe {
+            *written = bytes.len();
+        }
+        if output.is_null() {
+            return Ok(());
+        }
+        if output_len < bytes.len() {
+            anyhow::bail!("output buffer is too small");
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), output, bytes.len());
+        }
+        Ok(())
     })
 }
 

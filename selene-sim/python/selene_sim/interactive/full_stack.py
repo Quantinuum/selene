@@ -1,15 +1,20 @@
 from __future__ import annotations
 
-import ctypes
 import os
-import platform
-import sys
 import tempfile
 from pathlib import Path
 from typing import ClassVar
 
 import yaml
-from selene_core import ErrorModel, Runtime, SeleneComponent, Simulator
+from selene_core import (
+    ErrorModel,
+    Gate,
+    Gateset,
+    Runtime,
+    SeleneComponent,
+    Simulator,
+)
+from selene_core.c_abi import SeleneCTypes, ffi
 
 from selene_sim import dist_dir as selene_dist
 from selene_sim.backends import IdealErrorModel, SimpleRuntime
@@ -18,10 +23,17 @@ from selene_sim.instance import ShotSpec
 from selene_sim.result_handling import DataStream, ResultStream
 from selene_sim.result_handling.result_stream import StreamEntry
 
+from ._library import selene_library_path
+
 
 PathLike = str | os.PathLike | bytes | bytearray
 
 DEFAULT_SHOT_SPEC = ShotSpec(count=1000, offset=0, increment=1)
+
+_FFI = ffi(
+    (selene_dist / "include/selene/selene.h",),
+    builtin_headers=("gatewire.h",),
+)
 
 
 def _component_config(component: SeleneComponent, default_seed: int | None) -> dict:
@@ -55,90 +67,6 @@ class SeleneError(RuntimeError):
         self.error_code = error_code
 
 
-class SeleneInstance(ctypes.Structure):
-    pass
-
-
-SeleneInstancePtr = ctypes.POINTER(SeleneInstance)
-SeleneInstancePtrPtr = ctypes.POINTER(SeleneInstancePtr)
-
-
-class selene_void_result_t(ctypes.Structure):
-    _fields_ = [("error_code", ctypes.c_uint32)]
-
-    def unwrap(self) -> None:
-        if self.error_code != 0:
-            raise SeleneError(self.error_code)
-        return None
-
-
-class selene_u64_result_t(ctypes.Structure):
-    _fields_ = [("error_code", ctypes.c_uint32), ("value", ctypes.c_uint64)]
-
-    def unwrap(self) -> int:
-        if self.error_code != 0:
-            raise SeleneError(self.error_code)
-        return int(self.value)
-
-
-class selene_u32_result_t(ctypes.Structure):
-    _fields_ = [("error_code", ctypes.c_uint32), ("value", ctypes.c_uint32)]
-
-    def unwrap(self) -> int:
-        if self.error_code != 0:
-            raise SeleneError(self.error_code)
-        return int(self.value)
-
-
-class selene_f64_result_t(ctypes.Structure):
-    _fields_ = [("error_code", ctypes.c_uint32), ("value", ctypes.c_double)]
-
-    def unwrap(self) -> float:
-        if self.error_code != 0:
-            raise SeleneError(self.error_code)
-        return float(self.value)
-
-
-class selene_bool_result_t(ctypes.Structure):
-    _fields_ = [("error_code", ctypes.c_uint32), ("value", ctypes.c_bool)]
-
-    def unwrap(self) -> bool:
-        if self.error_code != 0:
-            raise SeleneError(self.error_code)
-        return bool(self.value)
-
-
-class selene_future_result_t(ctypes.Structure):
-    _fields_ = [("error_code", ctypes.c_uint32), ("reference", ctypes.c_uint64)]
-
-    def unwrap(self) -> int:
-        if self.error_code != 0:
-            raise SeleneError(self.error_code)
-        return int(self.reference)
-
-
-class selene_string_t(ctypes.Structure):
-    _fields_ = [
-        ("data", ctypes.c_char_p),
-        ("length", ctypes.c_uint64),
-        ("owned", ctypes.c_bool),
-    ]
-
-    @staticmethod
-    def from_str(s: str) -> selene_string_t:
-        encoded = s.encode("utf-8")
-        return selene_string_t(
-            ctypes.c_char_p(encoded), ctypes.c_uint64(len(encoded)), True
-        )
-
-
-BytePtr = ctypes.POINTER(ctypes.c_uint8)
-UInt64Ptr = ctypes.POINTER(ctypes.c_uint64)
-BoolPtr = ctypes.POINTER(ctypes.c_bool)
-Int64Ptr = ctypes.POINTER(ctypes.c_int64)
-DoublePtr = ctypes.POINTER(ctypes.c_double)
-
-
 def _encode_text(value: PathLike) -> bytes:
     if isinstance(value, (bytes, bytearray)):
         return bytes(value)
@@ -149,127 +77,112 @@ def _encode_text(value: PathLike) -> bytes:
 
 def _uint8_buffer(
     payload: bytes | bytearray | memoryview | None,
-) -> tuple[ctypes.Array | None, int]:
+) -> tuple[object, int]:
     if payload is None:
-        return None, 0
+        return _FFI.NULL, 0
     raw = bytes(payload)
     if not raw:
-        return None, 0
-    array_type = ctypes.c_uint8 * len(raw)
-    return array_type(*raw), len(raw)
+        return _FFI.NULL, 0
+    return _FFI.new("uint8_t[]", raw), len(raw)
 
 
-class SeleneSimLib(ctypes.CDLL):
+def _unwrap(result):
+    if result.error_code != 0:
+        raise SeleneError(int(result.error_code))
+    return result
+
+
+def _unwrap_void(result) -> None:
+    _unwrap(result)
+
+
+def _unwrap_value(result) -> int | float | bool:
+    return _unwrap(result).value
+
+
+def _unwrap_future(result) -> int:
+    return int(_unwrap(result).reference)
+
+
+class SeleneSimLib:
     def __init__(self) -> None:
-        lib_path = selene_dist / "lib"
-        match platform.system():
-            case "Darwin":
-                lib_path /= "libselene.dylib"
-            case "Linux":
-                lib_path /= "libselene.so"
-            case "Windows":
-                lib_path /= "selene.dll"
-            case _:
-                raise RuntimeError(f"Unsupported OS {sys.platform}")
-        assert lib_path.is_file(), f"Selene library not found at {lib_path}"
-        super().__init__(str(lib_path))
-        self._configure_signatures()
+        self.ffi = _FFI
+        self.types = SeleneCTypes(self.ffi)
+        self.lib = self.ffi.dlopen(str(selene_library_path()), self.ffi.RTLD_GLOBAL)
 
-    def _configure_signatures(self):
-        self.selene_custom_runtime_call.argtypes = [
-            SeleneInstancePtr,
-            ctypes.c_uint64,
-            BytePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_custom_runtime_call.restype = selene_u64_result_t
-        self.selene_dump_state.argtypes = [
-            SeleneInstancePtr,
-            selene_string_t,
-            UInt64Ptr,
-            ctypes.c_uint64,
-        ]
-        self.selene_dump_state.restype = selene_void_result_t
-        self.selene_exit.argtypes = [SeleneInstancePtr]
-        self.selene_exit.restype = selene_void_result_t
-        self.selene_future_read_bool.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_future_read_bool.restype = selene_bool_result_t
-        self.selene_future_read_u64.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_future_read_u64.restype = selene_u64_result_t
-        self.selene_get_current_shot.argtypes = [SeleneInstancePtr]
-        self.selene_get_current_shot.restype = selene_u64_result_t
-        self.selene_get_tc.argtypes = [SeleneInstancePtr]
-        self.selene_get_tc.restype = selene_u64_result_t
-        self.selene_load_config.argtypes = [SeleneInstancePtrPtr, ctypes.c_char_p]
-        self.selene_load_config.restype = selene_void_result_t
-        self.selene_on_shot_end.argtypes = [SeleneInstancePtr]
-        self.selene_on_shot_end.restype = selene_void_result_t
-        self.selene_on_shot_start.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_on_shot_start.restype = selene_void_result_t
-        self.selene_qalloc.argtypes = [SeleneInstancePtr]
-        self.selene_qalloc.restype = selene_u64_result_t
-        self.selene_qfree.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_qfree.restype = selene_void_result_t
-        self.selene_qubit_lazy_measure.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_qubit_lazy_measure.restype = selene_future_result_t
-        self.selene_qubit_lazy_measure_leaked.argtypes = [
-            SeleneInstancePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_qubit_lazy_measure_leaked.restype = selene_future_result_t
-        self.selene_qubit_measure.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_qubit_measure.restype = selene_bool_result_t
-        self.selene_qubit_reset.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_qubit_reset.restype = selene_void_result_t
-        self.selene_random_advance.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_random_advance.restype = selene_void_result_t
-        self.selene_random_f64.argtypes = [SeleneInstancePtr]
-        self.selene_random_f64.restype = selene_f64_result_t
-        self.selene_random_seed.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_random_seed.restype = selene_void_result_t
-        self.selene_random_u32.argtypes = [SeleneInstancePtr]
-        self.selene_random_u32.restype = selene_u32_result_t
-        self.selene_random_u32_bounded.argtypes = [SeleneInstancePtr, ctypes.c_uint32]
-        self.selene_random_u32_bounded.restype = selene_u32_result_t
-        self.selene_refcount_decrement.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_refcount_decrement.restype = selene_void_result_t
-        self.selene_refcount_increment.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_refcount_increment.restype = selene_void_result_t
-        self.selene_rxy.argtypes = [
-            SeleneInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_double,
-            ctypes.c_double,
-        ]
-        self.selene_rxy.restype = selene_void_result_t
-        self.selene_rz.argtypes = [SeleneInstancePtr, ctypes.c_uint64, ctypes.c_double]
-        self.selene_rz.restype = selene_void_result_t
-        self.selene_rzz.argtypes = [
-            SeleneInstancePtr,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.c_double,
-        ]
-        self.selene_rzz.restype = selene_void_result_t
-        self.selene_set_tc.argtypes = [SeleneInstancePtr, ctypes.c_uint64]
-        self.selene_set_tc.restype = selene_void_result_t
-        self.selene_shot_count.argtypes = [SeleneInstancePtr]
-        self.selene_shot_count.restype = selene_u64_result_t
-        self.selene_write_metadata.argtypes = [SeleneInstancePtr]
-        self.selene_write_metadata.restype = selene_void_result_t
-        self.selene_dump_state.argtypes = [
-            SeleneInstancePtr,
-            selene_string_t,
-            UInt64Ptr,
-            ctypes.c_uint64,
-        ]
-        self.selene_dump_state.restype = selene_void_result_t
-        self.selene_fetch_output.argtypes = [
-            SeleneInstancePtr,
-            BytePtr,
-            ctypes.c_uint64,
-        ]
-        self.selene_fetch_output.restype = selene_u64_result_t
+    def load_config(self, config_path: PathLike):
+        instance = self.ffi.new(self.types.instance_ptr_ptr)
+        config_bytes = _encode_text(config_path)
+        config = self.ffi.new("char[]", config_bytes)
+        _unwrap_void(self.lib.selene_load_config(instance, config))
+        return instance[0]
+
+    def fetch_output(self, instance, chunk_size: int) -> bytes:
+        chunk = self.ffi.new(self.types.uint8_array, chunk_size)
+        bytes_read = int(
+            _unwrap_value(self.lib.selene_fetch_output(instance, chunk, chunk_size))
+        )
+        if bytes_read == 0:
+            raise BlockingIOError
+        return bytes(self.ffi.buffer(chunk, bytes_read))
+
+    def write_metadata(self, instance) -> None:
+        _unwrap_void(self.lib.selene_write_metadata(instance))
+
+    def exit(self, instance) -> None:
+        _unwrap_void(self.lib.selene_exit(instance))
+
+    def _string_ptr(self, value: str):
+        encoded = value.encode("utf-8")
+        data = self.ffi.new("char[]", encoded)
+        result = self.ffi.new(self.types.string_ptr)
+        result.data = data
+        result.length = len(encoded)
+        result.owned = False
+        return result, data
+
+    def uint8_buffer(self, payload: bytes | bytearray | memoryview | None):
+        return _uint8_buffer(payload)
+
+    def uint64_array(self, values: list[int]):
+        return self.ffi.new(self.types.uint64_array, values)
+
+    def dump_state(self, instance, tag: str, qubit_ids) -> None:
+        tag_ptr, _tag_data = self._string_ptr(tag)
+        _unwrap_void(
+            self.lib.selene_dump_state(
+                instance,
+                tag_ptr[0],
+                qubit_ids,
+                len(qubit_ids),
+            )
+        )
+
+    def register_gateset(self, instance, payload: bytes) -> bytes:
+        input_data = self.ffi.new(self.types.uint8_array, payload)
+        written = self.ffi.new(self.types.size_ptr)
+        _unwrap_void(
+            self.lib.selene_register_gateset(
+                instance,
+                input_data,
+                len(payload),
+                self.ffi.NULL,
+                0,
+                written,
+            )
+        )
+        output_data = self.ffi.new(self.types.uint8_array, written[0])
+        _unwrap_void(
+            self.lib.selene_register_gateset(
+                instance,
+                input_data,
+                len(payload),
+                output_data,
+                written[0],
+                written,
+            )
+        )
+        return bytes(self.ffi.buffer(output_data, written[0]))
 
 
 class InternalOutputStream(DataStream):
@@ -284,13 +197,11 @@ class InternalOutputStream(DataStream):
         if len(self._buffer) < length:
             # make a new buffer to read into
             chunk_size = max(length - len(self._buffer), 4096)
-            chunk_buffer = (ctypes.c_uint8 * chunk_size)()
-            bytes_read = self._full_stack._lib.selene_fetch_output(
-                self._full_stack._instance, chunk_buffer, chunk_size
-            ).unwrap()
-            if bytes_read == 0:
-                raise BlockingIOError
-            self._buffer.extend(chunk_buffer[:bytes_read])
+            self._buffer.extend(
+                self._full_stack._lib.fetch_output(
+                    self._full_stack._instance, chunk_size
+                )
+            )
         result, self._buffer = self._buffer[:length], self._buffer[length:]
         return bytes(result)
 
@@ -321,9 +232,9 @@ class InteractiveFullStack:
         error_model: ErrorModel | None = None,
         event_hook: EventHook | None = None,
         random_seed: int | None = None,
+        gateset: Gateset | None = None,
     ):
         self._lib = self.load_library()
-        self._instance = SeleneInstancePtr()
         self._event_hook = event_hook or NoEventHook()
         self._shot_spec = DEFAULT_SHOT_SPEC
         self._shot_index = self._shot_spec.offset
@@ -340,6 +251,8 @@ class InteractiveFullStack:
         self.simulator = simulator
         self.runtime = runtime or SimpleRuntime()
         self.error_model = error_model or IdealErrorModel()
+        self.gateset = gateset
+        self.emitted_gateset: Gateset | None = None
 
         try:
             config_data = self._build_configuration(
@@ -364,13 +277,9 @@ class InteractiveFullStack:
             self._configuration = config_data
             self._config_path.write_text(yaml.safe_dump(config_data))
 
-            instance_ptr = SeleneInstancePtr()
-            print(type(instance_ptr))
-            config_bytes = _encode_text(self._config_path)
-            self._lib.selene_load_config(
-                ctypes.byref(instance_ptr), ctypes.c_char_p(config_bytes)
-            ).unwrap()
-            self._instance = instance_ptr
+            self._instance = self._lib.load_config(self._config_path)
+            if self.gateset is not None:
+                self.emitted_gateset = self.register_gateset(self.gateset)
         except Exception:
             self._teardown_environment()
             raise
@@ -455,33 +364,33 @@ class InteractiveFullStack:
         self._on_shot_end()
         # Here we invoke selene_exit directly, as the call helpers request metadata to be pushed,
         # which isn't valid after the instance has been destroyed
-        self._lib.selene_exit(self._instance).unwrap()
+        self._lib.exit(self._instance)
 
     def _invoke(self, func_name: str, *args):
-        result = getattr(self._lib, func_name)(self._instance, *args)
+        result = getattr(self._lib.lib, func_name)(self._instance, *args)
         if self._auto_poll_metadata:
             assert self._lib is not None
-            self._lib.selene_write_metadata(self._instance)
+            self._lib.write_metadata(self._instance)
         self._poll_results()
         return result
 
     def _call_void(self, func_name: str, *args):
-        self._invoke(func_name, *args).unwrap()
+        _unwrap_void(self._invoke(func_name, *args))
 
     def _call_u64(self, func_name: str, *args) -> int:
-        return self._invoke(func_name, *args).unwrap()
+        return int(_unwrap_value(self._invoke(func_name, *args)))
 
     def _call_bool(self, func_name: str, *args) -> bool:
-        return self._invoke(func_name, *args).unwrap()
+        return bool(_unwrap_value(self._invoke(func_name, *args)))
 
     def _call_future(self, func_name: str, *args) -> int:
-        return self._invoke(func_name, *args).unwrap()
+        return _unwrap_future(self._invoke(func_name, *args))
 
     def _call_f64(self, func_name: str, *args) -> float:
-        return self._invoke(func_name, *args).unwrap()
+        return float(_unwrap_value(self._invoke(func_name, *args)))
 
     def _call_u32(self, func_name: str, *args) -> int:
-        return self._invoke(func_name, *args).unwrap()
+        return int(_unwrap_value(self._invoke(func_name, *args)))
 
     def _on_shot_start(self, shot_index: int) -> None:
         self._call_void("selene_on_shot_start", shot_index)
@@ -493,8 +402,7 @@ class InteractiveFullStack:
         self, tag: int, payload: bytes | bytearray | memoryview | None = None
     ) -> int:
         buffer, length = _uint8_buffer(payload)
-        pointer = ctypes.cast(buffer, BytePtr) if buffer is not None else None
-        return self._call_u64("selene_custom_runtime_call", tag, pointer, length)
+        return self._call_u64("selene_custom_runtime_call", tag, buffer, length)
 
     def future_read_bool(self, reference: int) -> bool:
         return self._call_bool("selene_future_read_bool", reference)
@@ -536,7 +444,7 @@ class InteractiveFullStack:
         return self._call_u32("selene_random_u32")
 
     def random_u32_bounded(self, bound: int) -> int:
-        return self._call_u32("selene_random_u32_bounded", ctypes.c_uint32(bound))
+        return self._call_u32("selene_random_u32_bounded", bound)
 
     def refcount_decrement(self, reference: int) -> None:
         self._call_void("selene_refcount_decrement", reference)
@@ -544,30 +452,29 @@ class InteractiveFullStack:
     def refcount_increment(self, reference: int) -> None:
         self._call_void("selene_refcount_increment", reference)
 
-    def rxy(self, qubit: Qubit, theta: float, phi: float) -> None:
-        self._call_void("selene_rxy", qubit.id, theta, phi)
+    def register_gateset(self, gateset: Gateset) -> Gateset:
+        payload = gateset.serialize()
+        return Gateset.deserialize(self._lib.register_gateset(self._instance, payload))
 
-    def rz(self, qubit: Qubit, theta: float) -> None:
-        self._call_void("selene_rz", qubit.id, theta)
-
-    def rzz(self, qubit_a: Qubit, qubit_b: Qubit, theta: float) -> None:
-        self._call_void("selene_rzz", qubit_a.id, qubit_b.id, theta)
+    def gate(self, gate: Gate) -> None:
+        payload = gate.serialize()
+        buffer, length = self._lib.uint8_buffer(payload)
+        _unwrap_void(self._lib.lib.selene_gate(self._instance, buffer, length))
+        if self._auto_poll_metadata:
+            self._lib.write_metadata(self._instance)
+        self._poll_results()
 
     def get_state(self, qubits: list[Qubit]):
         if not hasattr(self.simulator, "extract_states"):
             raise AttributeError(
                 "Simulator must implement extract_states to use get_state"
             )
-        qubit_ids_t = ctypes.c_uint64 * len(qubits)
-        qubit_ids = qubit_ids_t(*[q.id for q in qubits])
-        num_qubits = ctypes.c_uint64(len(qubits))
+        qubit_ids = self._lib.uint64_array([q.id for q in qubits])
         random_tag = "USER:STATE:" + os.urandom(8).hex()
-        self._call_void(
-            "selene_dump_state",
-            selene_string_t.from_str(random_tag),
-            ctypes.cast(qubit_ids, UInt64Ptr),
-            num_qubits,
-        )
+        self._lib.dump_state(self._instance, random_tag, qubit_ids)
+        if self._auto_poll_metadata:
+            self._lib.write_metadata(self._instance)
+        self._poll_results()
         tagged_results = [
             (v.tag.replace("USER:", ""), v.values[0]) for v in self.drain_state_dumps()
         ]

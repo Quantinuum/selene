@@ -1,149 +1,224 @@
 from __future__ import annotations
 
-import ctypes
+import struct
 from pathlib import Path
+from typing import Any
 
-from selene_core import Simulator
+from selene_core import Gate, Gateset, Simulator
+from selene_core.c_abi import SimulatorCTypes, ffi
 import random
 
-
-class SeleneSimulatorInstance(ctypes.Structure):
-    pass
+from ._library import load_selene_global
 
 
-SeleneSimulatorInstancePtr = ctypes.POINTER(SeleneSimulatorInstance)
-SeleneSimulatorInstancePtrPtr = ctypes.POINTER(SeleneSimulatorInstancePtr)
-
-Errno = ctypes.c_int32
-
-SimGetNameFn = ctypes.CFUNCTYPE(ctypes.c_char_p)
-SimInitFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtrPtr,
-    ctypes.c_uint64,
-    ctypes.c_uint32,
-    ctypes.POINTER(ctypes.c_char_p),
-)
-SimExitFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr)
-SimShotStartFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-)
-SimShotEndFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr)
-SimRxyFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_double,
-    ctypes.c_double,
-)
-SimRzFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_double,
-)
-SimRzzFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint64,
-    ctypes.c_uint64,
-    ctypes.c_double,
-)
-SimMeasureFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64)
-SimPostselectFn = ctypes.CFUNCTYPE(
-    Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64, ctypes.c_bool
-)
-SimResetFn = ctypes.CFUNCTYPE(Errno, SeleneSimulatorInstancePtr, ctypes.c_uint64)
-SimGetMetricsFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_uint8,
-    ctypes.c_char_p,
-    ctypes.POINTER(ctypes.c_uint8),
-    ctypes.POINTER(ctypes.c_uint64),
-)
-SimDumpStateFn = ctypes.CFUNCTYPE(
-    Errno,
-    SeleneSimulatorInstancePtr,
-    ctypes.c_char_p,
-    ctypes.POINTER(ctypes.c_uint64),
-    ctypes.c_uint64,
-)
-
-
-class SimulatorPluginDescriptorV1(ctypes.Structure):
-    _fields_ = [
-        ("struct_size", ctypes.c_uint64),
-        ("api_version", ctypes.c_uint64),
-        ("get_name_fn", SimGetNameFn),
-        ("init_fn", SimInitFn),
-        ("exit_fn", SimExitFn),
-        ("shot_start_fn", SimShotStartFn),
-        ("shot_end_fn", SimShotEndFn),
-        ("rxy_fn", SimRxyFn),
-        ("rz_fn", SimRzFn),
-        ("rzz_fn", SimRzzFn),
-        ("rpp_fn", ctypes.c_void_p),
-        ("measure_fn", SimMeasureFn),
-        ("postselect_fn", SimPostselectFn),
-        ("reset_fn", SimResetFn),
-        ("get_metrics_fn", SimGetMetricsFn),
-        ("dump_state_fn", SimDumpStateFn),
-    ]
-
-
-GetSimulatorDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(SimulatorPluginDescriptorV1))
-
-
-class SeleneSimSimulatorLib(ctypes.CDLL):
+class SeleneSimSimulatorLib:
     def __init__(self, simulator: Simulator) -> None:
-        super().__init__(str(simulator.library_file))
-        self._configure_signatures()
+        load_selene_global()
+        self.ffi = ffi(builtin_headers=("gatewire.h", "simulator.h"))
+        self.types = SimulatorCTypes(self.ffi)
+        self.lib = self.ffi.dlopen(str(simulator.library_file))
+        self.descriptor = self._descriptor()
 
-    def _configure_signatures(self):
-        descriptor: SimulatorPluginDescriptorV1 | None = None
+        self.last_error_fn = self._required(
+            self.descriptor.header.last_error_fn, "last_error_fn"
+        )
+        self.get_name_fn = self._required(
+            self.descriptor.header.get_name_fn, "get_name_fn"
+        )
+        self.init_fn = self._required(self.descriptor.init_fn, "init_fn")
+        self.shot_start_fn = self._required(
+            self.descriptor.shot_start_fn, "shot_start_fn"
+        )
+        self.shot_end_fn = self._required(self.descriptor.shot_end_fn, "shot_end_fn")
+        self.handle_operations_fn = self._required(
+            self.descriptor.handle_operations_fn, "handle_operations_fn"
+        )
+        self.negotiate_gateset_fn = self._required(
+            self.descriptor.negotiate_gateset_fn, "negotiate_gateset_fn"
+        )
+        self.dump_state_fn = self._required(
+            self.descriptor.dump_state_fn, "dump_state_fn"
+        )
+
+        self.exit_fn = self.descriptor.exit_fn
+        self.get_metrics_fn = self.descriptor.get_metrics_fn
+
+    def _required(self, function, function_name: str):
+        if function == self.ffi.NULL:
+            raise RuntimeError(f"Simulator plugin does not expose {function_name}")
+        return function
+
+    def _descriptor(self):
         try:
-            descriptor = SimulatorPluginDescriptorV1.in_dll(
-                self, "selene_simulator_plugin_descriptor_v1"
-            )
-        except ValueError:
-            getter = GetSimulatorDescriptorFn(
-                ("selene_simulator_get_plugin_descriptor_v1", self)
-            )
-            descriptor_ptr = getter()
-            if bool(descriptor_ptr):
-                descriptor = descriptor_ptr.contents
-        if descriptor is None:
+            return self.lib.selene_simulator_get_plugin_descriptor_v1()[0]
+        except AttributeError:
+            pass
+        try:
+            return self.ffi.addressof(
+                self.lib, "selene_simulator_plugin_descriptor_v1"
+            )[0]
+        except (AttributeError, KeyError, NotImplementedError) as exc:
             raise RuntimeError(
-                "Simulator plugin did not expose descriptor symbol or accessor"
-            )
+                "Simulator plugin did not expose descriptor symbol"
+            ) from exc
 
-        self.selene_simulator_init = descriptor.init_fn
-        self.selene_simulator_exit = descriptor.exit_fn
-        self.selene_simulator_shot_start = descriptor.shot_start_fn
-        self.selene_simulator_shot_end = descriptor.shot_end_fn
-        self.selene_simulator_operation_rxy = descriptor.rxy_fn
-        self.selene_simulator_operation_rz = descriptor.rz_fn
-        self.selene_simulator_operation_rzz = descriptor.rzz_fn
-        self.selene_simulator_operation_measure = descriptor.measure_fn
-        self.selene_simulator_operation_postselect = descriptor.postselect_fn
-        self.selene_simulator_operation_reset = descriptor.reset_fn
-        self.selene_simulator_get_metrics = descriptor.get_metrics_fn
-        self.selene_simulator_dump_state = descriptor.dump_state_fn
+    def init(self, n_qubits: int, args: list[str]):
+        handle = self.ffi.new(self.types.simulator_instance_ptr)
+        encoded_args = [
+            self.ffi.new(self.types.char_array, arg.encode("utf-8")) for arg in args
+        ]
+        argv = self.ffi.new(self.types.char_ptr_array, encoded_args)
+        errno = self.init_fn(handle, n_qubits, len(args), argv)
+        if errno != 0:
+            raise RuntimeError("Failed to initialize Selene simulator")
+        return handle[0]
 
-        if self.selene_simulator_operation_rxy is None:
-            raise RuntimeError("Simulator plugin does not expose rxy_fn")
-        if self.selene_simulator_operation_rz is None:
-            raise RuntimeError("Simulator plugin does not expose rz_fn")
-        if self.selene_simulator_operation_rzz is None:
-            raise RuntimeError("Simulator plugin does not expose rzz_fn")
-        if self.selene_simulator_operation_postselect is None:
-            raise RuntimeError("Simulator plugin does not expose postselect_fn")
-        if self.selene_simulator_get_metrics is None:
-            raise RuntimeError("Simulator plugin does not expose get_metrics_fn")
+    def shot_start(self, instance, shot_id: int, seed: int):
+        return self.shot_start_fn(instance, shot_id, seed)
+
+    def shot_end(self, instance):
+        return self.shot_end_fn(instance)
+
+    def _batch_handle(self, operations: list[Any]):
+        refs: list[Any] = []
+
+        @self.ffi.callback(
+            "void(const RuntimeExtractOperationHandle *, RuntimeGetOperationHandle)"
+        )
+        def extract(input_handle, output_handle):
+            batch = self.ffi.from_handle(input_handle[0].instance)
+            for operation in batch:
+                kind = operation[0]
+                if kind == "gate":
+                    payload = operation[1]
+                    data = self.ffi.new(self.types.uint8_array, payload)
+                    refs.append(data)
+                    output_handle.interface.gate_fn(
+                        output_handle.instance, data, len(payload)
+                    )
+                elif kind == "measure":
+                    output_handle.interface.measure_fn(
+                        output_handle.instance, operation[1], operation[2]
+                    )
+                elif kind == "postselect":
+                    output_handle.interface.postselect_fn(
+                        output_handle.instance, operation[1], operation[2]
+                    )
+                elif kind == "reset":
+                    output_handle.interface.reset_fn(
+                        output_handle.instance, operation[1]
+                    )
+                else:
+                    raise RuntimeError(f"unsupported simulator operation {kind!r}")
+
+        batch_ref = self.ffi.new_handle(operations)
+        refs.extend([batch_ref, extract])
+        return self.ffi.new(
+            self.types.runtime_extract_operation_handle,
+            {"instance": batch_ref, "interface": {"extract_fn": extract}},
+        ), refs
+
+    def _result_handle(self):
+        result = {"bool": {}, "u64": {}}
+        refs: list[Any] = []
+
+        @self.ffi.callback("void(OperationResultInstance, uint64_t, bool)")
+        def set_bool(instance, result_id, value):
+            target = self.ffi.from_handle(instance)
+            target["bool"][int(result_id)] = bool(value)
+
+        @self.ffi.callback("void(OperationResultInstance, uint64_t, uint64_t)")
+        def set_u64(instance, result_id, value):
+            target = self.ffi.from_handle(instance)
+            target["u64"][int(result_id)] = int(value)
+
+        result_ref = self.ffi.new_handle(result)
+        refs.extend([result_ref, set_bool, set_u64])
+        return (
+            self.ffi.new(
+                self.types.operation_result_handle,
+                {
+                    "instance": result_ref,
+                    "interface": {
+                        "set_bool_result_fn": set_bool,
+                        "set_u64_result_fn": set_u64,
+                    },
+                },
+            ),
+            result,
+            refs,
+        )
+
+    def _handle_operations(self, instance, operations: list[Any]):
+        batch, batch_refs = self._batch_handle(operations)
+        result, result_data, result_refs = self._result_handle()
+        refs = [batch, result, *batch_refs, *result_refs]
+        try:
+            errno = self.handle_operations_fn(instance, batch[0], result[0])
+        finally:
+            refs.clear()
+        return errno, result_data
+
+    def gate(self, instance, payload: bytes):
+        errno, result = self._handle_operations(instance, [("gate", payload)])
+        if errno == 0 and (result["bool"] or result["u64"]):
+            return -1
+        return errno
+
+    def measure(self, instance, qubit: int):
+        errno, result = self._handle_operations(instance, [("measure", qubit, 0)])
+        if errno != 0:
+            return errno
+        bool_results = result["bool"]
+        if set(bool_results) != {0} or result["u64"]:
+            return -1
+        return 1 if bool_results[0] else 0
+
+    def reset(self, instance, qubit: int):
+        errno, result = self._handle_operations(instance, [("reset", qubit)])
+        if errno == 0 and (result["bool"] or result["u64"]):
+            return -1
+        return errno
+
+    def postselect(self, instance, qubit: int, value: bool):
+        errno, result = self._handle_operations(
+            instance, [("postselect", qubit, value)]
+        )
+        if errno == 0 and (result["bool"] or result["u64"]):
+            return -1
+        return errno
+
+    def negotiate_gateset(self, instance, payload: bytes) -> bytes:
+        input_data = self.ffi.new(self.types.uint8_array, payload)
+        written = self.ffi.new(self.types.size_ptr)
+        errno = self.negotiate_gateset_fn(
+            instance, input_data, len(payload), self.ffi.NULL, 0, written
+        )
+        if errno != 0:
+            raise RuntimeError("Failed to negotiate gateset with Selene simulator")
+        output_data = self.ffi.new(self.types.uint8_array, written[0])
+        errno = self.negotiate_gateset_fn(
+            instance, input_data, len(payload), output_data, written[0], written
+        )
+        if errno != 0:
+            raise RuntimeError("Failed to negotiate gateset with Selene simulator")
+        return bytes(self.ffi.buffer(output_data, written[0]))
+
+    def get_metric(self, instance, nth_metric: int):
+        if self.get_metrics_fn == self.ffi.NULL:
+            return None
+        name = self.ffi.new(self.types.char_array, 256)
+        datatype = self.ffi.new(self.types.uint8_ptr)
+        value = self.ffi.new(self.types.uint64_ptr)
+        errno = self.get_metrics_fn(instance, nth_metric, name, datatype, value)
+        if errno != 0:
+            return None
+        return self.ffi.string(name).decode("utf-8"), int(datatype[0]), int(value[0])
+
+    def dump_state(self, instance, outfile: Path, qubits: list[int]):
+        path = self.ffi.new(self.types.char_array, str(outfile).encode("utf-8"))
+        qubit_data = self.ffi.new(self.types.uint64_array, qubits)
+        return self.dump_state_fn(instance, path, qubit_data, len(qubits))
 
 
 class InteractiveSimulator:
@@ -152,83 +227,73 @@ class InteractiveSimulator:
         *,
         n_qubits: int,
         simulator: Simulator,
+        gateset: Gateset | None = None,
     ):
         self._lib = SeleneSimSimulatorLib(simulator)
-        self._instance = SeleneSimulatorInstancePtr()
         if simulator.random_seed is None:
             simulator.random_seed = random.randint(0, 2**64 - 1)
         self.simulator = simulator
+        self.gateset = gateset
+        self.emitted_gateset: Gateset | None = None
         self.n_qubits = n_qubits
         self.shot_id = 0
         arguments = simulator.get_init_args()
-        # create an array of c_char_p from the list of strings
-        argc = len(arguments)
-        argv = (ctypes.c_char_p * argc)(*(arg.encode("utf-8") for arg in arguments))
-        if 0 != self._lib.selene_simulator_init(
-            ctypes.byref(self._instance), n_qubits, argc, argv
-        ):
-            raise RuntimeError("Failed to initialize Selene simulator")
-        if 0 != self._lib.selene_simulator_shot_start(
-            self._instance, self.shot_id, self.simulator.random_seed
-        ):
+        self._instance = self._lib.init(n_qubits, arguments)
+        if self.gateset is not None:
+            self.emitted_gateset = self.register_gateset(self.gateset)
+        seed = self.simulator.random_seed
+        assert seed is not None
+        if 0 != self._lib.shot_start(self._instance, self.shot_id, seed):
             raise RuntimeError("Failed to start first shot on Selene simulator")
 
-    def _apply_void_operation(self, func, operation_name: str, *args):
+    def _apply_void_operation(self, errno: int, operation_name: str):
         # The Python surface stays single-operation for ergonomics, while the
         # native bridge now executes each call via the simulator's batch API.
-        if 0 != func(self._instance, *args):
+        if errno != 0:
             raise RuntimeError(
                 f"Failed to apply {operation_name} operation on Selene simulator"
             )
 
+    def register_gateset(self, gateset: Gateset) -> Gateset:
+        payload = gateset.serialize()
+        return Gateset.deserialize(self._lib.negotiate_gateset(self._instance, payload))
+
+    def gate(self, gate: Gate):
+        payload = gate.serialize()
+        self._apply_void_operation(
+            self._lib.gate(self._instance, payload),
+            "GATE",
+        )
+
     def _apply_measure_operation(self, qubit: int) -> bool:
-        result = self._lib.selene_simulator_operation_measure(self._instance, qubit)
+        result = self._lib.measure(self._instance, qubit)
         if result not in (0, 1):
             raise RuntimeError("Failed to apply MEASURE operation on Selene simulator")
         return bool(result)
 
     def next_shot(self):
-        if 0 != self._lib.selene_simulator_shot_end(self._instance):
+        if 0 != self._lib.shot_end(self._instance):
             raise RuntimeError("Failed to end current shot on Selene simulator")
         self.shot_id += 1
-        if 0 != self._lib.selene_simulator_shot_start(
-            self._instance, self.shot_id, self.simulator.random_seed + self.shot_id
+        seed = self.simulator.random_seed
+        assert seed is not None
+        if 0 != self._lib.shot_start(
+            self._instance,
+            self.shot_id,
+            seed + self.shot_id,
         ):
             raise RuntimeError("Failed to start next shot on Selene simulator")
-
-    def rxy(self, qubit: int, theta: float, phi: float):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_rxy, "RXY", qubit, theta, phi
-        )
-
-    def rz(self, qubit: int, theta: float):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_rz, "RZ", qubit, theta
-        )
-
-    def rzz(self, qubit_a: int, qubit_b: int, theta: float):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_rzz,
-            "RZZ",
-            qubit_a,
-            qubit_b,
-            theta,
-        )
 
     def measure(self, qubit: int) -> bool:
         return self._apply_measure_operation(qubit)
 
     def reset(self, qubit: int):
-        self._apply_void_operation(
-            self._lib.selene_simulator_operation_reset, "RESET", qubit
-        )
+        self._apply_void_operation(self._lib.reset(self._instance, qubit), "RESET")
 
     def postselect(self, qubit: int, value: bool):
         self._apply_void_operation(
-            self._lib.selene_simulator_operation_postselect,
+            self._lib.postselect(self._instance, qubit, value),
             "POSTSELECT",
-            qubit,
-            value,
         )
 
     def get_metrics(self) -> dict[str, int | float | bool]:
@@ -240,47 +305,24 @@ class InteractiveSimulator:
         # if it returns 0, read the name, type and value, and add it to the results dict. If it returns nonzero, stop and return the results dict.
         results: dict[str, int | float | bool] = {}
         for i in range(256):
-            name_buffer = ctypes.create_string_buffer(256)
-            type_buffer = ctypes.c_uint8()
-            value_buffer = ctypes.c_uint64()
-            if 0 != self._lib.selene_simulator_get_metrics(
-                self._instance,
-                i,
-                name_buffer,
-                ctypes.byref(type_buffer),
-                ctypes.byref(value_buffer),
-            ):
+            metric = self._lib.get_metric(self._instance, i)
+            if metric is None:
                 break
-            name = name_buffer.value.decode("utf-8")
-            type_ = type_buffer.value
-            value = value_buffer.value
+            name, type_, value = metric
             if type_ == 0:
                 results[name] = bool(value)
             elif type_ == 1:
-                results[name] = ctypes.c_int64(value).value
+                results[name] = int.from_bytes(
+                    value.to_bytes(8, "little"), "little", signed=True
+                )
             elif type_ == 2:
                 results[name] = value
             elif type_ == 3:
-                results[name] = ctypes.cast(
-                    ctypes.pointer(ctypes.c_uint64(value)),
-                    ctypes.POINTER(ctypes.c_double),
-                ).contents.value
+                results[name] = struct.unpack("<d", value.to_bytes(8, "little"))[0]
             else:
                 raise RuntimeError(f"Unknown metric type {type_} for metric {name}")
         return results
 
     def dump_state(self, outfile: Path, qubits: list[int]) -> None:
-        qubit_array = (ctypes.c_uint64 * len(qubits))(*qubits)
-        outfile_str = str(outfile).encode("utf-8")
-        len_qubits = len(qubits)
-        pointer_to_qubit_array = ctypes.cast(
-            ctypes.pointer(qubit_array), ctypes.POINTER(ctypes.c_uint64)
-        )
-
-        if 0 != self._lib.selene_simulator_dump_state(
-            self._instance,
-            outfile_str,
-            pointer_to_qubit_array,
-            ctypes.c_uint64(len_qubits),
-        ):
+        if 0 != self._lib.dump_state(self._instance, outfile, qubits):
             raise RuntimeError("Failed to dump state on Selene simulator")

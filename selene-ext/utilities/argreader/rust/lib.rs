@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::ffi::c_void;
 use std::{fs, io};
 
 /// When logging via selene's log_utility_call function,
@@ -49,7 +50,29 @@ impl RunInputs {
 
 thread_local! {
     pub static INPUTS: RefCell<Option<RunInputs>> = const{ RefCell::new(None) };
+    pub static ACTIVE_SHOT: RefCell<Option<u64>> = const{ RefCell::new(None) };
     pub static SHOT_INPUT_CACHE: RefCell<Option<(u64, ShotInputs)>> = const{ RefCell::new(None) };
+}
+
+#[repr(C)]
+pub struct SeleneVoidResult {
+    error_code: u32,
+}
+
+impl SeleneVoidResult {
+    fn ok() -> Self {
+        Self { error_code: 0 }
+    }
+}
+
+type SeleneUtilityShotEventFn =
+    Option<unsafe extern "C" fn(context: *mut c_void, shot_id: u64) -> SeleneVoidResult>;
+
+#[repr(C)]
+pub struct SeleneUtilityEventCallbacksV1 {
+    context: *mut c_void,
+    on_shot_start: SeleneUtilityShotEventFn,
+    on_shot_end: SeleneUtilityShotEventFn,
 }
 
 unsafe extern "C" {
@@ -60,8 +83,11 @@ unsafe extern "C" {
     // Instead we use panic_str, an exposed function for registering a panic with
     // the selene result stream based on a C string rather than a CL string.
     fn panic_str(error_code: u32, message: *const std::ffi::c_char) -> !;
-    fn get_current_shot() -> u64;
     fn log_utility_call(tag: u64, data_ptr: *const u8, data_len: u64);
+    fn register_utility_event_callbacks(
+        instance: *mut c_void,
+        callbacks: SeleneUtilityEventCallbacksV1,
+    ) -> SeleneVoidResult;
 }
 
 fn selene_panic(message: String) -> ! {
@@ -114,6 +140,76 @@ fn init() {
     });
 }
 
+fn cache_inputs_for_shot(shot_id: u64) {
+    let inputs_are_loaded = INPUTS.with(|cell| cell.borrow().is_some());
+    if !inputs_are_loaded {
+        return;
+    }
+
+    let shot_inputs = INPUTS.with(|cell| {
+        let inputs = cell.borrow();
+
+        inputs
+            .as_ref()
+            .expect("runtime inputs should be initialised")
+            .get_inputs_for_shot(shot_id)
+            .unwrap_or_else(|| {
+                selene_panic(format!(
+                    "No runtime arguments provided for shot {shot_id} (0-indexed)"
+                ))
+            })
+            .clone()
+    });
+
+    SHOT_INPUT_CACHE.with(|cache_cell| {
+        *cache_cell.borrow_mut() = Some((shot_id, shot_inputs));
+    });
+}
+
+unsafe extern "C" fn argreader_on_shot_start(
+    _context: *mut c_void,
+    shot_id: u64,
+) -> SeleneVoidResult {
+    ACTIVE_SHOT.with(|shot_cell| {
+        *shot_cell.borrow_mut() = Some(shot_id);
+    });
+    SHOT_INPUT_CACHE.with(|cache_cell| {
+        *cache_cell.borrow_mut() = None;
+    });
+    cache_inputs_for_shot(shot_id);
+    SeleneVoidResult::ok()
+}
+
+unsafe extern "C" fn argreader_on_shot_end(
+    _context: *mut c_void,
+    _shot_id: u64,
+) -> SeleneVoidResult {
+    ACTIVE_SHOT.with(|shot_cell| {
+        *shot_cell.borrow_mut() = None;
+    });
+    SHOT_INPUT_CACHE.with(|cache_cell| {
+        *cache_cell.borrow_mut() = None;
+    });
+    SeleneVoidResult::ok()
+}
+
+#[unsafe(no_mangle)]
+/// Register argreader's per-shot event callbacks with a Selene instance.
+///
+/// # Safety
+/// The provided instance pointer must be a valid Selene instance pointer supplied by Selene during
+/// utility registration.
+pub unsafe extern "C" fn selene_argreader_register_utility(
+    instance: *mut c_void,
+) -> SeleneVoidResult {
+    let callbacks = SeleneUtilityEventCallbacksV1 {
+        context: std::ptr::null_mut(),
+        on_shot_start: Some(argreader_on_shot_start),
+        on_shot_end: Some(argreader_on_shot_end),
+    };
+    unsafe { register_utility_event_callbacks(instance, callbacks) }
+}
+
 fn get_key(key_ptr: *const u8) -> String {
     // As with result() calls and panic() calls, the format of the key starts with
     // byte providing the length of the string that follows.
@@ -131,47 +227,50 @@ fn get_key(key_ptr: *const u8) -> String {
     }
 }
 
-unsafe fn value_helper(key: &String) -> InputRecord {
+fn active_shot() -> u64 {
+    ACTIVE_SHOT.with(|shot_cell| {
+        let shot = *shot_cell.borrow();
+        shot.unwrap_or_else(|| {
+            selene_panic(
+                "Runtime arguments can only be read while Selene is executing a shot".to_string(),
+            )
+        })
+    })
+}
+
+fn value_helper(key: &String) -> InputRecord {
     if INPUTS.with(|cell| cell.borrow().is_none()) {
         init();
     }
 
-    let current_shot = unsafe { get_current_shot() };
+    let current_shot = active_shot();
 
     // If we have cached inputs for the current shot, use them. Otherwise, look them up and cache
     // them.
     let shot_inputs = SHOT_INPUT_CACHE.with(|cache_cell| {
         let cached = cache_cell.borrow();
 
-        if let Some((cached_shot, cached_inputs)) = cached.as_ref() && *cached_shot == current_shot {
+        if let Some((cached_shot, cached_inputs)) = cached.as_ref()
+            && *cached_shot == current_shot
+        {
             return cached_inputs.clone();
         }
 
         drop(cached);
+        cache_inputs_for_shot(current_shot);
+        let cached = cache_cell.borrow();
 
-        let shot_inputs = INPUTS.with(|cell| {
-            let inputs = cell.borrow();
-
-            inputs
-                .as_ref()
-                .expect("runtime inputs should be initialised")
-                .get_inputs_for_shot(current_shot)
-                .unwrap_or_else(|| {
-                    selene_panic(format!(
-                        "No runtime arguments provided for shot {current_shot} (0-indexed)"
-                    ))
-                })
-                .clone()
-        });
-
-        *cache_cell.borrow_mut() = Some((current_shot, shot_inputs.clone()));
-
-        shot_inputs
+        cached
+            .as_ref()
+            .expect("runtime inputs should be cached")
+            .1
+            .clone()
     });
 
-    let record = shot_inputs.records.get(key).unwrap_or_else(|| {
-        selene_panic(format!("Missing runtime argument '{key}'"))
-    });
+    let record = shot_inputs
+        .records
+        .get(key)
+        .unwrap_or_else(|| selene_panic(format!("Missing runtime argument '{key}'")));
 
     log(key, record);
 
@@ -186,7 +285,7 @@ unsafe fn value_helper(key: &String) -> InputRecord {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
         InputRecord::Bool(value) => value,
         InputRecord::U64(value) => {
             if value == 0 {
@@ -237,7 +336,7 @@ pub unsafe extern "C" fn argreader_get_bool(key_ptr: *const u8) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_u64(key_ptr: *const u8) -> u64 {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
         InputRecord::U64(value) => value,
         InputRecord::I64(value) => {
             if value < 0 {
@@ -276,7 +375,7 @@ pub unsafe extern "C" fn argreader_get_u64(key_ptr: *const u8) -> u64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_i64(key_ptr: *const u8) -> i64 {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
         InputRecord::I64(value) => value,
         InputRecord::U64(value) => {
             if value > i64::MAX as u64 {
@@ -315,7 +414,7 @@ pub unsafe extern "C" fn argreader_get_i64(key_ptr: *const u8) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_f64(key_ptr: *const u8) -> f64 {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
         InputRecord::F64(value) => value,
         InputRecord::U64(value) => value as f64,
         InputRecord::I64(value) => value as f64,
@@ -338,7 +437,19 @@ pub unsafe extern "C" fn argreader_get_f64(key_ptr: *const u8) -> f64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *mut u64, len: u64) {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
+        InputRecord::BoolArray(values) => {
+            if values.len() != len as usize {
+                selene_panic(format!(
+                    "Runtime argument '{key}' expects an array of {len} unsigned integers, but was provided a boolean array {values:?} of length {}",
+                    values.len()
+                ));
+            }
+            let u64_values: Vec<u64> = values.into_iter().map(|v| if v { 1 } else { 0 }).collect();
+            unsafe {
+                std::ptr::copy_nonoverlapping(u64_values.as_ptr(), out_ptr, u64_values.len());
+            }
+        }
         InputRecord::U64Array(values) => {
             if values.len() != len as usize {
                 selene_panic(format!(
@@ -409,7 +520,19 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *mut i64, len: u64) {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
+        InputRecord::BoolArray(values) => {
+            if values.len() != len as usize {
+                selene_panic(format!(
+                    "Runtime argument '{key}' expects an array of {len} integers, but was provided a boolean array {values:?} of length {}",
+                    values.len()
+                ));
+            }
+            let i64_values: Vec<i64> = values.into_iter().map(|v| if v { 1 } else { 0 }).collect();
+            unsafe {
+                std::ptr::copy_nonoverlapping(i64_values.as_ptr(), out_ptr, i64_values.len());
+            }
+        }
         InputRecord::I64Array(values) => {
             if values.len() != len as usize {
                 let key = get_key(key_ptr);
@@ -484,7 +607,22 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *mut f64, len: u64) {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
+        InputRecord::BoolArray(values) => {
+            if values.len() != len as usize {
+                selene_panic(format!(
+                    "Runtime argument '{key}' expects an array of {len} floats, but was provided a boolean array {values:?} of length {}",
+                    values.len()
+                ));
+            }
+            let f64_values: Vec<f64> = values
+                .into_iter()
+                .map(|v| if v { 1.0 } else { 0.0 })
+                .collect();
+            unsafe {
+                std::ptr::copy_nonoverlapping(f64_values.as_ptr(), out_ptr, f64_values.len());
+            }
+        }
         InputRecord::F64Array(values) => {
             if values.len() != len as usize {
                 selene_panic(format!(
@@ -544,7 +682,7 @@ pub unsafe extern "C" fn argreader_get_bool_array(
     len: u64,
 ) {
     let key = get_key(key_ptr);
-    match unsafe { value_helper(&key) } {
+    match value_helper(&key) {
         InputRecord::BoolArray(values) => {
             if values.len() != len as usize {
                 selene_panic(format!(

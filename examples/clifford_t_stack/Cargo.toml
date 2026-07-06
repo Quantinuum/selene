@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "selene-example-clifford-t-stack"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "selene_example_clifford_t_stack"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+rand = "0.9"
+rand_pcg = "0.9"
+selene-core = { path = "../../selene-core" }

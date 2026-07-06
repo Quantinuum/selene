@@ -41,7 +41,7 @@ def ryy(angle):
     )
 
 
-def rzz(angle):
+def ZZPhase(angle):
     return Matrix(
         [
             [exp(-I * angle / 2), 0, 0, 0],
@@ -58,11 +58,11 @@ def twin_rz(angle):
     return sp.trigsimp(rz_q1 * rz_q2)
 
 
-def rxy(theta, phi):
+def PhasedX(theta, phi):
     return sp.trigsimp(rz(phi) * rx(theta) * rz(-phi))
 
 
-def rpp(theta, phi):
+def PhasedXX(theta, phi):
     return sp.trigsimp(twin_rz(phi) * rxx(theta) * twin_rz(-phi))
 
 
@@ -99,13 +99,13 @@ if __name__ == "__main__":
     theta, phi, alpha, beta, gamma = sp.symbols("theta phi alpha beta gamma", real=True)
 
     rz_gate = rz(theta)
-    rxy_gate = rxy(theta, phi)
-    rzz_gate = sp.simplify(
-        rzz(theta) * exp(I * theta / 2)
+    phased_x_gate = PhasedX(theta, phi)
+    zz_phase_gate = sp.simplify(
+        ZZPhase(theta) * exp(I * theta / 2)
     )  # Global phase adjustment for consistency with prior versions
-    rpp_gate = rpp(theta, phi)
+    phased_xx_gate = PhasedXX(theta, phi)
 
     print_summary(f"rz({theta})", rz_gate)
-    print_summary(f"rxy({theta}, {phi})", rxy_gate)
-    print_summary(f"rzz({theta})", rzz_gate)
-    print_summary(f"rpp({theta}, {phi})", rpp_gate)
+    print_summary(f"PhasedX({theta}, {phi})", phased_x_gate)
+    print_summary(f"ZZPhase({theta})", zz_phase_gate)
+    print_summary(f"PhasedXX({theta}, {phi})", phased_xx_gate)

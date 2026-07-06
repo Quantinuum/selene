@@ -31,12 +31,16 @@ impl From<SimulatorAPIVersion> for u64 {
     }
 }
 
-pub const CURRENT_API_VERSION: SimulatorAPIVersion = SimulatorAPIVersion {
+pub(crate) const CURRENT_API_VERSION: SimulatorAPIVersion = SimulatorAPIVersion {
     reserved: 0,
     major: 0,
-    minor: 1,
-    patch: 1,
+    minor: 2,
+    patch: 0,
 };
+
+pub const fn current_api_version() -> SimulatorAPIVersion {
+    CURRENT_API_VERSION
+}
 
 impl SimulatorAPIVersion {
     pub const fn as_u64(self) -> u64 {

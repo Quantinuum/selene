@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 pub mod configuration;
 pub mod metadata;
@@ -9,6 +9,7 @@ pub mod state_dump;
 use configuration::Configuration;
 
 use crate::emulator::Emulator;
+use crate::ffi_interface::SeleneUtilityEventCallbacksV1;
 use rand_pcg::Pcg32;
 use selene_core::encoder::OutputStream;
 
@@ -19,6 +20,7 @@ pub struct SeleneInstance {
     pub time_cursor: u64,
     pub shot_number: u64,
     pub prng: Option<Pcg32>,
+    utility_event_callbacks: Vec<SeleneUtilityEventCallbacksV1>,
 }
 
 impl SeleneInstance {
@@ -56,7 +58,42 @@ impl SeleneInstance {
             time_cursor: 0,
             shot_number: shot_offset,
             prng: None,
+            utility_event_callbacks: Vec::new(),
         })
+    }
+
+    pub fn register_utility_event_callbacks(&mut self, callbacks: SeleneUtilityEventCallbacksV1) {
+        self.utility_event_callbacks.push(callbacks);
+    }
+
+    fn notify_utility_shot_start(&mut self, shot_id: u64) -> Result<()> {
+        for callbacks in &self.utility_event_callbacks {
+            if let Some(on_shot_start) = callbacks.on_shot_start {
+                let result = unsafe { on_shot_start(callbacks.context, shot_id) };
+                if result.error_code != 0 {
+                    bail!(
+                        "Utility callback on_shot_start failed with error code {}",
+                        result.error_code
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn notify_utility_shot_end(&mut self, shot_id: u64) -> Result<()> {
+        for callbacks in self.utility_event_callbacks.iter().rev() {
+            if let Some(on_shot_end) = callbacks.on_shot_end {
+                let result = unsafe { on_shot_end(callbacks.context, shot_id) };
+                if result.error_code != 0 {
+                    bail!(
+                        "Utility callback on_shot_end failed with error code {}",
+                        result.error_code
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Upon termination of the simulator instance, we signal to the output stream
@@ -84,6 +121,8 @@ impl SeleneInstance {
         let error_model_seed = self.config.error_model.seed + shot_id;
         let simulator_seed = self.config.simulator.seed + shot_id;
 
+        self.notify_utility_shot_start(shot_id)?;
+
         // Now we fire off any shot start event hooks and prepare the
         // runtime and error model for the new shot.
         self.emulator
@@ -103,6 +142,7 @@ impl SeleneInstance {
             self.write_metrics()?;
         }
         self.emulator.shot_end()?;
+        self.notify_utility_shot_end(self.shot_number)?;
         self.write_metadata()?;
         self.print_shot_end()?;
         Ok(())

@@ -4,8 +4,12 @@
 //! See `selene-simple-runtime-plugin` for a fully worked example.
 use std::{ffi, mem, sync::Arc};
 
+use crate::gatewire::OwnedGateInstance;
 use crate::operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface};
-use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
+use crate::plugin::write_negotiated_gateset;
+use crate::utils::{
+    convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno, set_last_error,
+};
 
 use super::{
     Operation, RuntimeInterface,
@@ -52,7 +56,7 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         argv: *const *const ffi::c_char,
     ) -> i32 {
         if instance.is_null() {
-            eprintln!("cannot initialize runtime plugin: provided instance is null");
+            set_last_error("cannot initialize runtime plugin: provided instance is null");
             return -1;
         }
 
@@ -97,13 +101,11 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                 let RuntimeGetOperationInterface {
                     measure_fn,
                     measure_leaked_fn,
+                    postselect_fn,
                     reset_fn,
                     custom_fn,
                     set_batch_time_fn,
-                    rzz_fn,
-                    rxy_fn,
-                    rz_fn,
-                    rpp_fn,
+                    gate_fn,
                     ..
                 } = ops.interface;
                 if let Some(timing) = batch.runtime_source() {
@@ -125,28 +127,17 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
                             qubit_id,
                             result_id,
                         } => unsafe { measure_leaked_fn(ops.instance, qubit_id, result_id) },
+                        Operation::Postselect {
+                            qubit_id,
+                            target_value,
+                        } => unsafe { postselect_fn(ops.instance, qubit_id, target_value) },
                         Operation::Reset { qubit_id } => unsafe {
                             reset_fn(ops.instance, qubit_id)
                         },
-                        Operation::RZGate { qubit_id, theta } => unsafe {
-                            rz_fn(ops.instance, qubit_id, theta)
-                        },
-                        Operation::RXYGate {
-                            qubit_id,
-                            theta,
-                            phi,
-                        } => unsafe { rxy_fn(ops.instance, qubit_id, theta, phi) },
-                        Operation::RZZGate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            theta,
-                        } => unsafe { rzz_fn(ops.instance, qubit_id_1, qubit_id_2, theta) },
-                        Operation::RPPGate {
-                            qubit_id_1,
-                            qubit_id_2,
-                            theta,
-                            phi,
-                        } => unsafe { rpp_fn(ops.instance, qubit_id_1, qubit_id_2, theta, phi) },
+                        Operation::Gate { gate } => {
+                            let data = gate.serialize();
+                            unsafe { gate_fn(ops.instance, data.as_ptr(), data.len()) }
+                        }
                         Operation::Custom { custom_tag, data } => {
                             let (ptr, len) = (data.as_ptr() as *const ffi::c_void, data.len());
                             unsafe { custom_fn(ops.instance, custom_tag, ptr, len) }
@@ -169,6 +160,24 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         result_to_errno(
             "Failed to end shot",
             Self::with_runtime_instance(instance, |runtime| runtime.shot_end()),
+        )
+    }
+
+    pub unsafe fn negotiate_gateset(
+        instance: RuntimeInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        result_to_errno(
+            "Failed in negotiate_gateset",
+            Self::with_runtime_instance(instance, |runtime| unsafe {
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    runtime.negotiate_gateset(gateset)
+                })
+            }),
         )
     }
 
@@ -234,50 +243,14 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         )
     }
 
-    pub unsafe fn rxy_gate(
-        instance: RuntimeInstance,
-        qubit_id: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno {
+    pub unsafe fn gate(instance: RuntimeInstance, data: *const u8, data_len: usize) -> Errno {
         result_to_errno(
-            "Failed in rxy_gate",
-            Self::with_runtime_instance(instance, |runtime| runtime.rxy_gate(qubit_id, theta, phi)),
-        )
-    }
-
-    pub unsafe fn rzz_gate(
-        instance: RuntimeInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        theta: f64,
-    ) -> Errno {
-        result_to_errno(
-            "Failed in rzz_gate",
+            "Failed in gate",
             Self::with_runtime_instance(instance, |runtime| {
-                runtime.rzz_gate(qubit_id_1, qubit_id_2, theta)
-            }),
-        )
-    }
-
-    pub unsafe fn rz_gate(instance: RuntimeInstance, qubit_id: u64, theta: f64) -> Errno {
-        result_to_errno(
-            "Failed in rz_gate",
-            Self::with_runtime_instance(instance, |runtime| runtime.rz_gate(qubit_id, theta)),
-        )
-    }
-
-    pub unsafe fn rpp_gate(
-        instance: RuntimeInstance,
-        qubit_id_1: u64,
-        qubit_id_2: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno {
-        result_to_errno(
-            "Failed in rpp_gate",
-            Self::with_runtime_instance(instance, |runtime| {
-                runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi)
+                let gate = OwnedGateInstance::deserialize(unsafe {
+                    std::slice::from_raw_parts(data, data_len)
+                })?;
+                runtime.gate(&gate)
             }),
         )
     }
@@ -445,7 +418,7 @@ macro_rules! export_runtime_plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
                 plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
-                version::CURRENT_API_VERSION,
+                version::current_api_version,
             };
             use selene_core::operation::plugin::{
                 RuntimeGetOperationHandle, RuntimeGetOperationInstance, RuntimeGetOperationInterface,
@@ -462,6 +435,23 @@ macro_rules! export_runtime_plugin {
                 fn _assert_impl<F: RuntimeInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
+
+            unsafe extern "C" fn selene_runtime_last_error(
+                output: *mut c_char,
+                output_len: usize,
+                written: *mut usize,
+            ) -> Errno {
+                unsafe { selene_core::utils::last_error_message(output, output_len, written) }
+            }
+
+            unsafe extern "C" fn selene_runtime_get_name() -> *const c_char {
+                static NAME: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+                NAME.get_or_init(|| {
+                    std::ffi::CString::new(<$factory_type>::default().name())
+                        .expect("plugin names must not contain embedded null bytes")
+                })
+                .as_ptr()
+            }
 
             /// When Selene is initialised, it is provided with a default argument
             /// (the maximum number of qubits) and some custom arguments for the runtime.
@@ -524,6 +514,19 @@ macro_rules! export_runtime_plugin {
             /// a call to `selene_runtime_exit` to shut down the instance.
             unsafe extern "C" fn selene_runtime_shot_end(instance: RuntimeInstance) -> i32 {
                 Helper::shot_end(instance)
+            }
+
+            /// Negotiate the gates accepted from an interface and return the gates this runtime
+            /// may emit downstream, encoded as a gatewire gateset.
+            unsafe extern "C" fn selene_runtime_negotiate_gateset(
+                instance: RuntimeInstance,
+                input: *const u8,
+                input_len: usize,
+                output: *mut u8,
+                output_len: usize,
+                written: *mut usize,
+            ) -> i32 {
+                Helper::negotiate_gateset(instance, input, input_len, output, output_len, written)
             }
 
             /// This function is called to provide a runtime with custom operations from
@@ -641,70 +644,13 @@ macro_rules! export_runtime_plugin {
                 Helper::global_barrier(instance, sleep_ns)
             }
 
-            /// Instruct the runtime to apply an RXY gate to the qubit with the given ID.
-            /// It might not be supported by all runtimes, and an error will be returned
-            /// if it is used on a runtime that does not support it, or if the runtime
-            /// is unable to apply it for any reason.
-            ///
-            /// Note that it is up to the runtime whether or not this gate is applied immediately:
-            /// The runtime might act lazily and apply the gate at a later time when an observable
-            /// outcome is requested.
-            unsafe extern "C" fn selene_runtime_rxy_gate(
+            /// Instruct the runtime to apply a gate encoded with gatewire.
+            unsafe extern "C" fn selene_runtime_gate(
                 instance: RuntimeInstance,
-                qubit_id: u64,
-                theta: f64,
-                phi: f64,
+                data: *const u8,
+                data_len: usize,
             ) -> i32 {
-                Helper::rxy_gate(instance, qubit_id, theta, phi)
-            }
-
-            /// Instruct the runtime to apply an RZZ gate to the qubits with the given IDs.
-            /// It might not be supported by all runtimes, and an error will be returned
-            /// if it is used on a runtime that does not support it, or if the runtime
-            /// is unable to apply it for any reason.
-            ///
-            /// Note that it is up to the runtime whether or not this gate is applied
-            /// immediately: The runtime might act lazily and apply the gate at a later time.
-            unsafe extern "C" fn selene_runtime_rzz_gate(
-                instance: RuntimeInstance,
-                qubit_id_1: u64,
-                qubit_id_2: u64,
-                theta: f64,
-            ) -> i32 {
-                Helper::rzz_gate(instance, qubit_id_1, qubit_id_2, theta)
-            }
-
-            /// Instruct the runtime to apply an RZ gate to the qubit with the given ID.
-            /// It might not be supported by all runtimes, and an error will be returned
-            /// if it is used on a runtime that does not support it, or if the runtime
-            /// is unable to apply it for any reason.
-            ///
-            /// Note that it is up to the runtime whether or not this gate is applied
-            /// immediately: The runtime might act lazily and apply the gate at a later time.
-            /// It might not apply it at all, as RZ may be elided in code.
-            unsafe extern "C" fn selene_runtime_rz_gate(
-                instance: RuntimeInstance,
-                qubit_id: u64,
-                theta: f64,
-            ) -> i32 {
-                Helper::rz_gate(instance, qubit_id, theta)
-            }
-
-            /// Instruct the runtime to apply an RPP gate to the qubits with the given IDs.
-            /// It might not be supported by all runtimes, and an error will be returned
-            /// if it is used on a runtime that does not support it, or if the runtime
-            /// is unable to apply it for any reason.
-            ///
-            /// Note that it is up to the runtime whether or not this gate is applied
-            /// immediately: The runtime might act lazily and apply the gate at a later time.
-            unsafe extern "C" fn selene_runtime_rpp_gate(
-                instance: RuntimeInstance,
-                qubit_id_1: u64,
-                qubit_id_2: u64,
-                theta: f64,
-                phi: f64,
-            ) -> i32 {
-                Helper::rpp_gate(instance, qubit_id_1, qubit_id_2, theta, phi)
+                Helper::gate(instance, data, data_len)
             }
 
             /// Instruct the runtime that a measurement is to be requested and to write
@@ -815,32 +761,32 @@ macro_rules! export_runtime_plugin {
             selene_core::export_plugin_descriptor_v1!(
                 selene_runtime_plugin_descriptor_v1,
                 RuntimePluginDescriptorV1,
-                CURRENT_API_VERSION.as_u64(),
+                current_api_version().as_u64(),
                 {
-                    init_fn: selene_runtime_init,
+                    last_error_fn: selene_runtime_last_error,
+                    get_name_fn: selene_runtime_get_name,
+                    init_fn: Some(selene_runtime_init),
                     exit_fn: Some(selene_runtime_exit),
-                    get_next_operations_fn: selene_runtime_get_next_operations,
-                    shot_start_fn: selene_runtime_shot_start,
-                    shot_end_fn: selene_runtime_shot_end,
+                    get_next_operations_fn: Some(selene_runtime_get_next_operations),
+                    shot_start_fn: Some(selene_runtime_shot_start),
+                    shot_end_fn: Some(selene_runtime_shot_end),
                     get_metrics_fn: Some(selene_runtime_get_metrics),
-                    qalloc_fn: selene_runtime_qalloc,
-                    qfree_fn: selene_runtime_qfree,
-                    local_barrier_fn: selene_runtime_local_barrier,
-                    global_barrier_fn: selene_runtime_global_barrier,
-                    rxy_gate_fn: selene_runtime_rxy_gate,
-                    rzz_gate_fn: selene_runtime_rzz_gate,
-                    rz_gate_fn: selene_runtime_rz_gate,
-                    rpp_gate_fn: selene_runtime_rpp_gate,
-                    measure_fn: selene_runtime_measure,
-                    measure_leaked_fn: selene_runtime_measure_leaked,
-                    reset_fn: selene_runtime_reset,
-                    force_result_fn: selene_runtime_force_result,
-                    get_bool_result_fn: selene_runtime_get_bool_result,
-                    get_u64_result_fn: selene_runtime_get_u64_result,
-                    set_bool_result_fn: selene_runtime_set_bool_result,
-                    set_u64_result_fn: selene_runtime_set_u64_result,
-                    increment_future_refcount_fn: selene_runtime_increment_future_refcount,
-                    decrement_future_refcount_fn: selene_runtime_decrement_future_refcount,
+                    qalloc_fn: Some(selene_runtime_qalloc),
+                    qfree_fn: Some(selene_runtime_qfree),
+                    local_barrier_fn: Some(selene_runtime_local_barrier),
+                    global_barrier_fn: Some(selene_runtime_global_barrier),
+                    gate_fn: Some(selene_runtime_gate),
+                    negotiate_gateset_fn: Some(selene_runtime_negotiate_gateset),
+                    measure_fn: Some(selene_runtime_measure),
+                    measure_leaked_fn: Some(selene_runtime_measure_leaked),
+                    reset_fn: Some(selene_runtime_reset),
+                    force_result_fn: Some(selene_runtime_force_result),
+                    get_bool_result_fn: Some(selene_runtime_get_bool_result),
+                    get_u64_result_fn: Some(selene_runtime_get_u64_result),
+                    set_bool_result_fn: Some(selene_runtime_set_bool_result),
+                    set_u64_result_fn: Some(selene_runtime_set_u64_result),
+                    increment_future_refcount_fn: Some(selene_runtime_increment_future_refcount),
+                    decrement_future_refcount_fn: Some(selene_runtime_decrement_future_refcount),
                     custom_call_fn: Some(selene_runtime_custom_call),
                     simulate_delay_fn: Some(selene_runtime_simulate_delay),
                 }

@@ -16,6 +16,7 @@ from collections.abc import Iterator
 from typing import Any
 import math
 
+from selene_core import Gate, PhasedX, PhasedXX, RZ, ZZPhase
 from selene_core.trace import (
     Trace,
     GateEvent,
@@ -165,80 +166,95 @@ class QFree(Operation):
 
 
 @dataclass
-class Rxy(Operation):
-    qubit: int
-    theta: float
-    phi: float
+class GateInstruction(Operation):
+    gate: Gate
 
     def append_to_circuit(self, circuit: "pytket.Circuit"):
         assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.PhasedX(
-            angle0=self.theta / math.pi, angle1=self.phi / math.pi, qubit=self.qubit
-        )
-
-    def to_dict(self) -> dict:
-        return {"op": "Rxy", "qubit": self.qubit, "theta": self.theta, "phi": self.phi}
-
-    @staticmethod
-    def from_iterator(it: Iterator):
-        qubit = next(it)
-        theta = next(it)
-        phi = next(it)
-        assert isinstance(qubit, int), (
-            f"qubit must be an integer, got {qubit} of type {type(qubit)}"
-        )
-        assert isinstance(theta, float), (
-            f"theta must be a float, got {theta} of type {type(theta)}"
-        )
-        assert isinstance(phi, float), (
-            f"phi must be a float, got {phi} of type {type(phi)}"
-        )
-        return Rxy(qubit=qubit, theta=theta, phi=phi)
-
-
-@dataclass
-class Rzz(Operation):
-    qubit0: int
-    qubit1: int
-    theta: float
-
-    def append_to_circuit(self, circuit: "pytket.Circuit"):
-        assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.ZZPhase(
-            angle=self.theta / math.pi, qubit0=self.qubit0, qubit1=self.qubit1
-        )
+        if self.gate.semantic_id == RZ.semantic_id:
+            q0, theta = self._values()
+            q0 = int(q0)
+            theta = float(theta)
+            circuit.Rz(angle=theta / math.pi, qubit=q0)
+        elif self.gate.semantic_id == PhasedX.semantic_id:
+            q0, theta, phi = self._values()
+            q0 = int(q0)
+            theta = float(theta)
+            phi = float(phi)
+            circuit.PhasedX(angle0=theta / math.pi, angle1=phi / math.pi, qubit=q0)
+        elif self.gate.semantic_id == ZZPhase.semantic_id:
+            q0, q1, theta = self._values()
+            q0 = int(q0)
+            q1 = int(q1)
+            theta = float(theta)
+            circuit.ZZPhase(angle=theta / math.pi, qubit0=q0, qubit1=q1)
+        elif self.gate.semantic_id == PhasedXX.semantic_id:
+            q0, q1, theta, phi = self._values()
+            q0 = int(q0)
+            q1 = int(q1)
+            theta = float(theta)
+            phi = float(phi)
+            circuit.PhasedXX(
+                angle0=theta / math.pi,
+                angle1=phi / math.pi,
+                qubit0=q0,
+                qubit1=q1,
+            )
 
     def to_dict(self) -> dict:
         return {
-            "op": "Rzz",
-            "qubit0": self.qubit0,
-            "qubit1": self.qubit1,
-            "theta": self.theta,
+            "op": "Gate",
+            "gate": self.gate_name(),
+            "qubits": self.qubits(),
+            "params": self.params(),
         }
 
-    @staticmethod
-    def from_iterator(it: Iterator):
-        qubit0 = next(it)
-        qubit1 = next(it)
-        theta = next(it)
-        return Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta)
-
-
-@dataclass
-class Rz(Operation):
-    qubit: int
-    theta: float
-
-    def append_to_circuit(self, circuit: "pytket.Circuit"):
-        assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.Rz(angle=self.theta / math.pi, qubit=self.qubit)
-
-    def to_dict(self) -> dict:
-        return {"op": "Rz", "qubit": self.qubit, "theta": self.theta}
+    def to_trace_event(self) -> GateEvent:
+        return GateEvent(
+            gate_name=self.gate_name(),
+            qubits=self.qubits(),
+            params=self.params(),
+        )
 
     @staticmethod
     def from_iterator(it: Iterator):
-        return Rz(qubit=next(it), theta=next(it))
+        return GateInstruction(Gate.deserialize(bytes(next(it))))
+
+    def gate_name(self) -> str:
+        if self.gate.semantic_id == RZ.semantic_id:
+            return "RZ"
+        if self.gate.semantic_id == PhasedX.semantic_id:
+            return "PhasedX"
+        if self.gate.semantic_id == ZZPhase.semantic_id:
+            return "ZZPhase"
+        if self.gate.semantic_id == PhasedXX.semantic_id:
+            return "PhasedXX"
+        return self.gate.semantic_id.hex()
+
+    def _values(self) -> list[int | float | bool]:
+        return [operand.value for operand in self.gate.operands]
+
+    def qubits(self) -> list[int]:
+        if self.gate.semantic_id in {RZ.semantic_id, PhasedX.semantic_id}:
+            return [int(self.gate.operands[0].value)]
+        if self.gate.semantic_id in {ZZPhase.semantic_id, PhasedXX.semantic_id}:
+            return [int(self.gate.operands[0].value), int(self.gate.operands[1].value)]
+        return [
+            int(operand.value)
+            for operand in self.gate.operands
+            if operand.kind.name == "QUBIT"
+        ]
+
+    def params(self) -> list[int | float | bool]:
+        if self.gate.semantic_id in {RZ.semantic_id, PhasedX.semantic_id}:
+            return [operand.value for operand in self.gate.operands[1:]]
+        if self.gate.semantic_id in {ZZPhase.semantic_id, PhasedXX.semantic_id}:
+            return [operand.value for operand in self.gate.operands[2:]]
+        return [
+            operand.value
+            for operand in self.gate.operands
+            if operand.kind.name != "QUBIT"
+        ]
 
 
 @dataclass
@@ -327,40 +343,6 @@ class ClassicalDelay(Operation):
 
 
 @dataclass
-class Rpp(Operation):
-    qubit0: int
-    qubit1: int
-    theta: float
-    phi: float
-
-    def append_to_circuit(self, circuit: "pytket.Circuit"):
-        assert PYTKET_AVAILABLE, "pytket is not available"
-        circuit.PhasedXX(
-            angle0=self.theta / math.pi,
-            angle1=self.phi / math.pi,
-            qubit0=self.qubit0,
-            qubit1=self.qubit1,
-        )
-
-    def to_dict(self) -> dict:
-        return {
-            "op": "Rpp",
-            "qubit0": self.qubit0,
-            "qubit1": self.qubit1,
-            "theta": self.theta,
-            "phi": self.phi,
-        }
-
-    @staticmethod
-    def from_iterator(it: Iterator):
-        qubit0 = next(it)
-        qubit1 = next(it)
-        theta = next(it)
-        phi = next(it)
-        return Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi)
-
-
-@dataclass
 class Postselect(Operation):
     qubit: int
     target: bool
@@ -421,8 +403,8 @@ class Instruction:
         For example:
         - a QAlloc operation would have a data array of length 1,
           containing the qubit index to allocate.
-        - An Rzz would have a data array of length 3, containing
-          the two qubit indices and the rotation angle.
+        - a Gate operation would have a single serialized gatewire
+          payload containing the gate semantic ID and operands.
 
         The parsing of the data array is delegated to the operation
         class itself, and it is responsible for advancing the iterator
@@ -446,12 +428,6 @@ class Instruction:
                 operation = MeasureRequest.from_iterator(it)
             case 5:
                 operation = FutureRead.from_iterator(it)
-            case 6:
-                operation = Rxy.from_iterator(it)
-            case 7:
-                operation = Rz.from_iterator(it)
-            case 8:
-                operation = Rzz.from_iterator(it)
             case 9:
                 operation = CustomOperation.from_iterator(it)
             case 10:
@@ -462,9 +438,9 @@ class Instruction:
                 operation = MeasureLeakedRequest.from_iterator(it)
             case 13:
                 operation = ClassicalDelay.from_iterator(it)
-            case 14:
-                operation = Rpp.from_iterator(it)
             case 15:
+                operation = GateInstruction.from_iterator(it)
+            case 16:
                 operation = Postselect.from_iterator(it)
         if operation is None:
             raise ValueError(f"Unknown instruction operation index {operation_idx}")
@@ -596,43 +572,9 @@ class ShotInstructions:
                             index=user_program_event_index,
                         )
                         user_program_event_index += 1
-                    case Rxy(qubit=qubit, theta=theta, phi=phi):
+                    case GateInstruction() as gate:
                         trace.add_user_program_event(
-                            GateEvent(
-                                gate_name="Rxy",
-                                qubits=[qubit],
-                                params=[theta, phi],
-                            ),
-                            index=user_program_event_index,
-                        )
-                        user_program_event_index += 1
-                    case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
-                        trace.add_user_program_event(
-                            GateEvent(
-                                gate_name="Rzz",
-                                qubits=[qubit0, qubit1],
-                                params=[theta],
-                            ),
-                            index=user_program_event_index,
-                        )
-                        user_program_event_index += 1
-                    case Rz(qubit=qubit, theta=theta):
-                        trace.add_user_program_event(
-                            GateEvent(
-                                gate_name="Rz",
-                                qubits=[qubit],
-                                params=[theta],
-                            ),
-                            index=user_program_event_index,
-                        )
-                        user_program_event_index += 1
-                    case Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi):
-                        trace.add_user_program_event(
-                            GateEvent(
-                                gate_name="Rpp",
-                                qubits=[qubit0, qubit1],
-                                params=[theta, phi],
-                            ),
+                            gate.to_trace_event(),
                             index=user_program_event_index,
                         )
                         user_program_event_index += 1
@@ -682,43 +624,9 @@ class ShotInstructions:
                         trace.add_runtime_event(
                             MeasurementEvent(qubit=qubit), start_time_ns, end_time_ns
                         )
-                    case Rxy(qubit=qubit, theta=theta, phi=phi):
+                    case GateInstruction() as gate:
                         trace.add_runtime_event(
-                            GateEvent(
-                                gate_name="Rxy",
-                                qubits=[qubit],
-                                params=[theta, phi],
-                            ),
-                            start_time_ns,
-                            end_time_ns,
-                        )
-                    case Rz(qubit=qubit, theta=theta):
-                        trace.add_runtime_event(
-                            GateEvent(
-                                gate_name="Rz",
-                                qubits=[qubit],
-                                params=[theta],
-                            ),
-                            start_time_ns,
-                            end_time_ns,
-                        )
-                    case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
-                        trace.add_runtime_event(
-                            GateEvent(
-                                gate_name="Rzz",
-                                qubits=[qubit0, qubit1],
-                                params=[theta],
-                            ),
-                            start_time_ns,
-                            end_time_ns,
-                        )
-                    case Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi):
-                        trace.add_runtime_event(
-                            GateEvent(
-                                gate_name="Rpp",
-                                qubits=[qubit0, qubit1],
-                                params=[theta, phi],
-                            ),
+                            gate.to_trace_event(),
                             start_time_ns,
                             end_time_ns,
                         )
@@ -755,43 +663,9 @@ class ShotInstructions:
                             index=error_model_event_index,
                         )
                         error_model_event_index += 1
-                    case Rxy(qubit=qubit, theta=theta, phi=phi):
+                    case GateInstruction() as gate:
                         trace.add_error_model_event(
-                            GateEvent(
-                                gate_name="Rxy",
-                                qubits=[qubit],
-                                params=[theta, phi],
-                            ),
-                            index=error_model_event_index,
-                        )
-                        error_model_event_index += 1
-                    case Rz(qubit=qubit, theta=theta):
-                        trace.add_error_model_event(
-                            GateEvent(
-                                gate_name="Rz",
-                                qubits=[qubit],
-                                params=[theta],
-                            ),
-                            index=error_model_event_index,
-                        )
-                        error_model_event_index += 1
-                    case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
-                        trace.add_error_model_event(
-                            GateEvent(
-                                gate_name="Rzz",
-                                qubits=[qubit0, qubit1],
-                                params=[theta],
-                            ),
-                            index=error_model_event_index,
-                        )
-                        error_model_event_index += 1
-                    case Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi):
-                        trace.add_error_model_event(
-                            GateEvent(
-                                gate_name="Rpp",
-                                qubits=[qubit0, qubit1],
-                                params=[theta, phi],
-                            ),
+                            gate.to_trace_event(),
                             index=error_model_event_index,
                         )
                         error_model_event_index += 1
@@ -844,46 +718,9 @@ class ShotInstructions:
                             duration_ns=duration_ns,
                         )
                         simulator_event_index += 1
-                    case Rxy(qubit=qubit, theta=theta, phi=phi):
+                    case GateInstruction() as gate:
                         trace.add_simulator_event(
-                            GateEvent(
-                                gate_name="Rxy",
-                                qubits=[qubit],
-                                params=[theta, phi],
-                            ),
-                            index=simulator_event_index,
-                            duration_ns=duration_ns,
-                        )
-                        simulator_event_index += 1
-                    case Rz(qubit=qubit, theta=theta):
-                        trace.add_simulator_event(
-                            GateEvent(
-                                gate_name="Rz",
-                                qubits=[qubit],
-                                params=[theta],
-                            ),
-                            index=simulator_event_index,
-                            duration_ns=duration_ns,
-                        )
-                        simulator_event_index += 1
-                    case Rzz(qubit0=qubit0, qubit1=qubit1, theta=theta):
-                        trace.add_simulator_event(
-                            GateEvent(
-                                gate_name="Rzz",
-                                qubits=[qubit0, qubit1],
-                                params=[theta],
-                            ),
-                            index=simulator_event_index,
-                            duration_ns=duration_ns,
-                        )
-                        simulator_event_index += 1
-                    case Rpp(qubit0=qubit0, qubit1=qubit1, theta=theta, phi=phi):
-                        trace.add_simulator_event(
-                            GateEvent(
-                                gate_name="Rpp",
-                                qubits=[qubit0, qubit1],
-                                params=[theta, phi],
-                            ),
+                            gate.to_trace_event(),
                             index=simulator_event_index,
                             duration_ns=duration_ns,
                         )

@@ -25,19 +25,19 @@ def rz_gate(theta) -> Circuit:
     return circ
 
 
-def rxy_gate(theta, phi) -> Circuit:
+def phased_x_gate(theta, phi) -> Circuit:
     circ = Circuit(1)
     circ.PhasedX(theta, phi, 0)
     return circ
 
 
-def rzz_gate(theta) -> Circuit:
+def zz_phase_gate(theta) -> Circuit:
     circ = Circuit(2)
     circ.ZZPhase(theta, 0, 1)
     return circ
 
 
-def rpp_gate(theta, phi) -> Circuit:
+def phased_xx_gate(theta, phi) -> Circuit:
     circ = Circuit(2)
     circ.Rz(phi, 0)
     circ.Rz(phi, 1)
@@ -76,6 +76,6 @@ def analyse_span(name, gate, start_angle, end_angle, num_points, dim=1) -> None:
 
 if __name__ == "__main__":
     analyse_span("rz", rz_gate, 0, 2, 16)
-    analyse_span("rxy", rxy_gate, 0, 2, 16, dim=2)
-    analyse_span("rzz", rzz_gate, 0, 2, 16, dim=1)
-    analyse_span("rpp", rpp_gate, 0, 2, 16, dim=2)
+    analyse_span("PhasedX", phased_x_gate, 0, 2, 16, dim=2)
+    analyse_span("ZZPhase", zz_phase_gate, 0, 2, 16, dim=1)
+    analyse_span("PhasedXX", phased_xx_gate, 0, 2, 16, dim=2)

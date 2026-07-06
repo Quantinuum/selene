@@ -1,11 +1,14 @@
-use super::{
-    BatchResult, BoolResult, ErrorModelAPIVersion, ErrorModelInterface, ErrorModelInterfaceFactory,
-    U64Result,
-};
+use super::{BatchResult, ErrorModelAPIVersion, ErrorModelInterface, ErrorModelInterfaceFactory};
+use crate::gatewire::DynamicGateSet;
 use crate::operation::BatchOperation;
-use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
+use crate::operation::plugin::{OperationResultBuilder, OperationResultHandle};
+use crate::plugin::{
+    LastErrorFn, NegotiateGatesetFn, PluginDescriptorHeaderV1, PluginDescriptorV1,
+    check_plugin_errno, load_descriptor_v1, load_library, negotiate_gateset, read_plugin_name,
+    require_callback, validate_descriptor_v1,
+};
+use crate::utils::{MetricValue, read_raw_metric, with_strings_to_cargs};
 use anyhow::{Result, anyhow};
-use libloading;
 use std::ffi::OsStr;
 use std::{ffi, sync::Arc};
 
@@ -15,27 +18,32 @@ pub type Errno = i32;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ErrorModelPluginDescriptorV1 {
-    pub struct_size: u64,
-    pub api_version: u64,
-    pub init_fn: unsafe extern "C" fn(
-        handle: *mut ErrorModelInstance,
-        n_qubits: u64,
-        error_model_argc: u32,
-        error_model_argv: *const *const ffi::c_char,
-    ) -> Errno,
+    pub header: PluginDescriptorHeaderV1,
+    pub init_fn: Option<
+        unsafe extern "C" fn(
+            handle: *mut ErrorModelInstance,
+            n_qubits: u64,
+            error_model_argc: u32,
+            error_model_argv: *const *const ffi::c_char,
+        ) -> Errno,
+    >,
     pub exit_fn: Option<unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno>,
-    pub shot_start_fn: unsafe extern "C" fn(
-        handle: ErrorModelInstance,
-        shot_id: u64,
-        error_model_seed: u64,
-    ) -> Errno,
-    pub shot_end_fn: unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno,
-    pub handle_operations_fn: unsafe extern "C" fn(
-        handle: ErrorModelInstance,
-        batch: crate::operation::plugin::RuntimeExtractOperationHandle,
-        simulator: crate::simulator::inline::SimulatorHandle<'static>,
-        result: ErrorModelSetResultHandle,
-    ) -> Errno,
+    pub shot_start_fn: Option<
+        unsafe extern "C" fn(
+            handle: ErrorModelInstance,
+            shot_id: u64,
+            error_model_seed: u64,
+        ) -> Errno,
+    >,
+    pub shot_end_fn: Option<unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno>,
+    pub handle_operations_fn: Option<
+        unsafe extern "C" fn(
+            handle: ErrorModelInstance,
+            batch: crate::operation::plugin::RuntimeExtractOperationHandle,
+            simulator: crate::simulator::inline::SimulatorHandle<'static>,
+            result: OperationResultHandle,
+        ) -> Errno,
+    >,
     pub get_metrics_fn: Option<
         unsafe extern "C" fn(
             handle: ErrorModelInstance,
@@ -45,6 +53,24 @@ pub struct ErrorModelPluginDescriptorV1 {
             out_data: *mut u64,
         ) -> Errno,
     >,
+    pub negotiate_gateset_fn: Option<
+        unsafe extern "C" fn(
+            handle: ErrorModelInstance,
+            input: *const u8,
+            input_len: usize,
+            output: *mut u8,
+            output_len: usize,
+            written: *mut usize,
+        ) -> Errno,
+    >,
+}
+
+impl PluginDescriptorV1 for ErrorModelPluginDescriptorV1 {
+    const KIND: &'static str = "Error model";
+
+    fn header(&self) -> &PluginDescriptorHeaderV1 {
+        &self.header
+    }
 }
 
 /// Provides an error model backend that controls a plugin, in the form of a shared object.
@@ -56,9 +82,11 @@ pub struct ErrorModelPluginDescriptorV1 {
 /// This interface allows implementations of behaviour to be written and distributed independently
 /// of selene. Users should be cautious about the plugins they use, as it is possible that mistakes
 /// or malicious code could be present in the plugin, and as with all external libraries, due
-/// dilligence must be done to verify the source and the trustworthiness of the provider.
+/// diligence must be done to verify the source and the trustworthiness of the provider.
 pub struct ErrorModelPluginInterface {
     _lib: libloading::Library,
+    last_error_fn: LastErrorFn,
+    name: String,
     init_fn: unsafe extern "C" fn(
         handle: *mut ErrorModelInstance,
         n_qubits: u64,
@@ -72,11 +100,12 @@ pub struct ErrorModelPluginInterface {
         error_model_seed: u64,
     ) -> Errno,
     shot_end_fn: unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno,
+    negotiate_gateset_fn: NegotiateGatesetFn<ErrorModelInstance>,
     handle_operations_fn: unsafe extern "C" fn(
         handle: ErrorModelInstance,
         batch: crate::operation::plugin::RuntimeExtractOperationHandle,
         simulator: crate::simulator::inline::SimulatorHandle<'static>,
-        result: ErrorModelSetResultHandle,
+        result: OperationResultHandle,
     ) -> Errno,
     get_metrics_fn: Option<
         unsafe extern "C" fn(
@@ -91,48 +120,41 @@ pub struct ErrorModelPluginInterface {
 
 impl ErrorModelPluginInterface {
     pub fn new_from_file(plugin_file: impl AsRef<OsStr>) -> Result<Arc<Self>> {
-        let lib = unsafe { libloading::Library::new(plugin_file.as_ref()) }.map_err(|e| {
-            anyhow!(
-                "Failed to load error model plugin: {}. Error: {}",
-                plugin_file.as_ref().to_string_lossy(),
-                e
-            )
-        })?;
+        let lib = load_library("error model", &plugin_file)?;
         let descriptor = unsafe {
-            lib.get::<ErrorModelPluginDescriptorV1>(b"selene_error_model_plugin_descriptor_v1")
-                .ok()
-                .map(|d| *d)
-                .or_else(|| {
-                    lib.get::<unsafe extern "C" fn() -> *const ErrorModelPluginDescriptorV1>(
-                        b"selene_error_model_get_plugin_descriptor_v1",
-                    )
-                    .ok()
-                    .and_then(|f| {
-                        let ptr = f();
-                        if ptr.is_null() { None } else { Some(*ptr) }
-                    })
-                })
-        }
-        .ok_or_else(|| {
-            anyhow!(
-                "Error model plugin '{}' does not expose either selene_error_model_plugin_descriptor_v1 or selene_error_model_get_plugin_descriptor_v1",
-                plugin_file.as_ref().to_string_lossy()
+            load_descriptor_v1::<ErrorModelPluginDescriptorV1>(
+                &lib,
+                &plugin_file,
+                b"selene_error_model_plugin_descriptor_v1",
+                b"selene_error_model_get_plugin_descriptor_v1",
             )
+        }?;
+        validate_descriptor_v1(&descriptor, |api_version| {
+            ErrorModelAPIVersion::from(api_version).validate()
         })?;
-        let version: ErrorModelAPIVersion = descriptor.api_version.into();
-        version.validate()?;
-        if descriptor.struct_size < core::mem::size_of::<ErrorModelPluginDescriptorV1>() as u64 {
-            return Err(anyhow!(
-                "Error model plugin descriptor is too small for v1 ABI"
-            ));
-        }
+        let name = read_plugin_name("Error model", descriptor.header.get_name_fn)?;
         Ok(Arc::new(Self {
             _lib: lib,
-            init_fn: descriptor.init_fn,
+            last_error_fn: descriptor.header.last_error_fn,
+            name,
+            init_fn: require_callback("Error model", "init_fn", descriptor.init_fn)?,
             exit_fn: descriptor.exit_fn,
-            shot_start_fn: descriptor.shot_start_fn,
-            shot_end_fn: descriptor.shot_end_fn,
-            handle_operations_fn: descriptor.handle_operations_fn,
+            shot_start_fn: require_callback(
+                "Error model",
+                "shot_start_fn",
+                descriptor.shot_start_fn,
+            )?,
+            shot_end_fn: require_callback("Error model", "shot_end_fn", descriptor.shot_end_fn)?,
+            negotiate_gateset_fn: require_callback(
+                "Error model",
+                "negotiate_gateset_fn",
+                descriptor.negotiate_gateset_fn,
+            )?,
+            handle_operations_fn: require_callback(
+                "Error model",
+                "handle_operations_fn",
+                descriptor.handle_operations_fn,
+            )?,
             get_metrics_fn: descriptor.get_metrics_fn,
         }))
     }
@@ -141,6 +163,10 @@ impl ErrorModelPluginInterface {
 impl ErrorModelInterfaceFactory for ErrorModelPluginInterface {
     type Interface = ErrorModelPlugin;
 
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn init(
         self: Arc<Self>,
         n_qubits: u64,
@@ -148,10 +174,11 @@ impl ErrorModelInterfaceFactory for ErrorModelPluginInterface {
     ) -> Result<Box<Self::Interface>> {
         let mut instance = std::ptr::null_mut();
         with_strings_to_cargs(error_model_args, |error_model_argc, error_model_argv| {
-            check_errno(
+            check_plugin_errno(
                 unsafe {
                     (self.init_fn)(&mut instance, n_qubits, error_model_argc, error_model_argv)
                 },
+                self.last_error_fn,
                 || anyhow!("ErrorModelPluginInterface: init failed"),
             )
         })?;
@@ -172,20 +199,34 @@ impl ErrorModelInterface for ErrorModelPlugin {
         let Some(exit_fn) = self.interface.exit_fn else {
             return Ok(());
         };
-        check_errno(unsafe { exit_fn(self.instance) }, || {
-            anyhow!("ErrorModelPlugin: exit failed")
-        })
+        check_plugin_errno(
+            unsafe { exit_fn(self.instance) },
+            self.interface.last_error_fn,
+            || anyhow!("ErrorModelPlugin: exit failed"),
+        )
     }
     fn shot_start(&mut self, shot_id: u64, error_model_seed: u64) -> Result<()> {
-        check_errno(
+        check_plugin_errno(
             unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, error_model_seed) },
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: shot_start failed"),
         )
     }
     fn shot_end(&mut self) -> Result<()> {
-        check_errno(
+        check_plugin_errno(
             unsafe { (self.interface.shot_end_fn)(self.instance) },
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: shot_end failed"),
+        )
+    }
+
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        negotiate_gateset(
+            "ErrorModelPlugin",
+            self.instance,
+            self.interface.negotiate_gateset_fn,
+            self.interface.last_error_fn,
+            gateset,
         )
     }
     fn handle_operations(
@@ -196,15 +237,16 @@ impl ErrorModelInterface for ErrorModelPlugin {
         let mut batch_extractor =
             crate::operation::plugin::BatchExtractor::from_batch_operation(operations);
         let batch = batch_extractor.runtime_batch_extraction();
-        let mut result_builder = BatchResultBuilder::default();
-        let result = result_builder.error_model_set_result();
+        let mut result_builder = OperationResultBuilder::default();
+        let result = result_builder.operation_result();
         let mut simulator_ref = simulator;
         let simulator = crate::simulator::inline::borrowed_simulator_interface(&mut simulator_ref)
             .into_static();
-        check_errno(
+        check_plugin_errno(
             unsafe {
                 (self.interface.handle_operations_fn)(self.instance, batch, simulator, result)
             },
+            self.interface.last_error_fn,
             || anyhow!("ErrorModelPlugin: handle_operations failed"),
         )?;
         Ok(result_builder.finish())
@@ -217,75 +259,4 @@ impl ErrorModelInterface for ErrorModelPlugin {
             get_metrics_fn(self.instance, nth_metric, tag, data_type, data)
         })
     }
-}
-
-#[derive(Default)]
-/// A helper type used by the plugin tooling above to implement
-/// [ErrorModelSetResultInterface].
-pub(crate) struct BatchResultBuilder(BatchResult);
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ErrorModelSetResultHandle {
-    pub instance: ErrorModelSetResultInstance,
-    pub interface: ErrorModelSetResultInterface,
-}
-
-impl BatchResultBuilder {
-    unsafe extern "C" fn set_bool_result(
-        interface: ErrorModelSetResultInstance,
-        result_id: u64,
-        value: bool,
-    ) {
-        let result = interface as *mut BatchResult;
-        (unsafe { &mut *result })
-            .bool_results
-            .push(BoolResult { result_id, value })
-    }
-    unsafe extern "C" fn set_u64_result(
-        interface: ErrorModelSetResultInstance,
-        result_id: u64,
-        value: u64,
-    ) {
-        let result = interface as *mut BatchResult;
-        (unsafe { &mut *result })
-            .u64_results
-            .push(U64Result { result_id, value })
-    }
-
-    /// The plugin calls this to obtain an instance and an interface.
-    /// The lifetime parameter of the interface ensures that it cannot outlive the `Vec`
-    /// that the functions will mutate.
-    pub(crate) fn error_model_set_result(&mut self) -> ErrorModelSetResultHandle {
-        ErrorModelSetResultHandle {
-            instance: &raw mut self.0 as ErrorModelSetResultInstance,
-            interface: ErrorModelSetResultInterface {
-                set_bool_result_fn: Self::set_bool_result,
-                set_u64_result_fn: Self::set_u64_result,
-            },
-        }
-    }
-
-    /// Consumes the `BatchBuilder` returning the accumulated operations.
-    pub(crate) fn finish(self) -> BatchResult {
-        self.0
-    }
-}
-
-/// An instance is provided to `selene_runtime_get_next_operations`, which must
-/// pass that back to any function it calls in it's provided
-/// [ErrorModelSetResultInterface].
-pub type ErrorModelSetResultInstance = *mut ffi::c_void;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-#[non_exhaustive]
-/// A plugin's implementation of `selene_runtime_get_next_operations` is provided
-/// a pointer to a `ErrorModelSetResultInterface` as well as a
-/// [ErrorModelSetResultInstance]. It should call the functions
-/// within to populate a batch. All such calls must pass the instance as the
-/// first parameter.
-pub struct ErrorModelSetResultInterface {
-    pub set_bool_result_fn: unsafe extern "C" fn(ErrorModelSetResultInstance, u64, bool),
-    pub set_u64_result_fn: unsafe extern "C" fn(ErrorModelSetResultInstance, u64, u64),
 }

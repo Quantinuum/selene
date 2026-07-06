@@ -5,6 +5,7 @@ use rand_pcg::Pcg64Mcg;
 use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
+use selene_core::gatewire::{DynamicGateSet, builtin};
 use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -100,6 +101,17 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
         Ok(())
     }
 
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let supported = builtin::QuantinuumGateSet::dynamic();
+        if let Some(decl) = gateset.first_unsupported_by(&supported) {
+            bail!(
+                "SimpleLeakageErrorModel does not support gate {}",
+                decl.name
+            );
+        }
+        Ok(gateset.clone())
+    }
+
     fn exit(&mut self) -> Result<()> {
         Ok(())
     }
@@ -113,52 +125,42 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
         let mut pending = Vec::new();
         for op in operations {
             match op {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => {
-                    self.maybe_leak(qubit_id)?;
-                    pending.push(Operation::RXYGate {
+                Operation::Gate { .. } => match op.as_gate_view::<builtin::QuantinuumGate>()? {
+                    Some(builtin::QuantinuumGate::PhasedX {
                         qubit_id,
                         theta,
                         phi,
-                    });
-                }
-                Operation::RZGate { qubit_id, theta } => {
-                    self.maybe_leak(qubit_id)?;
-                    pending.push(Operation::RZGate { qubit_id, theta });
-                }
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => {
-                    self.maybe_leak(qubit_id_1)?;
-                    self.maybe_leak(qubit_id_2)?;
-                    self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    pending.push(Operation::RZZGate {
+                    }) => {
+                        self.maybe_leak(qubit_id)?;
+                        pending.push(Operation::phased_x(qubit_id, theta, phi)?);
+                    }
+                    Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
+                        self.maybe_leak(qubit_id)?;
+                        pending.push(Operation::rz(qubit_id, theta)?);
+                    }
+                    Some(builtin::QuantinuumGate::ZZPhase {
                         qubit_id_1,
                         qubit_id_2,
                         theta,
-                    });
-                }
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => {
-                    self.maybe_leak(qubit_id_1)?;
-                    self.maybe_leak(qubit_id_2)?;
-                    self.spread_leakage(qubit_id_1, qubit_id_2)?;
-                    pending.push(Operation::RPPGate {
+                    }) => {
+                        self.maybe_leak(qubit_id_1)?;
+                        self.maybe_leak(qubit_id_2)?;
+                        self.spread_leakage(qubit_id_1, qubit_id_2)?;
+                        pending.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
+                    }
+                    Some(builtin::QuantinuumGate::PhasedXX {
                         qubit_id_1,
                         qubit_id_2,
                         theta,
                         phi,
-                    });
-                }
+                    }) => {
+                        self.maybe_leak(qubit_id_1)?;
+                        self.maybe_leak(qubit_id_2)?;
+                        self.spread_leakage(qubit_id_1, qubit_id_2)?;
+                        pending.push(Operation::phased_xx(qubit_id_1, qubit_id_2, theta, phi)?);
+                    }
+                    None => bail!("SimpleLeakageErrorModel: Unsupported gate {:?}", op),
+                },
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -212,6 +214,16 @@ impl ErrorModelInterface for SimpleLeakageErrorModel {
                     self.leak_register[qubit_id as usize] = false;
                     pending.push(Operation::Reset { qubit_id });
                 }
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => {
+                    self.flush_pending(&mut pending, simulator, &mut results)?;
+                    simulator.handle_operations(Self::singleton_batch(Operation::Postselect {
+                        qubit_id,
+                        target_value,
+                    }))?;
+                }
                 Operation::Custom { .. } => {
                     // Passively ignore custom operations
                 }
@@ -244,6 +256,10 @@ pub struct SimpleLeakageErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for SimpleLeakageErrorModelFactory {
     type Interface = SimpleLeakageErrorModel;
+
+    fn name(&self) -> &str {
+        "SimpleLeakage"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

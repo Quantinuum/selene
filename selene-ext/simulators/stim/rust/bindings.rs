@@ -33,4 +33,6 @@ unsafe extern "C" {
     ) -> bool;
     pub fn stim_tableausimulator_min_get_stabilizers(rawptr: *mut c_void, write: *mut *mut c_char);
     pub fn stim_tableausimulator_min_free_stabilizers(written: *mut c_char);
+    pub fn stim_tableausimulator_min_get_last_error(rawptr: *mut c_void, write: *mut *mut c_char);
+    pub fn stim_tableausimulator_min_free_last_error(written: *mut c_char);
 }

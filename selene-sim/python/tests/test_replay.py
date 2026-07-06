@@ -206,7 +206,7 @@ def test_quantum_replay(underlying_simulator_class, compiled_guppy):
         measurements=invalid_replay_measurements,
     )
 
-    with pytest.raises(SelenePanicError) as exception_info:
+    with pytest.raises(SelenePanicError, match="impossible|unlikely") as exception_info:
         s = list(
             list(x)
             for x in runner.run_shots(
@@ -217,4 +217,3 @@ def test_quantum_replay(underlying_simulator_class, compiled_guppy):
                 verbose=True,
             )
         )
-    assert any(x in str(exception_info.value) for x in ["impossible", "too unlikely"])

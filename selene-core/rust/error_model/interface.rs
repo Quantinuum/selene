@@ -2,13 +2,14 @@ use anyhow::Result;
 use std::sync::Arc;
 
 use crate::error_model::BatchResult;
+use crate::gatewire::DynamicGateSet;
 use crate::operation::BatchOperation;
 use crate::simulator::SimulatorInterface;
 use crate::utils::MetricValue;
 
 /// Instances of error model plugins implement this interface.
 ///
-/// Many instances of a plugin may exist simultaneously. Instance are
+/// Many instances of a plugin may exist simultaneously. Instances are
 /// generically constructed by impls of [ErrorModelInterfaceFactory].
 ///
 /// All functions can return an error, which will usually result in aborting the
@@ -18,13 +19,12 @@ use crate::utils::MetricValue;
 /// [crate::export_error_model_plugin!]
 pub trait ErrorModelInterface {
     /// Signals that the instance of the error model plugin should cleanup. Plugins
-    /// should `Err`` from any functions called on an instance after `exit`. They can
+    /// should return `Err` from any functions called on an instance after `exit`. They can
     /// also return an error from `exit` itself if an expected condition is not met.
     fn exit(&mut self) -> Result<()>;
     /// Called to signal that the error model should proceed to the next shot. It should
     /// reset all state that has an impact on the next shot, such as caches. A new random
-    /// seed is provided, and the error model should reseed its RNG based on this. It should
-    /// also invoke shot_start on its underlying simulator with the provided new_simulator_seed.
+    /// seed is provided, and the error model should reseed its RNG based on this.
     ///
     /// It is important that reseeding is performed. This way, a single shot can be
     /// deterministically repeated by reseeding the error model with the same seed,
@@ -32,6 +32,13 @@ pub trait ErrorModelInterface {
     fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()>;
     /// Called to signal that the current shot has ended
     fn shot_end(&mut self) -> Result<()>;
+
+    /// Negotiate the gates accepted from the runtime and return the gates this
+    /// error model may emit to the simulator.
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        Ok(gateset.clone())
+    }
+
     /// Provide the error model with a batch of quantum operations from the runtime.
     /// The error model should perform any required measurements and return them in the
     /// BatchResult upon success.
@@ -60,6 +67,7 @@ pub trait ErrorModelInterface {
 
 pub trait ErrorModelInterfaceFactory {
     type Interface: ErrorModelInterface;
+    fn name(&self) -> &str;
 
     fn init(
         self: Arc<Self>,

@@ -4,6 +4,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use selene_core::{
     export_runtime_plugin,
+    gatewire::{DynamicGateSet, OwnedGateInstance, builtin},
     runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
@@ -11,13 +12,13 @@ use selene_core::{
 #[derive(Parser, Debug)]
 struct Params {
     #[arg(long)]
-    duration_ns_rxy: u64,
+    duration_ns_phased_x: u64,
     #[arg(long)]
-    duration_ns_rzz: u64,
+    duration_ns_zz_phase: u64,
     #[arg(long)]
     duration_ns_rz: u64,
     #[arg(long)]
-    duration_ns_rpp: u64,
+    duration_ns_phased_xx: u64,
     #[arg(long)]
     duration_ns_measure: u64,
     #[arg(long)]
@@ -61,15 +62,17 @@ impl SimpleRuntime {
     }
 
     pub fn push(&mut self, op: Operation) {
-        let duration_ns = match op {
-            Operation::RXYGate { .. } => self.params.duration_ns_rxy,
-            Operation::RZZGate { .. } => self.params.duration_ns_rzz,
-            Operation::RZGate { .. } => self.params.duration_ns_rz,
-            Operation::RPPGate { .. } => self.params.duration_ns_rpp,
-            Operation::Measure { .. } => self.params.duration_ns_measure,
-            Operation::Reset { .. } => self.params.duration_ns_reset,
-            Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
-            _ => 0,
+        let duration_ns = match op.as_gate_view::<builtin::QuantinuumGate>() {
+            Ok(Some(builtin::QuantinuumGate::PhasedX { .. })) => self.params.duration_ns_phased_x,
+            Ok(Some(builtin::QuantinuumGate::ZZPhase { .. })) => self.params.duration_ns_zz_phase,
+            Ok(Some(builtin::QuantinuumGate::RZ { .. })) => self.params.duration_ns_rz,
+            Ok(Some(builtin::QuantinuumGate::PhasedXX { .. })) => self.params.duration_ns_phased_xx,
+            _ => match op {
+                Operation::Measure { .. } => self.params.duration_ns_measure,
+                Operation::Reset { .. } => self.params.duration_ns_reset,
+                Operation::MeasureLeaked { .. } => self.params.duration_ns_measure_leaked,
+                _ => 0,
+            },
         };
         self.operation_queue.push_back(BatchOperation::runtime(
             vec![op],
@@ -87,7 +90,6 @@ impl RuntimeInterface for SimpleRuntime {
         self.future_results.clear();
         Ok(())
     }
-    // Engine ops
     fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
         Ok(self.operation_queue.pop_front())
     }
@@ -100,6 +102,13 @@ impl RuntimeInterface for SimpleRuntime {
         self.operation_queue.clear();
         self.future_results.clear();
         Ok(())
+    }
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let supported = builtin::QuantinuumGateSet::dynamic();
+        if let Some(decl) = gateset.first_unsupported_by(&supported) {
+            bail!("SimpleRuntime does not support gate {}", decl.name);
+        }
+        Ok(gateset.clone())
     }
     fn global_barrier(&mut self, _sleep_ns: u64) -> Result<()> {
         // This runtime isn't lazy, so a barrier is not relevant
@@ -129,64 +138,69 @@ impl RuntimeInterface for SimpleRuntime {
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
-            bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
+    fn gate(&mut self, gate: &OwnedGateInstance) -> Result<()> {
+        match Operation::gate_as_view::<builtin::QuantinuumGate>(gate)? {
+            Some(builtin::QuantinuumGate::PhasedX {
+                qubit_id,
+                theta,
+                phi,
+            }) => {
+                if qubit_id >= self.qubits.len() as u64 {
+                    bail!("applying PhasedX gate to out-of-bounds qubit {qubit_id}");
+                }
+                let QubitStatus::Active = self.qubits[qubit_id as usize] else {
+                    bail!("Qubit {qubit_id} is not active");
+                };
+                self.push(Operation::phased_x(qubit_id, theta, phi)?);
+                Ok(())
+            }
+            Some(builtin::QuantinuumGate::ZZPhase {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            }) => {
+                if qubit_id_1 >= self.qubits.len() as u64 {
+                    bail!("applying ZZPhase gate to out-of-bounds qubit1 {qubit_id_1}");
+                }
+                if qubit_id_2 >= self.qubits.len() as u64 {
+                    bail!("applying ZZPhase gate to out-of-bounds qubit2 {qubit_id_2}");
+                }
+                self.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
+                Ok(())
+            }
+            Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
+                if qubit_id >= self.qubits.len() as u64 {
+                    bail!("applying RZ gate to out-of-bounds qubit {qubit_id}");
+                }
+                let QubitStatus::Active = self.qubits[qubit_id as usize] else {
+                    bail!("Qubit {qubit_id} is not active");
+                };
+                self.push(Operation::rz(qubit_id, theta)?);
+                Ok(())
+            }
+            Some(builtin::QuantinuumGate::PhasedXX {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+                phi,
+            }) => {
+                if qubit_id_1 >= self.qubits.len() as u64 {
+                    bail!("applying PhasedXX gate to out-of-bounds qubit1 {qubit_id_1}");
+                }
+                if qubit_id_2 >= self.qubits.len() as u64 {
+                    bail!("applying PhasedXX gate to out-of-bounds qubit2 {qubit_id_2}");
+                }
+                let QubitStatus::Active = self.qubits[qubit_id_1 as usize] else {
+                    bail!("Qubit {qubit_id_1} is not active");
+                };
+                let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
+                    bail!("Qubit {qubit_id_2} is not active");
+                };
+                self.push(Operation::phased_xx(qubit_id_1, qubit_id_2, theta, phi)?);
+                Ok(())
+            }
+            None => bail!("SimpleRuntime does not support this gate"),
         }
-        let QubitStatus::Active = self.qubits[qubit_id as usize] else {
-            bail!("Qubit {qubit_id} is not active");
-        };
-        self.push(Operation::RXYGate {
-            qubit_id,
-            theta,
-            phi,
-        });
-        Ok(())
-    }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        if qubit_id_1 >= self.qubits.len() as u64 {
-            bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
-        }
-        if qubit_id_2 >= self.qubits.len() as u64 {
-            bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
-        }
-        self.push(Operation::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        });
-        Ok(())
-    }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
-            bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
-        }
-        let QubitStatus::Active = self.qubits[qubit_id as usize] else {
-            bail!("Qubit {qubit_id} is not active");
-        };
-        self.push(Operation::RZGate { qubit_id, theta });
-        Ok(())
-    }
-    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        if qubit_id_1 >= self.qubits.len() as u64 {
-            bail!("applying rpp gate to out-of-bounds qubit1 {qubit_id_1}");
-        }
-        if qubit_id_2 >= self.qubits.len() as u64 {
-            bail!("applying rpp gate to out-of-bounds qubit2 {qubit_id_2}");
-        }
-        let QubitStatus::Active = self.qubits[qubit_id_1 as usize] else {
-            bail!("Qubit {qubit_id_1} is not active");
-        };
-        let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
-            bail!("Qubit {qubit_id_2} is not active");
-        };
-        self.push(Operation::RPPGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-            phi,
-        });
-        Ok(())
     }
     // Lifetime ops
     fn measure(&mut self, qubit_id: u64) -> Result<u64> {
@@ -294,6 +308,10 @@ struct SimpleRuntimeFactory;
 
 impl RuntimeInterfaceFactory for SimpleRuntimeFactory {
     type Interface = SimpleRuntime;
+
+    fn name(&self) -> &str {
+        "SimpleRuntime"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

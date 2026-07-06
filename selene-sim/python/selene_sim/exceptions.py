@@ -90,11 +90,7 @@ class SelenePanicError(Exception):
         return (self.__class__, (self.message, self.code, self.stdout, self.stderr))
 
     def __str__(self):
-        return (
-            f"Panic (#{self.code}): {self.message}"
-            + maybe_provide_log("stdout", self.stdout)
-            + maybe_provide_log("stderr", self.stderr)
-        )
+        return f"Panic (#{self.code}): {self.message}"
 
 
 class SeleneTimeoutError(Exception):

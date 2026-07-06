@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <selene/gatewire.h>
 #include <selene/selene.h>
 #include <base_qis/selene_lifetime.h>
 #include <base_qis/program_lifetime.h>
@@ -25,9 +26,63 @@
 
 #include "logging.h"
 
+static void check_gw(GwStatus status) {
+    if (status != GW_STATUS_OK) {
+        ERROR("gatewire error: %s\n", gw_status_message(status));
+        abort();
+    }
+}
+
+static int register_helios_gateset(void) {
+    GwGateSet* set = NULL;
+    check_gw(gw_gateset_new(&set));
+    check_gw(gw_gateset_add_builtin_rz(set));
+    check_gw(gw_gateset_add_builtin_phased_x(set));
+    check_gw(gw_gateset_add_builtin_zz_phase(set));
+
+    size_t len = 0;
+    check_gw(gw_gateset_serialized_len(set, &len));
+    uint8_t* buffer = malloc(len);
+    if (buffer == NULL) {
+        ERROR("failed to allocate gateset buffer\n");
+        gw_gateset_free(set);
+        return 1;
+    }
+    size_t written = 0;
+    check_gw(gw_gateset_serialize(set, buffer, len, &written));
+    gw_gateset_free(set);
+
+    size_t accepted_len = 0;
+    struct selene_void_result_t result = selene_register_gateset(selene_instance, buffer, written, NULL, 0, &accepted_len);
+    if (result.error_code != 0) {
+        ERROR("Error registering Helios gateset: error code %" PRIu32 "\n", result.error_code);
+        free(buffer);
+        return result.error_code;
+    }
+    uint8_t* accepted = malloc(accepted_len);
+    if (accepted == NULL && accepted_len != 0) {
+        ERROR("failed to allocate accepted gateset buffer\n");
+        free(buffer);
+        return 1;
+    }
+    result = selene_register_gateset(selene_instance, buffer, written, accepted, accepted_len, &accepted_len);
+    free(buffer);
+    free(accepted);
+    if (result.error_code != 0) {
+        ERROR("Error registering Helios gateset: error code %" PRIu32 "\n", result.error_code);
+        return result.error_code;
+    }
+    return 0;
+}
 
 
-int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
+
+int selene_helios_run_with_utilities(
+    int argc,
+    char** argv,
+    uint64_t (*entrypoint)(uint64_t),
+    selene_utility_registrar_t register_utilities
+) {
     DIAGNOSTIC("selene_init() with args:\n");
     for (int i = 0; i < argc; ++i) {
         DIAGNOSTIC("   %d: %s\n", i, argv[i]);
@@ -41,6 +96,17 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     if (void_result.error_code != 0) {
         ERROR("Error initializing selene: error code %" PRIu32 "\n", void_result.error_code);
         return void_result.error_code;
+    }
+    int register_result = register_helios_gateset();
+    if (register_result != 0) {
+        return register_result;
+    }
+    if (register_utilities != NULL) {
+        void_result = register_utilities(selene_instance);
+        if (void_result.error_code != 0) {
+            ERROR("Error registering linked utilities: error code %" PRIu32 "\n", void_result.error_code);
+            return void_result.error_code;
+        }
     }
     struct selene_u64_result_t n_shots = selene_shot_count(selene_instance);
     if (n_shots.error_code != 0) {
@@ -70,4 +136,8 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
     }
     selene_exit(selene_instance);
     return 0;
+}
+
+int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
+    return selene_helios_run_with_utilities(argc, argv, entrypoint, NULL);
 }

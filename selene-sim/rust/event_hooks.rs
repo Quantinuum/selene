@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use selene_core::encoder::{OutputStream, OutputStreamError};
 use selene_core::error_model::BatchResult;
+use selene_core::gatewire::{DynamicGateSet, OwnedGateInstance};
 use selene_core::runtime::BatchOperation;
 
 pub mod instruction_log;
@@ -13,10 +14,6 @@ pub mod metrics;
 pub enum Operation {
     QFree(u64),
     QAlloc(u64),
-    RXY(u64, f64, f64),
-    RZZ(u64, u64, f64),
-    RZ(u64, f64),
-    RPP(u64, u64, f64, f64),
     Reset(u64),
     MeasureRequest(u64),
     MeasureLeakedRequest(u64),
@@ -25,42 +22,33 @@ pub enum Operation {
     GlobalBarrier(u64),
     LocalBarrier(Vec<u64>, u64),
     Custom(u64, Vec<u8>),
+    Gate(Vec<u8>),
     ClassicalDelay(u64),
     Postselect(u64, bool),
 }
 
 impl Operation {
+    fn from_gate(gate: &OwnedGateInstance) -> Self {
+        Operation::Gate(gate.serialize())
+    }
+
     pub fn from_runtime_operation(operation: &selene_core::runtime::Operation) -> Self {
         match operation {
             selene_core::runtime::Operation::Reset { qubit_id } => Operation::Reset(*qubit_id),
-            selene_core::runtime::Operation::RXYGate {
-                qubit_id,
-                theta,
-                phi,
-            } => Operation::RXY(*qubit_id, *theta, *phi),
-            selene_core::runtime::Operation::RZZGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-            } => Operation::RZZ(*qubit_id_1, *qubit_id_2, *theta),
-            selene_core::runtime::Operation::RPPGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-                phi,
-            } => Operation::RPP(*qubit_id_1, *qubit_id_2, *theta, *phi),
-            selene_core::runtime::Operation::RZGate { qubit_id, theta } => {
-                Operation::RZ(*qubit_id, *theta)
-            }
             selene_core::runtime::Operation::Measure { qubit_id, .. } => {
                 Operation::FutureRead(*qubit_id)
             }
             selene_core::runtime::Operation::MeasureLeaked { qubit_id, .. } => {
                 Operation::FutureRead(*qubit_id)
             }
+            selene_core::runtime::Operation::Postselect {
+                qubit_id,
+                target_value,
+            } => Operation::Postselect(*qubit_id, *target_value),
             selene_core::runtime::Operation::Custom { custom_tag, data } => {
                 Operation::Custom(*custom_tag as u64, data.to_vec())
             }
+            selene_core::runtime::Operation::Gate { gate } => Self::from_gate(gate),
             _ => todo!(
                 "Unsupported runtime operation in instruction log: {:?}",
                 operation
@@ -71,34 +59,20 @@ impl Operation {
     pub fn from_simulator_operation(operation: &selene_core::runtime::Operation) -> Self {
         match operation {
             selene_core::runtime::Operation::Reset { qubit_id } => Operation::Reset(*qubit_id),
-            selene_core::runtime::Operation::RXYGate {
-                qubit_id,
-                theta,
-                phi,
-            } => Operation::RXY(*qubit_id, *theta, *phi),
-            selene_core::runtime::Operation::RZZGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-            } => Operation::RZZ(*qubit_id_1, *qubit_id_2, *theta),
-            selene_core::runtime::Operation::RPPGate {
-                qubit_id_1,
-                qubit_id_2,
-                theta,
-                phi,
-            } => Operation::RPP(*qubit_id_1, *qubit_id_2, *theta, *phi),
-            selene_core::runtime::Operation::RZGate { qubit_id, theta } => {
-                Operation::RZ(*qubit_id, *theta)
-            }
             selene_core::runtime::Operation::Measure { qubit_id, .. } => {
                 Operation::MeasureRequest(*qubit_id)
             }
             selene_core::runtime::Operation::MeasureLeaked { qubit_id, .. } => {
                 Operation::MeasureLeakedRequest(*qubit_id)
             }
+            selene_core::runtime::Operation::Postselect {
+                qubit_id,
+                target_value,
+            } => Operation::Postselect(*qubit_id, *target_value),
             selene_core::runtime::Operation::Custom { custom_tag, data } => {
                 Operation::Custom(*custom_tag as u64, data.to_vec())
             }
+            selene_core::runtime::Operation::Gate { gate } => Self::from_gate(gate),
             _ => todo!(
                 "Unsupported simulator operation in instruction log: {:?}",
                 operation
@@ -109,6 +83,7 @@ impl Operation {
 
 pub trait EventHook {
     fn on_user_call(&mut self, _: &Operation) {}
+    fn on_gatesets_registered(&mut self, _: &DynamicGateSet, _: &DynamicGateSet) {}
     fn on_runtime_batch(&mut self, _: &BatchOperation) {}
     fn on_error_model_output(&mut self, _: &Operation) {}
     fn on_simulator_call(&mut self, _: &Operation, _: u64) {}
@@ -138,6 +113,15 @@ impl EventHook for MultiEventHook {
     fn on_user_call(&mut self, operation: &Operation) {
         for hook in self.hooks.iter_mut() {
             hook.on_user_call(operation);
+        }
+    }
+    fn on_gatesets_registered(
+        &mut self,
+        user_gateset: &DynamicGateSet,
+        runtime_gateset: &DynamicGateSet,
+    ) {
+        for hook in self.hooks.iter_mut() {
+            hook.on_gatesets_registered(user_gateset, runtime_gateset);
         }
     }
     fn on_runtime_batch(&mut self, operation: &BatchOperation) {
@@ -199,6 +183,14 @@ impl SharedEventHook {
 
     pub fn on_user_call(&self, operation: &Operation) {
         self.with_hooks(|hooks| hooks.on_user_call(operation));
+    }
+
+    pub fn on_gatesets_registered(
+        &self,
+        user_gateset: &DynamicGateSet,
+        runtime_gateset: &DynamicGateSet,
+    ) {
+        self.with_hooks(|hooks| hooks.on_gatesets_registered(user_gateset, runtime_gateset));
     }
 
     pub fn on_runtime_batch(&self, batch: &BatchOperation) {

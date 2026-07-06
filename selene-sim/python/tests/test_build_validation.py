@@ -59,7 +59,7 @@ def test_strict_builds_guppy(build_config, compiled_guppy):
         guppy_source=guppy_source,
     )
 
-    runner = build(llvm_file, strict=True, **build_config["kwargs"])
+    runner = build(llvm_file, strict=True, **build_config["kwargs"], verbose=True)
     got = list(runner.run(Quest(), n_qubits=1))
     assert len(got) == 0
 

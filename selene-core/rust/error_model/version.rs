@@ -32,17 +32,21 @@ impl From<ErrorModelAPIVersion> for u64 {
     }
 }
 
-pub const CURRENT_API_VERSION: ErrorModelAPIVersion = ErrorModelAPIVersion {
+pub(crate) const CURRENT_API_VERSION: ErrorModelAPIVersion = ErrorModelAPIVersion {
     reserved: 0,
     major: 0,
     minor: 2,
     patch: 0,
 };
 
+pub const fn current_api_version() -> ErrorModelAPIVersion {
+    CURRENT_API_VERSION
+}
+
 // Changelog:
 // 0.1.0: Initial version.
 // 0.2.0: Replaced set_measurement_result with set_bool_result and set_u64_result in
-//   ErrorModelSetResultInterface
+//   OperationResultInterface
 
 impl ErrorModelAPIVersion {
     pub const fn as_u64(self) -> u64 {

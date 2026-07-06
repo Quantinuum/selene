@@ -1,7 +1,35 @@
 [package]
 name = "selene-core"
-version = "0.3.0-alpha.1"
-edition = "2024"
+version = "1.0.0-alpha.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Core Rust APIs for Quantinuum's Selene plugins, gate apis, and simulation infrastructure."
+readme = "README.md"
+homepage = "https://github.com/quantinuum/selene"
+documentation = "https://docs.rs/selene-core"
+keywords = [
+    "Quantum",
+    "Quantinuum",
+    "Simulation",
+    "Selene",
+]
+categories = [
+    "science:quantum-computing",
+    "emulators",
+    "simulation",
+    "api-bindings",
+    "development-tools:ffi",
+]
+include = [
+    "Cargo.toml",
+    "README.md",
+    "CHANGELOG.md",
+    "rust/**/*.rs",
+    "rust/**/README.md",
+]
 
 [lib]
 name = "selene_core"
@@ -13,8 +41,13 @@ anyhow = "1.0"
 thiserror = "2.0"
 libloading = "0.8"
 delegate = "0.13"
-derive_more = { version = "2.1", features = ["from", "into", "add", "add_assign"] }
+derive_more = { version = "2.1", features = ["full"] }
+bitflags = "2"
+blake3 = "1"
+indexmap = "2"
+smallvec = "1"
+static_assertions = "1"
 
 [lints.clippy]
-undocumented_unsafe_blocks = "allow" # TODO: add safety docs
-missing_safety_doc = "allow"         # TODO: add safety docs
+undocumented_unsafe_blocks = "allow"
+missing_safety_doc = "allow"

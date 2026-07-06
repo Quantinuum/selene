@@ -4,6 +4,7 @@
     packages = with pkgs; [
       cmake
       just
+      stdenv.cc
       zlib
       libxml2
       ncurses
@@ -69,6 +70,7 @@
         ];
         excludes = [
           "selene-sim/python/tests"
+          "selene-ext/utilities/argreader/python/tests"
           "selene-ext/simulators/quest/python/gate_definitions.py"
           "selene-ext/simulators/stim/python/gate_definitions.py"
         ];

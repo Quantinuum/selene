@@ -1,11 +1,13 @@
 use super::{
     BatchResult, ErrorModelInterface,
-    plugin::{Errno, ErrorModelInstance, ErrorModelSetResultHandle, ErrorModelSetResultInterface},
+    plugin::{Errno, ErrorModelInstance},
 };
 use crate::{
     operation::plugin::{
-        BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
+        BatchBuilder, OperationResultHandle, OperationResultInterface,
+        RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
     },
+    plugin::{LastErrorFn, write_negotiated_gateset},
     simulator::{Simulator, inline::SimulatorHandle},
     utils::{result_of_errno_to_errno, result_to_errno},
 };
@@ -34,8 +36,10 @@ impl ErrorModelFFIAdapter {
             instance: &raw mut self.error_model as ErrorModelInstance,
             interface: ErrorModelOperationInterface {
                 exit_fn: Self::exit,
+                last_error_fn: Self::last_error,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
+                negotiate_gateset_fn: Self::negotiate_gateset,
                 handle_operations_fn: Self::handle_operations,
                 get_metrics_fn: Self::get_metrics,
                 _marker: PhantomData,
@@ -56,6 +60,14 @@ impl ErrorModelFFIAdapter {
         result_to_errno("ErrorModelFFIAdapter: exit failed", unsafe {
             Self::with_error_model(instance, |error_model| error_model.exit())
         })
+    }
+
+    unsafe extern "C" fn last_error(
+        output: *mut ffi::c_char,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        unsafe { crate::utils::last_error_message(output, output_len, written) }
     }
 
     unsafe extern "C" fn shot_start(
@@ -79,18 +91,35 @@ impl ErrorModelFFIAdapter {
         })
     }
 
+    unsafe extern "C" fn negotiate_gateset(
+        instance: ErrorModelInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        result_to_errno("ErrorModelFFIAdapter: negotiate_gateset failed", unsafe {
+            Self::with_error_model(instance, |error_model| {
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    error_model.negotiate_gateset(gateset)
+                })
+            })
+        })
+    }
+
     unsafe extern "C" fn handle_operations(
         instance: ErrorModelInstance,
         batch: RuntimeExtractOperationHandle,
         simulator: SimulatorHandle<'static>,
-        result: ErrorModelSetResultHandle,
+        result: OperationResultHandle,
     ) -> Errno {
         result_to_errno("ErrorModelFFIAdapter: handle_operations failed", unsafe {
             Self::with_error_model(instance, |error_model| {
                 let mut batch_builder = BatchBuilder::default();
                 let builder = batch_builder.runtime_get_operation();
                 let RuntimeExtractOperationInterface { extract_fn, .. } = batch.interface;
-                extract_fn(batch, builder);
+                extract_fn(&raw const batch, builder);
 
                 let mut simulator = Simulator::from_raw_parts(simulator);
                 let results =
@@ -101,8 +130,8 @@ impl ErrorModelFFIAdapter {
         })
     }
 
-    unsafe fn write_results(results: BatchResult, result: ErrorModelSetResultHandle) {
-        let ErrorModelSetResultInterface {
+    unsafe fn write_results(results: BatchResult, result: OperationResultHandle) {
+        let OperationResultInterface {
             set_bool_result_fn,
             set_u64_result_fn,
             ..
@@ -141,15 +170,24 @@ impl ErrorModelFFIAdapter {
 #[non_exhaustive]
 pub struct ErrorModelOperationInterface<'a> {
     pub exit_fn: unsafe extern "C" fn(ErrorModelInstance) -> Errno,
+    pub last_error_fn: LastErrorFn,
     pub shot_start_fn: unsafe extern "C" fn(ErrorModelInstance, u64, u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(ErrorModelInstance) -> Errno,
     pub handle_operations_fn: unsafe extern "C" fn(
         ErrorModelInstance,
         RuntimeExtractOperationHandle,
         SimulatorHandle<'a>,
-        ErrorModelSetResultHandle,
+        OperationResultHandle,
     ) -> Errno,
     pub get_metrics_fn:
         unsafe extern "C" fn(ErrorModelInstance, u8, *mut ffi::c_char, *mut u8, *mut u64) -> Errno,
+    pub negotiate_gateset_fn: unsafe extern "C" fn(
+        ErrorModelInstance,
+        *const u8,
+        usize,
+        *mut u8,
+        usize,
+        *mut usize,
+    ) -> Errno,
     _marker: PhantomData<&'a ()>,
 }

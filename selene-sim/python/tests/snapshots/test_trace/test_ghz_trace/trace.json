@@ -260,7 +260,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           -1.5707963267948966
@@ -278,7 +278,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           3.141592653589793
         ],
@@ -295,7 +295,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -314,7 +314,7 @@
           0,
           1
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -331,7 +331,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -348,7 +348,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -366,7 +366,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -383,7 +383,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -402,7 +402,7 @@
           1,
           2
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -419,7 +419,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -436,7 +436,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -454,7 +454,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -471,7 +471,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -490,7 +490,7 @@
           2,
           3
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -507,7 +507,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -524,7 +524,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -542,7 +542,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -559,7 +559,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -578,7 +578,7 @@
           3,
           4
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -595,7 +595,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -612,7 +612,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -630,7 +630,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -647,7 +647,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -666,7 +666,7 @@
           4,
           5
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -683,7 +683,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -700,7 +700,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -718,7 +718,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -735,7 +735,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -754,7 +754,7 @@
           5,
           6
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -771,7 +771,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -788,7 +788,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -806,7 +806,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -823,7 +823,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -842,7 +842,7 @@
           6,
           7
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -859,7 +859,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -876,7 +876,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -894,7 +894,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -911,7 +911,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -930,7 +930,7 @@
           7,
           8
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -947,7 +947,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -964,7 +964,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -982,7 +982,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -999,7 +999,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -1018,7 +1018,7 @@
           8,
           9
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -1035,7 +1035,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -1052,7 +1052,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -1070,7 +1070,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rz",
+        "gate_name": "RZ",
         "params": [
           -1.5707963267948966
         ],
@@ -1379,7 +1379,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           3.141592653589793,
           0.0
@@ -1398,7 +1398,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           3.141592653589793,
           0.0
@@ -1544,7 +1544,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           3.141592653589793,
           0.0
@@ -1563,7 +1563,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           3.141592653589793,
           0.0
@@ -1645,7 +1645,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           3.141592653589793,
           0.0
@@ -1664,7 +1664,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           3.141592653589793,
           0.0
@@ -1779,7 +1779,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           -1.5707963267948966
@@ -1797,7 +1797,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           -1.5707963267948966
@@ -1816,7 +1816,7 @@
         "qubits": [
           0
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           -1.5707963267948966
@@ -1835,7 +1835,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -1853,7 +1853,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -1872,7 +1872,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -1892,7 +1892,7 @@
           0,
           1
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -1910,7 +1910,7 @@
           0,
           1
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -1929,7 +1929,7 @@
           0,
           1
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -1947,7 +1947,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -1965,7 +1965,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -1984,7 +1984,7 @@
         "qubits": [
           1
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2003,7 +2003,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2021,7 +2021,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2040,7 +2040,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2060,7 +2060,7 @@
           1,
           2
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2078,7 +2078,7 @@
           1,
           2
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2097,7 +2097,7 @@
           1,
           2
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2115,7 +2115,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2133,7 +2133,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2152,7 +2152,7 @@
         "qubits": [
           2
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2171,7 +2171,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2189,7 +2189,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2208,7 +2208,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2228,7 +2228,7 @@
           2,
           3
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2246,7 +2246,7 @@
           2,
           3
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2265,7 +2265,7 @@
           2,
           3
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2283,7 +2283,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2301,7 +2301,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2320,7 +2320,7 @@
         "qubits": [
           3
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2339,7 +2339,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2357,7 +2357,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2376,7 +2376,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2396,7 +2396,7 @@
           3,
           4
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2414,7 +2414,7 @@
           3,
           4
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2433,7 +2433,7 @@
           3,
           4
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2451,7 +2451,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2469,7 +2469,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2488,7 +2488,7 @@
         "qubits": [
           4
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2507,7 +2507,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2525,7 +2525,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2544,7 +2544,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2564,7 +2564,7 @@
           4,
           5
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2582,7 +2582,7 @@
           4,
           5
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2601,7 +2601,7 @@
           4,
           5
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2619,7 +2619,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2637,7 +2637,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2656,7 +2656,7 @@
         "qubits": [
           5
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2675,7 +2675,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2693,7 +2693,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2712,7 +2712,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2732,7 +2732,7 @@
           5,
           6
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2750,7 +2750,7 @@
           5,
           6
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2769,7 +2769,7 @@
           5,
           6
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2787,7 +2787,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2805,7 +2805,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2824,7 +2824,7 @@
         "qubits": [
           6
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2843,7 +2843,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2861,7 +2861,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2880,7 +2880,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -2900,7 +2900,7 @@
           6,
           7
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2918,7 +2918,7 @@
           6,
           7
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2937,7 +2937,7 @@
           6,
           7
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -2955,7 +2955,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2973,7 +2973,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -2992,7 +2992,7 @@
         "qubits": [
           7
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -3011,7 +3011,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -3029,7 +3029,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -3048,7 +3048,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -3068,7 +3068,7 @@
           7,
           8
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -3086,7 +3086,7 @@
           7,
           8
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -3105,7 +3105,7 @@
           7,
           8
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -3123,7 +3123,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -3141,7 +3141,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -3160,7 +3160,7 @@
         "qubits": [
           8
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -3179,7 +3179,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -3197,7 +3197,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -3216,7 +3216,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           -1.5707963267948966,
           1.5707963267948966
@@ -3236,7 +3236,7 @@
           8,
           9
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -3254,7 +3254,7 @@
           8,
           9
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -3273,7 +3273,7 @@
           8,
           9
         ],
-        "gate_name": "Rzz",
+        "gate_name": "ZZPhase",
         "params": [
           1.5707963267948966
         ],
@@ -3291,7 +3291,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -3309,7 +3309,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793
@@ -3328,7 +3328,7 @@
         "qubits": [
           9
         ],
-        "gate_name": "Rxy",
+        "gate_name": "PhasedX",
         "params": [
           1.5707963267948966,
           3.141592653589793

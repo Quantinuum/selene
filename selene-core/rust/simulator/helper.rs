@@ -1,5 +1,5 @@
 //! Defines the [crate::export_simulator_plugin] and helpers for implementing
-//! error model plugins as rust crates.
+//! simulator plugins as rust crates.
 //!
 //! See `selene-coinflip-plugin` for an example of how to implement a plugin.
 use std::{ffi, mem, sync::Arc};
@@ -9,8 +9,13 @@ use super::{
     interface::SimulatorInterfaceFactory,
     plugin::{Errno, SimulatorInstance},
 };
-use crate::runtime::{BatchOperation, Operation};
-use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
+use crate::operation::plugin::{
+    BatchBuilder, OperationResultHandle, RuntimeExtractOperationHandle,
+};
+use crate::plugin::write_negotiated_gateset;
+use crate::utils::{
+    convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno, set_last_error,
+};
 
 #[derive(Default)]
 /// A helper struct used by [crate::export_simulator_plugin] to implement the simulator
@@ -19,10 +24,6 @@ use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to
 pub struct Helper<F>(Arc<F>);
 
 impl<F: SimulatorInterfaceFactory> Helper<F> {
-    fn singleton_batch(op: Operation) -> BatchOperation {
-        BatchOperation::simulator(vec![op])
-    }
-
     fn into_simulator_instance(s: Box<F::Interface>) -> SimulatorInstance {
         Box::into_raw(s) as SimulatorInstance
     }
@@ -54,7 +55,7 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
         argv: *const *const ffi::c_char,
     ) -> Errno {
         if instance.is_null() {
-            eprintln!("cannot initialize plugin: provided instance is null");
+            set_last_error("cannot initialize plugin: provided instance is null");
             return -1;
         }
 
@@ -94,6 +95,23 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
             Self::with_simulator_instance(instance, |simulator| simulator.shot_end()),
         )
     }
+    pub unsafe fn negotiate_gateset(
+        instance: SimulatorInstance,
+        input: *const u8,
+        input_len: usize,
+        output: *mut u8,
+        output_len: usize,
+        written: *mut usize,
+    ) -> Errno {
+        result_to_errno(
+            "Failed to negotiate gateset",
+            Self::with_simulator_instance(instance, |simulator| unsafe {
+                write_negotiated_gateset(input, input_len, output, output_len, written, |gateset| {
+                    simulator.negotiate_gateset(gateset)
+                })
+            }),
+        )
+    }
     pub unsafe fn get_metric(
         instance: SimulatorInstance,
         nth_metric: u8,
@@ -128,152 +146,40 @@ impl<F: SimulatorInterfaceFactory> Helper<F> {
             }),
         )
     }
-    pub unsafe fn rxy(instance: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno {
-        result_to_errno(
-            "Failed to apply RXY gate",
-            Self::with_simulator_instance(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RXYGate {
-                        qubit_id: qubit,
-                        theta,
-                        phi,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RXY unexpectedly produced results")
-                }
-            }),
-        )
-    }
-    pub unsafe fn rz(instance: SimulatorInstance, qubit: u64, theta: f64) -> Errno {
-        result_to_errno(
-            "Failed to apply RZ gate",
-            Self::with_simulator_instance(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RZGate {
-                        qubit_id: qubit,
-                        theta,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RZ unexpectedly produced results")
-                }
-            }),
-        )
-    }
-    pub unsafe fn rzz(instance: SimulatorInstance, qubit1: u64, qubit2: u64, theta: f64) -> Errno {
-        result_to_errno(
-            "Failed to apply RZZ gate",
-            Self::with_simulator_instance(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RZZGate {
-                        qubit_id_1: qubit1,
-                        qubit_id_2: qubit2,
-                        theta,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RZZ unexpectedly produced results")
-                }
-            }),
-        )
-    }
-    pub unsafe fn rpp(
+    pub unsafe fn handle_operations(
         instance: SimulatorInstance,
-        qubit1: u64,
-        qubit2: u64,
-        theta: f64,
-        phi: f64,
+        batch: RuntimeExtractOperationHandle,
+        result: OperationResultHandle,
     ) -> Errno {
         result_to_errno(
-            "Failed to apply RPP gate",
+            "Failed to handle simulator operations",
             Self::with_simulator_instance(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::RPPGate {
-                        qubit_id_1: qubit1,
-                        qubit_id_2: qubit2,
-                        theta,
-                        phi,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("RPP unexpectedly produced results")
+                let mut batch_builder = BatchBuilder::default();
+                let operations = batch_builder.runtime_get_operation();
+                unsafe { (batch.interface.extract_fn)(&raw const batch, operations) };
+                let results = simulator.handle_operations(batch_builder.finish())?;
+                for bool_result in results.bool_results {
+                    unsafe {
+                        (result.interface.set_bool_result_fn)(
+                            result.instance,
+                            bool_result.result_id,
+                            bool_result.value,
+                        )
+                    };
                 }
-            }),
-        )
-    }
-    pub unsafe fn measure(instance: SimulatorInstance, qubit: u64) -> Errno {
-        let result = Self::with_simulator_instance(instance, |simulator| {
-            let results =
-                simulator.handle_operations(Self::singleton_batch(Operation::Measure {
-                    qubit_id: qubit,
-                    result_id: 0,
-                }))?;
-            if results.u64_results.is_empty() && results.bool_results.len() == 1 {
-                Ok(results.bool_results[0].value)
-            } else {
-                anyhow::bail!("Measure expected exactly one bool result")
-            }
-        });
-        match result {
-            Ok(false) => 0,
-            Ok(true) => 1,
-            Err(e) => {
-                eprintln!("Failed to measure qubit {qubit}: {e:?}");
-                -1
-            }
-        }
-    }
-    pub unsafe fn postselect(instance: SimulatorInstance, qubit: u64, target_value: bool) -> Errno {
-        result_to_errno(
-            "Failed to postselect qubit",
-            Self::with_simulator_instance(instance, |simulator| {
-                simulator.postselect(qubit, target_value)
-            }),
-        )
-    }
-    pub unsafe fn reset(instance: SimulatorInstance, qubit: u64) -> Errno {
-        result_to_errno(
-            "Failed to reset qubit",
-            Self::with_simulator_instance(instance, |simulator| {
-                let results =
-                    simulator.handle_operations(Self::singleton_batch(Operation::Reset {
-                        qubit_id: qubit,
-                    }))?;
-                if results.bool_results.is_empty() && results.u64_results.is_empty() {
-                    Ok(())
-                } else {
-                    anyhow::bail!("Reset unexpectedly produced results")
+                for u64_result in results.u64_results {
+                    unsafe {
+                        (result.interface.set_u64_result_fn)(
+                            result.instance,
+                            u64_result.result_id,
+                            u64_result.value,
+                        )
+                    };
                 }
+                Ok::<(), anyhow::Error>(())
             }),
         )
     }
-}
-
-#[macro_export]
-#[allow(clippy::crate_in_macro_def)]
-macro_rules! crate_to_inline_simulator {
-    () => {
-        SimulatorInlineInterface {
-            init_fn: crate::selene_simulator_init,
-            exit_fn: Some(crate::selene_simulator_exit),
-            shot_start_fn: crate::selene_simulator_shot_start,
-            shot_end_fn: crate::selene_simulator_shot_end,
-            rxy_fn: crate::selene_simulator_operation_rxy,
-            rzz_fn: crate::selene_simulator_operation_rzz,
-            rx_fn: crate::selene_simulator_operation_rz,
-            rpp_fn: crate::selene_simulator_operation_rpp,
-            measure_fn: crate::selene_simulator_operation_measure,
-            reset_fn: crate::selene_simulator_operation_reset,
-            postselect_fn: Some(crate::selene_simulator_operation_postselect),
-            get_metrics_fn: Some(crate::selene_simulator_get_metrics),
-            dump_state_fn: crate::selene_simulator_dump_state,
-        }
-    };
 }
 
 #[macro_export]
@@ -297,8 +203,9 @@ macro_rules! export_simulator_plugin {
                 plugin::{
                     Errno, SimulatorInstance, SimulatorPluginDescriptorV1,
                 },
-                version::CURRENT_API_VERSION,
+                version::current_api_version,
             };
+            use selene_core::operation::plugin::{OperationResultHandle, RuntimeExtractOperationHandle};
 
             use std::cell::LazyCell;
             use std::ffi::c_char;
@@ -311,6 +218,23 @@ macro_rules! export_simulator_plugin {
                 fn _assert_impl<T: SimulatorInterfaceFactory>() {}
                 _assert_impl::<$factory_type>();
             };
+
+            unsafe extern "C" fn selene_simulator_last_error(
+                output: *mut c_char,
+                output_len: usize,
+                written: *mut usize,
+            ) -> Errno {
+                unsafe { selene_core::utils::last_error_message(output, output_len, written) }
+            }
+
+            unsafe extern "C" fn selene_simulator_get_name() -> *const c_char {
+                static NAME: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+                NAME.get_or_init(|| {
+                    std::ffi::CString::new(<$factory_type>::default().name())
+                        .expect("plugin names must not contain embedded null bytes")
+                })
+                .as_ptr()
+            }
 
             /// When Selene is initialised, it is provided with some default arguments
             /// (the maximum number of qubits, the path to a simulator plugin to use, etc)
@@ -366,7 +290,7 @@ macro_rules! export_simulator_plugin {
             /// This function is called at the end of a shot, and it is responsible for
             /// finalising the simulator plugin for that shot. For example, it may
             /// clean up any state, such as accumulators or buffers, or set a state vector
-            /// to zero. We recommenA call to
+            /// to zero. A call to
             /// this function will usually be followed either by a call to
             /// `selene_simulator_shot_start` to prepare for the following shot, or by
             /// a call to `selene_simulator_exit` to shut down the instance.
@@ -376,86 +300,25 @@ macro_rules! export_simulator_plugin {
                 Helper::shot_end(instance)
             }
 
-            /// Apply an RXY gate to the qubit at the requested index, with the provided
-            /// angles. This gate is also commonly known as the PhasedX gate or the R1XY gate,
-            /// performing:
-            /// $R_z(\phi)R_x(\theta)R_z(-\phi)$
-            /// (in matrix-multiplication order).
-            unsafe extern "C" fn selene_simulator_operation_rxy(
+            /// Negotiate the gates this simulator may receive, encoded as a gatewire gateset.
+            unsafe extern "C" fn selene_simulator_negotiate_gateset(
                 instance: SimulatorInstance,
-                qubit: u64,
-                theta: f64,
-                phi: f64,
+                input: *const u8,
+                input_len: usize,
+                output: *mut u8,
+                output_len: usize,
+                written: *mut usize,
             ) -> i32 {
-                Helper::rxy(instance, qubit, theta, phi)
+                Helper::negotiate_gateset(instance, input, input_len, output, output_len, written)
             }
 
-            /// Apply an RZZ gate to the qubits at the requested indices, with the provided
-            /// angles. This gate is also commonly known as the ZZPhase gate or the R2ZZ gate,
-            /// performing
-            /// $diag(\chi^*, \chi, \chi, \chi^*)$
-            /// where
-            /// $\chi = \exp(i \pi \theta / 2)$
-            unsafe extern "C" fn selene_simulator_operation_rzz(
+            /// Handle a batch of simulator operations.
+            unsafe extern "C" fn selene_simulator_handle_operations(
                 instance: SimulatorInstance,
-                qubit1: u64,
-                qubit2: u64,
-                theta: f64,
+                batch: RuntimeExtractOperationHandle,
+                result: OperationResultHandle,
             ) -> i32 {
-                Helper::rzz(instance, qubit1, qubit2, theta)
-            }
-
-            /// Apply an RZ gate to the qubit at the requested index, with the
-            /// provided angle. This should perform:
-            /// $diag(\chi^*, \chi)$
-            /// where
-            /// $chi = \exp(i \pi \theta / 2)$
-            unsafe extern "C" fn selene_simulator_operation_rz(
-                instance: SimulatorInstance,
-                qubit: u64,
-                theta: f64,
-            ) -> i32 {
-                Helper::rz(instance, qubit, theta)
-            }
-
-            /// Apply an RPP gate to the qubits at the requested indices, with the
-            /// provided angles.
-            unsafe extern "C" fn selene_simulator_operation_rpp(
-                instance: SimulatorInstance,
-                qubit1: u64,
-                qubit2: u64,
-                theta: f64,
-                phi: f64,
-            ) -> i32 {
-                Helper::rpp(instance, qubit1, qubit2, theta, phi)
-            }
-
-            /// Measure the qubit at the requested index. This is a destructive
-            /// operation.
-            unsafe extern "C" fn selene_simulator_operation_measure(
-                instance: SimulatorInstance,
-                qubit: u64,
-            ) -> i32 {
-                Helper::measure(instance, qubit)
-            }
-
-            /// Postselect the qubit at the requested index. Some simulators may
-            /// choose to not support post-selection, in which case this function
-            /// should return an error.
-            unsafe extern "C" fn selene_simulator_operation_postselect(
-                instance: SimulatorInstance,
-                qubit: u64,
-                target_value: bool,
-            ) -> i32 {
-                Helper::postselect(instance, qubit, target_value)
-            }
-
-            /// Reset the qubit at the requested index to the |0> state.
-            unsafe extern "C" fn selene_simulator_operation_reset(
-                instance: SimulatorInstance,
-                qubit: u64,
-            ) -> i32 {
-                Helper::reset(instance, qubit)
+                Helper::handle_operations(instance, batch, result)
             }
 
             /// Get a metric from the simulator instance.
@@ -499,22 +362,18 @@ macro_rules! export_simulator_plugin {
             selene_core::export_plugin_descriptor_v1!(
                 selene_simulator_plugin_descriptor_v1,
                 SimulatorPluginDescriptorV1,
-                CURRENT_API_VERSION.as_u64(),
+                current_api_version().as_u64(),
                 {
-                    get_name_fn: None,
-                    init_fn: selene_simulator_init,
+                    last_error_fn: selene_simulator_last_error,
+                    get_name_fn: selene_simulator_get_name,
+                    init_fn: Some(selene_simulator_init),
                     exit_fn: Some(selene_simulator_exit),
-                    shot_start_fn: selene_simulator_shot_start,
-                    shot_end_fn: selene_simulator_shot_end,
-                    rxy_fn: Some(selene_simulator_operation_rxy),
-                    rz_fn: Some(selene_simulator_operation_rz),
-                    rzz_fn: Some(selene_simulator_operation_rzz),
-                    rpp_fn: Some(selene_simulator_operation_rpp),
-                    measure_fn: selene_simulator_operation_measure,
-                    postselect_fn: Some(selene_simulator_operation_postselect),
-                    reset_fn: selene_simulator_operation_reset,
+                    shot_start_fn: Some(selene_simulator_shot_start),
+                    shot_end_fn: Some(selene_simulator_shot_end),
+                    handle_operations_fn: Some(selene_simulator_handle_operations),
+                    negotiate_gateset_fn: Some(selene_simulator_negotiate_gateset),
                     get_metrics_fn: Some(selene_simulator_get_metrics),
-                    dump_state_fn: selene_simulator_dump_state,
+                    dump_state_fn: Some(selene_simulator_dump_state),
                 }
             );
 

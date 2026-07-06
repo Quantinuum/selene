@@ -3,23 +3,26 @@ emulator:
 post_runtime:
   custom_op_batch_count: 0
   custom_op_individual_count: 0
+  gate:PhasedX:batch_count: 8
+  gate:PhasedX:individual_count: 8
+  gate:RZ:batch_count: 4
+  gate:RZ:individual_count: 4
+  gate:ZZPhase:batch_count: 5
+  gate:ZZPhase:individual_count: 5
   measure_batch_count: 1
   measure_individual_count: 1
   measure_leaked_batch_count: 0
   measure_leaked_individual_count: 0
   reset_batch_count: 3
   reset_individual_count: 3
-  rxy_batch_count: 8
-  rxy_individual_count: 8
-  rz_batch_count: 4
-  rz_individual_count: 4
-  rzz_batch_count: 5
-  rzz_individual_count: 5
   total_duration_ns: 0
 simulator:
   cumulative_postselect_probability: 1.0
 user_program:
   currently_allocated: 2
+  gate:PhasedX:count: 8
+  gate:RZ:count: 4
+  gate:ZZPhase:count: 5
   global_barrier_count: 0
   local_barrier_count: 0
   max_allocated: 3
@@ -29,6 +32,3 @@ user_program:
   qalloc_count: 3
   qfree_count: 1
   reset_count: 3
-  rxy_count: 8
-  rz_count: 4
-  rzz_count: 5

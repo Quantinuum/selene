@@ -16,6 +16,7 @@ from selene_core.build_utils import (
     DEFAULT_BUILD_PLANNER,
 )
 from selene_core.build_utils.builtins import SeleneExecutableKind
+from selene_core.build_utils.utils import invoke_zig
 
 from .instance import SeleneInstance
 
@@ -55,6 +56,8 @@ def _collect_libdeps(
     planner: BuildPlanner,
     interface: QuantumInterface | None,
     utilities: Sequence[Utility] | None,
+    artifact_dir: Path,
+    verbose: bool,
 ) -> list[LibDep]:
     """
     Collects the library dependencies for the selene build process,
@@ -66,9 +69,68 @@ def _collect_libdeps(
     interface = interface or HeliosInterface()
     deps = LibDep.from_plugin(interface)
     interface.register_build_steps(planner)
+    deps.append(_build_utility_registration_dep(artifact_dir, utilities or [], verbose))
     for u in utilities or []:
         deps.extend(LibDep.from_plugin(u))
     return deps
+
+
+def _build_utility_registration_dep(
+    artifact_dir: Path,
+    utilities: Sequence[Utility],
+    verbose: bool,
+) -> LibDep:
+    symbols = [
+        symbol
+        for utility in utilities
+        if (symbol := utility.validate_registration_symbol()) is not None
+    ]
+
+    declarations = "\n".join(
+        f"extern struct selene_void_result_t {symbol}(SeleneInstance *instance);"
+        for symbol in symbols
+    )
+    calls = "\n".join(
+        f"""
+    result = {symbol}(instance);
+    if (result.error_code != 0) {{
+        return result;
+    }}"""
+        for symbol in symbols
+    )
+    source = f"""#include <stdint.h>
+
+typedef struct SeleneInstance SeleneInstance;
+
+struct selene_void_result_t {{
+    uint32_t error_code;
+}};
+
+{declarations}
+
+struct selene_void_result_t selene_register_linked_utilities(SeleneInstance *instance) {{
+    struct selene_void_result_t result = {{0}};
+{calls}
+    return result;
+}}
+"""
+    support_dir = artifact_dir / "selene-support"
+    support_dir.mkdir(exist_ok=True)
+    source_path = support_dir / "selene_utility_registration.c"
+    object_path = support_dir / "selene_utility_registration.o"
+    zig_cache_dir = support_dir / "zig-cache"
+    zig_cache_dir.mkdir(exist_ok=True)
+    source_path.write_text(source)
+    invoke_zig(
+        "cc",
+        "-c",
+        source_path,
+        "-o",
+        object_path,
+        verbose=verbose,
+        cache_dir=zig_cache_dir,
+    )
+    return LibDep(path=object_path)
 
 
 def build(
@@ -174,7 +236,7 @@ def build(
     # from the interface and utilities passed in. This is necessary for
     # interfaces and utilities to be able to customise the final build,
     # e.g. adding link path arguments.
-    deps = _collect_libdeps(planner, interface, utilities)
+    deps = _collect_libdeps(planner, interface, utilities, artifact_dir, verbose)
 
     if "build_method" not in cfg:
         # If the build method is not provided, default to VIA_LLVM_BITCODE
@@ -207,7 +269,7 @@ def build(
     #   a `new_shiny_platform__` prefix?
     input_kind = planner.identify_kind(src)
     if input_kind is None:
-        raise ValueError(f"Unknown resource type: {type(src)}")
+        raise ValueError(f"Unknown resource type: {type(src)}: {src}")
 
     if save_planner:
         _log.info("Saving planner to %s", instance_root / "planner.dot")

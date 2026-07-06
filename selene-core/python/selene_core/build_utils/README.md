@@ -32,9 +32,12 @@ with looks like:
     - This is then compiled in a subsequent step into an object file with the
       above calling convention
 - The object file is linked against a "shim" library which maps the appropriate
-  platform calls to selene functions, e.g. `selene_rz(qubit: u64, theta: f64)`.
-- The object file is linked against `libselene.so`, which contains the selene hooks
-  (such as `selene_rz`) for invoking quantum operations.
+  platform calls to Selene functions. In the 0.3 API, that shim registers the
+  gateset it emits after `selene_load_config(...)`, serializes gate instances
+  with gatewire, and calls `selene_gate(...)`.
+- The object file is linked against `libselene.so`, which contains the Selene
+  hooks for loading configuration, registering gatesets, emitting generic gates,
+  and reporting results.
 - If any non-quantum external functions are used (such as `gemm`), then the program
   is further linked against the appropriate libraries.
 
@@ -78,7 +81,7 @@ Examples of ArtifactKind provided in ./builtin.py include:
     <tr><th>HUGR Package</th><td>hugr.package.Package</td></tr>
     <tr><th>HUGR Package Pointer</th><td>hugr.package.PackagePointer</td></tr>
     <tr><th>HUGR File</th><td>pathlib.Path (.hugr)</td></tr>
-    <tr><th>LLVM IR File</th><td>pathlib.Path (.llvm)</td></tr>
+    <tr><th>LLVM IR File</th><td>pathlib.Path (.ll)</td></tr>
     <tr><th>LLVM Bitcode File</th><td>pathlib.Path (.bc)</td></tr>
     <tr><th>Helios Object File</th><td>pathlib.Path (.o)</td></tr>
     <tr><th>Selene Object File</th><td>pathlib.Path (.o)</td></tr>

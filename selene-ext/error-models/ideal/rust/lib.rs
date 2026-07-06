@@ -2,6 +2,7 @@ use anyhow::{Result, bail};
 use selene_core::error_model::interface::ErrorModelInterfaceFactory;
 use selene_core::error_model::{BatchResult, ErrorModelInterface};
 use selene_core::export_error_model_plugin;
+use selene_core::gatewire::{DynamicGateSet, builtin};
 use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -22,6 +23,14 @@ impl ErrorModelInterface for IdealErrorModel {
         Ok(())
     }
 
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        let supported = builtin::QuantinuumGateSet::dynamic();
+        if let Some(decl) = gateset.first_unsupported_by(&supported) {
+            bail!("IdealErrorModel does not support gate {}", decl.name);
+        }
+        Ok(gateset.clone())
+    }
+
     fn handle_operations(
         &mut self,
         operations: BatchOperation,
@@ -31,11 +40,9 @@ impl ErrorModelInterface for IdealErrorModel {
         let mut pending = Vec::new();
         for op in operations {
             match op {
-                Operation::RXYGate { .. }
-                | Operation::RZZGate { .. }
-                | Operation::RZGate { .. }
+                Operation::Gate { .. }
                 | Operation::Measure { .. }
-                | Operation::RPPGate { .. }
+                | Operation::Postselect { .. }
                 | Operation::Reset { .. } => pending.push(op),
                 Operation::MeasureLeaked {
                     qubit_id,
@@ -83,6 +90,10 @@ pub struct IdealErrorModelFactory;
 
 impl ErrorModelInterfaceFactory for IdealErrorModelFactory {
     type Interface = IdealErrorModel;
+
+    fn name(&self) -> &str {
+        "Ideal"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

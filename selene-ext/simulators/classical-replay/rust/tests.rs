@@ -17,7 +17,7 @@ fn replay_test() {
 
     TestFramework::new(5)
         .h(0)
-        .rxy(0, std::f64::consts::FRAC_PI_8, std::f64::consts::E)
+        .phased_x(0, std::f64::consts::FRAC_PI_8, std::f64::consts::E)
         .test(100, vec![0, 1], |populations| {
             // if we were to measure the first two
             // qubits, we should always get false and true,

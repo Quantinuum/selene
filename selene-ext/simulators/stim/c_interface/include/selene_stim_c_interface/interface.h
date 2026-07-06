@@ -32,6 +32,8 @@ bool stim_tableausimulator_min_do_MZ(TableauSimulatorMin* sim, unsigned int q);
 bool stim_tableausimulator_min_do_POSTSELECT_Z(TableauSimulatorMin* sim,unsigned int q, bool target_result);
 void stim_tableausimulator_min_get_stabilizers(TableauSimulatorMin* sim, char** write);
 void stim_tableausimulator_min_free_stabilizers(char* written);
+void stim_tableausimulator_min_get_last_error(TableauSimulatorMin* sim, char** write);
+void stim_tableausimulator_min_free_last_error(char* written);
 
 #ifdef __cplusplus
 }

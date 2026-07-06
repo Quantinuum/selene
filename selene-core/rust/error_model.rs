@@ -1,20 +1,21 @@
-use crate::utils::{MetricValue, check_errno, read_raw_metric};
+use crate::utils::{MetricValue, read_raw_metric};
 use anyhow::{Result, anyhow};
 use std::ffi::OsStr;
 use std::sync;
 
+use crate::gatewire::DynamicGateSet;
 pub mod helper;
 pub mod inline;
 pub mod interface;
 pub mod plugin;
 pub mod version;
 use crate::operation::BatchOperation;
+use crate::plugin as plugin_utils;
 pub use inline::{ErrorModelFFIAdapter, ErrorModelHandle, ErrorModelOperationInterface};
 pub use interface::{ErrorModelInterface, ErrorModelInterfaceFactory};
 pub use version::ErrorModelAPIVersion;
 
-use self::plugin::BatchResultBuilder;
-use crate::operation::plugin::BatchExtractor;
+use crate::operation::plugin::{BatchExtractor, OperationResultBuilder};
 use crate::simulator::{Simulator, SimulatorInterface, inline::borrowed_simulator_interface};
 
 #[derive(Default)]
@@ -53,14 +54,23 @@ enum ErrorModelBacking {
 pub struct ErrorModel {
     handle: ErrorModelHandle<'static>,
     backing: ErrorModelBacking,
+    name: String,
 }
 
 impl ErrorModel {
     pub fn from_boxed(interface: Box<dyn ErrorModelInterface>) -> Self {
+        Self::from_boxed_named("Unknown", interface)
+    }
+
+    pub fn from_boxed_named(
+        name: impl Into<String>,
+        interface: Box<dyn ErrorModelInterface>,
+    ) -> Self {
         let mut adapter = Box::new(ErrorModelFFIAdapter::new(interface));
         Self {
             handle: adapter.ffi_interface(),
             backing: ErrorModelBacking::Adapter { _adapter: adapter },
+            name: name.into(),
         }
     }
 
@@ -73,8 +83,9 @@ impl ErrorModel {
         n_qubits: u64,
         error_model_args: &[impl AsRef<str>],
     ) -> Result<Self> {
+        let name = factory.name().to_string();
         let interface: Box<dyn ErrorModelInterface> = factory.init(n_qubits, error_model_args)?;
-        Ok(Self::from_boxed(interface))
+        Ok(Self::from_boxed_named(name, interface))
     }
 
     pub fn load_from_file(
@@ -86,6 +97,22 @@ impl ErrorModel {
         Self::new(plugin, n_qubits, error_model_args)
     }
 
+    fn context(&self, message: &'static str) -> String {
+        format!("Error Model ({}): {message}", self.name)
+    }
+
+    fn label(&self) -> String {
+        format!("Error Model ({})", self.name)
+    }
+
+    fn check_errno(&self, errno: plugin_utils::Errno, message: &'static str) -> Result<()> {
+        plugin_utils::check_plugin_errno_with_context(
+            errno,
+            self.handle.interface.last_error_fn,
+            || anyhow!("{}", self.context(message)),
+        )
+    }
+
     pub fn handle_operations_with_simulator(
         &mut self,
         operations: BatchOperation,
@@ -93,10 +120,10 @@ impl ErrorModel {
     ) -> Result<BatchResult> {
         let mut operation_extractor = BatchExtractor::from_batch_operation(operations);
         let batch = operation_extractor.runtime_batch_extraction();
-        let mut result_builder = BatchResultBuilder::default();
-        let result = result_builder.error_model_set_result();
+        let mut result_builder = OperationResultBuilder::default();
+        let result = result_builder.operation_result();
         let simulator = simulator.ffi_parts().into_static();
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.handle_operations_fn)(
                     self.handle.instance,
@@ -105,7 +132,7 @@ impl ErrorModel {
                     result,
                 )
             },
-            || anyhow!("ErrorModel: handle_operations failed"),
+            "handle_operations failed",
         )?;
         Ok(result_builder.finish())
     }
@@ -125,7 +152,7 @@ impl AsMut<dyn ErrorModelInterface> for ErrorModel {
 
 impl ErrorModelInterface for ErrorModel {
     fn shot_start(&mut self, shot_id: u64, error_model_seed: u64) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe {
                 (self.handle.interface.shot_start_fn)(
                     self.handle.instance,
@@ -133,14 +160,24 @@ impl ErrorModelInterface for ErrorModel {
                     error_model_seed,
                 )
             },
-            || anyhow!("ErrorModel: shot_start failed"),
+            "shot_start failed",
         )
     }
 
     fn shot_end(&mut self) -> Result<()> {
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.shot_end_fn)(self.handle.instance) },
-            || anyhow!("ErrorModel: shot_end failed"),
+            "shot_end failed",
+        )
+    }
+
+    fn negotiate_gateset(&mut self, gateset: &DynamicGateSet) -> Result<DynamicGateSet> {
+        plugin_utils::negotiate_gateset(
+            &self.label(),
+            self.handle.instance,
+            self.handle.interface.negotiate_gateset_fn,
+            self.handle.interface.last_error_fn,
+            gateset,
         )
     }
 
@@ -153,9 +190,9 @@ impl ErrorModelInterface for ErrorModel {
         let simulator = borrowed_simulator_interface(&mut simulator_ref).into_static();
         let mut operation_extractor = BatchExtractor::from_batch_operation(operations);
         let batch = operation_extractor.runtime_batch_extraction();
-        let mut result_builder = BatchResultBuilder::default();
-        let result = result_builder.error_model_set_result();
-        check_errno(
+        let mut result_builder = OperationResultBuilder::default();
+        let result = result_builder.operation_result();
+        self.check_errno(
             unsafe {
                 (self.handle.interface.handle_operations_fn)(
                     self.handle.instance,
@@ -164,16 +201,16 @@ impl ErrorModelInterface for ErrorModel {
                     result,
                 )
             },
-            || anyhow!("ErrorModel: handle_operations failed"),
+            "handle_operations failed",
         )?;
         Ok(result_builder.finish())
     }
 
     fn exit(&mut self) -> Result<()> {
         let _ = &self.backing;
-        check_errno(
+        self.check_errno(
             unsafe { (self.handle.interface.exit_fn)(self.handle.instance) },
-            || anyhow!("ErrorModel: exit failed"),
+            "exit failed",
         )
     }
 

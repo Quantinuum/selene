@@ -9,6 +9,7 @@ use clap::Parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use selene_core::error_model::BatchResult;
 use selene_core::export_simulator_plugin;
+use selene_core::gatewire::builtin;
 use selene_core::runtime::{BatchOperation, Operation};
 use selene_core::simulator::SimulatorInterface;
 use selene_core::simulator::interface::SimulatorInterfaceFactory;
@@ -95,23 +96,30 @@ impl SimulatorInterface for StimSimulator {
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
-                Operation::RXYGate {
-                    qubit_id,
-                    theta,
-                    phi,
-                } => self.rxy(qubit_id, theta, phi)?,
-                Operation::RZZGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                } => self.rzz(qubit_id_1, qubit_id_2, theta)?,
-                Operation::RZGate { qubit_id, theta } => self.rz(qubit_id, theta)?,
-                Operation::RPPGate {
-                    qubit_id_1,
-                    qubit_id_2,
-                    theta,
-                    phi,
-                } => self.rpp(qubit_id_1, qubit_id_2, theta, phi)?,
+                Operation::Gate { .. } => {
+                    match operation.as_gate_view::<builtin::QuantinuumGate>()? {
+                        Some(builtin::QuantinuumGate::PhasedX {
+                            qubit_id,
+                            theta,
+                            phi,
+                        }) => self.phased_x(qubit_id, theta, phi)?,
+                        Some(builtin::QuantinuumGate::ZZPhase {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                        }) => self.zz_phase(qubit_id_1, qubit_id_2, theta)?,
+                        Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
+                            self.rz(qubit_id, theta)?
+                        }
+                        Some(builtin::QuantinuumGate::PhasedXX {
+                            qubit_id_1,
+                            qubit_id_2,
+                            theta,
+                            phi,
+                        }) => self.phased_xx(qubit_id_1, qubit_id_2, theta, phi)?,
+                        None => {}
+                    }
+                }
                 Operation::Measure {
                     qubit_id,
                     result_id,
@@ -121,6 +129,10 @@ impl SimulatorInterface for StimSimulator {
                     result_id,
                 } => results.set_u64_result(result_id, self.measure(qubit_id)? as u64),
                 Operation::Reset { qubit_id } => self.reset(qubit_id)?,
+                Operation::Postselect {
+                    qubit_id,
+                    target_value,
+                } => self.do_postselect(qubit_id, target_value)?,
                 Operation::Custom { .. } => {}
                 _ => {}
             }
@@ -141,8 +153,8 @@ impl SimulatorInterface for StimSimulator {
 }
 
 impl StimSimulator {
-    fn rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
-        // We can represent the rxy gate as a sequence of clifford
+    fn phased_x(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
+        // We can represent the PhasedX gate as a sequence of clifford
         // operations for certain combinations of theta and phi. These
         // are written in application order (e.g. H X means apply H then X),
         // not multiplication order.
@@ -176,7 +188,7 @@ impl StimSimulator {
         //
         if q0 >= self.n_qubits {
             return Err(anyhow!(
-                "RXY(q0={q0}, theta={theta}, phi={phi}) is out of bounds. q0 must be less than the number of qubits ({}).",
+                "PhasedX(q0={q0}, theta={theta}, phi={phi}) is out of bounds. q0 must be less than the number of qubits ({}).",
                 self.n_qubits
             ));
         }
@@ -184,7 +196,7 @@ impl StimSimulator {
         let q0_u32: u32 = q0.try_into().unwrap();
         let Some(approx_theta) = self.get_approximate_quadrant(theta) else {
             return Err(anyhow!(
-                "RXY(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
+                "PhasedX(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
             ));
         };
         if approx_theta == Quadrant::Zero {
@@ -195,7 +207,7 @@ impl StimSimulator {
 
         let Some(approx_phi) = self.get_approximate_octant(phi) else {
             return Err(anyhow!(
-                "RXY(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is nonzero, phi must be an (approximate) multiple of pi/4 for Clifford operations."
+                "PhasedX(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is nonzero, phi must be an (approximate) multiple of pi/4 for Clifford operations."
             ));
         };
 
@@ -227,7 +239,7 @@ impl StimSimulator {
                 Ok(())
             }
             (Quadrant::FracPi2, _) => Err(anyhow!(
-                "RXY(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is pi/2, phi must be an (approximate) multiple of pi/2."
+                "PhasedX(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is pi/2, phi must be an (approximate) multiple of pi/2."
             )),
 
             ////////////////////////////////////
@@ -280,7 +292,7 @@ impl StimSimulator {
                 Ok(())
             }
             (Quadrant::Frac3Pi2, _) => Err(anyhow!(
-                "RXY(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is 3pi/2, phi must be an (approximate) multiple of pi/2."
+                "PhasedX(q0={q0}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is 3pi/2, phi must be an (approximate) multiple of pi/2."
             )),
         }
     }
@@ -323,7 +335,7 @@ impl StimSimulator {
         Ok(())
     }
 
-    fn rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
+    fn zz_phase(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
         // Stim provides SQRT_ZZ and SQRT_ZZ_DAG gates which are
         // invoked for theta values pi/2 and 3pi/2 respectively.
         // For theta=pi, we can simply apply a Z gate to both qubits.
@@ -331,7 +343,7 @@ impl StimSimulator {
 
         if q0 >= self.n_qubits || q1 >= self.n_qubits {
             return Err(anyhow!(
-                "RZZ(q0={q0}, q1={q1}, theta={theta}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                "ZZPhase(q0={q0}, q1={q1}, theta={theta}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
                 self.n_qubits
             ));
         }
@@ -340,7 +352,7 @@ impl StimSimulator {
         let q1_u32: u32 = q1.try_into().unwrap();
         let Some(approx) = self.get_approximate_quadrant(theta) else {
             return Err(anyhow!(
-                "RZZ(q0={q0}, q1={q1}, theta={theta}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
+                "ZZPhase(q0={q0}, q1={q1}, theta={theta}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
             ));
         };
 
@@ -356,8 +368,8 @@ impl StimSimulator {
         Ok(())
     }
 
-    fn rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
-        // We can represent the rpp gate as a sequence of clifford
+    fn phased_xx(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+        // We can represent the PhasedXX gate as a sequence of clifford
         // operations for certain combinations of theta and phi:
         //
         // +==========================================================+
@@ -389,7 +401,7 @@ impl StimSimulator {
 
         if q0 >= self.n_qubits || q1 >= self.n_qubits {
             return Err(anyhow!(
-                "RPP(q0={q0}, q1={q1}, theta={theta}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
+                "PhasedXX(q0={q0}, q1={q1}, theta={theta}) is out of bounds. q0 and q1 must be less than the number of qubits ({}).",
                 self.n_qubits
             ));
         }
@@ -399,12 +411,12 @@ impl StimSimulator {
 
         let Some(approx_theta) = self.get_approximate_quadrant(theta) else {
             return Err(anyhow!(
-                "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
+                "PhasedXX(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. Theta must be an (approximate) multiple of pi/2 for Clifford operations."
             ));
         };
         let Some(approx_phi) = self.get_approximate_octant(phi) else {
             return Err(anyhow!(
-                "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is nonzero, phi must be an (approximate) multiple of pi/4 for Clifford operations."
+                "PhasedXX(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is nonzero, phi must be an (approximate) multiple of pi/4 for Clifford operations."
             ));
         };
 
@@ -433,7 +445,7 @@ impl StimSimulator {
             }
             (Quadrant::FracPi2, _) => {
                 return Err(anyhow!(
-                    "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is pi/2, phi must be an (approximate) multiple of pi/2."
+                    "PhasedXX(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is pi/2, phi must be an (approximate) multiple of pi/2."
                 ));
             }
             // pi theta, quadrant phi section
@@ -483,7 +495,7 @@ impl StimSimulator {
             }
             (Quadrant::Frac3Pi2, _) => {
                 return Err(anyhow!(
-                    "RPP(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is 3pi/2, phi must be an (approximate) multiple of pi/2."
+                    "PhasedXX(q0={q0}, q1={q1}, theta={theta}, phi={phi}) is not representable in stabiliser form. When theta is 3pi/2, phi must be an (approximate) multiple of pi/2."
                 ));
             }
         }
@@ -512,9 +524,17 @@ impl StimSimulator {
             let q_u32: u32 = qubit.try_into()?;
             match self.simulator.postselect_z(q_u32, target_value) {
                 true => Ok(()),
-                false => Err(anyhow!(
-                    "Postselect(qubit={qubit}, target_value={target_value}) failed.",
-                )),
+                false => {
+                    let detail = self.simulator.last_error();
+                    let detail = detail.trim();
+                    if detail.is_empty() {
+                        Err(anyhow!(
+                            "Postselect(qubit={qubit}, target_value={target_value}) failed.",
+                        ))
+                    } else {
+                        Err(anyhow!("{detail}"))
+                    }
+                }
             }
         }
     }
@@ -559,6 +579,10 @@ pub struct StimSimulatorFactory;
 
 impl SimulatorInterfaceFactory for StimSimulatorFactory {
     type Interface = StimSimulator;
+
+    fn name(&self) -> &str {
+        "Stim"
+    }
 
     fn init(
         self: std::sync::Arc<Self>,

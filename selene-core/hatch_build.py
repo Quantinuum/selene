@@ -1,6 +1,7 @@
 import json
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
+import shutil
 
 
 class SeleneCoreBuildHook(BuildHookInterface):
@@ -26,6 +27,12 @@ class SeleneCoreBuildHook(BuildHookInterface):
         schema_path.write_text(
             json.dumps(trace_module.Trace.model_json_schema(), indent=2)
         )
+
+        include_source = Path("c/include")
+        include_target = Path("python/selene_core/_dist/include")
+        if include_target.exists():
+            shutil.rmtree(include_target)
+        shutil.copytree(include_source, include_target)
 
         artifacts = []
         dist_dir = Path("python/selene_core/_dist")
