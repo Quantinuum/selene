@@ -1,9 +1,13 @@
-use crate::gatewire::{GateError, GateSemanticId, GateValue, SmallGateValues, wire};
+use crate::gatewire::{
+    GateError, GateMetadata, GateSemanticId, GateValue, MetadataValue, SmallGateMetadata,
+    SmallGateValues, wire,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OwnedGateInstance {
     pub semantic_id: GateSemanticId,
     pub operands: SmallGateValues,
+    pub metadata: SmallGateMetadata,
 }
 
 impl OwnedGateInstance {
@@ -14,7 +18,39 @@ impl OwnedGateInstance {
         Self {
             semantic_id,
             operands: operands.into_iter().collect(),
+            metadata: SmallGateMetadata::new(),
         }
+    }
+
+    pub fn with_metadata(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<MetadataValue>,
+    ) -> Self {
+        self.set_metadata(key, value);
+        self
+    }
+
+    pub fn set_metadata(&mut self, key: impl Into<String>, value: impl Into<MetadataValue>) {
+        let key = key.into();
+        if let Some(entry) = self.metadata.iter_mut().find(|entry| entry.key == key) {
+            entry.value = value.into();
+        } else {
+            self.metadata.push(GateMetadata::new(key, value));
+        }
+    }
+
+    pub fn metadata(&self, key: &str) -> Option<&MetadataValue> {
+        self.metadata
+            .iter()
+            .find(|entry| entry.key == key)
+            .map(|entry| &entry.value)
+    }
+
+    pub fn metadata_iter(&self) -> impl ExactSizeIterator<Item = (&str, &MetadataValue)> + '_ {
+        self.metadata
+            .iter()
+            .map(|entry| (entry.key.as_str(), &entry.value))
     }
 
     pub fn qubit_operands(&self) -> impl Iterator<Item = u32> + '_ {

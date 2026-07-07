@@ -9,6 +9,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define GW_METADATA_VALUE_KIND_BOOL 1
+
+#define GW_METADATA_VALUE_KIND_I64 2
+
+#define GW_METADATA_VALUE_KIND_U64 3
+
+#define GW_METADATA_VALUE_KIND_F64 4
+
+#define GW_METADATA_VALUE_KIND_STRING 5
+
+#define GW_METADATA_VALUE_KIND_BYTES 6
+
 #define GW_OPERAND_KIND_QUBIT 1
 
 #define GW_OPERAND_KIND_F64 2
@@ -81,11 +93,30 @@ typedef struct {
   size_t bytes_len;
 } GwGateValue;
 
+typedef union {
+  uint8_t bool_value;
+  int64_t i64_value;
+  uint64_t u64_value;
+  double f64_value;
+} GwMetadataValueData;
+
+typedef struct {
+  size_t abi_size;
+  const char *key_ptr;
+  size_t key_len;
+  uint32_t value_kind;
+  GwMetadataValueData data;
+  const uint8_t *bytes_ptr;
+  size_t bytes_len;
+} GwGateMetadata;
+
 typedef struct {
   size_t abi_size;
   GwSemanticId semantic_id;
   const GwGateValue *values_ptr;
   size_t values_len;
+  const GwGateMetadata *metadata_ptr;
+  size_t metadata_len;
 } GwGateInstanceView;
 
 typedef struct {
@@ -180,6 +211,15 @@ GwStatus gw_decoded_gate_semantic_id(const GwDecodedGate *gate, GwSemanticId *ou
 GwStatus gw_decoded_gate_value_count(const GwDecodedGate *gate, size_t *out);
 
 GwStatus gw_decoded_gate_value_at(const GwDecodedGate *gate, size_t index, GwGateValue *out);
+
+GwStatus gw_decoded_gate_metadata_count(const GwDecodedGate *gate, size_t *out);
+
+GwStatus gw_decoded_gate_metadata_at(const GwDecodedGate *gate, size_t index, GwGateMetadata *out);
+
+GwStatus gw_decoded_gate_metadata_find(const GwDecodedGate *gate,
+                                       const char *key_ptr,
+                                       size_t key_len,
+                                       GwGateMetadata *out);
 
 GwStatus gw_decoded_gate_qubit_operand_count(const GwDecodedGate *gate, size_t *out);
 

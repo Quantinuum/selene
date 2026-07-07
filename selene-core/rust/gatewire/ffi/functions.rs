@@ -271,7 +271,7 @@ pub unsafe extern "C" fn gw_gate_serialized_len(
         if view.is_null() || out.is_null() {
             return Err(GateError::NullPointer);
         }
-        *out = gate_instance_from_view(&*view)?.serialize().len();
+        *out = gate_instance_from_view(view)?.serialize().len();
         Ok(())
     })
 }
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn gw_gate_serialize(
         if view.is_null() {
             return Err(GateError::NullPointer);
         }
-        let bytes = gate_instance_from_view(&*view)?.serialize();
+        let bytes = gate_instance_from_view(view)?.serialize();
         write_to_out(&bytes, buffer, buffer_len, written)
     })
 }
@@ -358,6 +358,59 @@ pub unsafe extern "C" fn gw_decoded_gate_value_at(
         let gate = as_decoded(gate)?;
         let value = gate.operands.get(index).ok_or(GateError::UnknownGate)?;
         *out = value_to_view(value);
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gw_decoded_gate_metadata_count(
+    gate: *const GwDecodedGate,
+    out: *mut usize,
+) -> GwStatus {
+    ffi_result(|| unsafe {
+        if out.is_null() {
+            return Err(GateError::NullPointer);
+        }
+        *out = as_decoded(gate)?.metadata.len();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gw_decoded_gate_metadata_at(
+    gate: *const GwDecodedGate,
+    index: usize,
+    out: *mut GwGateMetadata,
+) -> GwStatus {
+    ffi_result(|| unsafe {
+        if out.is_null() {
+            return Err(GateError::NullPointer);
+        }
+        let gate = as_decoded(gate)?;
+        let metadata = gate.metadata.get(index).ok_or(GateError::UnknownGate)?;
+        *out = metadata_to_view(metadata);
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gw_decoded_gate_metadata_find(
+    gate: *const GwDecodedGate,
+    key_ptr: *const c_char,
+    key_len: usize,
+    out: *mut GwGateMetadata,
+) -> GwStatus {
+    ffi_result(|| unsafe {
+        if out.is_null() {
+            return Err(GateError::NullPointer);
+        }
+        let key = read_text(key_ptr, key_len)?;
+        let metadata = as_decoded(gate)?
+            .metadata
+            .iter()
+            .find(|entry| entry.key == key)
+            .ok_or(GateError::UnknownGate)?;
+        *out = metadata_to_view(metadata);
         Ok(())
     })
 }

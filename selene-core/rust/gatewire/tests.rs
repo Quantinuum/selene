@@ -1,5 +1,7 @@
 use super::builtin::{PhasedX, PhasedXX, QuantinuumGate, RZ, ZZPhase};
-use crate::gatewire::{Angle, DynamicGateSet, GateSet, Qubit};
+use crate::gatewire::{
+    Angle, DynamicGateSet, GateOperand, GateSet, MetadataValue, OwnedGateInstance, Qubit,
+};
 use crate::runtime::Operation;
 
 crate::define_gateset! {
@@ -31,6 +33,49 @@ fn dynamic_gateset_roundtrip() {
     let dynamic = DynamicGateSet::deserialize(&bytes).unwrap();
     assert!(dynamic.contains(RZ::semantic_id()));
     assert_eq!(dynamic.len(), 3);
+}
+
+#[test]
+fn gate_metadata_roundtrip_uses_wire_v2() {
+    let gate = OwnedGateInstance::new(
+        RZ::semantic_id(),
+        [Qubit(0).into_value(), Angle(0.25).into_value()],
+    )
+    .with_metadata("source", "compiler-pass")
+    .with_metadata("logical_id", 42_u64)
+    .with_metadata("payload", vec![1_u8, 2, 3]);
+
+    let bytes = gate.serialize();
+    assert_eq!(&bytes[4..6], &2_u16.to_le_bytes());
+
+    let decoded = OwnedGateInstance::deserialize(&bytes).unwrap();
+    assert_eq!(
+        decoded.metadata("source"),
+        Some(&MetadataValue::String("compiler-pass".to_owned()))
+    );
+    assert_eq!(
+        decoded.metadata("logical_id"),
+        Some(&MetadataValue::U64(42))
+    );
+    assert_eq!(
+        decoded.metadata("payload"),
+        Some(&MetadataValue::Bytes(vec![1, 2, 3]))
+    );
+}
+
+#[test]
+fn gate_without_metadata_still_uses_wire_v1() {
+    let set = GateSet::<ExampleGateSet>::new().unwrap();
+    let gate = ExampleGateSet::PhasedXX(PhasedXX {
+        q0: Qubit(0),
+        q1: Qubit(1),
+        theta: Angle(0.25),
+        phi: Angle(1.25),
+    });
+    let bytes = set.serialize_gate(&gate).unwrap();
+
+    assert_eq!(&bytes[4..6], &1_u16.to_le_bytes());
+    assert_eq!(set.try_deserialize(&bytes).unwrap().unwrap(), gate);
 }
 
 #[test]

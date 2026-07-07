@@ -8,7 +8,13 @@ import tempfile
 import numpy as np
 from selene_core import Gateset, PhasedX, RZ, ZZPhase
 
-from selene_sim import DepolarizingErrorModel, Quest, SoftRZRuntime, SimpleRuntime
+from selene_sim import (
+    DepolarizingErrorModel,
+    IdealErrorModel,
+    Quest,
+    SoftRZRuntime,
+    SimpleRuntime,
+)
 from selene_sim.interactive import (
     InteractiveFullStack,
     InteractiveSimulator,
@@ -193,6 +199,46 @@ def test_interactive_full_stack_error_model_io():
         isinstance(entry["duration_ns"], int) and entry["duration_ns"] >= 0
         for entry in simulator_output
     )
+
+
+def test_interactive_full_stack_gate_metadata_reaches_trace():
+    from selene_sim.event_hooks import CircuitExtractor
+
+    hook = CircuitExtractor()
+    gates = NATIVE_GATES
+    metadata = {"source": "interactive-test", "logical_id": 7}
+    s = InteractiveFullStack(
+        simulator=Quest(random_seed=1234),
+        runtime=SimpleRuntime(),
+        error_model=IdealErrorModel(),
+        n_qubits=1,
+        event_hook=hook,
+        gateset=NATIVE_GATES,
+    )
+
+    q = s.qalloc()
+    s.gate(
+        gates.RZ(q.id, pi / 4)
+        .with_metadata("source", metadata["source"])
+        .with_metadata("logical_id", metadata["logical_id"])
+    )
+    s.measure(q)
+
+    trace = hook.shots[0].get_trace().clear_simulator_perf_timing()
+    metadata_by_source = {
+        record.source.kind: record.event.metadata
+        for record in trace.events
+        if record.event.kind == "Gate"
+        and record.event.gate_name == "RZ"
+        and record.event.metadata
+    }
+
+    assert metadata_by_source == {
+        "UserProgram": metadata,
+        "Runtime": metadata,
+        "ErrorModel": metadata,
+        "Simulator": metadata,
+    }
 
 
 def test_interactive_full_stack_gateset_negotiation():

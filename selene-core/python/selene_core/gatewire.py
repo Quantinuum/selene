@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 import struct
-from typing import Iterable
+from typing import Iterable, Mapping
 
 import blake3
 
@@ -15,6 +15,15 @@ class OperandKind(IntEnum):
     I64 = 4
     U8 = 5
     BOOL = 6
+
+
+class MetadataValueKind(IntEnum):
+    BOOL = 1
+    I64 = 2
+    U64 = 3
+    F64 = 4
+    STRING = 5
+    BYTES = 6
 
 
 @dataclass(frozen=True)
@@ -82,11 +91,60 @@ class GateValue:
 
 
 @dataclass(frozen=True)
+class MetadataValue:
+    kind: MetadataValueKind
+    value: bool | int | float | str | bytes
+
+    @staticmethod
+    def bool(value: bool) -> MetadataValue:
+        return MetadataValue(MetadataValueKind.BOOL, bool(value))
+
+    @staticmethod
+    def i64(value: int) -> MetadataValue:
+        return MetadataValue(MetadataValueKind.I64, int(value))
+
+    @staticmethod
+    def u64(value: int) -> MetadataValue:
+        return MetadataValue(MetadataValueKind.U64, int(value))
+
+    @staticmethod
+    def f64(value: float) -> MetadataValue:
+        return MetadataValue(MetadataValueKind.F64, float(value))
+
+    @staticmethod
+    def string(value: str) -> MetadataValue:
+        return MetadataValue(MetadataValueKind.STRING, str(value))
+
+    @staticmethod
+    def bytes(value: bytes | bytearray | memoryview) -> MetadataValue:
+        return MetadataValue(MetadataValueKind.BYTES, bytes(value))
+
+
+@dataclass(frozen=True)
+class GateMetadata:
+    key: str
+    value: MetadataValue
+
+
+@dataclass(frozen=True)
 class Gate:
     semantic_id: bytes
     operands: tuple[GateValue, ...]
+    metadata: tuple[GateMetadata, ...]
 
-    def __init__(self, semantic_id: str | bytes, operands: Iterable[GateValue]):
+    def __init__(
+        self,
+        semantic_id: str | bytes,
+        operands: Iterable[GateValue],
+        metadata: (
+            Mapping[str, MetadataValue | bool | int | float | str | bytes]
+            | Iterable[
+                GateMetadata
+                | tuple[str, MetadataValue | bool | int | float | str | bytes]
+            ]
+            | None
+        ) = None,
+    ):
         object.__setattr__(
             self,
             "semantic_id",
@@ -97,11 +155,26 @@ class Gate:
         if len(self.semantic_id) != 16:
             raise ValueError("semantic_id must be 16 bytes")
         object.__setattr__(self, "operands", tuple(operands))
+        object.__setattr__(self, "metadata", _coerce_metadata(metadata))
+
+    def with_metadata(
+        self, key: str, value: MetadataValue | bool | int | float | str | bytes
+    ) -> Gate:
+        metadata = {entry.key: entry.value for entry in self.metadata}
+        metadata[str(key)] = _coerce_metadata_value(value)
+        return Gate(self.semantic_id, self.operands, metadata)
+
+    def metadata_value(self, key: str) -> MetadataValue | None:
+        for entry in self.metadata:
+            if entry.key == key:
+                return entry.value
+        return None
 
     def serialize(self) -> bytes:
         out = bytearray()
         out.extend(b"GWG1")
-        out.extend(struct.pack("<HH", 1, 0))
+        wire_version = 2 if self.metadata else 1
+        out.extend(struct.pack("<HH", wire_version, 0))
         out.extend(self.semantic_id)
         out.extend(struct.pack("<I", len(self.operands)))
         for operand in self.operands:
@@ -119,6 +192,27 @@ class Gate:
                     out.extend(struct.pack("<B", int(operand.value)))
                 case OperandKind.BOOL:
                     out.extend(struct.pack("<B", 1 if operand.value else 0))
+        if self.metadata:
+            out.extend(struct.pack("<I", len(self.metadata)))
+            for entry in self.metadata:
+                _write_string(out, entry.key)
+                out.extend(struct.pack("<I", int(entry.value.kind)))
+                match entry.value.kind:
+                    case MetadataValueKind.BOOL:
+                        out.extend(struct.pack("<B", 1 if entry.value.value else 0))
+                    case MetadataValueKind.I64:
+                        out.extend(struct.pack("<q", int(entry.value.value)))
+                    case MetadataValueKind.U64:
+                        out.extend(struct.pack("<Q", int(entry.value.value)))
+                    case MetadataValueKind.F64:
+                        out.extend(struct.pack("<d", float(entry.value.value)))
+                    case MetadataValueKind.STRING:
+                        _write_string(out, str(entry.value.value))
+                    case MetadataValueKind.BYTES:
+                        value = entry.value.value
+                        if not isinstance(value, bytes):
+                            raise TypeError("bytes metadata must contain bytes")
+                        _write_bytes(out, value)
         return bytes(out)
 
     @staticmethod
@@ -127,7 +221,7 @@ class Gate:
         if cursor.read(4) != b"GWG1":
             raise ValueError("bad gate magic")
         version, _reserved = struct.unpack("<HH", cursor.read(4))
-        if version != 1:
+        if version not in (1, 2):
             raise ValueError("unsupported gate wire version")
         semantic_id = cursor.read(16)
         (operand_count,) = struct.unpack("<I", cursor.read(4))
@@ -150,8 +244,30 @@ class Gate:
                     (raw,) = struct.unpack("<B", cursor.read(1))
                     value = bool(raw)
             operands.append(GateValue(operand_kind, value))
+        metadata = []
+        if version >= 2:
+            (metadata_count,) = struct.unpack("<I", cursor.read(4))
+            for _ in range(metadata_count):
+                key = cursor.read_string()
+                (kind,) = struct.unpack("<I", cursor.read(4))
+                metadata_kind = MetadataValueKind(kind)
+                match metadata_kind:
+                    case MetadataValueKind.BOOL:
+                        (raw,) = struct.unpack("<B", cursor.read(1))
+                        value = bool(raw)
+                    case MetadataValueKind.I64:
+                        (value,) = struct.unpack("<q", cursor.read(8))
+                    case MetadataValueKind.U64:
+                        (value,) = struct.unpack("<Q", cursor.read(8))
+                    case MetadataValueKind.F64:
+                        (value,) = struct.unpack("<d", cursor.read(8))
+                    case MetadataValueKind.STRING:
+                        value = cursor.read_string()
+                    case MetadataValueKind.BYTES:
+                        value = cursor.read_bytes()
+                metadata.append(GateMetadata(key, MetadataValue(metadata_kind, value)))
         cursor.finish()
-        return Gate(semantic_id, operands)
+        return Gate(semantic_id, operands, metadata)
 
 
 class Gateset:
@@ -340,6 +456,11 @@ def _write_string(out: bytearray, value: str) -> None:
     out.extend(data)
 
 
+def _write_bytes(out: bytearray, value: bytes) -> None:
+    out.extend(struct.pack("<I", len(value)))
+    out.extend(value)
+
+
 def _coerce_gate_value(kind: OperandKind, value: int | float | bool | GateValue):
     if isinstance(value, GateValue):
         if value.kind != kind:
@@ -358,6 +479,46 @@ def _coerce_gate_value(kind: OperandKind, value: int | float | bool | GateValue)
             return GateValue.u8(int(value))
         case OperandKind.BOOL:
             return GateValue.bool(bool(value))
+
+
+def _coerce_metadata_value(value: MetadataValue | bool | int | float | str | bytes):
+    if isinstance(value, MetadataValue):
+        return value
+    if isinstance(value, bool):
+        return MetadataValue.bool(value)
+    if isinstance(value, int):
+        return MetadataValue.i64(value)
+    if isinstance(value, float):
+        return MetadataValue.f64(value)
+    if isinstance(value, str):
+        return MetadataValue.string(value)
+    if isinstance(value, bytes):
+        return MetadataValue.bytes(value)
+    raise TypeError(f"unsupported metadata value {type(value).__name__}")
+
+
+def _coerce_metadata(
+    metadata: (
+        Mapping[str, MetadataValue | bool | int | float | str | bytes]
+        | Iterable[
+            GateMetadata | tuple[str, MetadataValue | bool | int | float | str | bytes]
+        ]
+        | None
+    ),
+) -> tuple[GateMetadata, ...]:
+    if metadata is None:
+        return ()
+    raw_items = metadata.items() if isinstance(metadata, Mapping) else metadata
+    entries: dict[str, MetadataValue] = {}
+    for item in raw_items:
+        if isinstance(item, GateMetadata):
+            key = item.key
+            value = item.value
+        else:
+            key, raw_value = item
+            value = _coerce_metadata_value(raw_value)
+        entries[str(key)] = value
+    return tuple(GateMetadata(key, value) for key, value in entries.items())
 
 
 def _instantiate_gate(
@@ -388,6 +549,10 @@ class _Cursor:
     def read_string(self) -> str:
         (length,) = struct.unpack("<I", self.read(4))
         return self.read(length).decode("utf-8")
+
+    def read_bytes(self) -> bytes:
+        (length,) = struct.unpack("<I", self.read(4))
+        return self.read(length)
 
     def finish(self) -> None:
         if self._offset != len(self._data):

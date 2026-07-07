@@ -151,7 +151,7 @@ impl RuntimeInterface for SimpleRuntime {
                 let QubitStatus::Active = self.qubits[qubit_id as usize] else {
                     bail!("Qubit {qubit_id} is not active");
                 };
-                self.push(Operation::phased_x(qubit_id, theta, phi)?);
+                self.push(Operation::phased_x(qubit_id, theta, phi)?.with_gate_metadata_from(gate));
                 Ok(())
             }
             Some(builtin::QuantinuumGate::ZZPhase {
@@ -165,7 +165,10 @@ impl RuntimeInterface for SimpleRuntime {
                 if qubit_id_2 >= self.qubits.len() as u64 {
                     bail!("applying ZZPhase gate to out-of-bounds qubit2 {qubit_id_2}");
                 }
-                self.push(Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?);
+                self.push(
+                    Operation::zz_phase(qubit_id_1, qubit_id_2, theta)?
+                        .with_gate_metadata_from(gate),
+                );
                 Ok(())
             }
             Some(builtin::QuantinuumGate::RZ { qubit_id, theta }) => {
@@ -175,7 +178,7 @@ impl RuntimeInterface for SimpleRuntime {
                 let QubitStatus::Active = self.qubits[qubit_id as usize] else {
                     bail!("Qubit {qubit_id} is not active");
                 };
-                self.push(Operation::rz(qubit_id, theta)?);
+                self.push(Operation::rz(qubit_id, theta)?.with_gate_metadata_from(gate));
                 Ok(())
             }
             Some(builtin::QuantinuumGate::PhasedXX {
@@ -196,7 +199,10 @@ impl RuntimeInterface for SimpleRuntime {
                 let QubitStatus::Active = self.qubits[qubit_id_2 as usize] else {
                     bail!("Qubit {qubit_id_2} is not active");
                 };
-                self.push(Operation::phased_xx(qubit_id_1, qubit_id_2, theta, phi)?);
+                self.push(
+                    Operation::phased_xx(qubit_id_1, qubit_id_2, theta, phi)?
+                        .with_gate_metadata_from(gate),
+                );
                 Ok(())
             }
             None => bail!("SimpleRuntime does not support this gate"),

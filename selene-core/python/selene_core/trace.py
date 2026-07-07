@@ -7,6 +7,13 @@ class PredicateResult(BaseModel):
     result: bool
 
 
+class DebugStackFrame(BaseModel):
+    function: str | None = None
+    file: str | None = None
+    line: int | None = None
+    column: int | None = None
+
+
 class UserProgramSource(BaseModel):
     kind: Literal["UserProgram"] = "UserProgram"
     index: int
@@ -43,6 +50,12 @@ class GateEvent(AbstractEvent):
     qubits: list[int] = Field(default_factory=list)
     gate_name: str
     params: list[float | int | bool] = Field(default_factory=list)
+    metadata: dict[str, str | int | float | bool | bytes] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
+    debug_stack: list[DebugStackFrame] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
     predicates: list[PredicateResult] = Field(default_factory=list)
 
 

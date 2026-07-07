@@ -1,7 +1,11 @@
 use crate::gatewire::ffi::types::*;
 use crate::gatewire::{
-    DynamicGateSet, GateDecl, GateError, GateSemanticId, GateValue, OperandKind, OperandSpec,
-    OwnedGateInstance,
+    DynamicGateSet, GateDecl, GateError, GateMetadata, GateSemanticId, GateValue, MetadataValue,
+    OperandKind, OperandSpec, OwnedGateInstance,
+    metadata::{
+        GW_METADATA_VALUE_KIND_BOOL, GW_METADATA_VALUE_KIND_BYTES, GW_METADATA_VALUE_KIND_F64,
+        GW_METADATA_VALUE_KIND_I64, GW_METADATA_VALUE_KIND_STRING, GW_METADATA_VALUE_KIND_U64,
+    },
 };
 use std::ffi::c_char;
 use std::{mem, ptr, slice, str};
@@ -87,27 +91,57 @@ pub(crate) unsafe fn gate_decl_from_view(view: &GwGateDeclView) -> Result<GateDe
 }
 
 pub(crate) unsafe fn gate_instance_from_view(
-    view: &GwGateInstanceView,
+    view: *const GwGateInstanceView,
 ) -> Result<OwnedGateInstance, GateError> {
-    check_abi_size(view.abi_size, mem::size_of::<GwGateInstanceView>())?;
     unsafe {
-        let values_raw = if view.values_len == 0 {
+        if view.is_null() {
+            return Err(GateError::NullPointer);
+        }
+        let abi_size = ptr::addr_of!((*view).abi_size).read();
+        check_abi_size(abi_size, legacy_gate_instance_view_size())?;
+
+        let semantic_id = ptr::addr_of!((*view).semantic_id).read();
+        let values_ptr = ptr::addr_of!((*view).values_ptr).read();
+        let values_len = ptr::addr_of!((*view).values_len).read();
+
+        let values_raw = if values_len == 0 {
             &[]
         } else {
-            if view.values_ptr.is_null() {
+            if values_ptr.is_null() {
                 return Err(GateError::NullPointer);
             }
-            slice::from_raw_parts(view.values_ptr, view.values_len)
+            slice::from_raw_parts(values_ptr, values_len)
         };
         let mut values = Vec::with_capacity(values_raw.len());
         for raw in values_raw {
             values.push(gate_value_from_view(raw)?);
         }
-        Ok(OwnedGateInstance::new(
-            GateSemanticId::from(view.semantic_id),
-            values,
-        ))
+
+        let mut instance = OwnedGateInstance::new(GateSemanticId::from(semantic_id), values);
+        if abi_size >= mem::size_of::<GwGateInstanceView>() {
+            let metadata_ptr = ptr::addr_of!((*view).metadata_ptr).read();
+            let metadata_len = ptr::addr_of!((*view).metadata_len).read();
+            let metadata_raw = if metadata_len == 0 {
+                &[]
+            } else {
+                if metadata_ptr.is_null() {
+                    return Err(GateError::NullPointer);
+                }
+                slice::from_raw_parts(metadata_ptr, metadata_len)
+            };
+            for raw in metadata_raw {
+                instance.metadata.push(gate_metadata_from_view(raw)?);
+            }
+        }
+        Ok(instance)
     }
+}
+
+const fn legacy_gate_instance_view_size() -> usize {
+    mem::size_of::<usize>()
+        + mem::size_of::<GwSemanticId>()
+        + mem::size_of::<*const GwGateValue>()
+        + mem::size_of::<usize>()
 }
 
 unsafe fn gate_value_from_view(view: &GwGateValue) -> Result<GateValue, GateError> {
@@ -128,6 +162,31 @@ unsafe fn gate_value_from_view(view: &GwGateValue) -> Result<GateValue, GateErro
     }
 }
 
+unsafe fn gate_metadata_from_view(view: &GwGateMetadata) -> Result<GateMetadata, GateError> {
+    check_abi_size(view.abi_size, mem::size_of::<GwGateMetadata>())?;
+    unsafe {
+        let key = read_str(view.key_ptr, view.key_len)?;
+        let value = match view.value_kind {
+            GW_METADATA_VALUE_KIND_BOOL => match view.data.bool_value {
+                0 => MetadataValue::Bool(false),
+                1 => MetadataValue::Bool(true),
+                _ => return Err(GateError::Decode("invalid bool metadata value")),
+            },
+            GW_METADATA_VALUE_KIND_I64 => MetadataValue::I64(view.data.i64_value),
+            GW_METADATA_VALUE_KIND_U64 => MetadataValue::U64(view.data.u64_value),
+            GW_METADATA_VALUE_KIND_F64 => MetadataValue::F64(view.data.f64_value),
+            GW_METADATA_VALUE_KIND_STRING => MetadataValue::String(
+                read_text(view.bytes_ptr.cast::<c_char>(), view.bytes_len)?.to_owned(),
+            ),
+            GW_METADATA_VALUE_KIND_BYTES => {
+                MetadataValue::Bytes(read_bytes(view.bytes_ptr, view.bytes_len)?.to_vec())
+            }
+            _ => return Err(GateError::Decode("invalid metadata value kind")),
+        };
+        Ok(GateMetadata { key, value })
+    }
+}
+
 pub(crate) fn value_to_view(value: &GateValue) -> GwGateValue {
     let data = match value {
         GateValue::Qubit(v) => GwGateValueData { qubit: *v },
@@ -142,6 +201,32 @@ pub(crate) fn value_to_view(value: &GateValue) -> GwGateValue {
     GwGateValue {
         kind: value.kind().as_u32(),
         data,
+        ..Default::default()
+    }
+}
+
+pub(crate) fn metadata_to_view(metadata: &GateMetadata) -> GwGateMetadata {
+    let (data, bytes_ptr, bytes_len) = match &metadata.value {
+        MetadataValue::Bool(v) => (
+            GwMetadataValueData {
+                bool_value: u8::from(*v),
+            },
+            ptr::null(),
+            0,
+        ),
+        MetadataValue::I64(v) => (GwMetadataValueData { i64_value: *v }, ptr::null(), 0),
+        MetadataValue::U64(v) => (GwMetadataValueData { u64_value: *v }, ptr::null(), 0),
+        MetadataValue::F64(v) => (GwMetadataValueData { f64_value: *v }, ptr::null(), 0),
+        MetadataValue::String(v) => (GwMetadataValueData::default(), v.as_ptr(), v.len()),
+        MetadataValue::Bytes(v) => (GwMetadataValueData::default(), v.as_ptr(), v.len()),
+    };
+    GwGateMetadata {
+        key_ptr: metadata.key.as_ptr().cast::<c_char>(),
+        key_len: metadata.key.len(),
+        value_kind: metadata.value.kind(),
+        data,
+        bytes_ptr,
+        bytes_len,
         ..Default::default()
     }
 }

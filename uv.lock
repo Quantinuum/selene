@@ -258,6 +258,12 @@ wheels = [
 ]
 
 [[package]]
+name = "filebytes"
+version = "0.10.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/44/4ea92a74ca7d7940a29d6c437f62a91fd05d43bfa04fc8306b5dc541d01d/filebytes-0.10.2.tar.gz", hash = "sha256:764202f74d79e7587f04b6ad46f7c50485d8f32c4aeddd02200f1651a0892741", size = 20358, upload-time = "2020-02-09T22:38:36.711Z" }
+
+[[package]]
 name = "graphviz"
 version = "0.20.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1074,6 +1080,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyelftools"
+version = "0.33"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a3/11/767522582afab1b884d277de0e6e011640cb9d7292a38694b4b1a1df1ae8/pyelftools-0.33.tar.gz", hash = "sha256:660d82dcbeb8e83d1702bd97f223f761625da06111c0cc988eac6b8ab0c1b61f", size = 15068655, upload-time = "2026-05-29T12:56:22.553Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/2a/f9697576603dae937727827505a6126a066affb227034e77e6f9068910da/pyelftools-0.33-py3-none-any.whl", hash = "sha256:f215ad5f47d3f1373a21496a6c9e0707c622840d0622f23ff7ce08678b020036", size = 201178, upload-time = "2026-05-29T12:56:20.587Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1414,6 +1429,7 @@ source = { editable = "selene-core" }
 dependencies = [
     { name = "blake3" },
     { name = "cffi" },
+    { name = "filebytes" },
     { name = "hugr" },
     { name = "lief" },
     { name = "llvmlite", version = "0.45.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
@@ -1422,6 +1438,7 @@ dependencies = [
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pydantic" },
     { name = "pydot" },
+    { name = "pyelftools" },
     { name = "pyyaml" },
     { name = "typing-extensions" },
     { name = "ziglang" },
@@ -1436,6 +1453,7 @@ dev = [
 requires-dist = [
     { name = "blake3", specifier = ">=1.0.0" },
     { name = "cffi", specifier = ">=1.17.1" },
+    { name = "filebytes", specifier = ">=0.10.2" },
     { name = "hugr", specifier = ">=0.13.0" },
     { name = "lief", specifier = ">=0.16.5" },
     { name = "llvmlite", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'", specifier = "~=0.47" },
@@ -1443,6 +1461,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydot", specifier = ">=4.0.0" },
+    { name = "pyelftools", specifier = ">=0.33" },
     { name = "pyyaml", specifier = "~=6.0" },
     { name = "typing-extensions", specifier = ">=4" },
     { name = "ziglang", specifier = "~=0.13" },
