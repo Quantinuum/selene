@@ -84,3 +84,18 @@ def invoke_zig(
         raise RuntimeError(
             f"zig command failed:\n  Command: {' '.join(argv)}\n  Error: {stderr.decode()}"
         )
+
+
+def debug_objects_for_executable(input_object: Path, executable: Path) -> list[Path]:
+    """
+    Return debug-information artifacts associated with a linked executable.
+
+    The input object usually remains useful debug provenance on platforms where
+    the final linked image keeps only a debug map. Some linkers also emit
+    sidecar debug files next to the executable, such as PDBs on Windows.
+    """
+    debug_objects = [input_object]
+    pdb_path = executable.with_suffix(".pdb")
+    if pdb_path.is_file():
+        debug_objects.append(pdb_path)
+    return debug_objects

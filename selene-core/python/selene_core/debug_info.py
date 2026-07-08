@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, Protocol
+from typing import Any, BinaryIO, Protocol
 
 from .trace import DebugStackFrame, GateEvent, Trace
 
@@ -45,6 +45,12 @@ class _FunctionRange:
     name: str
 
 
+@dataclass(frozen=True)
+class _SymbolicSite:
+    function: str
+    offset: int
+
+
 class _DebugInfo(Protocol):
     def close(self) -> None: ...
 
@@ -54,15 +60,15 @@ class _DebugInfo(Protocol):
 
 
 class _CompositeDebugInfo:
-    def __init__(self, primary: _DebugInfo | None, fallback: _DebugInfo | None):
+    def __init__(self, primary: _DebugInfo | None, fallbacks: list[_DebugInfo]):
         self.primary = primary
-        self.fallback = fallback
+        self.fallbacks = fallbacks
 
     def close(self) -> None:
         if self.primary is not None:
             self.primary.close()
-        if self.fallback is not None:
-            self.fallback.close()
+        for fallback in self.fallbacks:
+            fallback.close()
 
     def symbolize(
         self, module_offset: int | None, return_address: int | None
@@ -71,10 +77,23 @@ class _CompositeDebugInfo:
             stack = self.primary.symbolize(module_offset, return_address)
             if any(frame.file is not None or frame.line is not None for frame in stack):
                 return stack
-        if self.fallback is not None:
-            stack = self.fallback.symbolize(module_offset, return_address)
+
+        for fallback in self.fallbacks:
+            stack = fallback.symbolize(module_offset, return_address)
             if stack:
                 return stack
+
+        if isinstance(self.primary, _SymbolicDebugInfo):
+            site = self.primary.symbolic_site(module_offset, return_address)
+            if site is not None:
+                for fallback in self.fallbacks:
+                    if isinstance(fallback, _DwarfDebugInfo):
+                        frame = fallback.symbolize_function_offset(
+                            site.function, site.offset
+                        )
+                        if frame is not None:
+                            return [frame]
+
         if self.primary is not None:
             return self.primary.symbolize(module_offset, return_address)
         return []
@@ -101,7 +120,7 @@ class _SymbolicDebugInfo:
         for address in self._address_candidates(module_offset, return_address):
             stack = [
                 DebugStackFrame(
-                    function=location.symbol or None,
+                    function=_symbolic_function_name(location.symbol),
                     file=location.full_path or None,
                     line=location.line or None,
                 )
@@ -113,6 +132,24 @@ class _SymbolicDebugInfo:
 
         self._cache[key] = []
         return []
+
+    def symbolic_site(
+        self, module_offset: int | None, return_address: int | None
+    ) -> _SymbolicSite | None:
+        for address in self._address_candidates(module_offset, return_address):
+            for location in self.symcache.lookup(address):
+                if (
+                    location.symbol
+                    and location.sym_addr is not None
+                    and location.instr_addr is not None
+                    and location.instr_addr >= location.sym_addr
+                ):
+                    return _SymbolicSite(
+                        function=_symbolic_function_name(location.symbol)
+                        or location.symbol,
+                        offset=int(location.instr_addr - location.sym_addr),
+                    )
+        return None
 
     @staticmethod
     def _address_candidates(
@@ -268,6 +305,14 @@ class _DwarfDebugInfo:
             column=line.column if line is not None else None,
         )
 
+    def symbolize_function_offset(
+        self, function_name: str, offset: int
+    ) -> DebugStackFrame | None:
+        function = self._find_named_function(function_name)
+        if function is None:
+            return None
+        return self._symbolize_address(function.start + offset)
+
     def _find_line(self, address: int) -> _LineEntry | None:
         for line in self._lines:
             if line.start <= address < line.end:
@@ -280,6 +325,12 @@ class _DwarfDebugInfo:
             for function in self._functions
             if function.start <= address < function.end
         ]
+        if not matches:
+            return None
+        return min(matches, key=lambda function: function.end - function.start)
+
+    def _find_named_function(self, name: str) -> _FunctionRange | None:
+        matches = [function for function in self._functions if function.name == name]
         if not matches:
             return None
         return min(matches, key=lambda function: function.end - function.start)
@@ -424,7 +475,7 @@ class QisCallSiteSymbolizer:
             return self._modules[path]
         object_format = _detect_object_format(path)
         module: _DebugInfo | None
-        fallback: _DwarfDebugInfo | None
+        fallbacks: list[_DebugInfo] = []
         try:
             primary = _SymbolicDebugInfo(path)
         except Exception:
@@ -432,17 +483,20 @@ class QisCallSiteSymbolizer:
         try:
             match object_format:
                 case _ObjectFormat.ELF:
-                    fallback = _DwarfDebugInfo.from_elf(path)
+                    fallbacks.append(_DwarfDebugInfo.from_elf(path))
                 case _ObjectFormat.MACHO:
-                    fallback = _DwarfDebugInfo.from_macho(path)
+                    fallbacks.append(_DwarfDebugInfo.from_macho(path))
                 case _ObjectFormat.PE:
-                    fallback = _DwarfDebugInfo.from_pe(path)
+                    fallbacks.append(_DwarfDebugInfo.from_pe(path))
                 case _:
-                    fallback = None
+                    pass
         except Exception:
-            fallback = None
-        if primary is not None or fallback is not None:
-            module = _CompositeDebugInfo(primary, fallback)
+            pass
+
+        fallbacks.extend(_load_debug_object_modules(path))
+
+        if primary is not None or fallbacks:
+            module = _CompositeDebugInfo(primary, fallbacks)
         else:
             module = None
         self._modules[path] = module
@@ -472,6 +526,132 @@ def _detect_object_format(path: Path) -> _ObjectFormat:
     if magic in MACHO_MAGICS:
         return _ObjectFormat.MACHO
     return _ObjectFormat.UNKNOWN
+
+
+def _symbolic_function_name(name: str | None) -> str | None:
+    if name is None:
+        return None
+    bare_name, separator, _signature = name.partition("(")
+    if (
+        separator
+        and name.endswith(")")
+        and bare_name
+        and (bare_name[0].isalpha() or bare_name[0] == "_")
+        and all(char.isalnum() or char == "_" for char in bare_name)
+    ):
+        return bare_name
+    return name
+
+
+def _load_debug_object_modules(module_path: Path) -> list[_DebugInfo]:
+    modules: list[_DebugInfo] = []
+    for debug_object in _debug_object_paths(module_path):
+        if debug_object.suffix.lower() == ".pdb":
+            try:
+                modules.append(_SymbolicDebugInfo(debug_object))
+                continue
+            except Exception:
+                pass
+        try:
+            match _detect_object_format(debug_object):
+                case _ObjectFormat.ELF:
+                    modules.append(_DwarfDebugInfo.from_elf(debug_object))
+                case _ObjectFormat.MACHO:
+                    modules.append(_DwarfDebugInfo.from_macho(debug_object))
+                case _ObjectFormat.PE:
+                    modules.append(_DwarfDebugInfo.from_pe(debug_object))
+                case _:
+                    pass
+        except Exception:
+            pass
+    return modules
+
+
+def _debug_object_paths(module_path: Path) -> list[Path]:
+    paths = []
+    seen = set()
+    for path in [
+        *_manifest_debug_objects(module_path),
+        *_sibling_debug_objects(module_path),
+    ]:
+        try:
+            key = path.resolve(strict=False)
+        except OSError:
+            key = path
+        if key not in seen:
+            paths.append(path)
+            seen.add(key)
+    return paths
+
+
+def _sibling_debug_objects(module_path: Path) -> list[Path]:
+    pdb_path = module_path.with_suffix(".pdb")
+    return [pdb_path] if pdb_path.is_file() else []
+
+
+def _manifest_debug_objects(module_path: Path) -> list[Path]:
+    manifest_path = _manifest_path_for_module(module_path)
+    if manifest_path is None:
+        return []
+
+    try:
+        import yaml
+
+        manifest = yaml.safe_load(manifest_path.read_text())
+    except Exception:
+        return []
+
+    if not isinstance(manifest, dict):
+        return []
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        return []
+
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        resource = artifact.get("resource")
+        if not isinstance(resource, str):
+            continue
+        if not _same_path(Path(resource), module_path):
+            continue
+        metadata = artifact.get("metadata")
+        if not isinstance(metadata, dict):
+            return []
+        return _coerce_debug_object_paths(metadata.get("debug_objects"), manifest_path)
+    return []
+
+
+def _manifest_path_for_module(module_path: Path) -> Path | None:
+    for candidate in (
+        module_path.parent.parent / "selene.yaml",
+        module_path.parent / "selene.yaml",
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve(strict=False) == right.resolve(strict=False)
+    except OSError:
+        return left == right
+
+
+def _coerce_debug_object_paths(value: Any, manifest_path: Path) -> list[Path]:
+    if not isinstance(value, list):
+        return []
+    result = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        path = Path(item)
+        if not path.is_absolute():
+            path = manifest_path.parent / path
+        if path.is_file():
+            result.append(path)
+    return result
 
 
 @dataclass(frozen=True)

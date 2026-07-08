@@ -4,7 +4,19 @@ from pathlib import Path
 import yaml
 from selene_core import symbolize_qis_call_sites
 from selene_core.build_utils.utils import invoke_zig
-from selene_core.trace import EventRecord, GateEvent, SimulatorSource, Trace
+from selene_core.debug_info import (
+    _CompositeDebugInfo,
+    _DwarfDebugInfo,
+    _SymbolicDebugInfo,
+    _SymbolicSite,
+)
+from selene_core.trace import (
+    DebugStackFrame,
+    EventRecord,
+    GateEvent,
+    SimulatorSource,
+    Trace,
+)
 from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
 from selene_sim.event_hooks.instruction_log import GateInstruction, Source
 from selene_sim import Quest, SoftRZRuntime
@@ -41,6 +53,57 @@ def _pe_section_rva(path: Path, section_name: str) -> int:
         if section.name == section_name:
             return int(section.header.VirtualAddress)
     raise AssertionError(f"section {section_name} not found in {path}")
+
+
+def test_qis_debug_info_companion_object_symbolizes_symbol_only_primary(tmp_path):
+    source_lines = [
+        "__attribute__((noinline)) int apply_named_gate(void) {",
+        "    return 7;",
+        "}",
+    ]
+    gate_line = source_lines.index("    return 7;") + 1
+    source_path = tmp_path / "debug_companion.c"
+    object_path = tmp_path / "debug_companion.o"
+    source_path.write_text("\n".join(source_lines) + "\n")
+
+    invoke_zig(
+        "cc",
+        "-g",
+        "-O0",
+        "-c",
+        source_path,
+        "-o",
+        object_path,
+        "-target",
+        "x86_64-linux-gnu",
+        handle_triple=False,
+        cache_dir=tmp_path / "zig-cache",
+    )
+
+    dwarf = _DwarfDebugInfo.from_elf(object_path)
+    try:
+        function = dwarf._find_named_function("apply_named_gate")
+        assert function is not None
+        line = next(entry for entry in dwarf._lines if entry.line == gate_line)
+        offset = max(line.start, line.end - 1) - function.start
+
+        primary = object.__new__(_SymbolicDebugInfo)
+        primary.close = lambda: None
+        primary.symbolize = lambda _module_offset, _return_address: [
+            DebugStackFrame(function="apply_named_gate")
+        ]
+        primary.symbolic_site = lambda _module_offset, _return_address: _SymbolicSite(
+            "apply_named_gate", offset
+        )
+
+        stack = _CompositeDebugInfo(primary, [dwarf]).symbolize(None, None)
+
+        assert stack
+        assert stack[0].function == "apply_named_gate"
+        assert Path(stack[0].file).name == source_path.name
+        assert stack[0].line == gate_line
+    finally:
+        dwarf.close()
 
 
 @pytest.mark.parametrize(
