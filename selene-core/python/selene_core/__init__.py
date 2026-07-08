@@ -12,7 +12,7 @@ from .build_utils import (
     DEFAULT_BUILD_PLANNER,
 )
 from .headers import get_include_directory
-from .trace_passes import QisCallSiteSymbolizer, symbolize_qis_call_sites
+from .debug_info import QisCallSiteSymbolizer, symbolize_qis_call_sites
 from .gatewire import (
     BOOL,
     F64,

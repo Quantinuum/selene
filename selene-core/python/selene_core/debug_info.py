@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Protocol
 
 from .trace import DebugStackFrame, GateEvent, Trace
 
@@ -43,6 +43,89 @@ class _FunctionRange:
     start: int
     end: int
     name: str
+
+
+class _DebugInfo(Protocol):
+    def close(self) -> None: ...
+
+    def symbolize(
+        self, module_offset: int | None, return_address: int | None
+    ) -> list[DebugStackFrame]: ...
+
+
+class _CompositeDebugInfo:
+    def __init__(self, primary: _DebugInfo | None, fallback: _DebugInfo | None):
+        self.primary = primary
+        self.fallback = fallback
+
+    def close(self) -> None:
+        if self.primary is not None:
+            self.primary.close()
+        if self.fallback is not None:
+            self.fallback.close()
+
+    def symbolize(
+        self, module_offset: int | None, return_address: int | None
+    ) -> list[DebugStackFrame]:
+        if self.primary is not None:
+            stack = self.primary.symbolize(module_offset, return_address)
+            if any(frame.file is not None or frame.line is not None for frame in stack):
+                return stack
+        if self.fallback is not None:
+            stack = self.fallback.symbolize(module_offset, return_address)
+            if stack:
+                return stack
+        if self.primary is not None:
+            return self.primary.symbolize(module_offset, return_address)
+        return []
+
+
+class _SymbolicDebugInfo:
+    def __init__(self, path: Path):
+        from symbolic.debuginfo import Archive
+
+        self.archive = Archive.open(str(path))
+        self.symcache = next(self.archive.iter_objects()).make_symcache()
+        self._cache: dict[tuple[int | None, int | None], list[DebugStackFrame]] = {}
+
+    def close(self) -> None:
+        pass
+
+    def symbolize(
+        self, module_offset: int | None, return_address: int | None
+    ) -> list[DebugStackFrame]:
+        key = (module_offset, return_address)
+        if key in self._cache:
+            return self._cache[key]
+
+        for address in self._address_candidates(module_offset, return_address):
+            stack = [
+                DebugStackFrame(
+                    function=location.symbol or None,
+                    file=location.full_path or None,
+                    line=location.line or None,
+                )
+                for location in self.symcache.lookup(address)
+            ]
+            if stack:
+                self._cache[key] = stack
+                return stack
+
+        self._cache[key] = []
+        return []
+
+    @staticmethod
+    def _address_candidates(
+        module_offset: int | None, return_address: int | None
+    ) -> list[int]:
+        candidates = []
+        for address in (module_offset, return_address):
+            if address is not None and address > 0 and address - 1 not in candidates:
+                candidates.append(address - 1)
+        for address in (module_offset, return_address):
+            if address is not None and address not in candidates:
+                candidates.append(address)
+        return candidates
 
 
 class _DwarfDebugInfo:
@@ -313,7 +396,7 @@ class _DwarfDebugInfo:
 
 class QisCallSiteSymbolizer:
     def __init__(self) -> None:
-        self._modules: dict[Path, _DwarfDebugInfo | None] = {}
+        self._modules: dict[Path, _DebugInfo | None] = {}
 
     def close(self) -> None:
         for module in self._modules.values():
@@ -336,22 +419,31 @@ class QisCallSiteSymbolizer:
             return []
         return module.symbolize(module_offset, return_address)
 
-    def _module(self, path: Path) -> _DwarfDebugInfo | None:
+    def _module(self, path: Path) -> _DebugInfo | None:
         if path in self._modules:
             return self._modules[path]
         object_format = _detect_object_format(path)
-        module: _DwarfDebugInfo | None
+        module: _DebugInfo | None
+        fallback: _DwarfDebugInfo | None
+        try:
+            primary = _SymbolicDebugInfo(path)
+        except Exception:
+            primary = None
         try:
             match object_format:
                 case _ObjectFormat.ELF:
-                    module = _DwarfDebugInfo.from_elf(path)
+                    fallback = _DwarfDebugInfo.from_elf(path)
                 case _ObjectFormat.MACHO:
-                    module = _DwarfDebugInfo.from_macho(path)
+                    fallback = _DwarfDebugInfo.from_macho(path)
                 case _ObjectFormat.PE:
-                    module = _DwarfDebugInfo.from_pe(path)
+                    fallback = _DwarfDebugInfo.from_pe(path)
                 case _:
-                    module = None
+                    fallback = None
         except Exception:
+            fallback = None
+        if primary is not None or fallback is not None:
+            module = _CompositeDebugInfo(primary, fallback)
+        else:
             module = None
         self._modules[path] = module
         return module
