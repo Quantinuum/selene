@@ -12,6 +12,7 @@ from .build_utils import (
     DEFAULT_BUILD_PLANNER,
 )
 from .headers import get_include_directory
+from .debug_info import QisCallSiteSymbolizer, symbolize_qis_call_sites
 from .gatewire import (
     BOOL,
     F64,
@@ -22,9 +23,12 @@ from .gatewire import (
     BoundGate,
     Gate,
     GateDefinition,
+    GateMetadata,
     GateValue,
     Gateset,
     HeliosGateSet,
+    MetadataValue,
+    MetadataValueKind,
     OperandDefinition,
     OperandKind,
     PhasedX,
@@ -54,6 +58,8 @@ __all__ = [
     "BuildCtx",
     "DEFAULT_BUILD_PLANNER",
     "get_include_directory",
+    "QisCallSiteSymbolizer",
+    "symbolize_qis_call_sites",
     "BOOL",
     "F64",
     "I64",
@@ -63,9 +69,12 @@ __all__ = [
     "BoundGate",
     "Gate",
     "GateDefinition",
+    "GateMetadata",
     "GateValue",
     "Gateset",
     "HeliosGateSet",
+    "MetadataValue",
+    "MetadataValueKind",
     "OperandDefinition",
     "OperandKind",
     "PhasedX",

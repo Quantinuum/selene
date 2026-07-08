@@ -1,16 +1,23 @@
 use crate::gatewire::{
     DynamicGateSet, GateDecl, GateError, GateSemanticId, GateValue, OperandKind, OperandSpec,
     OwnedGateInstance,
+    metadata::{
+        GW_METADATA_VALUE_KIND_BOOL, GW_METADATA_VALUE_KIND_BYTES, GW_METADATA_VALUE_KIND_F64,
+        GW_METADATA_VALUE_KIND_I64, GW_METADATA_VALUE_KIND_STRING, GW_METADATA_VALUE_KIND_U64,
+        GateMetadata, MetadataValue,
+    },
 };
 
 const GATE_MAGIC: [u8; 4] = *b"GWG1";
 const GATESET_MAGIC: [u8; 4] = *b"GWS1";
-const WIRE_VERSION: u16 = 1;
+const GATESET_WIRE_VERSION: u16 = 1;
+const GATE_WIRE_VERSION_V1: u16 = 1;
+const GATE_WIRE_VERSION_V2: u16 = 2;
 
 pub fn serialize_gateset(set: &DynamicGateSet) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&GATESET_MAGIC);
-    write_u16(&mut out, WIRE_VERSION);
+    write_u16(&mut out, GATESET_WIRE_VERSION);
     write_u16(&mut out, 0);
     write_u32(&mut out, set.len() as u32);
 
@@ -35,7 +42,7 @@ pub fn deserialize_gateset(data: &[u8]) -> Result<DynamicGateSet, GateError> {
         return Err(GateError::Decode("bad gateset magic"));
     }
     let version = cur.read_u16()?;
-    if version != WIRE_VERSION {
+    if version != GATESET_WIRE_VERSION {
         return Err(GateError::Decode("unsupported gateset wire version"));
     }
     let _reserved = cur.read_u16()?;
@@ -68,7 +75,12 @@ pub fn deserialize_gateset(data: &[u8]) -> Result<DynamicGateSet, GateError> {
 pub fn serialize_gate_instance(instance: &OwnedGateInstance) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&GATE_MAGIC);
-    write_u16(&mut out, WIRE_VERSION);
+    let version = if instance.metadata.is_empty() {
+        GATE_WIRE_VERSION_V1
+    } else {
+        GATE_WIRE_VERSION_V2
+    };
+    write_u16(&mut out, version);
     write_u16(&mut out, 0);
     out.extend_from_slice(&instance.semantic_id.bytes);
     write_u32(&mut out, instance.operands.len() as u32);
@@ -85,6 +97,22 @@ pub fn serialize_gate_instance(instance: &OwnedGateInstance) -> Vec<u8> {
         }
     }
 
+    if version >= GATE_WIRE_VERSION_V2 {
+        write_u32(&mut out, instance.metadata.len() as u32);
+        for entry in &instance.metadata {
+            write_string(&mut out, &entry.key);
+            write_u32(&mut out, entry.value.kind());
+            match &entry.value {
+                MetadataValue::Bool(v) => out.push(if *v { 1 } else { 0 }),
+                MetadataValue::I64(v) => write_u64(&mut out, *v as u64),
+                MetadataValue::U64(v) => write_u64(&mut out, *v),
+                MetadataValue::F64(v) => write_u64(&mut out, v.to_bits()),
+                MetadataValue::String(v) => write_string(&mut out, v),
+                MetadataValue::Bytes(v) => write_bytes(&mut out, v),
+            }
+        }
+    }
+
     out
 }
 
@@ -95,7 +123,7 @@ pub fn deserialize_gate_instance(data: &[u8]) -> Result<OwnedGateInstance, GateE
         return Err(GateError::Decode("bad gate magic"));
     }
     let version = cur.read_u16()?;
-    if version != WIRE_VERSION {
+    if version != GATE_WIRE_VERSION_V1 && version != GATE_WIRE_VERSION_V2 {
         return Err(GateError::Decode("unsupported gate wire version"));
     }
     let _reserved = cur.read_u16()?;
@@ -120,8 +148,36 @@ pub fn deserialize_gate_instance(data: &[u8]) -> Result<OwnedGateInstance, GateE
         operands.push(value);
     }
 
+    let metadata = if version >= GATE_WIRE_VERSION_V2 {
+        let metadata_count = cur.read_u32()? as usize;
+        let mut metadata = Vec::with_capacity(metadata_count);
+        for _ in 0..metadata_count {
+            let key = cur.read_string()?;
+            let kind = cur.read_u32()?;
+            let value = match kind {
+                GW_METADATA_VALUE_KIND_BOOL => match cur.read_u8()? {
+                    0 => MetadataValue::Bool(false),
+                    1 => MetadataValue::Bool(true),
+                    _ => return Err(GateError::Decode("invalid bool metadata value")),
+                },
+                GW_METADATA_VALUE_KIND_I64 => MetadataValue::I64(cur.read_u64()? as i64),
+                GW_METADATA_VALUE_KIND_U64 => MetadataValue::U64(cur.read_u64()?),
+                GW_METADATA_VALUE_KIND_F64 => MetadataValue::F64(f64::from_bits(cur.read_u64()?)),
+                GW_METADATA_VALUE_KIND_STRING => MetadataValue::String(cur.read_string()?),
+                GW_METADATA_VALUE_KIND_BYTES => MetadataValue::Bytes(cur.read_bytes_vec()?),
+                _ => return Err(GateError::Decode("invalid metadata value kind")),
+            };
+            metadata.push(GateMetadata { key, value });
+        }
+        metadata
+    } else {
+        Vec::new()
+    };
+
     cur.finish()?;
-    Ok(OwnedGateInstance::new(semantic_id, operands))
+    let mut instance = OwnedGateInstance::new(semantic_id, operands);
+    instance.metadata = metadata.into_iter().collect();
+    Ok(instance)
 }
 
 fn write_u16(out: &mut Vec<u8>, value: u16) {
@@ -137,6 +193,11 @@ fn write_u64(out: &mut Vec<u8>, value: u64) {
 fn write_string(out: &mut Vec<u8>, value: &str) {
     write_u32(out, value.len() as u32);
     out.extend_from_slice(value.as_bytes());
+}
+
+fn write_bytes(out: &mut Vec<u8>, value: &[u8]) {
+    write_u32(out, value.len() as u32);
+    out.extend_from_slice(value);
 }
 
 struct Cursor<'a> {
@@ -193,6 +254,11 @@ impl<'a> Cursor<'a> {
     fn read_string(&mut self) -> Result<String, GateError> {
         let len = self.read_u32()? as usize;
         Ok(String::from_utf8(self.read_exact(len)?.to_vec())?)
+    }
+
+    fn read_bytes_vec(&mut self) -> Result<Vec<u8>, GateError> {
+        let len = self.read_u32()? as usize;
+        Ok(self.read_exact(len)?.to_vec())
     }
 
     fn finish(self) -> Result<(), GateError> {

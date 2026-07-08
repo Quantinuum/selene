@@ -8,6 +8,11 @@ include(CMakePackageConfigHelpers)
 find_package(Selene REQUIRED)
 get_target_property(selene_include_dirs Selene::Selene INTERFACE_INCLUDE_DIRECTORIES)
 
+set(SELENE_CORE_INCLUDE_DIR "" CACHE PATH "Directory containing selene-core C headers")
+if(NOT SELENE_CORE_INCLUDE_DIR)
+    message(FATAL_ERROR "SELENE_CORE_INCLUDE_DIR is required to build the base QIS interface")
+endif()
+
 # we provide three shared libraries with the same interface, but
 # with different logging levels.
 
@@ -42,8 +47,13 @@ function(build_base_qis_interface log_level suffix)
         SELENE_LOG_LEVEL=${log_level}
         BUILDING_QIS_INTERFACE=1
     )
+    target_include_directories(${runtime_target} PRIVATE
+        "${selene_include_dirs}"
+        "${SELENE_CORE_INCLUDE_DIR}"
+    )
     target_link_libraries(${runtime_target} PUBLIC
         base_qis_selene_interface
+        ${CMAKE_DL_LIBS}
     )
     if(MSVC)
         target_compile_options(${runtime_target} PRIVATE /TC /Zl)

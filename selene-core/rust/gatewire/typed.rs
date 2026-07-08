@@ -27,6 +27,7 @@ pub trait GateView: Sized {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum TryDecode<G> {
     Decoded(G),
     Unknown(OwnedGateInstance),

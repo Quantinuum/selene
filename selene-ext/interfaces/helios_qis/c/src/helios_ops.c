@@ -2,6 +2,7 @@
 
 #include <selene/gatewire.h>
 #include <selene/selene.h> // selene_ functions
+#include <base_qis/gate_metadata.h>
 #include <base_qis/selene_lifetime.h> // selene_instance
 #include <base_qis/unwrap.h> // unwrap
 
@@ -53,12 +54,20 @@ static GwGateValue angle_value(double angle) {
     return value;
 }
 
-static void emit_gate(GwSemanticId semantic_id, GwGateValue const* values, size_t values_len) {
+static void emit_gate(
+    GwSemanticId semantic_id,
+    GwGateValue const* values,
+    size_t values_len,
+    GwGateMetadata const* metadata,
+    size_t metadata_len
+) {
     GwGateInstanceView gate = {
         .abi_size = sizeof(GwGateInstanceView),
         .semantic_id = semantic_id,
         .values_ptr = values,
         .values_len = values_len,
+        .metadata_ptr = metadata,
+        .metadata_len = metadata_len,
     };
     size_t len = 0;
     check_gw(gw_gate_serialized_len(&gate, &len));
@@ -88,21 +97,21 @@ void ___rxy(uint64_t q, double theta, double phi) {
     DIAGNOSTIC("___rxy(%" PRIu64 ", %f, %f)\n", q, theta, phi);
     init_gate_ids();
     GwGateValue values[] = {qubit_value(q), angle_value(theta), angle_value(phi)};
-    emit_gate(phased_x_id, values, 3);
+    QIS_EMIT_GATE(phased_x_id, values, 3);
     DIAGNOSTIC("   [done]\n");
 }
 void ___rzz(uint64_t q1, uint64_t q2, double theta) {
     DIAGNOSTIC("___rzz(%" PRIu64 ", %" PRIu64 ", %f)\n", q1, q2, theta);
     init_gate_ids();
     GwGateValue values[] = {qubit_value(q1), qubit_value(q2), angle_value(theta)};
-    emit_gate(zz_phase_id, values, 3);
+    QIS_EMIT_GATE(zz_phase_id, values, 3);
     DIAGNOSTIC("   [done]\n");
 }
 void ___rz(uint64_t q, double theta) {
     DIAGNOSTIC("___rz(%" PRIu64 ", %f)\n", q, theta);
     init_gate_ids();
     GwGateValue values[] = {qubit_value(q), angle_value(theta)};
-    emit_gate(rz_id, values, 2);
+    QIS_EMIT_GATE(rz_id, values, 2);
     DIAGNOSTIC("   [done]\n");
 }
 void ___reset(uint64_t q) {

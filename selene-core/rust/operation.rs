@@ -152,6 +152,13 @@ impl Operation {
         }
     }
 
+    pub fn with_gate_metadata_from(mut self, source: &OwnedGateInstance) -> Self {
+        if let Self::Gate { gate } = &mut self {
+            gate.metadata = source.metadata.clone();
+        }
+        self
+    }
+
     pub fn as_gate<G: GateSetSpec>(&self) -> Result<Option<G>> {
         let Self::Gate { gate } = self else {
             return Ok(None);

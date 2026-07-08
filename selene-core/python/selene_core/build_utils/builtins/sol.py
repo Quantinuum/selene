@@ -7,7 +7,7 @@ from ..types import (
     Artifact,
     Step,
 )
-from ..utils import invoke_zig
+from ..utils import debug_objects_for_executable, invoke_zig
 from ..symbols import get_symbols_from_object, get_symbols_from_llvm, SymbolTable
 from ..planner import BuildPlanner
 
@@ -331,7 +331,12 @@ class SolObjectFileToSeleneExecutableStep(Step):
         return Artifact(
             out_path,
             SeleneExecutableKind,
-            metadata={"library_search_dirs": library_search_dirs},
+            metadata={
+                "library_search_dirs": library_search_dirs,
+                "debug_objects": debug_objects_for_executable(
+                    input_artifact.resource, out_path
+                ),
+            },
         )
 
 

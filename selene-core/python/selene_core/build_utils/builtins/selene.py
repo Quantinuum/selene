@@ -18,7 +18,7 @@ from typing import Any
 
 from ..planner import BuildPlanner
 from ..types import ArtifactKind, Step, BuildCtx, Artifact
-from ..utils import invoke_zig
+from ..utils import debug_objects_for_executable, invoke_zig
 from ..symbols import get_symbols_from_object
 
 
@@ -149,7 +149,12 @@ class SeleneObjectToSeleneExecutableStep(Step):
         )
         return cls._make_artifact(
             out_path,
-            metadata={"library_search_dirs": library_search_dirs},
+            metadata={
+                "library_search_dirs": library_search_dirs,
+                "debug_objects": debug_objects_for_executable(
+                    input_artifact.resource, out_path
+                ),
+            },
         )
 
 

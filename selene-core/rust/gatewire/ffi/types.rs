@@ -1,4 +1,8 @@
 use crate::gatewire::GateSemanticId;
+use crate::gatewire::metadata::{
+    GW_METADATA_VALUE_KIND_BOOL, GW_METADATA_VALUE_KIND_BYTES, GW_METADATA_VALUE_KIND_F64,
+    GW_METADATA_VALUE_KIND_I64, GW_METADATA_VALUE_KIND_STRING, GW_METADATA_VALUE_KIND_U64,
+};
 use std::ffi::c_char;
 use std::{mem, ptr};
 
@@ -119,6 +123,49 @@ pub struct GwGateInstanceView {
     pub semantic_id: GwSemanticId,
     pub values_ptr: *const GwGateValue,
     pub values_len: usize,
+    pub metadata_ptr: *const GwGateMetadata,
+    pub metadata_len: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union GwMetadataValueData {
+    pub bool_value: u8,
+    pub i64_value: i64,
+    pub u64_value: u64,
+    pub f64_value: f64,
+}
+
+impl Default for GwMetadataValueData {
+    fn default() -> Self {
+        Self { u64_value: 0 }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct GwGateMetadata {
+    pub abi_size: usize,
+    pub key_ptr: *const c_char,
+    pub key_len: usize,
+    pub value_kind: u32,
+    pub data: GwMetadataValueData,
+    pub bytes_ptr: *const u8,
+    pub bytes_len: usize,
+}
+
+impl Default for GwGateMetadata {
+    fn default() -> Self {
+        Self {
+            abi_size: mem::size_of::<Self>(),
+            key_ptr: ptr::null(),
+            key_len: 0,
+            value_kind: 0,
+            data: GwMetadataValueData::default(),
+            bytes_ptr: ptr::null(),
+            bytes_len: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -134,3 +181,10 @@ pub struct GwDecodedGate {
 static_assertions::const_assert_eq!(std::mem::size_of::<GwSemanticId>(), 16);
 static_assertions::assert_impl_all!(GwSemanticId: Copy, Clone);
 static_assertions::assert_impl_all!(GwGateValue: Copy, Clone);
+static_assertions::assert_impl_all!(GwGateMetadata: Copy, Clone);
+static_assertions::const_assert_eq!(GW_METADATA_VALUE_KIND_BOOL, 1);
+static_assertions::const_assert_eq!(GW_METADATA_VALUE_KIND_I64, 2);
+static_assertions::const_assert_eq!(GW_METADATA_VALUE_KIND_U64, 3);
+static_assertions::const_assert_eq!(GW_METADATA_VALUE_KIND_F64, 4);
+static_assertions::const_assert_eq!(GW_METADATA_VALUE_KIND_STRING, 5);
+static_assertions::const_assert_eq!(GW_METADATA_VALUE_KIND_BYTES, 6);

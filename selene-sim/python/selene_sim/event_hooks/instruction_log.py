@@ -202,18 +202,23 @@ class GateInstruction(Operation):
             )
 
     def to_dict(self) -> dict:
-        return {
+        result: dict[str, Any] = {
             "op": "Gate",
             "gate": self.gate_name(),
             "qubits": self.qubits(),
             "params": self.params(),
         }
+        metadata = self.metadata()
+        if metadata:
+            result["metadata"] = metadata
+        return result
 
     def to_trace_event(self) -> GateEvent:
         return GateEvent(
             gate_name=self.gate_name(),
             qubits=self.qubits(),
             params=self.params(),
+            metadata=self.metadata(),
         )
 
     @staticmethod
@@ -255,6 +260,9 @@ class GateInstruction(Operation):
             for operand in self.gate.operands
             if operand.kind.name != "QUBIT"
         ]
+
+    def metadata(self) -> dict[str, str | int | float | bool | bytes]:
+        return {entry.key: entry.value.value for entry in self.gate.metadata}
 
 
 @dataclass

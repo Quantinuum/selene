@@ -258,6 +258,12 @@ wheels = [
 ]
 
 [[package]]
+name = "filebytes"
+version = "0.10.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/44/4ea92a74ca7d7940a29d6c437f62a91fd05d43bfa04fc8306b5dc541d01d/filebytes-0.10.2.tar.gz", hash = "sha256:764202f74d79e7587f04b6ad46f7c50485d8f32c4aeddd02200f1651a0892741", size = 20358, upload-time = "2020-02-09T22:38:36.711Z" }
+
+[[package]]
 name = "graphviz"
 version = "0.20.3"
 source = { registry = "https://pypi.org/simple" }
@@ -623,6 +629,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/df/5bd7a48c256faecd1d36edc13133e51397e41b73bb77e1a69deab746ebac/markupsafe-3.0.3-cp314-cp314t-win32.whl", hash = "sha256:915c04ba3851909ce68ccc2b8e2cd691618c4dc4c4232fb7982bca3f41fd8c3d", size = 14819, upload-time = "2025-09-27T18:37:26.285Z" },
     { url = "https://files.pythonhosted.org/packages/1a/8a/0402ba61a2f16038b48b39bccca271134be00c5c9f0f623208399333c448/markupsafe-3.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4faffd047e07c38848ce017e8725090413cd80cbc23d86e55c587bf979e579c9", size = 15426, upload-time = "2025-09-27T18:37:27.316Z" },
     { url = "https://files.pythonhosted.org/packages/70/bc/6f1c2f612465f5fa89b95bead1f44dcb607670fd42891d8fdcd5d039f4f4/markupsafe-3.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:32001d6a8fc98c8cb5c947787c5d08b0a50663d139f1305bac5885d98d9b40fa", size = 14146, upload-time = "2025-09-27T18:37:28.327Z" },
+]
+
+[[package]]
+name = "milksnake"
+version = "0.1.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/37/9c/100deced3999e748500dda3027e2a19b0074199ba27cdc5a6988d22919b8/milksnake-0.1.6.tar.gz", hash = "sha256:0198f8932b4e136c29c0d0d490ff1bac03f82c3a7b2ee6f666e3683b64314fd9", size = 10483, upload-time = "2023-10-12T11:34:39.781Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/5b/1688cbd7244f039a2c1a762e246f04f7fc3eff07932776ac9944da3ea208/milksnake-0.1.6-py2.py3-none-any.whl", hash = "sha256:31e3eafaf2a48e177bb4b2dacef2c7ae8c5b2147a19c6d626209b819490e6f1d", size = 11136, upload-time = "2023-10-12T11:34:37.927Z" },
 ]
 
 [[package]]
@@ -1074,6 +1092,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyelftools"
+version = "0.33"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a3/11/767522582afab1b884d277de0e6e011640cb9d7292a38694b4b1a1df1ae8/pyelftools-0.33.tar.gz", hash = "sha256:660d82dcbeb8e83d1702bd97f223f761625da06111c0cc988eac6b8ab0c1b61f", size = 15068655, upload-time = "2026-05-29T12:56:22.553Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/2a/f9697576603dae937727827505a6126a066affb227034e77e6f9068910da/pyelftools-0.33-py3-none-any.whl", hash = "sha256:f215ad5f47d3f1373a21496a6c9e0707c622840d0622f23ff7ce08678b020036", size = 201178, upload-time = "2026-05-29T12:56:20.587Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1414,6 +1441,7 @@ source = { editable = "selene-core" }
 dependencies = [
     { name = "blake3" },
     { name = "cffi" },
+    { name = "filebytes" },
     { name = "hugr" },
     { name = "lief" },
     { name = "llvmlite", version = "0.45.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
@@ -1422,7 +1450,9 @@ dependencies = [
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pydantic" },
     { name = "pydot" },
+    { name = "pyelftools" },
     { name = "pyyaml" },
+    { name = "symbolic" },
     { name = "typing-extensions" },
     { name = "ziglang" },
 ]
@@ -1436,6 +1466,7 @@ dev = [
 requires-dist = [
     { name = "blake3", specifier = ">=1.0.0" },
     { name = "cffi", specifier = ">=1.17.1" },
+    { name = "filebytes", specifier = ">=0.10.2" },
     { name = "hugr", specifier = ">=0.13.0" },
     { name = "lief", specifier = ">=0.16.5" },
     { name = "llvmlite", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'", specifier = "~=0.47" },
@@ -1443,7 +1474,9 @@ requires-dist = [
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydot", specifier = ">=4.0.0" },
+    { name = "pyelftools", specifier = ">=0.33" },
     { name = "pyyaml", specifier = "~=6.0" },
+    { name = "symbolic", specifier = ">=13.8.0" },
     { name = "typing-extensions", specifier = ">=4" },
     { name = "ziglang", specifier = "~=0.13" },
 ]
@@ -1523,6 +1556,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
+]
+
+[[package]]
+name = "symbolic"
+version = "13.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "milksnake" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c0/fd/6d2d832a9c197af263eac249ca7ee5ebdd0f2e941292de79dfeaaa50ad05/symbolic-13.8.0.tar.gz", hash = "sha256:3b9faea228890a14eeaea5c71963be3eb94a56401607e5775c92f8786681b7a8", size = 6242685, upload-time = "2026-07-02T12:26:00.357Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/74/34f02fd8959980addfcc852b9a70811a9f864c71da142abfad108fe15f79/symbolic-13.8.0-py2.py3-none-macosx_10_15_x86_64.whl", hash = "sha256:006bb3198f510854020c6c6535ad83199a65db5d7b6a95312a0db10fa39b8e66", size = 2559577, upload-time = "2026-07-02T12:25:52.612Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/ad/a0656aaaafe2f99b5a645e04a101058c78caf6157daeabbf6ff6b44e535f/symbolic-13.8.0-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:554cec8b08238f456b566f91bf28c92d1d1ad480068bc66ece5788384a6b72a6", size = 2341770, upload-time = "2026-07-02T12:25:53.97Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/8b/7ae2b12ccce5857e7afa6d890fa7a73e8dd058ec87fa13158789babedc38/symbolic-13.8.0-py2.py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:16d4f1662f3036193c957abe25f58ff9dc1c254c9889ff75d802a7c6c517444c", size = 16877718, upload-time = "2026-07-02T12:25:55.287Z" },
+    { url = "https://files.pythonhosted.org/packages/80/56/a6d1794f44d960dd310b2fa9b2a1f0d46826b024eaa5b784031f40d7bf3f/symbolic-13.8.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:1be4b23e7f8cd3c08440a836027dde072a7421375fe8c97ec6989c8baf49649f", size = 19177663, upload-time = "2026-07-02T12:25:58.333Z" },
 ]
 
 [[package]]
