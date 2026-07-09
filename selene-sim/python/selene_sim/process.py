@@ -65,11 +65,12 @@ class SeleneProcess:
         # Per-process environment variables can be set with a prefix,
         # e.g. setting "SELENE_PROCESS_3_FOO=5" will set the environment
         # variable "FOO" to "5" for the process with index 3 (zero-indexed).
-prefix = f"SELENE_PROCESS_{self.process_list_index}_"
-for key, value in list(env.items()):
-    if key.startswith(prefix):
-        env[key[len(prefix) :]] = value
-        del env[key]
+        prefix = f"SELENE_PROCESS_{self.process_list_index}_"
+        for key, value in list(env.items()):
+            if key.startswith(prefix):
+                env[key[len(prefix) :]] = value
+                del env[key]
+        return env
 
     def __del__(self):
         self.terminate()

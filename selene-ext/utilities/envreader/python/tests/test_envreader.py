@@ -1,6 +1,5 @@
 from pathlib import Path
 import pytest
-import os
 
 from selene_sim import build
 from selene_sim.backends import Coinflip
