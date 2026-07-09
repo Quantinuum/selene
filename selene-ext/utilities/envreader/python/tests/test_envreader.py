@@ -8,14 +8,13 @@ from selene_sim.exceptions import SelenePanicError
 from selene_envreader_plugin import EnvReaderPlugin
 
 
-def test_env_reader():
+def test_env_reader(monkeypatch):
     llvm_file = Path(__file__).parent / "resources/envreader_example.ll"
     instance = build(llvm_file, utilities=[EnvReaderPlugin()])
 
     # clear any conflicting values from the environment
     for key in ("BOOL_ENV_VAR", "UINT_ENV_VAR", "INT_ENV_VAR", "FLOAT_ENV_VAR"):
-        if key in os.environ:
-            del os.environ[key]
+        monkeypatch.delenv(key, raising=False)
 
     # If we don't provide arguments, the provider will panic on entry:
     with pytest.raises(
@@ -26,10 +25,10 @@ def test_env_reader():
             for r in instance.run_shots(n_qubits=1, n_shots=1, simulator=Coinflip())
         )
 
-    os.environ["BOOL_ENV_VAR"] = "true"
-    os.environ["UINT_ENV_VAR"] = "4"
-    os.environ["INT_ENV_VAR"] = "2"
-    os.environ["FLOAT_ENV_VAR"] = "0.025"
+    monkeypatch.setenv("BOOL_ENV_VAR", "true")
+    monkeypatch.setenv("UINT_ENV_VAR", "4")
+    monkeypatch.setenv("INT_ENV_VAR", "2")
+    monkeypatch.setenv("FLOAT_ENV_VAR", "0.025")
     result = list(
         dict(r) for r in instance.run_shots(n_qubits=1, n_shots=1, simulator=Coinflip())
     )[0]
@@ -39,7 +38,7 @@ def test_env_reader():
     assert result["input_float"] == 0.025
 
 
-def test_env_reader_per_process():
+def test_env_reader_per_process(monkeypatch):
     """
     If different environment variables should be available to different processes
     when n_processes > 1, they can be provided globally by prefixing the process
@@ -50,18 +49,18 @@ def test_env_reader_per_process():
     llvm_file = Path(__file__).parent / "resources/envreader_example.ll"
     instance = build(llvm_file, utilities=[EnvReaderPlugin()])
 
-    os.environ["SELENE_PROCESS_0_BOOL_ENV_VAR"] = "true"
-    os.environ["SELENE_PROCESS_0_UINT_ENV_VAR"] = "4"
-    os.environ["SELENE_PROCESS_0_INT_ENV_VAR"] = "2"
-    os.environ["SELENE_PROCESS_0_FLOAT_ENV_VAR"] = "0.025"
-    os.environ["SELENE_PROCESS_1_BOOL_ENV_VAR"] = "false"
-    os.environ["SELENE_PROCESS_1_UINT_ENV_VAR"] = "9"
-    os.environ["SELENE_PROCESS_1_INT_ENV_VAR"] = "-5"
-    os.environ["SELENE_PROCESS_1_FLOAT_ENV_VAR"] = "-0.025"
-    os.environ["SELENE_PROCESS_2_BOOL_ENV_VAR"] = "1"
-    os.environ["SELENE_PROCESS_2_UINT_ENV_VAR"] = "0"
-    os.environ["SELENE_PROCESS_2_INT_ENV_VAR"] = "0"
-    os.environ["SELENE_PROCESS_2_FLOAT_ENV_VAR"] = "-1"
+    monkeypatch.setenv("SELENE_PROCESS_0_BOOL_ENV_VAR", "true")
+    monkeypatch.setenv("SELENE_PROCESS_0_UINT_ENV_VAR", "4")
+    monkeypatch.setenv("SELENE_PROCESS_0_INT_ENV_VAR", "2")
+    monkeypatch.setenv("SELENE_PROCESS_0_FLOAT_ENV_VAR", "0.025")
+    monkeypatch.setenv("SELENE_PROCESS_1_BOOL_ENV_VAR", "false")
+    monkeypatch.setenv("SELENE_PROCESS_1_UINT_ENV_VAR", "9")
+    monkeypatch.setenv("SELENE_PROCESS_1_INT_ENV_VAR", "-5")
+    monkeypatch.setenv("SELENE_PROCESS_1_FLOAT_ENV_VAR", "-0.025")
+    monkeypatch.setenv("SELENE_PROCESS_2_BOOL_ENV_VAR", "1")
+    monkeypatch.setenv("SELENE_PROCESS_2_UINT_ENV_VAR", "0")
+    monkeypatch.setenv("SELENE_PROCESS_2_INT_ENV_VAR", "0")
+    monkeypatch.setenv("SELENE_PROCESS_2_FLOAT_ENV_VAR", "-1")
 
     results = list(
         dict(r)

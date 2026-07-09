@@ -93,7 +93,7 @@ pub unsafe extern "C" fn envreader_get_bool(name_ptr: *const u8) -> bool {
         "true" | "1" => true,
         "false" | "0" => false,
         _ => selene_panic(format!(
-            "Environment variable '{value}' is not a valid boolean value (expected 'true', 'false', '1', or '0')"
+            "Environment variable '{name}' has invalid boolean value '{value}' (expected 'true', 'false', '1', or '0')"
         )),
     };
     log(name, value, result);
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn envreader_get_u64(name_ptr: *const u8) -> u64 {
     let value = get_env_var(&name);
     let result = value.parse::<u64>().unwrap_or_else(|_| {
         selene_panic(format!(
-            "Environment variable '{value}' is not a valid unsigned integer"
+            "Environment variable '{name}' has invalid unsigned integer value '{value}'"
         ));
     });
     log(name, value, result);
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn envreader_get_i64(name_ptr: *const u8) -> i64 {
     let value = get_env_var(&name);
     let result = value.parse::<i64>().unwrap_or_else(|_| {
         selene_panic(format!(
-            "Environment variable '{value}' is not a valid signed integer"
+            "Environment variable '{name}' has invalid signed integer value '{value}'"
         ));
     });
     log(name, value, result);
@@ -147,7 +147,7 @@ pub unsafe extern "C" fn envreader_get_f64(name_ptr: *const u8) -> f64 {
     let value = get_env_var(&name);
     let result = value.parse::<f64>().unwrap_or_else(|_| {
         selene_panic(format!(
-            "Environment variable '{value}' is not a valid floating-point number"
+            "Environment variable '{name}' has invalid floating-point value '{value}'"
         ));
     });
     log(name, value, result);
