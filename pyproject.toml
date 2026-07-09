@@ -86,6 +86,7 @@ packages = [
   "selene-ext/simulators/quest/python/selene_quest_plugin",
   "selene-ext/simulators/stim/python/selene_stim_plugin",
   "selene-ext/utilities/argreader/python/selene_argreader_plugin",
+  "selene-ext/utilities/envreader/python/selene_envreader_plugin",
 ]
 
 [tool.uv]
@@ -147,6 +148,7 @@ known_first_party = [
   "selene_stim_plugin",
   # Utilities
   "selene_argreader_plugin",
+  "selene_envreader_plugin",
 ]
 extend_exclude = [
   "target",
