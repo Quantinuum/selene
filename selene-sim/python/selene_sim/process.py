@@ -22,6 +22,7 @@ class SeleneProcess:
     stdout: Path
     stderr: Path
     process: Popen | None
+    process_list_index: int
 
     def __init__(
         self,
@@ -29,6 +30,7 @@ class SeleneProcess:
         library_search_dirs: list[Path],
         run_directory: Path,
         configuration: dict,
+        process_list_index: int = 0,
     ):
         self.executable = executable
         self.library_search_dirs = library_search_dirs
@@ -39,6 +41,8 @@ class SeleneProcess:
         )
         self.stdout = run_directory / "stdout.txt"
         self.stderr = run_directory / "stderr.txt"
+        self.process = None
+        self.process_list_index = process_list_index
 
     def get_environment(self) -> dict:
         """
@@ -58,6 +62,14 @@ class SeleneProcess:
             env[path_name] += os.pathsep + additional_dirs
         else:
             env[path_name] = additional_dirs
+        # Per-process environment variables can be set with a prefix,
+        # e.g. setting "SELENE_PROCESS_3_FOO=5" will set the environment
+        # variable "FOO" to "5" for the process with index 3 (zero-indexed).
+        prefix = f"SELENE_PROCESS_{self.process_list_index}_"
+        for key, value in list(env.items()):
+            if key.startswith(prefix):
+                env[key[len(prefix) :]] = value
+                del env[key]
         return env
 
     def __del__(self):

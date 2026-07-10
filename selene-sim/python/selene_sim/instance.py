@@ -253,6 +253,7 @@ class SeleneInstance:
                         library_search_dirs=library_search_dirs,
                         configuration=configuration,
                         run_directory=run_directory,
+                        process_list_index=i,
                     )
                 )
 

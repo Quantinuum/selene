@@ -3,6 +3,7 @@ name = "selene-core"
 version = "0.2.10"
 requires-python = ">=3.10"
 description = "The core interop library for Selene python interfaces"
+license = "Apache-2.0"
 readme = "python/selene_core/README.md"
 dependencies = [
   "hugr>=0.13.0",
