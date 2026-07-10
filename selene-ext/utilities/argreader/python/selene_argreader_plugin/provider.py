@@ -30,8 +30,6 @@ class ShotInput:
                 raise ValueError(
                     f"All items in the list for key '{key}' must be int, float, or bool"
                 )
-            if isinstance(value, list) and len(value) == 0:
-                raise ValueError(f"List for key '{key}' cannot be empty")
             if not isinstance(key, str):
                 raise ValueError(f"Key '{key}' must be a string")
             if len(key) == 0:

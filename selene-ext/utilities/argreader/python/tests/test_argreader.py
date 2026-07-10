@@ -5,7 +5,7 @@ import pytest
 from selene_sim import build, Coinflip
 from selene_sim.exceptions import SelenePanicError
 from selene_sim.event_hooks import CircuitExtractor
-from selene_argreader_plugin import ArgReaderPlugin, ArgProvider
+from selene_argreader_plugin import ArgReaderPlugin, ArgProvider, argreader_trace_pass
 
 # Note to avoid confusion:
 # parameter names are configured by the user program, and we
@@ -231,3 +231,38 @@ def test_arg_reader_trace(snapshot):
     trace = extractor.shots[0].get_trace()
     json = trace.model_dump_json(indent=2)
     snapshot.assert_match(json, "trace.json")
+
+    processed_trace = argreader_trace_pass(trace)
+    json = processed_trace.model_dump_json(indent=2)
+    snapshot.assert_match(json, "pass.json")
+
+
+def test_arg_reader_zero_length_arrays(snapshot):
+    llvm_file = Path(__file__).parent / "resources/argreader_zero_length_arrays.ll"
+    instance = build(llvm_file, utilities=[ArgReaderPlugin()])
+
+    arg_provider = ArgProvider()
+    arg_provider.set_constant_args(
+        input_bool_array=[],
+        input_u64_array=[],
+        input_i64_array=[],
+        input_f64_array=[],
+    )
+
+    extractor = CircuitExtractor()
+
+    with arg_provider:
+        result = list(
+            list(r)
+            for r in instance.run_shots(
+                n_qubits=1, n_shots=1, simulator=Coinflip(), event_hook=extractor
+            )
+        )
+
+    trace = extractor.shots[0].get_trace()
+    json = trace.model_dump_json(indent=2)
+    snapshot.assert_match(json, "trace.json")
+
+    processed_trace = argreader_trace_pass(trace)
+    json = processed_trace.model_dump_json(indent=2)
+    snapshot.assert_match(json, "pass.json")
