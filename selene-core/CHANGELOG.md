@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.11](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.10...selene-core-v0.2.11) (2026-07-10)
+
+
+### Features
+
+* Allow per-process environment variables. Add env reader utility. ([#191](https://github.com/Quantinuum/selene/issues/191)) ([cab7747](https://github.com/Quantinuum/selene/commit/cab77478249034bfcb7d7f3232e120213fd074eb))
+
 ## [0.2.10](https://github.com/Quantinuum/selene/compare/selene-core-v0.2.9...selene-core-v0.2.10) (2026-05-21)
 
 
