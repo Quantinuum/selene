@@ -71,7 +71,7 @@ class SeleneProcess:
         prefix = f"SELENE_PROCESS_{self.process_list_index}_"
         global_prefix = "SELENE_PROCESS_"
         promoted = {
-            key[len(prefix):]: value
+            key[len(prefix) :]: value
             for key, value in env.items()
             if key.startswith(prefix)
         }
