@@ -11,7 +11,7 @@ license = "Apache-2.0"
 dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
-  "selene-core~=0.2.10",                     # x-release-please-version
+  "selene-core~=0.2.11",                     # x-release-please-version
   "selene-hugr-qis-compiler>=0.2.6, <0.4.0",
   "tqdm>=4.67.1",
 ]
