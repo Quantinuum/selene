@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.2](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.1...selene-sim-v0.3.0-alpha.2) (2026-07-16)
+
+
+### Features
+
+* Sync from 0.2 updates ([#194](https://github.com/Quantinuum/selene/issues/194)) ([b3c1093](https://github.com/Quantinuum/selene/commit/b3c10937775e6ca51387d39c188c77a0fa2c18d8))
+
 ## [0.3.0-alpha.1](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.0...selene-sim-v0.3.0-alpha.1) (2026-06-12)
 
 
