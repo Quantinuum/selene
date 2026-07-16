@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.18](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.17...selene-sim-v0.2.18) (2026-07-16)
+
+
+### Features
+
+* Allow per-process environment variables. Add env reader utility. ([#191](https://github.com/Quantinuum/selene/issues/191)) ([cab7747](https://github.com/Quantinuum/selene/commit/cab77478249034bfcb7d7f3232e120213fd074eb))
+* Permit zero-length arrays in ArgReader. Add argreader_trace_pass. ([#187](https://github.com/Quantinuum/selene/issues/187)) ([e8bc28d](https://github.com/Quantinuum/selene/commit/e8bc28d5b894ff5f6b43cd121927b78810d5b907))
+
 ## [0.2.17](https://github.com/Quantinuum/selene/compare/selene-sim-v0.2.16...selene-sim-v0.2.17) (2026-06-11)
 
 
