@@ -8,6 +8,7 @@ declare ptr @heap_alloc(i64) local_unnamed_addr
 declare void @heap_free(ptr) local_unnamed_addr
 declare void @setup(i64) local_unnamed_addr
 declare i64 @teardown() local_unnamed_addr
+declare void @___rxy(i64, double, double) local_unnamed_addr
 declare void @___dec_future_refcount(i64) local_unnamed_addr
 declare i64 @___lazy_measure(i64) local_unnamed_addr
 declare void @___qfree(i64) local_unnamed_addr

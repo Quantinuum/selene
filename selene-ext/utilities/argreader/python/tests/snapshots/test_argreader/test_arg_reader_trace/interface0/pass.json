@@ -1,0 +1,164 @@
+{
+  "events": [
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 0
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_bool",
+            "value": true
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 1
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_u64",
+            "value": 2
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 2
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_i64",
+            "value": -4
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 3
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_f64",
+            "value": 0.0125
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 4
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_bool_array",
+            "value": [
+              false,
+              true,
+              true,
+              true,
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 5
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_u64_array",
+            "value": [
+              8,
+              2,
+              5,
+              4,
+              1
+            ]
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 6
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_i64_array",
+            "value": [
+              10,
+              20,
+              15,
+              -25,
+              30
+            ]
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 7
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_f64_array",
+            "value": [
+              0.0,
+              0.125,
+              0.25,
+              0.375,
+              0.5
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

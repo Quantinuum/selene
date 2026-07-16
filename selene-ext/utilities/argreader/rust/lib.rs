@@ -339,6 +339,21 @@ pub unsafe extern "C" fn argreader_get_f64(key_ptr: *const u8) -> f64 {
 pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *mut u64, len: u64) {
     let key = get_key(key_ptr);
     match unsafe { value_helper(&key) } {
+        InputRecord::BoolArray(values) => {
+            if values.len() != len as usize {
+                selene_panic(format!(
+                    "Runtime argument '{key}' expects an array of {len} unsigned integers, but was provided a boolean array {values:?} of length {}",
+                    values.len()
+                ));
+            }
+            if len == 0 {
+                return;
+            }
+            let u64_values: Vec<u64> = values.into_iter().map(|v| if v { 1 } else { 0 }).collect();
+            unsafe {
+                std::ptr::copy_nonoverlapping(u64_values.as_ptr(), out_ptr, u64_values.len());
+            }
+        }
         InputRecord::U64Array(values) => {
             if values.len() != len as usize {
                 selene_panic(format!(
@@ -410,6 +425,21 @@ pub unsafe extern "C" fn argreader_get_u64_array(key_ptr: *const u8, out_ptr: *m
 pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *mut i64, len: u64) {
     let key = get_key(key_ptr);
     match unsafe { value_helper(&key) } {
+        InputRecord::BoolArray(values) => {
+            if values.len() != len as usize {
+                selene_panic(format!(
+                    "Runtime argument '{key}' expects an array of {len} integers, but was provided a boolean array {values:?} of length {}",
+                    values.len()
+                ));
+            }
+            if len == 0 {
+                return;
+            }
+            let i64_values: Vec<i64> = values.into_iter().map(|v| if v { 1 } else { 0 }).collect();
+            unsafe {
+                std::ptr::copy_nonoverlapping(i64_values.as_ptr(), out_ptr, i64_values.len());
+            }
+        }
         InputRecord::I64Array(values) => {
             if values.len() != len as usize {
                 let key = get_key(key_ptr);
@@ -485,6 +515,21 @@ pub unsafe extern "C" fn argreader_get_i64_array(key_ptr: *const u8, out_ptr: *m
 pub unsafe extern "C" fn argreader_get_f64_array(key_ptr: *const u8, out_ptr: *mut f64, len: u64) {
     let key = get_key(key_ptr);
     match unsafe { value_helper(&key) } {
+        InputRecord::BoolArray(values) => {
+            if values.len() != len as usize {
+                selene_panic(format!(
+                    "Runtime argument '{key}' expects an array of {len} floats, but was provided a boolean array {values:?} of length {}",
+                    values.len()
+                ));
+            }
+            if len == 0 {
+                return;
+            }
+            let f64_values: Vec<f64> = values.into_iter().map(|v| if v { 1.0 } else { 0.0 }).collect();
+            unsafe {
+                std::ptr::copy_nonoverlapping(f64_values.as_ptr(), out_ptr, f64_values.len());
+            }
+        }
         InputRecord::F64Array(values) => {
             if values.len() != len as usize {
                 selene_panic(format!(

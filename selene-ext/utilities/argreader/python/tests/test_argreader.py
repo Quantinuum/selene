@@ -2,10 +2,11 @@ from pathlib import Path
 import yaml
 import pytest
 
-from selene_sim import build, Coinflip
+from selene_sim import build
+from selene_sim.backends import Coinflip
 from selene_sim.exceptions import SelenePanicError
 from selene_sim.event_hooks import CircuitExtractor
-from selene_argreader_plugin import ArgReaderPlugin, ArgProvider
+from selene_argreader_plugin import ArgReaderPlugin, ArgProvider, argreader_trace_pass
 from selene_helios_qis_plugin import HeliosInterface
 from selene_sol_qis_plugin import SolInterface
 
@@ -236,3 +237,39 @@ def test_arg_reader_trace(snapshot, interface):
     trace = extractor.shots[0].get_trace()
     json = trace.model_dump_json(indent=2)
     snapshot.assert_match(json, "trace.json")
+
+    processed_trace = argreader_trace_pass(trace)
+    json = processed_trace.model_dump_json(indent=2)
+    snapshot.assert_match(json, "pass.json")
+
+
+@pytest.mark.parametrize("interface", [HeliosInterface(), SolInterface()])
+def test_arg_reader_zero_length_arrays(snapshot, interface):
+    llvm_file = Path(__file__).parent / "resources/argreader_zero_length_arrays.ll"
+    instance = build(llvm_file, utilities=[ArgReaderPlugin()], interface=interface)
+
+    arg_provider = ArgProvider()
+    arg_provider.set_constant_args(
+        input_bool_array=[],
+        input_u64_array=[],
+        input_i64_array=[],
+        input_f64_array=[],
+    )
+
+    extractor = CircuitExtractor()
+
+    with arg_provider:
+        result = list(
+            list(r)
+            for r in instance.run_shots(
+                n_qubits=1, n_shots=1, simulator=Coinflip(), event_hook=extractor
+            )
+        )
+
+    trace = extractor.shots[0].get_trace()
+    json = trace.model_dump_json(indent=2)
+    snapshot.assert_match(json, "trace.json")
+
+    processed_trace = argreader_trace_pass(trace)
+    json = processed_trace.model_dump_json(indent=2)
+    snapshot.assert_match(json, "pass.json")

@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy>=2.2.6",
   "pyyaml>=6.0.2",
-  "selene-core~=0.3.0a0",
+  "selene-core~=0.3.0a1",
   "tqdm>=4.67.1",
   # TODO: decide if we want this as a formal dependency or not
   #"selene-hugr-qis-compiler~=0.3.0", 
@@ -87,10 +87,12 @@ packages = [
   "selene-ext/simulators/quest/python/selene_quest_plugin",
   "selene-ext/simulators/stim/python/selene_stim_plugin",
   "selene-ext/utilities/argreader/python/selene_argreader_plugin",
+  "selene-ext/utilities/envreader/python/selene_envreader_plugin",
 ]
 
 [tool.uv]
 cache-keys = [
+  { file = "pyproject.toml" },
   { file = "Cargo.lock" },
   { file = "Cargo.toml" },
   { file = "hatch_build.py" },

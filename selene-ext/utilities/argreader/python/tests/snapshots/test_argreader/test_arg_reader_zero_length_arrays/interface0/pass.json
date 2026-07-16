@@ -1,0 +1,72 @@
+{
+  "events": [
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 0
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_bool_array",
+            "value": []
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 1
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_u64_array",
+            "value": []
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 2
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_i64_array",
+            "value": []
+          }
+        }
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 3
+      },
+      "event": {
+        "kind": "Custom",
+        "payload": {
+          "kind": "KeyValuePairPayload",
+          "data": {
+            "type": "ArgumentRead",
+            "key": "input_f64_array",
+            "value": []
+          }
+        }
+      }
+    }
+  ]
+}
