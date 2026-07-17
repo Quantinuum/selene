@@ -801,6 +801,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "selene-transport-bench"
+version = "0.3.0-alpha.1"
+dependencies = [
+ "clap",
+ "selene-core",
+ "thiserror",
+ "url",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
