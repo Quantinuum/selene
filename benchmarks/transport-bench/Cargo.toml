@@ -17,7 +17,7 @@ name = "transport_bench"
 path = "src/lib.rs"
 
 [dependencies]
-selene-core = { path = "../../../selene-core" }
+selene-core = { path = "../../selene-core" }
 clap = { workspace = true }
 url = "2.5"
 thiserror = { workspace = true }

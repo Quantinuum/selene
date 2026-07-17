@@ -205,6 +205,8 @@ class UtilitiesBuild:
         for utility in self.utilities:
             metadata = self._get_metadata(utility)
             release_dir = self._get_release_dir(utility)
+            if not release_dir.exists():
+                raise RuntimeError(f"release dir '{release_dir}' does not exist")
             assert release_dir.exists()
             for package in metadata["packages"]:
                 for target in package["targets"]:

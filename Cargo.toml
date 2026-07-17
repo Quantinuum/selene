@@ -13,7 +13,7 @@ members = [
     "selene-ext/error-models/depolarizing",
     "selene-ext/error-models/simple-leakage",
     "selene-ext/error-models/ideal",
-    "selene-ext/utilities/transport-bench",
+    "benchmarks/transport-bench",
 ]
 
 [workspace.package]
