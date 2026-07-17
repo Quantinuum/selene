@@ -26,15 +26,15 @@ use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 
 /// Byte offset of the capacity field within the segment.
 const OFF_CAPACITY: usize = 0;
-/// Byte offset of the head counter within the segment.
-const OFF_HEAD: usize = 8;
-/// Byte offset of the tail counter within the segment.
-const OFF_TAIL: usize = 16;
-/// Byte offset of the writer-closed flag within the segment.
-const OFF_WRITER_CLOSED: usize = 24;
+/// Byte offset of the head counter within the segment (cache-aligned).
+const OFF_HEAD: usize = 64;
+/// Byte offset of the tail counter within the segment (cache-aligned).
+const OFF_TAIL: usize = 128;
+/// Byte offset of the writer-closed flag within the segment (cache-aligned).
+const OFF_WRITER_CLOSED: usize = 192;
 /// Size of the header region, padded to a cache line so the data region starts
 /// aligned and header fields do not share a cache line with the data.
-const HEADER_SIZE: usize = 64;
+const HEADER_SIZE: usize = 256;
 
 /// Errors that can occur while operating on a shared-memory FIFO.
 #[derive(Debug, thiserror::Error)]
