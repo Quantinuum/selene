@@ -8,6 +8,10 @@ fn disable_by_default() -> bool {
     false
 }
 
+fn default_instruction_log_flush_threshold() -> u64 {
+    4096
+}
+
 fn random_by_default() -> u64 {
     rand::random()
 }
@@ -30,6 +34,11 @@ pub struct EventHookConfig {
     pub provide_metrics: bool,
     #[serde(default = "disable_by_default")]
     pub provide_measurement_log: bool,
+    /// Number of buffered instruction log entries at which the log is
+    /// flushed to the output stream mid-shot, rather than waiting until
+    /// shot end. A value of `0` disables incremental flushing.
+    #[serde(default = "default_instruction_log_flush_threshold")]
+    pub instruction_log_flush_threshold: u64,
 }
 
 #[derive(Deserialize, Debug)]

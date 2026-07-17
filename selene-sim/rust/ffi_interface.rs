@@ -198,6 +198,11 @@ where
         instance.fallible_print_panic(format!("{e:#}").as_str(), code);
         VoidResult::err(code)
     } else {
+        if let Err(e) = instance.flush_metadata_if_needed() {
+            let code = 100001;
+            instance.fallible_print_panic(format!("{e:#}").as_str(), code);
+            return VoidResult::err(code);
+        }
         VoidResult::ok()
     }
 }
@@ -210,7 +215,14 @@ where
     }
     let instance = unsafe { &mut *instance };
     match f(instance) {
-        Ok(value) => BoolResult::ok(value),
+        Ok(value) => match instance.flush_metadata_if_needed() {
+            Ok(()) => BoolResult::ok(value),
+            Err(e) => {
+                let code = 100001;
+                instance.fallible_print_panic(format!("{e:#}").as_str(), code);
+                BoolResult::err(code)
+            }
+        },
         Err(e) => {
             let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -228,7 +240,14 @@ where
     }
     let instance = unsafe { &mut *instance };
     match f(instance) {
-        Ok(value) => U64Result::ok(value),
+        Ok(value) => match instance.flush_metadata_if_needed() {
+            Ok(()) => U64Result::ok(value),
+            Err(e) => {
+                let code = 100001;
+                instance.fallible_print_panic(format!("{e:#}").as_str(), code);
+                U64Result::err(code)
+            }
+        },
         Err(e) => {
             let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -245,7 +264,14 @@ where
     }
     let instance = unsafe { &mut *instance };
     match f(instance) {
-        Ok(value) => F64Result::ok(value),
+        Ok(value) => match instance.flush_metadata_if_needed() {
+            Ok(()) => F64Result::ok(value),
+            Err(e) => {
+                let code = 100001;
+                instance.fallible_print_panic(format!("{e:#}").as_str(), code);
+                F64Result::err(code)
+            }
+        },
         Err(e) => {
             let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -263,7 +289,14 @@ where
     }
     let instance = unsafe { &mut *instance };
     match f(instance) {
-        Ok(value) => U32Result::ok(value),
+        Ok(value) => match instance.flush_metadata_if_needed() {
+            Ok(()) => U32Result::ok(value),
+            Err(e) => {
+                let code = 100001;
+                instance.fallible_print_panic(format!("{e:#}").as_str(), code);
+                U32Result::err(code)
+            }
+        },
         Err(e) => {
             let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -281,7 +314,14 @@ where
     }
     let instance = unsafe { &mut *instance };
     match f(instance) {
-        Ok(value) => FutureResult::ok(value),
+        Ok(value) => match instance.flush_metadata_if_needed() {
+            Ok(()) => FutureResult::ok(value),
+            Err(e) => {
+                let code = 100001;
+                instance.fallible_print_panic(format!("{e:#}").as_str(), code);
+                FutureResult::err(code)
+            }
+        },
         Err(e) => {
             let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);

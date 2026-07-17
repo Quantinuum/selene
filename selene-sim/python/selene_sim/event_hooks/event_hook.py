@@ -23,6 +23,18 @@ class EventHook(ABC):
         """
         pass
 
+    def get_selene_config(self) -> dict:
+        """
+        Define any non-boolean configuration values that should be merged
+        into Selene's "event_hooks" configuration alongside the boolean
+        flags from `get_selene_flags`. For example, a hook that wants to
+        tune a numeric threshold on the Selene side can return
+        {"some_threshold": 123}.
+
+        By default, no additional configuration is provided.
+        """
+        return {}
+
     @abstractmethod
     def try_invoke(self, tag: str, data: list) -> bool:
         """
@@ -90,6 +102,12 @@ class MultiEventHook(EventHook):
         for hook in self.event_hooks:
             args.update(hook.get_selene_flags())
         return list(args)
+
+    def get_selene_config(self) -> dict:
+        config: dict = {}
+        for hook in self.event_hooks:
+            config.update(hook.get_selene_config())
+        return config
 
     def try_invoke(self, tag: str, data: list) -> bool:
         success = False

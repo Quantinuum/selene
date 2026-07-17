@@ -40,8 +40,11 @@ def _component_config(component: SeleneComponent, default_seed: int | None) -> d
     return config
 
 
-def _event_hook_flags(hook: EventHook) -> dict[str, bool]:
-    return {flag: True for flag in hook.get_selene_flags()}
+def _event_hook_flags(hook: EventHook) -> dict:
+    return {
+        **{flag: True for flag in hook.get_selene_flags()},
+        **hook.get_selene_config(),
+    }
 
 
 def get_selene_lib() -> Path:

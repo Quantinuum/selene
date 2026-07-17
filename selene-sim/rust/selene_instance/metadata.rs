@@ -71,4 +71,15 @@ impl SeleneInstance {
             .write(self.time_cursor, &mut self.out_encoder)?;
         Ok(())
     }
+
+    /// Flushes metadata (e.g. the instruction log) to the output stream if
+    /// any registered event hook has buffered enough data to want an
+    /// incremental flush before the shot ends. This is a cheap no-op check
+    /// when no hook has crossed its threshold.
+    pub fn flush_metadata_if_needed(&mut self) -> Result<()> {
+        if self.emulator.event_hooks.wants_flush() {
+            self.write_metadata()?;
+        }
+        Ok(())
+    }
 }

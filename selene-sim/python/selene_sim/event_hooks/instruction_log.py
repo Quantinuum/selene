@@ -917,14 +917,33 @@ class CircuitExtractor(EventHook):
     def get_selene_flags(self) -> list[str]:
         """
         When given --provide-instruction-log, Selene will emit
-        an INSTRUCTIONLOG tag to the results stream, followed
-        by a dump of all instructions that were logged from
-        e.g. the user program, runtime, error model, or simulator.
+        INSTRUCTIONLOG tags to the results stream, containing a dump
+        of the instructions that were logged from e.g. the user program,
+        runtime, error model, or simulator. These are delivered
+        incrementally during a shot (once the buffered entry count crosses
+        `flush_threshold`), rather than only once at the end of the shot,
+        so instructions are available to interpret as the shot progresses.
         """
         return ["provide_instruction_log"]
 
-    def __init__(self):
+    def get_selene_config(self) -> dict:
+        return {"instruction_log_flush_threshold": self.flush_threshold}
+
+    def __init__(self, flush_threshold: int = 4096):
+        """
+        Args:
+            flush_threshold:
+                The number of buffered instruction log entries at which
+                Selene will flush the log to the results stream mid-shot,
+                rather than waiting until the shot ends. This bounds memory
+                usage on the Selene side and allows instructions to be
+                delivered to this CircuitExtractor incrementally, during
+                the shot. A value of 0 disables incremental flushing,
+                restoring the previous behaviour of only emitting the
+                instruction log once, at the end of the shot.
+        """
         self.shots = []
+        self.flush_threshold = flush_threshold
 
     def try_invoke(self, tag: str, data: list) -> bool:
         if tag != "INSTRUCTIONLOG":

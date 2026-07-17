@@ -120,7 +120,9 @@ impl Emulator {
         }
         if config.event_hooks.provide_instruction_log {
             event_hooks.add_hook(Box::new(
-                crate::event_hooks::instruction_log::InstructionLog::default(),
+                crate::event_hooks::instruction_log::InstructionLog::new(
+                    config.event_hooks.instruction_log_flush_threshold,
+                ),
             ));
         }
         if config.event_hooks.provide_measurement_log {

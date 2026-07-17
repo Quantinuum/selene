@@ -274,7 +274,10 @@ class SeleneInstance:
         for component in (simulator, error_model, runtime):
             library_search_dirs.extend(component.library_search_dirs)
         global_configuration = {
-            "event_hooks": {flag: True for flag in event_hook.get_selene_flags()},
+            "event_hooks": {
+                **{flag: True for flag in event_hook.get_selene_flags()},
+                **event_hook.get_selene_config(),
+            },
             "n_qubits": n_qubits,
             "simulator": self._get_component_config(simulator, random_seed),
             "error_model": self._get_component_config(error_model, random_seed),
@@ -480,7 +483,10 @@ class SeleneInstance:
         for component in (simulator, error_model, runtime):
             library_search_dirs.extend(component.library_search_dirs)
         global_configuration = {
-            "event_hooks": {flag: True for flag in event_hook.get_selene_flags()},
+            "event_hooks": {
+                **{flag: True for flag in event_hook.get_selene_flags()},
+                **event_hook.get_selene_config(),
+            },
             "n_qubits": n_qubits,
             "simulator": self._get_component_config(simulator, random_seed),
             "error_model": self._get_component_config(error_model, random_seed),

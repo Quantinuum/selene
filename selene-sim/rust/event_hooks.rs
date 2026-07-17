@@ -122,6 +122,14 @@ pub trait EventHook {
     }
     fn on_shot_start(&mut self, _shot_id: u64) {}
     fn on_shot_end(&mut self) {}
+    /// Whether this hook has buffered enough data that it would like to be
+    /// flushed to the output stream before the shot ends, e.g. because it has
+    /// crossed some internal size threshold. Hooks that don't buffer data
+    /// incrementally (or don't want incremental flushing) can leave this as
+    /// the default `false`.
+    fn wants_flush(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Default)]
@@ -180,6 +188,9 @@ impl EventHook for MultiEventHook {
             hook.on_shot_end();
         }
     }
+    fn wants_flush(&self) -> bool {
+        self.hooks.iter().any(|hook| hook.wants_flush())
+    }
 }
 
 #[derive(Clone, Default)]
@@ -231,5 +242,11 @@ impl SharedEventHook {
 
     pub fn on_shot_end(&self) {
         self.with_hooks(|hooks| hooks.on_shot_end());
+    }
+
+    /// Returns true if any registered hook has buffered enough data that it
+    /// would like to be flushed to the output stream before the shot ends.
+    pub fn wants_flush(&self) -> bool {
+        self.with_hooks(|hooks| hooks.wants_flush())
     }
 }
