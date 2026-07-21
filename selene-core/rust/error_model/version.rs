@@ -2,6 +2,10 @@ use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
+/// A decomposed error-model API version.
+///
+/// Plugin descriptors use the packed `SELENE_ERROR_MODEL_CURRENT_API_VERSION`
+/// integer rather than this structure.
 pub struct ErrorModelAPIVersion {
     /// Reserved for future use, must be 0.
     reserved: u8,
@@ -32,17 +36,22 @@ impl From<ErrorModelAPIVersion> for u64 {
     }
 }
 
+/// cbindgen:ignore
 pub const CURRENT_API_VERSION: ErrorModelAPIVersion = ErrorModelAPIVersion {
     reserved: 0,
     major: 0,
-    minor: 2,
+    minor: 3,
     patch: 0,
 };
+
+/// The current error-model plugin API version, packed for the C descriptor ABI.
+pub const ERROR_MODEL_CURRENT_API_VERSION: u64 = 0x0000_0300;
 
 // Changelog:
 // 0.1.0: Initial version.
 // 0.2.0: Replaced set_measurement_result with set_bool_result and set_u64_result in
 //   ErrorModelSetResultInterface
+// 0.3.0: RuntimeExtractOperationInterface callbacks receive the extraction instance directly.
 
 impl ErrorModelAPIVersion {
     pub const fn as_u64(self) -> u64 {
@@ -90,5 +99,18 @@ impl ErrorModelAPIVersion {
         // not avoid calling shot_end() because selene_error_model_foo() has taken over that meaning),
         // then we can bump the patch self. Otherwise we should bump the minor self.
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn c_api_version_matches_rust_version() {
+        assert_eq!(
+            ERROR_MODEL_CURRENT_API_VERSION,
+            CURRENT_API_VERSION.as_u64()
+        );
     }
 }

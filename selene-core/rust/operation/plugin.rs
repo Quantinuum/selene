@@ -198,10 +198,10 @@ impl BatchExtractor {
     }
 
     pub unsafe extern "C" fn extract(
-        input: RuntimeExtractOperationHandle,
+        input: RuntimeExtractOperationInstance,
         output: RuntimeGetOperationHandle,
     ) {
-        let batch_ptr = input.instance as *const BatchOperation;
+        let batch_ptr = input as *const BatchOperation;
         let batch: &BatchOperation = unsafe { &*batch_ptr };
         let RuntimeGetOperationInterface {
             measure_fn,
@@ -278,5 +278,6 @@ pub type RuntimeExtractOperationInstance = *mut ffi::c_void;
 #[derive(Clone, Copy)]
 #[non_exhaustive]
 pub struct RuntimeExtractOperationInterface {
-    pub extract_fn: unsafe extern "C" fn(RuntimeExtractOperationHandle, RuntimeGetOperationHandle),
+    pub extract_fn:
+        unsafe extern "C" fn(RuntimeExtractOperationInstance, RuntimeGetOperationHandle),
 }

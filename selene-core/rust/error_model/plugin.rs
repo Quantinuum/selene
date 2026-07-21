@@ -3,7 +3,9 @@ use super::{
     U64Result,
 };
 use crate::operation::BatchOperation;
-use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
+use crate::utils::{
+    MetricValue, check_errno, load_plugin_descriptor, read_raw_metric, with_strings_to_cargs,
+};
 use anyhow::{Result, anyhow};
 use libloading;
 use std::ffi::OsStr;
@@ -14,8 +16,14 @@ pub type Errno = i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+/// The C ABI descriptor exported by an error-model plugin.
+///
+/// Function pointer fields documented as optional may be null. All other
+/// function pointer fields must be populated.
 pub struct ErrorModelPluginDescriptorV1 {
+    /// Must be `sizeof(SeleneErrorModelPluginDescriptorV1)`.
     pub struct_size: u64,
+    /// Must be `SELENE_ERROR_MODEL_CURRENT_API_VERSION`.
     pub api_version: u64,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut ErrorModelInstance,
@@ -23,6 +31,7 @@ pub struct ErrorModelPluginDescriptorV1 {
         error_model_argc: u32,
         error_model_argv: *const *const ffi::c_char,
     ) -> Errno,
+    /// Optional. If null, no plugin-specific cleanup is performed.
     pub exit_fn: Option<unsafe extern "C" fn(handle: ErrorModelInstance) -> Errno>,
     pub shot_start_fn: unsafe extern "C" fn(
         handle: ErrorModelInstance,
@@ -36,6 +45,7 @@ pub struct ErrorModelPluginDescriptorV1 {
         simulator: crate::simulator::inline::SimulatorHandle<'static>,
         result: ErrorModelSetResultHandle,
     ) -> Errno,
+    /// Optional. A null pointer means the plugin exposes no metrics.
     pub get_metrics_fn: Option<
         unsafe extern "C" fn(
             handle: ErrorModelInstance,
@@ -99,19 +109,12 @@ impl ErrorModelPluginInterface {
             )
         })?;
         let descriptor = unsafe {
-            lib.get::<ErrorModelPluginDescriptorV1>(b"selene_error_model_plugin_descriptor_v1")
-                .ok()
-                .map(|d| *d)
-                .or_else(|| {
-                    lib.get::<unsafe extern "C" fn() -> *const ErrorModelPluginDescriptorV1>(
-                        b"selene_error_model_get_plugin_descriptor_v1",
-                    )
-                    .ok()
-                    .and_then(|f| {
-                        let ptr = f();
-                        if ptr.is_null() { None } else { Some(*ptr) }
-                    })
-                })
+            load_plugin_descriptor::<ErrorModelPluginDescriptorV1>(
+                &lib,
+                b"selene_error_model_plugin_descriptor_v1",
+                b"selene_error_model_get_plugin_descriptor_v1",
+                "Error model",
+            )?
         }
         .ok_or_else(|| {
             anyhow!(
@@ -121,11 +124,6 @@ impl ErrorModelPluginInterface {
         })?;
         let version: ErrorModelAPIVersion = descriptor.api_version.into();
         version.validate()?;
-        if descriptor.struct_size < core::mem::size_of::<ErrorModelPluginDescriptorV1>() as u64 {
-            return Err(anyhow!(
-                "Error model plugin descriptor is too small for v1 ABI"
-            ));
-        }
         Ok(Arc::new(Self {
             _lib: lib,
             init_fn: descriptor.init_fn,

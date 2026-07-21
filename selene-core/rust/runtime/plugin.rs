@@ -4,7 +4,9 @@ pub use crate::operation::plugin::{
     RuntimeExtractOperationInterface, RuntimeGetOperationHandle, RuntimeGetOperationInstance,
     RuntimeGetOperationInterface,
 };
-use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
+use crate::utils::{
+    MetricValue, check_errno, load_plugin_descriptor, read_raw_metric, with_strings_to_cargs,
+};
 
 use super::{BatchOperation, RuntimeAPIVersion, RuntimeInterface, RuntimeInterfaceFactory};
 use anyhow::{Result, anyhow};
@@ -18,8 +20,14 @@ pub type Errno = i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+/// The C ABI descriptor exported by a runtime plugin.
+///
+/// Function pointer fields documented as optional may be null. All other
+/// function pointer fields must be populated.
 pub struct RuntimePluginDescriptorV1 {
+    /// Must be `sizeof(SeleneRuntimePluginDescriptorV1)`.
     pub struct_size: u64,
+    /// Must be `SELENE_RUNTIME_CURRENT_API_VERSION`.
     pub api_version: u64,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut RuntimeInstance,
@@ -28,12 +36,14 @@ pub struct RuntimePluginDescriptorV1 {
         argc: u32,
         argv: *const *const ffi::c_char,
     ) -> Errno,
+    /// Optional. If null, no plugin-specific cleanup is performed.
     pub exit_fn: Option<unsafe extern "C" fn(handle: RuntimeInstance) -> Errno>,
     pub get_next_operations_fn:
         unsafe extern "C" fn(handle: RuntimeInstance, ops: RuntimeGetOperationHandle) -> Errno,
     pub shot_start_fn:
         unsafe extern "C" fn(handle: RuntimeInstance, shot_id: u64, seed: u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(handle: RuntimeInstance) -> Errno,
+    /// Optional. A null pointer means the plugin exposes no metrics.
     pub get_metrics_fn: Option<
         unsafe extern "C" fn(
             handle: RuntimeInstance,
@@ -86,6 +96,7 @@ pub struct RuntimePluginDescriptorV1 {
         unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64) -> Errno,
     pub decrement_future_refcount_fn:
         unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64) -> Errno,
+    /// Optional. A null pointer means custom calls are unsupported.
     pub custom_call_fn: Option<
         unsafe extern "C" fn(
             handle: RuntimeInstance,
@@ -95,6 +106,7 @@ pub struct RuntimePluginDescriptorV1 {
             result: *mut u64,
         ) -> Errno,
     >,
+    /// Optional. A null pointer means simulated delays are unsupported.
     pub simulate_delay_fn:
         Option<unsafe extern "C" fn(handle: RuntimeInstance, delay_ns: u64) -> Errno>,
 }
@@ -197,19 +209,12 @@ impl RuntimePluginInterface {
             )
         })?;
         let descriptor = unsafe {
-            lib.get::<RuntimePluginDescriptorV1>(b"selene_runtime_plugin_descriptor_v1")
-                .ok()
-                .map(|d| *d)
-                .or_else(|| {
-                    lib.get::<unsafe extern "C" fn() -> *const RuntimePluginDescriptorV1>(
-                        b"selene_runtime_get_plugin_descriptor_v1",
-                    )
-                    .ok()
-                    .and_then(|f| {
-                        let ptr = f();
-                        if ptr.is_null() { None } else { Some(*ptr) }
-                    })
-                })
+            load_plugin_descriptor::<RuntimePluginDescriptorV1>(
+                &lib,
+                b"selene_runtime_plugin_descriptor_v1",
+                b"selene_runtime_get_plugin_descriptor_v1",
+                "Runtime",
+            )?
         };
         let descriptor = descriptor.ok_or_else(|| {
             anyhow!(
@@ -219,9 +224,6 @@ impl RuntimePluginInterface {
         })?;
         let version: RuntimeAPIVersion = descriptor.api_version.into();
         version.validate()?;
-        if descriptor.struct_size < core::mem::size_of::<RuntimePluginDescriptorV1>() as u64 {
-            return Err(anyhow!("Runtime plugin descriptor is too small for v1 ABI"));
-        }
         Ok(Arc::new(Self {
             _lib: lib,
             init_fn: descriptor.init_fn,

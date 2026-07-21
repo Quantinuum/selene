@@ -36,9 +36,12 @@ And we offer two example quantum runtimes, including:
 
 ## Installation
 
-To install selene, `pip install selene-sim`.
+To install Selene, run `pip install selene-sim`. This installs the core interfaces,
+bundled components, and the Selene Python frontend.
 
-This will automatically install our core interfaces, the hugr compiler, bundled components, and the Selene python frontend.
+To build HUGR inputs, install the HUGR-QIS compiler separately with
+`pip install selene-hugr-qis-compiler`. The compiler is not required when using
+inputs such as LLVM IR, bitcode, or object files.
 
 ## Citation
 

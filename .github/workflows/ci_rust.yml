@@ -47,6 +47,24 @@ jobs:
       - name: Generate bindings
         run: |
            just generate-bindings
+      - name: Compile selene-core C headers
+        run: |
+          headers="core_types error_model runtime simulator"
+          for header in ${headers}; do
+            printf '#include <selene/%s.h>\n' "${header}" |
+              cc -x c -std=c17 -pedantic-errors -Wall -Wextra -Werror \
+                -fsyntax-only -I selene-core/c/include -
+            printf '#include <selene/%s.h>\n' "${header}" |
+              c++ -x c++ -std=c++20 -pedantic-errors -Wall -Wextra -Werror \
+                -fsyntax-only -I selene-core/c/include -
+          done
+          all_headers='#include <selene/core_types.h>\n#include <selene/error_model.h>\n#include <selene/runtime.h>\n#include <selene/simulator.h>\n'
+          printf '%b' "${all_headers}" |
+            cc -x c -std=c17 -pedantic-errors -Wall -Wextra -Werror \
+              -fsyntax-only -I selene-core/c/include -
+          printf '%b' "${all_headers}" |
+            c++ -x c++ -std=c++20 -pedantic-errors -Wall -Wextra -Werror \
+              -fsyntax-only -I selene-core/c/include -
       - name: Ensure no diff has been generated
         run: |
           diff_output=$(git diff);

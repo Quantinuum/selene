@@ -1,9 +1,60 @@
 use core::{ffi, fmt};
 use std::ffi::CString;
 
-use anyhow::bail;
+use anyhow::{Result, bail};
 
 use crate::runtime::plugin::Errno;
+
+/// Loads and copies a versioned plugin descriptor without reading beyond the
+/// size advertised by the plugin.
+///
+/// # Safety
+///
+/// Either exported symbol, when present, must follow the Selene plugin ABI. In
+/// particular, it must point to readable storage beginning with a `u64`
+/// `struct_size` field. The accessor must return either null or such a pointer.
+pub(crate) unsafe fn load_plugin_descriptor<T: Copy>(
+    lib: &libloading::Library,
+    descriptor_symbol: &[u8],
+    accessor_symbol: &[u8],
+    plugin_kind: &str,
+) -> Result<Option<T>> {
+    // Ask libloading for a pointer-sized symbol so this works for data symbols
+    // whose object is larger than a native pointer. We use the symbol address,
+    // not the pointer value stored in its first bytes.
+    let descriptor_ptr =
+        if let Ok(symbol) = unsafe { lib.get::<*const ffi::c_void>(descriptor_symbol) } {
+            unsafe { symbol.try_as_raw_ptr() }.map(|ptr| ptr.cast_const().cast::<T>())
+        } else {
+            unsafe { lib.get::<unsafe extern "C" fn() -> *const T>(accessor_symbol) }
+                .ok()
+                .map(|accessor| unsafe { accessor() })
+        };
+
+    let Some(descriptor_ptr) = descriptor_ptr.filter(|ptr| !ptr.is_null()) else {
+        return Ok(None);
+    };
+
+    unsafe { copy_plugin_descriptor(descriptor_ptr, plugin_kind) }.map(Some)
+}
+
+unsafe fn copy_plugin_descriptor<T: Copy>(
+    descriptor_ptr: *const T,
+    plugin_kind: &str,
+) -> Result<T> {
+    // Read only the first field until the plugin has demonstrated that the
+    // complete descriptor is present. `read_unaligned` also avoids assuming
+    // anything beyond the ABI contract about the symbol address.
+    let struct_size = unsafe { std::ptr::read_unaligned(descriptor_ptr.cast::<u64>()) };
+    let expected_size = core::mem::size_of::<T>() as u64;
+    if struct_size < expected_size {
+        bail!(
+            "{plugin_kind} plugin descriptor is too small for v1 ABI: expected at least {expected_size} bytes, got {struct_size}"
+        );
+    }
+
+    Ok(unsafe { std::ptr::read_unaligned(descriptor_ptr) })
+}
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -232,5 +283,37 @@ pub fn read_raw_metric(
             n => bail!("Unknown data type received: {}, with tag '{}'", n, tag_str),
         };
         Ok(Some((tag_str, metric)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct TestDescriptor {
+        struct_size: u64,
+        value: u64,
+    }
+
+    #[test]
+    fn plugin_descriptor_is_copied_after_size_validation() {
+        let descriptor = TestDescriptor {
+            struct_size: size_of::<TestDescriptor>() as u64,
+            value: 42,
+        };
+        let copied = unsafe { copy_plugin_descriptor(&raw const descriptor, "Test") }.unwrap();
+        assert_eq!(copied, descriptor);
+    }
+
+    #[test]
+    fn undersized_plugin_descriptor_is_rejected_before_copy() {
+        let descriptor = TestDescriptor {
+            struct_size: size_of::<u64>() as u64,
+            value: 42,
+        };
+        let error = unsafe { copy_plugin_descriptor(&raw const descriptor, "Test") }.unwrap_err();
+        assert!(error.to_string().contains("descriptor is too small"));
     }
 }

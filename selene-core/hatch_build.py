@@ -1,10 +1,17 @@
 import json
+import shutil
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
 
 
 class SeleneCoreBuildHook(BuildHookInterface):
     def initialize(self, version: str, build_data: dict) -> None:
+        # _dist is ignored and may contain artifacts from an older local build.
+        # Recreate it so a wheel is determined solely by the current sources.
+        dist_dir = Path("python/selene_core/_dist")
+        if dist_dir.exists():
+            shutil.rmtree(dist_dir)
+
         # Generate and write the Trace JSON schema into _dist
         # as selene_core isn't yet available we need to import selene_core/trace.py manually
         import importlib.util
@@ -27,8 +34,9 @@ class SeleneCoreBuildHook(BuildHookInterface):
             json.dumps(trace_module.Trace.model_json_schema(), indent=2)
         )
 
+        shutil.copytree(Path("c/include"), dist_dir / "include")
+
         artifacts = []
-        dist_dir = Path("python/selene_core/_dist")
         for artifact in dist_dir.rglob("*"):
             if artifact.is_file():
                 artifacts.append(str(artifact.as_posix()))
