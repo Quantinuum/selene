@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.3](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.2...selene-sim-v0.3.0-alpha.3) (2026-07-21)
+
+
+### Features
+
+* cleanup C interfaces ([#196](https://github.com/Quantinuum/selene/issues/196)) ([d267edf](https://github.com/Quantinuum/selene/commit/d267edf217300a25063a7ef45ab985f13466c8a4))
+
 ## [0.3.0-alpha.2](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.1...selene-sim-v0.3.0-alpha.2) (2026-07-16)
 
 
