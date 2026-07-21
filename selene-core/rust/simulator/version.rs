@@ -2,6 +2,10 @@ use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
+/// A decomposed simulator API version.
+///
+/// Plugin descriptors use the packed `SELENE_SIMULATOR_CURRENT_API_VERSION`
+/// integer rather than this structure.
 pub struct SimulatorAPIVersion {
     /// Reserved for future use, must be 0.
     reserved: u8,
@@ -31,12 +35,16 @@ impl From<SimulatorAPIVersion> for u64 {
     }
 }
 
+/// cbindgen:ignore
 pub const CURRENT_API_VERSION: SimulatorAPIVersion = SimulatorAPIVersion {
     reserved: 0,
     major: 0,
     minor: 1,
     patch: 1,
 };
+
+/// The current simulator plugin API version, packed for the C descriptor ABI.
+pub const SIMULATOR_CURRENT_API_VERSION: u64 = 0x0000_0101;
 
 impl SimulatorAPIVersion {
     pub const fn as_u64(self) -> u64 {
@@ -84,5 +92,15 @@ impl SimulatorAPIVersion {
         // not avoid calling shot_end() because selene_simulator_foo() has taken over that meaning),
         // then we can bump the patch version. Otherwise we should bump the minor version.
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn c_api_version_matches_rust_version() {
+        assert_eq!(SIMULATOR_CURRENT_API_VERSION, CURRENT_API_VERSION.as_u64());
     }
 }

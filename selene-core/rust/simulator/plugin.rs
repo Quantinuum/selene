@@ -1,7 +1,9 @@
 use super::{SimulatorAPIVersion, SimulatorInterface, SimulatorInterfaceFactory};
 use crate::error_model::BatchResult;
 use crate::runtime::{BatchOperation, Operation};
-use crate::utils::{MetricValue, check_errno, read_raw_metric, with_strings_to_cargs};
+use crate::utils::{
+    MetricValue, check_errno, load_plugin_descriptor, read_raw_metric, with_strings_to_cargs,
+};
 use anyhow::{Result, anyhow, bail};
 use libloading;
 use std::ffi::OsStr;
@@ -14,9 +16,16 @@ pub type Errno = i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+/// The C ABI descriptor exported by a simulator plugin.
+///
+/// Function pointer fields documented as optional may be null. All other
+/// function pointer fields must be populated.
 pub struct SimulatorPluginDescriptorV1 {
+    /// Must be `sizeof(SeleneSimulatorPluginDescriptorV1)`.
     pub struct_size: u64,
+    /// Must be `SELENE_SIMULATOR_CURRENT_API_VERSION`.
     pub api_version: u64,
+    /// Optional. Returns a static, null-terminated plugin name.
     pub get_name_fn: Option<unsafe extern "C" fn() -> *const c_char>,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut SimulatorInstance,
@@ -24,15 +33,19 @@ pub struct SimulatorPluginDescriptorV1 {
         argc: u32,
         argv: *const *const c_char,
     ) -> Errno,
+    /// Optional. If null, no plugin-specific cleanup is performed.
     pub exit_fn: Option<unsafe extern "C" fn(handle: SimulatorInstance) -> Errno>,
     pub shot_start_fn:
         unsafe extern "C" fn(handle: SimulatorInstance, shot_id: u64, seed: u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(handle: SimulatorInstance) -> Errno,
+    /// Optional. A null pointer means the operation is unsupported.
     pub rxy_fn: Option<
         unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
     >,
+    /// Optional. A null pointer means the operation is unsupported.
     pub rz_fn:
         Option<unsafe extern "C" fn(handle: SimulatorInstance, qubit0: u64, theta: f64) -> Errno>,
+    /// Optional. A null pointer means the operation is unsupported.
     pub rzz_fn: Option<
         unsafe extern "C" fn(
             handle: SimulatorInstance,
@@ -41,6 +54,7 @@ pub struct SimulatorPluginDescriptorV1 {
             theta: f64,
         ) -> Errno,
     >,
+    /// Optional. A null pointer means the operation is unsupported.
     pub rpp_fn: Option<
         unsafe extern "C" fn(
             handle: SimulatorInstance,
@@ -51,10 +65,12 @@ pub struct SimulatorPluginDescriptorV1 {
         ) -> Errno,
     >,
     pub measure_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    /// Optional. A null pointer means postselection is unsupported.
     pub postselect_fn: Option<
         unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64, target_value: bool) -> Errno,
     >,
     pub reset_fn: unsafe extern "C" fn(handle: SimulatorInstance, qubit: u64) -> Errno,
+    /// Optional. A null pointer means the plugin exposes no metrics.
     pub get_metrics_fn: Option<
         unsafe extern "C" fn(
             handle: SimulatorInstance,
@@ -151,19 +167,12 @@ impl SimulatorPluginInterface {
             )
         })?;
         let descriptor = unsafe {
-            lib.get::<SimulatorPluginDescriptorV1>(b"selene_simulator_plugin_descriptor_v1")
-                .ok()
-                .map(|d| *d)
-                .or_else(|| {
-                    lib.get::<unsafe extern "C" fn() -> *const SimulatorPluginDescriptorV1>(
-                        b"selene_simulator_get_plugin_descriptor_v1",
-                    )
-                    .ok()
-                    .and_then(|f| {
-                        let ptr = f();
-                        if ptr.is_null() { None } else { Some(*ptr) }
-                    })
-                })
+            load_plugin_descriptor::<SimulatorPluginDescriptorV1>(
+                &lib,
+                b"selene_simulator_plugin_descriptor_v1",
+                b"selene_simulator_get_plugin_descriptor_v1",
+                "Simulator",
+            )?
         };
         let descriptor = descriptor.ok_or_else(|| {
             anyhow!(
@@ -186,9 +195,6 @@ impl SimulatorPluginInterface {
                     },
                 )
         };
-        if descriptor.struct_size < core::mem::size_of::<SimulatorPluginDescriptorV1>() as u64 {
-            bail!("Simulator plugin descriptor is too small for v1 ABI");
-        }
         Ok(Arc::new(Self {
             _lib: lib,
             name,

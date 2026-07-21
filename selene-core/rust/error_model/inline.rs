@@ -90,7 +90,7 @@ impl ErrorModelFFIAdapter {
                 let mut batch_builder = BatchBuilder::default();
                 let builder = batch_builder.runtime_get_operation();
                 let RuntimeExtractOperationInterface { extract_fn, .. } = batch.interface;
-                extract_fn(batch, builder);
+                extract_fn(batch.instance, builder);
 
                 let mut simulator = Simulator::from_raw_parts(simulator);
                 let results =

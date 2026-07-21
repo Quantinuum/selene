@@ -26,8 +26,32 @@ through:
 #include <selene/runtime.h>     # for the runtime API
 ```
 
-By implementing the required functions, the plugin can be dynamically loaded by Selene
-at runtime.
+Each header defines a descriptor structure and a packed current-version constant:
+
+- `SELENE_SIMULATOR_CURRENT_API_VERSION`
+- `SELENE_ERROR_MODEL_CURRENT_API_VERSION`
+- `SELENE_RUNTIME_CURRENT_API_VERSION`
+
+Populate `struct_size` with `sizeof` the descriptor, use the corresponding version
+constant for `api_version`, and populate every function pointer that is not documented
+as optional. A plugin must export either the descriptor symbol documented in its header
+or, preferably, the accessor function. For example, a simulator plugin should export:
+
+```c
+static const SeleneSimulatorPluginDescriptorV1 descriptor = {
+    .struct_size = sizeof(SeleneSimulatorPluginDescriptorV1),
+    .api_version = SELENE_SIMULATOR_CURRENT_API_VERSION,
+    /* function pointers */
+};
+
+const SeleneSimulatorPluginDescriptorV1 *
+selene_simulator_get_plugin_descriptor_v1(void) {
+    return &descriptor;
+}
+```
+
+The equivalent runtime and error-model accessor names are declared in their respective
+headers.
 
 ## The rust crate
 

@@ -108,7 +108,7 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
                 let mut batch_builder: BatchBuilder = BatchBuilder::default();
                 let builder = batch_builder.runtime_get_operation();
                 let RuntimeExtractOperationInterface { extract_fn, .. } = batch.interface;
-                extract_fn(batch, builder);
+                extract_fn(batch.instance, builder);
                 let mut simulator = Simulator::from_raw_parts(simulator);
                 let results =
                     error_model.handle_operations(batch_builder.finish(), &mut simulator)?;

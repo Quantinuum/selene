@@ -2,6 +2,16 @@
 name = "selene-core"
 version = "0.3.0-alpha.1"
 edition = "2024"
+rust-version = "1.94"
+authors = ["Jake Arkinstall <jake.arkinstall@quantinuum.com>"]
+description = "Core interoperability and plugin interfaces for the Selene quantum emulator"
+readme = "README.md"
+repository = "https://github.com/quantinuum/selene"
+homepage = "https://github.com/quantinuum/selene"
+documentation = "https://docs.rs/selene-core"
+license = "Apache-2.0"
+keywords = ["quantum", "emulator", "simulation", "plugins"]
+categories = ["science", "simulation"]
 
 [lib]
 name = "selene_core"
