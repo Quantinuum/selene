@@ -12,9 +12,8 @@
             "package-name": "selene-core",
             "component": "selene-core",
             "draft": false,
-            "versioning": "prerelease",
-            "prerelease": true,
-            "prerelease-type": "alpha",
+            "versioning": "default",
+            "prerelease": false,
             "draft-pull-request": true,
             "extra-files": [
                 {
@@ -44,9 +43,8 @@
             "package-name": "selene-sim",
             "component": "selene-sim",
             "draft": false,
-            "versioning": "prerelease",
-            "prerelease": true,
-            "prerelease-type": "alpha",
+            "versioning": "default",
+            "prerelease": false,
             "draft-pull-request": true,
             "extra-files": [
                 {
