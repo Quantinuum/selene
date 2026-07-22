@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.0-alpha.2...selene-core-v0.3.0) (2026-07-22)
+
+
+### Dependencies
+
+* **selene-core:** bump qir-qis dependency to 0.1.10 in selene-core ([21ca271](https://github.com/Quantinuum/selene/commit/21ca2714c05445f07f0f6b87457e2083ee5812ac))
+
 ## [0.3.0-alpha.2](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.0-alpha.1...selene-core-v0.3.0-alpha.2) (2026-07-21)
 
 
