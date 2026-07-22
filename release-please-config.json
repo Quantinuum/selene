@@ -14,7 +14,6 @@
             "draft": false,
             "versioning": "default",
             "prerelease": false,
-            "release-as": "0.3.0",
             "draft-pull-request": true,
             "extra-files": [
                 {
@@ -46,7 +45,6 @@
             "draft": false,
             "versioning": "default",
             "prerelease": false,
-            "release-as": "0.3.0",
             "draft-pull-request": true,
             "extra-files": [
                 {

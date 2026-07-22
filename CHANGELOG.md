@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.3...selene-sim-v0.3.0) (2026-07-22)
+
+
+### Features
+
+* Add dependency loader for interactive mode ([#199](https://github.com/Quantinuum/selene/issues/199)) ([1830161](https://github.com/Quantinuum/selene/commit/183016170edcada5eedf7c4cdb4e0609e377660b))
+
+
+### Dependencies
+
+* **selene-core:** bump qir-qis dependency to 0.1.10 in selene-core ([21ca271](https://github.com/Quantinuum/selene/commit/21ca2714c05445f07f0f6b87457e2083ee5812ac))
+
 ## [0.3.0-alpha.3](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.2...selene-sim-v0.3.0-alpha.3) (2026-07-21)
 
 
