@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import ctypes
+import random
 from pathlib import Path
 
 from selene_core import Simulator
-import random
+
+from ._library import LibrarySearch
 
 
 class SeleneSimulatorInstance(ctypes.Structure):
@@ -100,7 +102,16 @@ GetSimulatorDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(SimulatorPluginDescri
 
 class SeleneSimSimulatorLib(ctypes.CDLL):
     def __init__(self, simulator: Simulator) -> None:
-        super().__init__(str(simulator.library_file))
+        self._library_search = LibrarySearch(simulator.library_search_dirs)
+        try:
+            self._library_search.load(
+                lambda: super(SeleneSimSimulatorLib, self).__init__(
+                    str(simulator.library_file)
+                )
+            )
+        except Exception:
+            self._library_search.close()
+            raise
         self._configure_signatures()
 
     def _configure_signatures(self):

@@ -18,6 +18,8 @@ from selene_sim.instance import ShotSpec
 from selene_sim.result_handling import DataStream, ResultStream
 from selene_sim.result_handling.result_stream import StreamEntry
 
+from ._library import load_component_library
+
 
 PathLike = str | os.PathLike | bytes | bytearray
 
@@ -341,7 +343,12 @@ class InteractiveFullStack:
         self.runtime = runtime or SimpleRuntime()
         self.error_model = error_model or IdealErrorModel()
 
+        self._component_libraries = []
         try:
+            self._component_libraries = [
+                load_component_library(component)
+                for component in (self.simulator, self.error_model, self.runtime)
+            ]
             config_data = self._build_configuration(
                 n_qubits=n_qubits,
                 random_seed=random_seed,
@@ -392,6 +399,10 @@ class InteractiveFullStack:
         }
 
     def _teardown_environment(self):
+        if hasattr(self, "_component_libraries"):
+            for _, search in self._component_libraries:
+                search.close()
+            self._component_libraries.clear()
         if hasattr(self, "_tempdir") and self._tempdir is not None:
             self._tempdir.cleanup()
             self._tempdir = None
@@ -452,10 +463,14 @@ class InteractiveFullStack:
         return self._event_hook
 
     def __del__(self):
-        self._on_shot_end()
-        # Here we invoke selene_exit directly, as the call helpers request metadata to be pushed,
-        # which isn't valid after the instance has been destroyed
-        self._lib.selene_exit(self._instance).unwrap()
+        try:
+            if hasattr(self, "_instance") and bool(self._instance):
+                self._on_shot_end()
+                # Invoke selene_exit directly: the call helpers request metadata,
+                # which is not valid after the instance has been destroyed.
+                self._lib.selene_exit(self._instance).unwrap()
+        finally:
+            self._teardown_environment()
 
     def _invoke(self, func_name: str, *args):
         result = getattr(self._lib, func_name)(self._instance, *args)
