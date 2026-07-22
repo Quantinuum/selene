@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ctypes
+import random
+from dataclasses import dataclass
 
 from selene_core import Runtime
-import random
+
+from ._library import LibrarySearch
 
 
 class SeleneRuntimeInstance(ctypes.Structure):
@@ -365,7 +367,16 @@ GetRuntimeDescriptorFn = ctypes.CFUNCTYPE(ctypes.POINTER(RuntimePluginDescriptor
 
 class SeleneSimRuntimeLib(ctypes.CDLL):
     def __init__(self, runtime: Runtime) -> None:
-        super().__init__(str(runtime.library_file))
+        self._library_search = LibrarySearch(runtime.library_search_dirs)
+        try:
+            self._library_search.load(
+                lambda: super(SeleneSimRuntimeLib, self).__init__(
+                    str(runtime.library_file)
+                )
+            )
+        except Exception:
+            self._library_search.close()
+            raise
         self._configure_signatures()
 
     def _configure_signatures(self):

@@ -7,7 +7,13 @@ import tempfile
 
 import numpy as np
 
-from selene_sim import DepolarizingErrorModel, Quest, SoftRZRuntime, SimpleRuntime
+from selene_sim import (
+    DepolarizingErrorModel,
+    Quest,
+    SimpleRuntime,
+    SoftRZRuntime,
+    Stim,
+)
 from selene_sim.interactive import (
     InteractiveFullStack,
     InteractiveSimulator,
@@ -238,6 +244,16 @@ def test_interactive_simulator():
     assert sim.measure(1)
     assert sim.measure(2)
     assert sim.measure(3)
+
+
+def test_interactive_stim_library_search_dirs():
+    simulator = InteractiveSimulator(simulator=Stim(), n_qubits=1)
+    assert not simulator.measure(0)
+
+    full_stack = InteractiveFullStack(simulator=Stim(), n_qubits=1)
+    qubit = full_stack.qalloc()
+    full_stack.reset(qubit)
+    assert not full_stack.measure(qubit)
 
 
 def test_interactive_runtime_simple():
