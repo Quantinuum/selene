@@ -3,6 +3,7 @@
 #include <selene/selene.h> // selene_ functions
 #include <base_qis/selene_lifetime.h> // selene_instance
 #include <base_qis/unwrap.h> // unwrap
+#include <base_qis/panic.h> // panic_str
 
 #include "logging.h" // DIAGNOSTIC
 
@@ -44,15 +45,17 @@ bool ___measure(uint64_t q) {
     DIAGNOSTIC("   returned %s\n", result ? "true" : "false");
     return result;
 }
-uint64_t ___lazy_measure(uint64_t q) {
-    DIAGNOSTIC("___lazy_measure(%" PRIu64 ")\n", q);
-    uint64_t reference = unwrap(selene_qubit_lazy_measure(selene_instance, q));
-    DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
-    return reference;
-}
-uint64_t ___lazy_measure_leaked(uint64_t q) {
-    DIAGNOSTIC("___lazy_measure_leaked(%" PRIu64 ")\n", q);
-    uint64_t reference = unwrap(selene_qubit_lazy_measure_leaked(selene_instance, q));
+uint64_t ___lazy_measure(uint64_t q, measurement_mode_t mode) {
+    DIAGNOSTIC("___lazy_measure(%" PRIu64 ", %" PRIu64 ")\n", q, mode);
+    uint64_t reference = -1;
+    switch(mode){
+        case MEASUREMENT_MODE_BINARY:
+            reference = unwrap(selene_qubit_lazy_measure(selene_instance, q));
+        case MEASUREMENT_MODE_LEAKAGE:
+            reference = unwrap(selene_qubit_lazy_measure_leaked(selene_instance, q));
+        default:
+            panic_str(10000, "Unknown measurement mode"); // TODO: pick appropriate code
+    }
     DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
     return reference;
 }

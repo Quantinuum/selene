@@ -6,6 +6,9 @@
 
 #include <base_qis/macros.h>
 
+typedef uint64_t measurement_mode_t;
+const measurement_mode_t MEASUREMENT_MODE_BINARY = 0; // true|false
+const measurement_mode_t MEASUREMENT_MODE_LEAKAGE = 1; // true|false|leaked
 
 EXPORT uint64_t ___qalloc(void);
 EXPORT void ___qfree(uint64_t q);
@@ -15,12 +18,9 @@ EXPORT void ___rz(uint64_t q, double theta);
 EXPORT void ___rp(uint64_t q, double theta, double phi);
 EXPORT void ___rz(uint64_t q, double theta);
 EXPORT void ___rpp(uint64_t q1, uint64_t q2, double theta, double phi);
-// TODO: check if this is included
-//EXPORT void ___rxxyyzz(uint64_t q1, uint64_t q2, double alpha, double beta, double gamma);
 EXPORT void ___reset(uint64_t q);
 EXPORT bool ___measure(uint64_t q);
-EXPORT uint64_t ___lazy_measure(uint64_t q);
-EXPORT uint64_t ___lazy_measure_leaked(uint64_t q);
+EXPORT uint64_t ___lazy_measure(uint64_t q, measurement_mode_t mode);
 EXPORT void ___dec_future_refcount(uint64_t r);
 EXPORT void ___inc_future_refcount(uint64_t r);
 EXPORT bool ___read_future_bool(uint64_t r);
