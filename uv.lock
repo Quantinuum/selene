@@ -1526,7 +1526,7 @@ dev = [
     { name = "pytest-snapshot", specifier = "~=0.9.0" },
     { name = "pytket", specifier = "~=2.16" },
     { name = "qir-qis", specifier = "~=0.1.6" },
-    { name = "ruff", specifier = "==0.15.0" },
+    { name = "ruff", specifier = "~=0.15.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250402" },
 ]
 test = [
