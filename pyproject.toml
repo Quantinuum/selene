@@ -127,6 +127,10 @@ constraint-dependencies = [
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process
 extend-exclude = ["target"]
+
+[tool.ruff.lint]
+ignore = ["C400", "C417", "I001", "RUF015", "SIM115"]
+
 [tool.ruff.lint.per-file-ignores]
 "**/python/tests/*.py" = ["F821", "F841"] #  ^
 
