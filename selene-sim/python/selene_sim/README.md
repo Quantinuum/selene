@@ -37,7 +37,6 @@ from guppylang import guppy
 from guppylang.std.quantum import *
 from hugr.qsystem.result import QsysShot, QsysResult
 
-
 @guppy
 def main() -> None:
     # allocate 10 qubits
@@ -46,14 +45,13 @@ def main() -> None:
     # prepare the 10-qubit GHZ state (|0000000000> + |1111111111>)/sqrt(2)
     h(qubits[0])
     for i in range(9):
-        cx(qubits[i], qubits[i + 1])
+        cx(qubits[i], qubits[i+1])
 
     # measure all qubits
     ms = measure_array(qubits)
 
     # report measurements to the results stream
     result("measurements", ms)
-
 
 compiled_hugr = main.compile()
 ```
@@ -62,7 +60,6 @@ compiled_hugr = main.compile()
 
 ```python
 from selene_sim import build
-
 runner = build(compiled_hugr)
 ```
 
@@ -70,7 +67,6 @@ runner = build(compiled_hugr)
 
 ```python
 from selene_sim import Quest, Stim
-
 # run a single shot with Quest, the statevector simulator
 shot = QsysShot(runner.run(simulator=Quest(), n_qubits=10))
 print(shot)
@@ -82,9 +78,12 @@ print(shot)
 # run_shots runs efficient multi-shot simulations
 # n_processes provides multi-processing across shots
 # deterministic results can be achieved by providing a random seed
-shots = QsysShot(
-    runner.run(simulator=Stim(random_seed=5), n_qubits=10, n_shots=100, n_processes=8)
-)
+shots = QsysShot(runner.run(
+    simulator=Stim(random_seed=5),
+    n_qubits=10,
+    n_shots=100,
+    n_processes=8
+))
 print(shots)
 ```
 
@@ -92,7 +91,6 @@ print(shots)
 
 ```python
 from selene_sim import DepolarizingErrorModel
-
 error_model = DepolarizingErrorModel(
     random_seed=12478918,
     p_init=1e-3,
@@ -101,15 +99,15 @@ error_model = DepolarizingErrorModel(
     p_2q=1e-6,
 )
 
-shots = QsysResult(
-    runner.run_shots(
-        simulator=Stim(random_seed=10),
-        error_model=error_model,
-        n_qubits=10,
-        n_shots=20,
-        n_processes=4,
-    )
-)
+shots = QsysResult(runner.run_shots(
+    simulator=Stim(
+        random_seed=10
+    ), 
+    error_model=error_model,
+    n_qubits=10,
+    n_shots=20,
+    n_processes=4,
+))
 print(shots)
 ```
 
@@ -117,14 +115,12 @@ print(shots)
 ```python
 from selene_sim import SoftRZRuntime
 
-shots = QsysResult(
-    runner.run_shots(
-        simulator=Stim(),
-        runtime=SoftRZRuntime(),
-        error_model=error_model,
-        n_qubits=10,
-        n_shots=20,
-    )
-)
+shots = QsysResult(runner.run_shots(
+    simulator=Stim(),
+    runtime=SoftRZRuntime(),
+    error_model=error_model,
+    n_qubits=10,
+    n_shots=20
+))
 print(shots)
 ```
