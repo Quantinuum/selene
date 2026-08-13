@@ -72,7 +72,6 @@ from guppylang import guppy
 from guppylang.std.quantum import *
 from hugr.qsystem.result import QsysShot, QsysResult
 
-
 @guppy
 def main() -> None:
     # allocate 10 qubits
@@ -80,12 +79,11 @@ def main() -> None:
     # prepare the 10-qubit GHZ state (|0000000000> + |1111111111>)/sqrt(2)
     h(qubits[0])
     for i in range(9):
-        cx(qubits[i], qubits[i + 1])
+        cx(qubits[i], qubits[i+1])
     # measure all qubits
     ms = measure_array(qubits)
     # report measurements to the results stream
     result("measurements", ms)
-
 
 compiled_hugr = main.compile()
 
@@ -93,7 +91,6 @@ compiled_hugr = main.compile()
 # Building the selene instance #
 ################################
 from selene_sim import build, Quest, Stim
-
 runner = build(compiled_hugr)
 
 # this instance can now be used with various runtime-configurable
@@ -114,7 +111,6 @@ print(shot)
 ##############################
 
 from selene_sim import DepolarizingErrorModel
-
 error_model = DepolarizingErrorModel(
     random_seed=12478918,
     p_init=1e-3,
@@ -123,15 +119,15 @@ error_model = DepolarizingErrorModel(
     p_2q=1e-6,
 )
 
-shots = QsysResult(
-    runner.run_shots(
-        simulator=Stim(random_seed=10),
-        error_model=error_model,
-        n_qubits=10,
-        n_shots=20,
-        n_processes=4,
-    )
-)
+shots = QsysResult(runner.run_shots(
+    simulator=Stim(
+        random_seed=10
+    ),
+    error_model=error_model,
+    n_qubits=10,
+    n_shots=20,
+    n_processes=4,
+))
 print(shots)
 
 ###################################################
@@ -140,15 +136,13 @@ print(shots)
 
 from selene_sim import SoftRZRuntime
 
-shots = QsysResult(
-    runner.run_shots(
-        simulator=Stim(),
-        runtime=SoftRZRuntime(),
-        error_model=error_model,
-        n_qubits=10,
-        n_shots=20,
-    )
-)
+shots = QsysResult(runner.run_shots(
+    simulator=Stim(),
+    runtime=SoftRZRuntime(),
+    error_model=error_model,
+    n_qubits=10,
+    n_shots=20
+))
 print(shots)
 ```
 
@@ -198,9 +192,11 @@ attributes #1 = { "irreversible" }
 runner = build(qir_ll)
 
 # Run multiple shots with Quest simulator
-shots = QsysResult(
-    runner.run_shots(simulator=Quest(random_seed=42), n_qubits=2, n_shots=10)
-)
+shots = QsysResult(runner.run_shots(
+    simulator=Quest(random_seed=42),
+    n_qubits=2,
+    n_shots=10
+))
 print(shots)
 
 # You can also load QIR from files:
