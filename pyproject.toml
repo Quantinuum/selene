@@ -54,7 +54,7 @@ test = [
 dev = [
   "hugr~=0.16.0",
   "mypy>=1.14.1",
-  "ruff>=0.8.0",
+  "ruff~=0.15.0",
   "types-pyyaml>=6.0.12.20250402",
   { include-group = "test" },
 ]
@@ -127,6 +127,7 @@ constraint-dependencies = [
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process
 extend-exclude = ["target"]
+
 [tool.ruff.lint.per-file-ignores]
 "**/python/tests/*.py" = ["F821", "F841"] #  ^
 
