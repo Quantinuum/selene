@@ -210,7 +210,7 @@ class SeleneInstance:
                 using False allows for Selene to be used as an intermediate
                 component for use with an external result stream handler.
             seed_mode: The mode for handling random seeds.
-                       - "default" uses random_seed as a seed for an RNG that
+                       - "default" uses `random_seed` as a seed for an RNG that
                          itself generates the seeds on all shots.
                        - "legacy" increments seeds by 1 on each shot.
         """
