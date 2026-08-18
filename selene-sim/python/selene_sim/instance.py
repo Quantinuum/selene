@@ -187,8 +187,8 @@ class SeleneInstance:
             results_logfile: The file to write the results to (if any)
             random_seed: The random seed to use for the simulator, error model,
                          and runtime if they have not been set explicitly. On
-                         each shot, the random seed will be updated as according
-                         to seed_mode.
+                         each shot, the random seed will be updated according to
+                         to `seed_mode`.
             parse_results:
                 Whether to interpret tags in the result stream.
                 If True (default), tags will be stripped, interpreted,
