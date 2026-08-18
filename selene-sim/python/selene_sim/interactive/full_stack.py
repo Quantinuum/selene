@@ -323,6 +323,7 @@ class InteractiveFullStack:
         error_model: ErrorModel | None = None,
         event_hook: EventHook | None = None,
         random_seed: int | None = None,
+        seed_mode: str = "default",
     ):
         self._lib = self.load_library()
         self._instance = SeleneInstancePtr()
@@ -350,8 +351,7 @@ class InteractiveFullStack:
                 for component in (self.simulator, self.error_model, self.runtime)
             ]
             config_data = self._build_configuration(
-                n_qubits=n_qubits,
-                random_seed=random_seed,
+                n_qubits=n_qubits, random_seed=random_seed, seed_mode=seed_mode
             )
             config_data["shots"] = {
                 "count": self._shot_spec.count,
@@ -390,12 +390,14 @@ class InteractiveFullStack:
         self,
         n_qubits: int,
         random_seed: int | None,
+        seed_mode: str = "default",
     ) -> dict:
         return {
             "n_qubits": int(n_qubits),
             "simulator": _component_config(self.simulator, random_seed),
             "error_model": _component_config(self.error_model, random_seed),
             "runtime": _component_config(self.runtime, random_seed),
+            "seed_mode": seed_mode,
         }
 
     def _teardown_environment(self):

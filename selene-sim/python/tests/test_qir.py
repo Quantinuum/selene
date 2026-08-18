@@ -41,6 +41,7 @@ def test_adaptive_cond_loop(snapshot):
                 n_qubits=n_qubits,
                 timeout=datetime.timedelta(seconds=1),
                 random_seed=78129,
+                seed_mode="legacy",
             )
         )
     # all results should be the same
