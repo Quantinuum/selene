@@ -211,7 +211,7 @@ class SeleneInstance:
                 component for use with an external result stream handler.
             seed_mode: The mode for handling random seeds.
                        - "default" uses random_seed as a seed for an RNG that
-                         is itself polled before seeding components on each shot.
+                         itself generates the seeds on all shots.
                        - "legacy" increments seeds by 1 on each shot.
         """
 
