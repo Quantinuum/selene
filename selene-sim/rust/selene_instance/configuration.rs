@@ -104,7 +104,7 @@ impl Configuration {
                 rng.advance(shot_id.into());
                 Ok(rng.random::<u64>())
             }
-            "legacy" => Ok(start_seed + shot_id),
+            "legacy" => Ok(start_seed.wrapping_add(shot_id)),
             _ => {
                 bail!(
                     "Unsupported seed mode: {}. Supported modes are 'default' and 'legacy'.",
