@@ -9,7 +9,7 @@ version = "0.3.0"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 dependencies = [
-  "numpy>=2.2.6",
+  "numpy~=2.0",
   "pyyaml>=6.0.2",
   "selene-core~=0.3.0a1",
   "tqdm>=4.67.1",
@@ -54,7 +54,7 @@ test = [
 dev = [
   "hugr~=0.16.0",
   "mypy>=1.14.1",
-  "ruff>=0.8.0",
+  "ruff~=0.15.0",
   "types-pyyaml>=6.0.12.20250402",
   { include-group = "test" },
 ]
@@ -115,9 +115,19 @@ cache-keys = [
   { file = "selene-core/rust/**/*.rs" },
 ]
 
+# We maintain support for macos x86-64, but some deps have dropped support.
+# Where possible we can just pin them to specific older (but known to work)
+# versions for macos x86-64 without constraining other platforms. This, however,
+# encourages UV to pin all platforms to the same version, which isn't what we want.
+# As such, we use environments to force that split.
+constraint-dependencies = [
+  "llvmlite>0.45.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+]
+
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process
 extend-exclude = ["target"]
+
 [tool.ruff.lint.per-file-ignores]
 "**/python/tests/*.py" = ["F821", "F841"] #  ^
 
@@ -223,7 +233,7 @@ before-test = '''
     uv pip install ./selene-core;
 '''
 [tool.cibuildwheel.macos]
-environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "11.0" }
+environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "12.0" }
 before-test = [
     'uv pip install ./selene-core'
 ]

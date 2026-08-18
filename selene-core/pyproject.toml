@@ -8,17 +8,17 @@ readme = "python/selene_core/README.md"
 dependencies = [
   "hugr>=0.13.0",
   # required for inspecting object files to find defined and declared symbols
-  "lief>=0.16.5",
+  "lief~=0.17",
   # required for inspecting LLVM files to find defined and declared symbols
   # note: llvmlite 0.45.1 is the last version to support x86_64 macOS.
   "llvmlite==0.45.1; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-  "llvmlite~=0.47; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "llvmlite~=0.45; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "networkx>=2.6,<4",
-  "pydantic>=2.12.5",
+  "pydantic~=2.12",
   "pydot>=4.0.0",
-  "pyyaml~=6.0",
+  "pyyaml>=5.0",
   "typing_extensions>=4",
-  "ziglang~=0.13",
+  "ziglang~=0.16",
 ]
 
 [project.urls]
