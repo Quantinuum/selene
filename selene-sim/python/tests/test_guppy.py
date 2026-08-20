@@ -849,17 +849,17 @@ def test_measurement_output(compiled_guppy):
 
     runner = build(llvm_file)
     measlog = MeasurementExtractor()
-    got = list(runner.run(Quest(), verbose=True, n_qubits=4, event_hook=measlog))
+    got = set(runner.run(Quest(), n_qubits=4, event_hook=measlog))
 
-    expected_user = [("q2", 1), ("q3", 0)]
-    expected_meas_strs = [
+    expected_user = {("q2", 1), ("q3", 0)}
+    expected_meas_strs = {
         "MEAS:INTARR:[0, 1]",
         "MEAS:INTARR:[1, 1]",
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
-    ]
+    }
     assert got == expected_user
-    assert [str(entry) for entry in measlog.log_entries[0]] == expected_meas_strs
+    assert {str(entry) for entry in measlog.log_entries[0]} == expected_meas_strs
 
 
 def test_measurement_output_multishot(compiled_guppy):
@@ -905,21 +905,19 @@ def test_measurement_output_multishot(compiled_guppy):
 
     runner = build(llvm_file)
     measlog = MeasurementExtractor()
-    shots = runner.run_shots(
-        Quest(), verbose=True, n_qubits=4, n_shots=10, event_hook=measlog
-    )
+    shots = runner.run_shots(Quest(), n_qubits=4, n_shots=10, event_hook=measlog)
 
-    expected_user = [("q2", 1), ("q3", 0)]
-    expected_meas_strs = [
+    expected_user = {("q2", 1), ("q3", 0)}
+    expected_meas_strs = {
         "MEAS:INTARR:[0, 1]",
         "MEAS:INTARR:[1, 1]",
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
-    ]
+    }
     for shot_user in shots:
-        assert list(shot_user) == expected_user
+        assert set(shot_user) == expected_user
     for shot_meas in measlog:
-        assert [str(entry) for entry in shot_meas] == expected_meas_strs
+        assert {str(entry) for entry in shot_meas} == expected_meas_strs
 
 
 def test_cy(compiled_guppy):

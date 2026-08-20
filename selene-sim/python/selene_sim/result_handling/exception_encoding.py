@@ -6,6 +6,7 @@ from selene_sim.exceptions import (
     SeleneStartupError,
     SeleneTimeoutError,
 )
+from selene_sim.stack_trace import StackTrace
 from . import TaggedResult
 
 
@@ -15,10 +16,24 @@ from . import TaggedResult
 EXCEPTION_TYPE_PREFIX = "_EXCEPTION:INT:"
 STDERR_PREFIX = "_STDERR:INT:"
 STDOUT_PREFIX = "_STDOUT:INT:"
+TRACE_PREFIX = "_TRACE:INT:"
+
+
+def encode_stacktrace(stacktrace: StackTrace | None) -> Iterator[TaggedResult]:
+    if stacktrace is None:
+        return
+    for trace_entry in stacktrace.entries:
+        yield (
+            f"{TRACE_PREFIX}{trace_entry.address}",
+            0,
+        )
 
 
 def encode_exception(
-    exception: Exception, stdout_file: Path, stderr_file: Path
+    exception: Exception,
+    stdout_file: Path,
+    stderr_file: Path,
+    stack_trace: StackTrace | None = None,
 ) -> Iterator[TaggedResult]:
     """
     Given an exception that occurs during a shot, encode it as a series
@@ -34,6 +49,7 @@ def encode_exception(
             yield (message, code)
             yield (f"{STDERR_PREFIX}{stderr_file}", 0)
             yield (f"{STDOUT_PREFIX}{stdout_file}", 0)
+            yield from encode_stacktrace(stack_trace)
         case SeleneRuntimeError(message=message):
             # We need to encode the EXIT:INT: prefix here,
             # and provide a generic code.
@@ -41,6 +57,7 @@ def encode_exception(
             yield (f"EXIT:INT:{message}", 110000)
             yield (f"{STDERR_PREFIX}{stderr_file}", 0)
             yield (f"{STDOUT_PREFIX}{stdout_file}", 0)
+            yield from encode_stacktrace(stack_trace)
         case SeleneStartupError(message=message):
             # We need to encode the EXIT:INT: prefix here,
             # and provide a generic code.
@@ -48,6 +65,7 @@ def encode_exception(
             yield (f"EXIT:INT:{message}", 110001)
             yield (f"{STDERR_PREFIX}{stderr_file}", 0)
             yield (f"{STDOUT_PREFIX}{stdout_file}", 0)
+            yield from encode_stacktrace(stack_trace)
         case SeleneTimeoutError(message=message):
             # We need to encode the EXIT:INT: prefix here,
             # and provide a generic code.
@@ -55,6 +73,7 @@ def encode_exception(
             yield (f"EXIT:INT:{message}", 110002)
             yield (f"{STDERR_PREFIX}{stderr_file}", 0)
             yield (f"{STDOUT_PREFIX}{stdout_file}", 0)
+            yield from encode_stacktrace(stack_trace)
         case other:
             # Encapsulate any other exception into a
             # SeleneRuntimeError for consistent parsing
@@ -63,6 +82,7 @@ def encode_exception(
             yield (f"EXIT:INT:{other}", 110000)
             yield (f"{STDERR_PREFIX}{stderr_file}", 0)
             yield (f"{STDOUT_PREFIX}{stdout_file}", 0)
+            yield from encode_stacktrace(stack_trace)
 
 
 def detect_exception(
@@ -104,6 +124,26 @@ def decode_exception(
             message=f"Error while decoding exception: Missing stdout for exception type {exception_type} and message {error_message}: {e}.",
         )
 
+    stack_trace = StackTrace()
+    while True:
+        try:
+            trace_entry = next(remaining_results)[0]
+            if not trace_entry.startswith(TRACE_PREFIX):
+                break
+            trace_info = trace_entry.removeprefix(TRACE_PREFIX)
+            address = int(trace_info)
+            stack_trace.add_entry(
+                address=address,
+            )
+        except StopIteration:
+            break
+        except Exception as e:
+            return SeleneRuntimeError(
+                message=f"Error while decoding exception: Malformed stack trace entry for exception type {exception_type} and message {error_message}: {e}.",
+                stdout=stdout_content,
+                stderr=stderr_content,
+            )
+
     match exception_type:
         case "SelenePanicError":
             return SelenePanicError(
@@ -111,30 +151,35 @@ def decode_exception(
                 code=error_code,
                 stdout=stdout_content,
                 stderr=stderr_content,
+                stack_trace=stack_trace,
             )
         case "SeleneRuntimeError":
             return SeleneRuntimeError(
                 message=error_message,
                 stdout=stdout_content,
                 stderr=stderr_content,
+                stack_trace=stack_trace,
             )
         case "SeleneStartupError":
             return SeleneStartupError(
                 message=error_message,
                 stdout=stdout_content,
                 stderr=stderr_content,
+                stack_trace=stack_trace,
             )
         case "SeleneTimeoutError":
             return SeleneTimeoutError(
                 message=error_message,
                 stdout=stdout_content,
                 stderr=stderr_content,
+                stack_trace=stack_trace,
             )
         case _:
             return SeleneRuntimeError(
                 message=f"Unknown exception type: {exception_type}",
                 stdout=stdout_content,
                 stderr=stderr_content,
+                stack_trace=stack_trace,
             )
 
 

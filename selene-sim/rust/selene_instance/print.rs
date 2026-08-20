@@ -23,7 +23,60 @@ impl SeleneInstance {
     pub fn print<T: StreamWritable>(&mut self, tag: &str, value: T) -> Result<()> {
         print_directly_to_stream(&mut self.out_encoder, self.time_cursor, tag, value)
     }
+    fn emit_debug_trace(&mut self) -> Result<()> {
+        // Capture the backtrace at the point of the panic and include it in the output stream.
+        // This can be used by the frontend to provide more context about where a panic occurred,
+        // which is especially useful for panics originating from compiled user code, where the
+        // source of the panic may not be immediately obvious.
+        let mut status = Ok(());
+        backtrace::trace(|frame| {
+            let ip = frame.ip() as u64;
+            if ip != 0 {
+                let pc = ip - 1;
+                let base = frame.module_base_address().map(|p| p as u64).unwrap_or(0);
+                let address = pc - base;
+                if let Err(e) = self.print("DEBUG:BACKTRACE", address) {
+                    status = Err(anyhow::anyhow!("Failed to emit debug trace: {:?}", e));
+                    return false;
+                }
+            }
+            true
+        });
+        status
+        /*
+            backtrace::resolve_frame(frame, |symbol| {
+                let Some(filename) = symbol.filename().map(|f| f.display().to_string()) else {
+                    return;
+                };
+                let Some(name) = symbol.name().map(|f| f.to_string()) else {
+                    return;
+                };
+                if name == "qmain" {
+                    // libraries, which can be noisy and not helpful for debugging user code.
+                    done = true;
+                }
+                let Some(line) = symbol.lineno() else {
+                    return;
+                };
+                let Some(col) = symbol.colno() else {
+                    return;
+                };
+                let tag = format!("DEBUG:TRACE:{filename}#{line}#{col}#{name}");
+                if let Err(e) = self.print(&tag, 0u64) {
+                    status = Err(anyhow::anyhow!("Failed to emit debug trace: {:?}", e));
+                }
+            });
+            status.is_ok() && !done
+        });
+        status
+        */
+    }
     pub fn print_panic(&mut self, message: &str, error_code: u32) -> Result<()> {
+        if error_code >= 1000 {
+            // For full panics (that prevent further shots), we emit a debug backtrace.
+            self.emit_debug_trace()?;
+        }
+
         // In some cases, e.g. the compiled user program, the exit namespace is already
         // encoded in the provided message. In others, e.g. runtime panics from components,
         // we need to prepend it.

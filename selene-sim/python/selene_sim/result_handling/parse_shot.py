@@ -7,6 +7,7 @@ from ..exceptions import (
     SeleneRuntimeError,
     SeleneStartupError,
     SeleneTimeoutError,
+    StackTrace,
 )
 from .result_stream import ResultStream, TaggedResult
 from .exception_encoding import (
@@ -19,6 +20,7 @@ from .extract_shot import (
     UserResult,
     UserStateResult,
     ShotExitMessage,
+    DebugTraceMessage,
     MetricValue,
     InstructionLogEntry,
     ShotMeasurements,
@@ -65,6 +67,7 @@ def parsed_interface(
     also raised, with contextual information via the stdout and stderr
     corresponding to the process that is feeding the results stream.
     """
+    stack_trace = StackTrace()
     try:
         for entry in shot_entries:
             match entry:
@@ -84,6 +87,8 @@ def parsed_interface(
                     # TODO: this is a string, but TaggedResult currently expects an int,
                     # float, bool, or a list of those.
                     yield ((tag_split[1], path))  # type: ignore
+                case DebugTraceMessage(address=address):
+                    stack_trace.add_entry(address)
                 case ShotExitMessage(message=message, code=code):
                     message_split = message.split(":", maxsplit=2)
                     if len(message_split) != 3:
@@ -121,8 +126,10 @@ def parsed_interface(
                 error, (SeleneStartupError, SelenePanicError)
             )
         )
+        stack_trace.symbolize(process.executable)
         error.stdout = process.stdout.read_text()
         error.stderr = process.stderr.read_text()
+        error.stack_trace = stack_trace
         raise error from None
 
 
@@ -146,6 +153,7 @@ def unparsed_interface(
     are encountered, they are caught and encoded with special tags such that
     they can be decoded further down the line (e.g. with postprocess_unparsed_stream).
     """
+    stack_trace: StackTrace = StackTrace()
     try:
         for entry in shot_entries:
             match entry:
@@ -159,6 +167,8 @@ def unparsed_interface(
                     yield ((message, code))
                 case MetricValue(name=name, value=value):
                     yield ((name, value))
+                case DebugTraceMessage(address=address):
+                    stack_trace.add_entry(address=address)
                 case InstructionLogEntry():
                     raise SeleneRuntimeError(
                         "Instruction log entries are not compatible with selene's unparsed interface"
@@ -177,7 +187,7 @@ def unparsed_interface(
         )
         process.wait(check_return_code=False)
         # encode the exception as tagged results
-        yield from encode_exception(e, process.stdout, process.stderr)
+        yield from encode_exception(e, process.stdout, process.stderr, stack_trace)
 
 
 # Post-processing for unparsed streams

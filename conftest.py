@@ -55,16 +55,27 @@ SUPPORTED_QIS_PLATFORMS = [
 ]
 
 
-def _compile_inline_guppy_source_to_hugr_bytes(guppy_source: str) -> bytes:
+def _compile_inline_guppy_source_to_hugr_bytes(
+    guppy_source: str, emit_debug: bool
+) -> bytes:
     # check if guppy is installed
     if importlib.util.find_spec("guppylang") is None:
         raise RuntimeError(
             "Guppy is not installed. Please install guppylang to compile inline guppy source."
         )
 
+    maybe_debug = (
+        ""
+        if not emit_debug
+        else """
+from guppylang_internals.debug_mode import turn_on_debug_mode
+turn_on_debug_mode()
+"""
+    )
+
     # This executes trusted inline source defined in this repository's test files.
-    standalone_file = f"""
-{guppy_source}
+    standalone_file = f"""{guppy_source}
+{maybe_debug}
 
 from pathlib import Path
 compiled_hugr = main.compile()
@@ -75,7 +86,7 @@ output_file.write_bytes(compiled_hugr.to_bytes())
     # make temporary directory
     import tempfile
 
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with tempfile.TemporaryDirectory(delete=False) as temp_dir:
         temp_path = Path(temp_dir) / "temp_guppy_source.py"
         temp_path.write_text(standalone_file)
         # execute the file in a subprocess to avoid any issues with stateful execution of guppy code in the same process
@@ -87,7 +98,7 @@ output_file.write_bytes(compiled_hugr.to_bytes())
 
 
 def _compile_hugr_to_llvm_ir_for_target(
-    hugr_bytes: bytes, qis_platform: str, target: str
+    hugr_bytes: bytes, qis_platform: str, target: str, emit_debug: bool
 ) -> str:
     try:
         from selene_hugr_qis_compiler import compile_to_llvm_ir
@@ -96,7 +107,20 @@ def _compile_hugr_to_llvm_ir_for_target(
             "--compile-guppy requires selene_hugr_qis_compiler and guppylang to be installed."
         ) from exc
 
-    return compile_to_llvm_ir(hugr_bytes, platform=qis_platform, target_triple=target)
+    result = compile_to_llvm_ir(
+        hugr_bytes, platform=qis_platform, target_triple=target, emit_debug=emit_debug
+    )
+    if emit_debug:
+        # sanitize debug file paths for reproducibility
+        import re
+
+        result = re.sub(
+            r'filename: "[^"]+temp_guppy_source.py"',
+            'filename: "/sanitized/path/program.py"',
+            result,
+        )
+        result = re.sub('directory: "[^"]+"', 'directory: "/sanitized/path"', result)
+    return result
 
 
 def _hash_guppy(guppy_source: str) -> str:
@@ -104,11 +128,11 @@ def _hash_guppy(guppy_source: str) -> str:
 
 
 def _compile_inline_guppy_source_to_llvm_ir(
-    guppy_source: str, *, qis_platform: str, target: str
+    guppy_source: str, *, qis_platform: str, target: str, emit_debug: bool
 ) -> str:
-    hugr_bytes = _compile_inline_guppy_source_to_hugr_bytes(guppy_source)
+    hugr_bytes = _compile_inline_guppy_source_to_hugr_bytes(guppy_source, emit_debug)
     return _compile_hugr_to_llvm_ir_for_target(
-        hugr_bytes, qis_platform=qis_platform, target=target
+        hugr_bytes, qis_platform=qis_platform, target=target, emit_debug=emit_debug
     )
 
 
@@ -119,6 +143,7 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
         program_name: str,
         guppy_source: str,
         qis_platform: str = "helios",
+        emit_debug: bool = False,
     ) -> Path | bytes:
         test_name = request.node.name
         test_path = Path(request.node.fspath)
@@ -138,7 +163,10 @@ def compiled_guppy(compile_guppy: bool, request: pytest.FixtureRequest):
             for qis_platform_it in SUPPORTED_QIS_PLATFORMS:
                 for target in SUPPORTED_TARGETS:
                     llvm_ir = _compile_inline_guppy_source_to_llvm_ir(
-                        guppy_source, qis_platform=qis_platform_it, target=target
+                        guppy_source,
+                        qis_platform=qis_platform_it,
+                        target=target,
+                        emit_debug=emit_debug,
                     )
                     (
                         resources_dir / f"{program_name}-{qis_platform_it}-{target}.ll"

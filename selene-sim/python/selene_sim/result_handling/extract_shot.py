@@ -39,6 +39,17 @@ class FullPanicMessage:
 
 
 @dataclass
+class DebugTraceMessage:
+    """
+    Upon a panic, this may be emitted to provide the address of each element in the
+    stack frame. This address may be utilised to extract symbol information for
+    stacktrace printing.
+    """
+
+    address: int
+
+
+@dataclass
 class ShotStart:
     """
     Represents the start of a shot in the results stream. User results for a given
@@ -136,6 +147,7 @@ ShotEntry = (
     | MetricValue
     | InstructionLogEntry
     | ShotMeasurements
+    | DebugTraceMessage
 )
 ExtractedStreamEntry = ShotStart | ShotEnd | ShotEntry | FullPanicMessage
 
@@ -165,6 +177,11 @@ def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
             return FullPanicMessage(message=entry.tag, code=code)
         else:
             return ShotExitMessage(message=entry.tag, code=code)
+    elif entry.tag == "DEBUG:BACKTRACE":
+        assert isinstance(entry.values[0], int), (
+            f"Expected backtrace address to be an integer, got {type(entry.values[0])}"
+        )
+        return DebugTraceMessage(address=entry.values[0])
     elif entry.tag.startswith("USER:"):
         if entry.tag.startswith("USER:STATE:"):
             assert len(entry.values) == 1, (

@@ -16,18 +16,20 @@ alloca_block:
   %rint = tail call i32 @random_int()
   %rfloat = tail call double @random_float()
   tail call void @random_advance(i64 -2)
-  %rint9 = tail call i32 @random_int()
-  %rfloat11 = tail call double @random_float()
-  %1 = sext i32 %rint9 to i64
+  %rint16 = tail call i32 @random_int()
+  %rfloat18 = tail call double @random_float()
+  %1 = sext i32 %rint16 to i64
   %2 = sext i32 %rint to i64
   tail call void @print_int(ptr nonnull @res_rint.B928E41E.0, i64 13, i64 %2)
   tail call void @print_float(ptr nonnull @res_rfloat.F0E4DD2C.0, i64 17, double %rfloat)
   tail call void @print_int(ptr nonnull @res_rint2.F0335598.0, i64 14, i64 %1)
-  tail call void @print_float(ptr nonnull @res_rfloat2.4DAB941F.0, i64 18, double %rfloat11)
+  tail call void @print_float(ptr nonnull @res_rfloat2.4DAB941F.0, i64 18, double %rfloat18)
   ret void
 }
 
 declare i64 @get_current_shot() local_unnamed_addr
+
+declare void @random_seed(i64) local_unnamed_addr
 
 declare i32 @random_int() local_unnamed_addr
 
@@ -38,8 +40,6 @@ declare void @random_advance(i64) local_unnamed_addr
 declare void @print_int(ptr, i64, i64) local_unnamed_addr
 
 declare void @print_float(ptr, i64, double) local_unnamed_addr
-
-declare void @random_seed(i64) local_unnamed_addr
 
 define i64 @qmain(i64 %0) local_unnamed_addr {
 entry:

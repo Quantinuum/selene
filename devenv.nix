@@ -1,5 +1,7 @@
 { pkgs, lib, inputs, config, ... }:
-{
+let
+  hugrenv = pkgs.callPackage ./hugrenv.nix { packages = ["llvm"]; };
+in {
   config = {
     packages = with pkgs; [
       cmake
@@ -17,10 +19,12 @@
     enterShell = ''
       eval "$(just --completions bash)"
       export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export PATH="${hugrenv}/bin:$PATH"
     '';
 
     env = {
-      LIBCLANG_PATH = "${pkgs.libclang.lib}";
+      "LIBCLANG_PATH" = "${hugrenv}/lib";
+      "HUGRENV_PATH" = "${hugrenv}";
     };
 
 
