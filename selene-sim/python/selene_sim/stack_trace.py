@@ -9,16 +9,35 @@ from subprocess import run, PIPE, CalledProcessError
 def extract_symbols_from_module(module: Path, addresses: list[int]) -> list[dict]:
     import lief
 
-    binary = lief.parse(module)
-    if binary is None:
-        raise ValueError(f"Failed to parse binary module: {module}")
-    imagebase = binary.imagebase
-    print(f"IMAGE BASE FOR {module}: {imagebase:#x}")
-    rebased_addresses = [binary.imagebase + address for address in addresses]
     dist_dir = Path(__file__).parent / "_dist"
     llvm_symbolizer = dist_dir / "bin/llvm-symbolizer"
+
     if platform.system() == "Windows":
         llvm_symbolizer = llvm_symbolizer.with_suffix(".exe")
+
+    module_details = lief.parse(module)
+    if module_details is None:
+        raise ValueError(f"Failed to parse binary module: {module}")
+    elif isinstance(module_details, lief.MachO.Binary):
+        dsym_path = module.with_suffix(".dSYM")
+        if not dsym_path.exists() or dsym_path.stat().st_mtime < module.stat().st_mtime:
+            a = run(
+                [dist_dir / "bin/dsymutil", str(module)],
+                text=True,
+                stdout=PIPE,
+                stderr=PIPE,
+            )
+            print("Dsymutil stdout:")
+            print(a.stdout)
+            print("Dsymutil stderr:")
+            print(a.stderr)
+        # the above may have failed, and in that case we just do what we can with the
+        # original module file
+        if dsym_path.exists():
+            module = dsym_path
+
+    rebased_addresses = [module_details.imagebase + address for address in addresses]
+
     command = [
         f"{llvm_symbolizer}",
         "--functions=short",

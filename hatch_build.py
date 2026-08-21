@@ -304,6 +304,8 @@ class HugrenvTools:
 
     def extract(self):
         self.extract_binary("llvm-symbolizer")
+        if sys.platform == "darwin":
+            self.extract_binary("dsymutil")
 
 
 class BundleBuildHook(BuildHookInterface):
