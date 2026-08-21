@@ -6,7 +6,17 @@ from typing import Optional
 from subprocess import run, PIPE, CalledProcessError
 
 
-def extract_symbols_from_module(module: Path, addresses: list[int]) -> list[dict]:
+def extract_symbols_from_module(
+    module: Path, addresses: list[int]
+) -> list[dict] | None:
+    """Tries to extract symbols from the given module for the given addresses using
+    llvm-symbolizer. On macOS, this will also attempt to generate a dSYM file if one does
+    not already exist.
+
+    Returns a list of dictionaries containing symbol information if successful, or None
+    otherwise (failure is not considered exceptional).
+    """
+    assert module
     import lief
 
     dist_dir = Path(__file__).parent / "_dist"
@@ -17,26 +27,30 @@ def extract_symbols_from_module(module: Path, addresses: list[int]) -> list[dict
 
     module_details = lief.parse(module)
     if module_details is None:
-        raise ValueError(f"Failed to parse binary module: {module}")
+        # This is taken as a pretty good sign not to proceed with
+        # symbolization, so we return None to indicate failure.
+        return None
+
     elif isinstance(module_details, lief.MachO.Binary):
         dsym_path = module.with_suffix(".dSYM")
         if not dsym_path.exists() or dsym_path.stat().st_mtime < module.stat().st_mtime:
-            a = run(
-                [dist_dir / "bin/dsymutil", str(module)],
-                text=True,
-                stdout=PIPE,
-                stderr=PIPE,
-            )
-            print("Dsymutil stdout:")
-            print(a.stdout)
-            print("Dsymutil stderr:")
-            print(a.stderr)
-        # the above may have failed, and in that case we just do what we can with the
-        # original module file
-        if dsym_path.exists():
+            try:
+                run(
+                    [dist_dir / "bin/dsymutil", str(module)],
+                    check=True,
+                )
+            except CalledProcessError:
+                # There are many reasons why dsymutil could fail, so we just
+                # accept it and return None to passively indicate failure.
+                return None
             module = dsym_path
 
-    rebased_addresses = [module_details.imagebase + address for address in addresses]
+    if hasattr(module_details, "imagebase"):
+        image_base = module_details.imagebase
+    else:
+        image_base = 0
+
+    rebased_addresses = [image_base + address for address in addresses]
 
     command = [
         f"{llvm_symbolizer}",
@@ -46,18 +60,13 @@ def extract_symbols_from_module(module: Path, addresses: list[int]) -> list[dict
         f"--obj={module}",
     ] + [f"{address:#x}" for address in rebased_addresses]
     try:
-        print("----------------------------------------------------")
-        print(command)
-        print("....................................................")
         result = run(command, stdout=PIPE, stderr=PIPE, check=True, text=True)
         output = result.stdout
-        print(output)
-        print("----------------------------------------------------")
         return json.loads(output)
-
-    except CalledProcessError as e:
-        print(f"Error running llvm-symbolizer: {e.stderr}")
-        raise
+    except CalledProcessError:
+        # There are many reasons why llvm-symbolizer could fail, so we just
+        # accept it and return None to passively indicate failure.
+        return None
 
 
 @dataclass
@@ -78,8 +87,6 @@ class Symbol:
         if result.line > 0:
             # Only return symbols that have a valid line number, as these are meaningful for debugging.
             return result
-        # TODO: remove this, just for debugging actions on macos/windows
-        print(data)
         return None
 
 
@@ -120,6 +127,10 @@ class StackTrace:
             ]
             addresses = [entry.address for entry in relevant_entries]
             all_symbols = extract_symbols_from_module(module, addresses)
+            if all_symbols is None:
+                # If symbolization fails, we leave the entry as it was.
+                continue
+
             for entry, symbols in zip(relevant_entries, all_symbols):
                 entry.symbols = list(
                     filter(
