@@ -6,7 +6,9 @@ from typing import Optional
 from subprocess import run, PIPE, CalledProcessError
 
 
-def run_llvm_symbolizer(module: Path, addresses: list[int]) -> list[dict] | None:
+def run_llvm_symbolizer(
+    module: Path, addresses: list[int], cli_extras: list[str]
+) -> list[dict] | None:
     """Runs llvm-symbolizer on the given module for the given addresses.
 
     Returns a list of dictionaries containing symbol information if successful, or None
@@ -24,7 +26,9 @@ def run_llvm_symbolizer(module: Path, addresses: list[int]) -> list[dict] | None
         "--inlines",
         "--output-style=JSON",
         f"--obj={module}",
-    ] + [f"{address:#x}" for address in addresses]
+    ]
+    command += cli_extras
+    command += [f"{address:#x}" for address in addresses]
     try:
         result = run(command, stdout=PIPE, stderr=PIPE, check=True, text=True)
         output = result.stdout
@@ -58,6 +62,8 @@ def extract_symbols_from_module(
         # symbolization, so we return None to indicate failure.
         return None
 
+    cli_extras = []
+
     if isinstance(module_details, lief.MachO.Binary):
         # we instead need to look at the accompanying .dSYM file.
         dsym_path = module.with_suffix(".dSYM")
@@ -76,7 +82,7 @@ def extract_symbols_from_module(
                 # There are many reasons why dsymutil could fail, so we just
                 # accept it and return None to passively indicate failure.
                 return None
-            module = dsym_path
+            cli_extras += [f"--dsym-hint={dsym_path}"]
 
     if hasattr(module_details, "imagebase"):
         image_base = module_details.imagebase
@@ -84,7 +90,7 @@ def extract_symbols_from_module(
         image_base = 0
 
     rebased_addresses = [image_base + address for address in addresses]
-    return run_llvm_symbolizer(module, rebased_addresses)
+    return run_llvm_symbolizer(module, rebased_addresses, cli_extras)
 
 
 @dataclass
