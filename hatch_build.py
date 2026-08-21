@@ -259,7 +259,7 @@ class HugrenvTools:
             "HUGRENV_PATH environment variable is not set. This is required for bundling Hugrenv tools into selene's _dist directory."
         )
         self.hugrenv_path = Path(os.environ["HUGRENV_PATH"])
-        self.is_cibw_host_path = self.hugrenv_path.parents[-2] == Path("/host")
+        self.is_cibw_host_path = str(self.hugrenv_path).startswith("/host/")
         assert self.hugrenv_path.is_dir(), (
             f"HUGRENV_PATH ('{self.hugrenv_path}') does not exist or is not a directory as required."
         )

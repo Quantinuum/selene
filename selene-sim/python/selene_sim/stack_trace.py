@@ -46,6 +46,8 @@ class Symbol:
         if result.line > 0:
             # Only return symbols that have a valid line number, as these are meaningful for debugging.
             return result
+        # TODO: remove this, just for debugging actions on macos/windows
+        print(data)
         return None
 
 
