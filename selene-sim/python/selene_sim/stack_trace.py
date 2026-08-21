@@ -29,7 +29,8 @@ def run_llvm_symbolizer(module: Path, addresses: list[int]) -> list[dict] | None
         result = run(command, stdout=PIPE, stderr=PIPE, check=True, text=True)
         output = result.stdout
         return json.loads(output)
-    except CalledProcessError:
+    except CalledProcessError as e:
+        print("Failed to run llvm-symbolizer:", e)
         # There are many reasons why llvm-symbolizer could fail, so we just
         # accept it and return None to passively indicate failure.
         return None
@@ -52,6 +53,7 @@ def extract_symbols_from_module(
 
     module_details = lief.parse(module)
     if module_details is None:
+        print("Module details is none")
         # This is taken as a pretty good sign not to proceed with
         # symbolization, so we return None to indicate failure.
         return None
@@ -69,7 +71,8 @@ def extract_symbols_from_module(
                     stderr=PIPE,
                     check=True,
                 )
-            except CalledProcessError:
+            except CalledProcessError as e:
+                print("Failed to run dsymutil:", e)
                 # There are many reasons why dsymutil could fail, so we just
                 # accept it and return None to passively indicate failure.
                 return None
@@ -93,7 +96,6 @@ class Symbol:
 
     @classmethod
     def from_llvm_symbolizer_dict(cls, data: dict) -> Optional["Symbol"]:
-        print("from_llvm_symbolizer_dict", data)
         result = cls(
             column=data.get("Column", 0),
             line=data.get("Line", 0),
