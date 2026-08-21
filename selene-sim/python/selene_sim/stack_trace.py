@@ -6,7 +6,15 @@ from typing import Optional
 from subprocess import run, PIPE, CalledProcessError
 
 
-def extract_symbols_from_program(program: Path, addresses: list[int]) -> list[dict]:
+def extract_symbols_from_module(module: Path, addresses: list[int]) -> list[dict]:
+    import lief
+
+    binary = lief.parse(module)
+    if binary is None:
+        raise ValueError(f"Failed to parse binary module: {module}")
+    imagebase = binary.imagebase
+    print(f"IMAGE BASE FOR {module}: {imagebase:#x}")
+    rebased_addresses = [binary.imagebase + address for address in addresses]
     dist_dir = Path(__file__).parent / "_dist"
     llvm_symbolizer = dist_dir / "bin/llvm-symbolizer"
     if platform.system() == "Windows":
@@ -16,11 +24,16 @@ def extract_symbols_from_program(program: Path, addresses: list[int]) -> list[di
         "--functions=short",
         "--inlines",
         "--output-style=JSON",
-        f"--obj={program}",
-    ] + [f"{address:#x}" for address in addresses]
+        f"--obj={module}",
+    ] + [f"{address:#x}" for address in rebased_addresses]
     try:
+        print("----------------------------------------------------")
+        print(command)
+        print("....................................................")
         result = run(command, stdout=PIPE, stderr=PIPE, check=True, text=True)
         output = result.stdout
+        print(output)
+        print("----------------------------------------------------")
         return json.loads(output)
 
     except CalledProcessError as e:
@@ -53,6 +66,7 @@ class Symbol:
 
 @dataclass
 class StackTraceEntry:
+    module: Path
     address: int
     symbols: list[Symbol] = field(default_factory=list)
 
@@ -74,21 +88,26 @@ class StackTrace:
     def __str__(self) -> str:
         return "\n".join(f"  at {entry}" for entry in self.entries if entry.symbols)
 
-    def add_entry(self, address: int) -> None:
-        self.entries.append(StackTraceEntry(address=address))
+    def add_entry(self, module: Path, address: int) -> None:
+        self.entries.append(StackTraceEntry(module=module, address=address))
 
     def symbolize(self, executable: Path) -> None:
         if not self.entries:
             return
-        addresses = [entry.address for entry in self.entries]
-        all_symbols = extract_symbols_from_program(executable, addresses)
-        for entry, symbols in zip(self.entries, all_symbols):
-            entry.symbols = list(
-                filter(
-                    None,
-                    [
-                        Symbol.from_llvm_symbolizer_dict(symbol)
-                        for symbol in symbols["Symbol"]
-                    ],
+        modules = {entry.module for entry in self.entries}
+        for module in modules:
+            relevant_entries = [
+                entry for entry in self.entries if entry.module == module
+            ]
+            addresses = [entry.address for entry in relevant_entries]
+            all_symbols = extract_symbols_from_module(module, addresses)
+            for entry, symbols in zip(relevant_entries, all_symbols):
+                entry.symbols = list(
+                    filter(
+                        None,
+                        [
+                            Symbol.from_llvm_symbolizer_dict(symbol)
+                            for symbol in symbols["Symbol"]
+                        ],
+                    )
                 )
-            )

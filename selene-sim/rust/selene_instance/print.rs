@@ -1,3 +1,4 @@
+use super::super::backtrace::Module;
 use super::SeleneInstance;
 use anyhow::Result;
 use selene_core::encoder::{OutputStream, StreamWritable};
@@ -33,9 +34,14 @@ impl SeleneInstance {
             let ip = frame.ip() as u64;
             if ip != 0 {
                 let pc = ip - 1;
-                let base = frame.module_base_address().map(|p| p as u64).unwrap_or(0);
-                let address = pc - base;
-                if let Err(e) = self.print("DEBUG:BACKTRACE", address) {
+                let Some(module) = Module::from_program_counter(pc) else {
+                    return true;
+                };
+                let Some(address) = pc.checked_sub(module.base) else {
+                    return true;
+                };
+                let tag = format!("DEBUG:BACKTRACE:{}", module.path.display());
+                if let Err(e) = self.print(&tag, address) {
                     status = Err(anyhow::anyhow!("Failed to emit debug trace: {:?}", e));
                     return false;
                 }
@@ -43,33 +49,6 @@ impl SeleneInstance {
             true
         });
         status
-        /*
-            backtrace::resolve_frame(frame, |symbol| {
-                let Some(filename) = symbol.filename().map(|f| f.display().to_string()) else {
-                    return;
-                };
-                let Some(name) = symbol.name().map(|f| f.to_string()) else {
-                    return;
-                };
-                if name == "qmain" {
-                    // libraries, which can be noisy and not helpful for debugging user code.
-                    done = true;
-                }
-                let Some(line) = symbol.lineno() else {
-                    return;
-                };
-                let Some(col) = symbol.colno() else {
-                    return;
-                };
-                let tag = format!("DEBUG:TRACE:{filename}#{line}#{col}#{name}");
-                if let Err(e) = self.print(&tag, 0u64) {
-                    status = Err(anyhow::anyhow!("Failed to emit debug trace: {:?}", e));
-                }
-            });
-            status.is_ok() && !done
-        });
-        status
-        */
     }
     pub fn print_panic(&mut self, message: &str, error_code: u32) -> Result<()> {
         if error_code >= 1000 {

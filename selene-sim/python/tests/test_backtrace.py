@@ -53,7 +53,7 @@ def main() -> None:
     # debug info point to /sanitized/path/program.py
     assert "Stack trace:" in str(the_exception)
     stack_trace = the_exception.stack_trace
-    assert len(stack_trace) > 0
+    assert len(stack_trace.entries) > 0
     filtered_trace = [entry for entry in stack_trace.entries if entry.symbols]
     assert len(filtered_trace) == 1
     entry = filtered_trace[0]

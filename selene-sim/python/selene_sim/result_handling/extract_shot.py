@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 from enum import Enum
 
@@ -46,6 +47,7 @@ class DebugTraceMessage:
     stacktrace printing.
     """
 
+    module: Path
     address: int
 
 
@@ -177,11 +179,12 @@ def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
             return FullPanicMessage(message=entry.tag, code=code)
         else:
             return ShotExitMessage(message=entry.tag, code=code)
-    elif entry.tag == "DEBUG:BACKTRACE":
+    elif entry.tag.startswith("DEBUG:BACKTRACE:"):
+        module = entry.tag.split(":", maxsplit=2)[-1]
         assert isinstance(entry.values[0], int), (
             f"Expected backtrace address to be an integer, got {type(entry.values[0])}"
         )
-        return DebugTraceMessage(address=entry.values[0])
+        return DebugTraceMessage(module=Path(module), address=entry.values[0])
     elif entry.tag.startswith("USER:"):
         if entry.tag.startswith("USER:STATE:"):
             assert len(entry.values) == 1, (

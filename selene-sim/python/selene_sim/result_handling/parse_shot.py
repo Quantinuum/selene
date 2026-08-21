@@ -87,8 +87,8 @@ def parsed_interface(
                     # TODO: this is a string, but TaggedResult currently expects an int,
                     # float, bool, or a list of those.
                     yield ((tag_split[1], path))  # type: ignore
-                case DebugTraceMessage(address=address):
-                    stack_trace.add_entry(address)
+                case DebugTraceMessage(module=module, address=address):
+                    stack_trace.add_entry(module=module, address=address)
                 case ShotExitMessage(message=message, code=code):
                     message_split = message.split(":", maxsplit=2)
                     if len(message_split) != 3:
@@ -167,8 +167,8 @@ def unparsed_interface(
                     yield ((message, code))
                 case MetricValue(name=name, value=value):
                     yield ((name, value))
-                case DebugTraceMessage(address=address):
-                    stack_trace.add_entry(address=address)
+                case DebugTraceMessage(module=module, address=address):
+                    stack_trace.add_entry(module=module, address=address)
                 case InstructionLogEntry():
                     raise SeleneRuntimeError(
                         "Instruction log entries are not compatible with selene's unparsed interface"

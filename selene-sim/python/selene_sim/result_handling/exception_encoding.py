@@ -24,8 +24,8 @@ def encode_stacktrace(stacktrace: StackTrace | None) -> Iterator[TaggedResult]:
         return
     for trace_entry in stacktrace.entries:
         yield (
-            f"{TRACE_PREFIX}{trace_entry.address}",
-            0,
+            f"{TRACE_PREFIX}{trace_entry.module}",
+            trace_entry.address,
         )
 
 
@@ -127,12 +127,15 @@ def decode_exception(
     stack_trace = StackTrace()
     while True:
         try:
-            trace_entry = next(remaining_results)[0]
-            if not trace_entry.startswith(TRACE_PREFIX):
+            trace_entry = next(remaining_results)
+            tag = trace_entry[0]
+            address = trace_entry[1]
+            assert isinstance(address, int)
+            if not tag.startswith(TRACE_PREFIX):
                 break
-            trace_info = trace_entry.removeprefix(TRACE_PREFIX)
-            address = int(trace_info)
+            module = Path(tag.removeprefix(TRACE_PREFIX))
             stack_trace.add_entry(
+                module=module,
                 address=address,
             )
         except StopIteration:
