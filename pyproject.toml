@@ -194,8 +194,11 @@ build-frontend = { name = "build[uv]", args = ["-C--profile=release"] }
 environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-groups = ["test"]
 test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
+[tool.cibuildwheel.linux.environment]
+PATH = "$PATH:$HOME/.cargo/bin:/host$HUGRENV_PATH"
+HUGRENV_PATH = "/host$HUGRENV_PATH"
 [tool.cibuildwheel.linux]
-environment = { PATH = "$PATH:$HOME/.cargo/bin" }
+environment-pass = ["HUGRENV_PATH"]
 before-all = '''
     # clean any non-version-controlled files, e.g. when building locally.
     git clean -dfX;
@@ -232,13 +235,18 @@ before-test = '''
     fi;
     uv pip install ./selene-core;
 '''
+[tool.cibuildwheel.macos.environment]
+PATH = "$PATH:$HOME/.cargo/bin:${HUGRENV_PATH}"
+MACOSX_DEPLOYMENT_TARGET = "12.0"
 [tool.cibuildwheel.macos]
-environment = { PATH = "$PATH:$HOME/.cargo/bin", MACOSX_DEPLOYMENT_TARGET = "12.0" }
 before-test = [
     'uv pip install ./selene-core'
 ]
+
+[tool.cibuildwheel.windows.environment]
+PATH = "$PATH:$HOME/.cargo/bin"
+CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu"
 [tool.cibuildwheel.windows]
-environment = { PATH = "$PATH:$HOME/.cargo/bin", CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu" }
 before-all = [
     'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y',
     'rustup toolchain install',

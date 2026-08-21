@@ -259,14 +259,31 @@ class HugrenvTools:
             "HUGRENV_PATH environment variable is not set. This is required for bundling Hugrenv tools into selene's _dist directory."
         )
         self.hugrenv_path = Path(os.environ["HUGRENV_PATH"])
+        self.is_cibw_host_path = self.hugrenv_path.parents[-2] == Path("/host")
         assert self.hugrenv_path.is_dir(), (
             f"HUGRENV_PATH ('{self.hugrenv_path}') does not exist or is not a directory as required."
         )
 
+    def resolve_artifact(self, directory: str, name: str) -> Path:
+        seen: set[Path] = set()
+        path = self.hugrenv_path / directory / name
+        while path.is_symlink():
+            if path in seen:
+                raise RuntimeError(f"Symlink loop while resolving {path}")
+            seen.add(path)
+            target = path.readlink()
+            if target.is_absolute():
+                if self.is_cibw_host_path:
+                    target = Path("/host") / target.relative_to("/")
+                path = target
+            else:
+                path = Path(os.path.normpath(path.parent / target))
+        return path
+
     def extract_artifact(self, directory: str, name: str):
-        artifact_path = self.hugrenv_path / directory / name
+        artifact_path = self.resolve_artifact(directory, name)
         assert artifact_path.is_file(), (
-            f"Hugrenv artifact '{name}' not found in {artifact_path}"
+            f"Hugrenv artifact '{name}' not found at {artifact_path}"
         )
         dist_dir = (
             Path(self.hook.root) / f"selene-sim/python/selene_sim/_dist/{directory}"
