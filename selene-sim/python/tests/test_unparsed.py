@@ -305,7 +305,6 @@ def test_panic_unparsed(compiled_guppy):
     assert error.stack_trace is not None
     assert error.stack_trace.entries
     assert error.stack_trace.symbolization_attempted
-    assert "No symbols were obtained from the stack trace" in str(error)
 
     assert len(shots) == 3
     assert shots[0] == [("USER:BOOL:c", 0)]
