@@ -1,8 +1,78 @@
 import pytest
+import subprocess
+from pathlib import Path
 from hugr.qsystem.result import QsysResult
 from selene_sim import Quest, Stim
 from selene_sim.build import build
 from selene_sim.exceptions import SelenePanicError
+from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
+from selene_sim import stack_trace as stack_trace_module
+
+
+def test_windows_symbolizer_uses_relative_addresses(monkeypatch):
+    recorded_command = None
+
+    def fake_run(command, **_kwargs):
+        nonlocal recorded_command
+        recorded_command = command
+        return subprocess.CompletedProcess(command, 0, stdout="[]", stderr="")
+
+    monkeypatch.setattr(stack_trace_module.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(stack_trace_module, "run", fake_run)
+
+    assert stack_trace_module.run_llvm_symbolizer(Path("program.exe"), [0x123]) == (
+        [],
+        None,
+    )
+    assert recorded_command is not None
+    assert recorded_command[0].endswith("llvm-symbolizer.exe")
+    assert "--relative-address" in recorded_command
+    assert recorded_command[-1] == "0x123"
+
+
+def test_dsym_is_created_while_symbolizing(monkeypatch):
+    recorded_commands = []
+
+    def fake_run(command, **_kwargs):
+        recorded_commands.append(command)
+        if str(command[0]).endswith("dsymutil"):
+            return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+        return subprocess.CompletedProcess(
+            command, 0, stdout='[{"Symbol": []}]', stderr=""
+        )
+
+    monkeypatch.setattr(stack_trace_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(stack_trace_module, "run", fake_run)
+
+    stack_trace = stack_trace_module.StackTrace()
+    stack_trace.add_entry(Path("program.selene.x"), 0x123)
+    stack_trace.symbolize(Path("program.selene.x"))
+
+    assert recorded_commands[0][-3:] == [
+        "-o",
+        "program.selene.x.dSYM",
+        "program.selene.x",
+    ]
+    assert "--dsym-hint=program.selene.x.dSYM" in recorded_commands[1]
+    assert stack_trace.symbolization_failure is None
+
+
+def test_dsym_failure_does_not_raise(monkeypatch):
+    def fake_run(command, **_kwargs):
+        if str(command[0]).endswith("dsymutil"):
+            raise subprocess.CalledProcessError(1, command)
+        return subprocess.CompletedProcess(
+            command, 0, stdout='[{"Symbol": []}]', stderr=""
+        )
+
+    monkeypatch.setattr(stack_trace_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(stack_trace_module, "run", fake_run)
+
+    stack_trace = stack_trace_module.StackTrace()
+    stack_trace.add_entry(Path("program.selene.x"), 0x123)
+    stack_trace.symbolize(Path("program.selene.x"))
+
+    assert stack_trace.symbolization_failure == "creating macOS debug symbols"
 
 
 def test_backtrace_always_panic(compiled_guppy):
@@ -62,6 +132,25 @@ def main() -> None:
     # At the time of writing, the actual function that calls
     # panic isn't preserved because of optimisations on the hugr.
     assert entry.symbols[0].function_name == "main"
+
+    _, unparsed_error = postprocess_unparsed_stream(
+        runner.run_shots(
+            Quest(),
+            n_qubits=1,
+            n_shots=1,
+            random_seed=0,
+            parse_results=False,
+        )
+    )
+    assert isinstance(unparsed_error, SelenePanicError)
+    assert unparsed_error.stack_trace is not None
+    unparsed_symbols = [
+        entry for entry in unparsed_error.stack_trace.entries if entry.symbols
+    ]
+    assert len(unparsed_symbols) == 1
+    assert unparsed_symbols[0].symbols[0].function_name == "main"
+    assert unparsed_symbols[0].symbols[0].line == 7
+    assert unparsed_symbols[0].symbols[0].column == 4
     # this is because the output LLVM looks like:
     # ```
     # ; Function Attrs: noreturn

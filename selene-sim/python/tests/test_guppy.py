@@ -543,13 +543,24 @@ def test_sim_restriction(compiled_guppy):
     )
 
     runner = build(llvm_file)
+    metric_store = MetricStore()
 
     with pytest.raises(SelenePanicError, match="not representable") as exception_info:
         shots = QsysResult(
             runner.run_shots(
-                Stim(), n_qubits=3, n_shots=10, timeout=datetime.timedelta(seconds=1)
+                Stim(),
+                n_qubits=3,
+                n_shots=10,
+                event_hook=metric_store,
+                timeout=datetime.timedelta(seconds=1),
             )
         )
+
+    # Panic records precede shot-end metadata in the result stream. The frontend
+    # must drain the shot before raising so these metrics are not lost.
+    assert set(metric_store.shots[0]) == {"emulator", "post_runtime", "user_program"}
+    assert exception_info.value.stack_trace is not None
+    assert exception_info.value.stack_trace.entries
 
 
 def test_corrupted_plugin(compiled_guppy):

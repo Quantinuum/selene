@@ -4,7 +4,6 @@ from typing import Iterator
 from enum import Enum
 
 from ..exceptions import (
-    SelenePanicError,
     SeleneStartupError,
     SeleneRuntimeError,
 )
@@ -146,12 +145,13 @@ ShotEntry = (
     UserResult
     | UserStateResult
     | ShotExitMessage
+    | FullPanicMessage
     | MetricValue
     | InstructionLogEntry
     | ShotMeasurements
     | DebugTraceMessage
 )
-ExtractedStreamEntry = ShotStart | ShotEnd | ShotEntry | FullPanicMessage
+ExtractedStreamEntry = ShotStart | ShotEnd | ShotEntry
 
 
 def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
@@ -264,12 +264,12 @@ def extract_shot(
                     raise SeleneRuntimeError(
                         f"Received shot end for shot ID {reported_shot_id} while shot ID {shot_id} is in progress"
                     )
-            case ShotExitMessage(message=message, code=code) as exit_msg:
+            case ShotExitMessage() as exit_msg:
                 shot_status = ShotStatus.ENDING
                 yield exit_msg
-            case FullPanicMessage(message=message, code=code):
+            case FullPanicMessage() as panic:
                 shot_status = ShotStatus.ENDING
-                raise SelenePanicError(message=message, code=code)
+                yield panic
             case other:
                 # all other entries, such as user results, state results, metadata, etc
                 # are expected strictly within shot boundaries.

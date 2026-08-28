@@ -2,9 +2,32 @@ from selene_sim.stack_trace import StackTrace
 
 
 def maybe_provide_stack_trace(stack_trace: StackTrace | None) -> str:
-    if stack_trace is None or len(stack_trace.entries) == 0:
-        return " NO STACK TRACE"
-    return f"\nStack trace:\n{stack_trace}"
+    if stack_trace is None or not stack_trace.entries:
+        return ""
+
+    rendered_stack_trace = str(stack_trace)
+    failure = stack_trace.symbolization_failure
+
+    if not rendered_stack_trace:
+        if failure is not None:
+            return (
+                "\nAn attempt was made to establish the stack trace, but it failed "
+                f"while {failure}."
+            )
+        if not stack_trace.symbolization_attempted:
+            return (
+                "\nStack trace addresses were captured, but symbolization was not "
+                "attempted."
+            )
+        return "\nNo symbols were obtained from the stack trace."
+
+    result = f"\nStack trace:\n{rendered_stack_trace}"
+    if failure is None:
+        return result
+    return (
+        f"{result}\nSome stack trace information may be unavailable because "
+        f"the attempt failed while {failure}."
+    )
 
 
 def maybe_provide_log(name, contents):

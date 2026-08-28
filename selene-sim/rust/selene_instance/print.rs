@@ -37,11 +37,8 @@ impl SeleneInstance {
                 let Some(module) = Module::from_program_counter(pc) else {
                     return true;
                 };
-                let Some(address) = pc.checked_sub(module.base) else {
-                    return true;
-                };
                 let tag = format!("DEBUG:BACKTRACE:{}", module.path.display());
-                if let Err(e) = self.print(&tag, address) {
+                if let Err(e) = self.print(&tag, module.address) {
                     status = Err(anyhow::anyhow!("Failed to emit debug trace: {:?}", e));
                     return false;
                 }
@@ -51,11 +48,6 @@ impl SeleneInstance {
         status
     }
     pub fn print_panic(&mut self, message: &str, error_code: u32) -> Result<()> {
-        if error_code >= 1000 {
-            // For full panics (that prevent further shots), we emit a debug backtrace.
-            self.emit_debug_trace()?;
-        }
-
         // In some cases, e.g. the compiled user program, the exit namespace is already
         // encoded in the provided message. In others, e.g. runtime panics from components,
         // we need to prepend it.
@@ -64,7 +56,14 @@ impl SeleneInstance {
         } else {
             format!("EXIT:INT:{}", message)
         };
-        self.print(&tag, error_code as u64)
+        self.print(&tag, error_code as u64)?;
+
+        if error_code >= 1000 {
+            // The panic is already safely in the stream. A backtrace is supplementary
+            // and must not prevent the original panic from being reported.
+            let _ = self.emit_debug_trace();
+        }
+        Ok(())
     }
     pub fn print_exit(&mut self, message: &str, error_code: u32) -> Result<()> {
         // At present, we handle exits in the same way as panics - the code
