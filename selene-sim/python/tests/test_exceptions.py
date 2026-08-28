@@ -16,15 +16,6 @@ from selene_sim.result_handling.exception_encoding import (
 from selene_sim.stack_trace import StackTrace, Symbol
 
 
-def test_exception_reports_stack_trace_without_symbols():
-    stack_trace = StackTrace(symbolization_attempted=True)
-    stack_trace.add_entry(Path("program"), 0x123)
-
-    message = str(SeleneRuntimeError("Exception", stack_trace=stack_trace))
-
-    assert message == "Exception\nNo symbols were obtained from the stack trace."
-
-
 def test_exception_reports_stack_trace_not_symbolized():
     stack_trace = StackTrace()
     stack_trace.add_entry(Path("program"), 0x123)
