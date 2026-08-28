@@ -19,7 +19,7 @@ def maybe_provide_stack_trace(stack_trace: StackTrace | None) -> str:
                 "\nStack trace addresses were captured, but symbolization was not "
                 "attempted."
             )
-        return "\nNo symbols were obtained from the stack trace."
+        return ""
 
     result = f"\nStack trace:\n{rendered_stack_trace}"
     if failure is None:
