@@ -20,5 +20,7 @@ Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.
 * TypeScript: [`typescript/`](typescript) publishes the `@quantinuum/selene-api-models`
   package.
 
+The binding release process is described in [`docs/publishing.md`](docs/publishing.md).
+
 The trace API is currently the only protocol. Future APIs belong in their own
 directories under `schemas/`, `examples/`, and language-specific modules.
