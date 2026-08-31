@@ -1,4 +1,3 @@
-import json
 import shutil
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
@@ -12,27 +11,17 @@ class SeleneCoreBuildHook(BuildHookInterface):
         if dist_dir.exists():
             shutil.rmtree(dist_dir)
 
-        # Generate and write the Trace JSON schema into _dist
-        # as selene_core isn't yet available we need to import selene_core/trace.py manually
-        import importlib.util
-
-        trace_module_path = Path("python/selene_core/trace.py")
-        spec = importlib.util.spec_from_file_location(
-            "selene_core.trace", trace_module_path
-        )
-        if spec is None or spec.loader is None:
-            raise RuntimeError(
-                f"Unable to load module spec for selene_core.trace from {trace_module_path}"
-            )
-        trace_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(trace_module)
+        # The public trace schema is owned by the language-neutral
+        # selene-protocol package. Keep distributing it with selene-core for users
+        # of the legacy selene_core.trace import path.
         schema_path = Path(
             "python/selene_core/_dist/share/selene-core/schemas/trace.json"
         )
         schema_path.parent.mkdir(parents=True, exist_ok=True)
-        schema_path.write_text(
-            json.dumps(trace_module.Trace.model_json_schema(), indent=2)
-        )
+        schema_source = Path("trace_schema/trace.json")
+        if not schema_source.exists():
+            schema_source = Path("../selene-protocol/schemas/trace/0.1.0.schema.json")
+        shutil.copy2(schema_source, schema_path)
 
         shutil.copytree(Path("c/include"), dist_dir / "include")
 
