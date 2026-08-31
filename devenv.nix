@@ -70,7 +70,9 @@ in {
       };
       mypy = {
         enable = true;
-        args = ["--config=pyproject.toml"];
+        # Pre-commit invokes this hook concurrently for file batches. Disable
+        # Mypy's shared incremental cache to avoid cache-corruption assertions.
+        args = ["--config=pyproject.toml" "--no-incremental"];
         extraPackages = with pkgs.python3Packages; [
           types-pyyaml
         ];

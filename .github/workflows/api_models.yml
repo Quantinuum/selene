@@ -1,0 +1,164 @@
+name: API model packages
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/api_models.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "pyproject.toml"
+      - "selene-protocol/**"
+      - "uv.lock"
+  push:
+    branches:
+      - main
+      - 0.3-series
+    tags:
+      - "selene-api-models-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - name: Test
+        run: uv run --locked --package selene-api-models --group test pytest selene-protocol/python/tests
+      - name: Build distributions
+        run: uv build --package selene-api-models --out-dir dist/python
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: selene-api-models-python
+          path: dist/python/*
+          if-no-files-found: error
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        run: cargo test --package selene-api-models
+      - name: Package
+        run: cargo package --allow-dirty --no-verify --package selene-api-models
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm --dir selene-protocol/typescript test
+      - name: Prepare package directory
+        run: mkdir -p dist/typescript
+      - name: Package
+        run: pnpm --dir selene-protocol/typescript pack --pack-destination "$GITHUB_WORKSPACE/dist/typescript"
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: selene-api-models-typescript
+          path: dist/typescript/*
+          if-no-files-found: error
+
+  verify-release-version:
+    name: Verify shared release version
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    needs: [python, rust, typescript]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check package versions match the tag
+        run: |
+          expected_version="${GITHUB_REF_NAME#selene-api-models-v}"
+          python3 - "$expected_version" <<'PY'
+          import json
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          expected = sys.argv[1]
+          versions = {
+              "Python": tomllib.loads(Path("selene-protocol/pyproject.toml").read_text())["project"]["version"],
+              "Rust": tomllib.loads(Path("selene-protocol/rust/Cargo.toml").read_text())["package"]["version"],
+              "TypeScript": json.loads(Path("selene-protocol/typescript/package.json").read_text())["version"],
+          }
+          mismatches = [f"{name}={version}" for name, version in versions.items() if version != expected]
+          if mismatches:
+              raise SystemExit(
+                  f"Release tag requires version {expected} in every API-model package; "
+                  + ", ".join(mismatches)
+              )
+          PY
+
+  publish-python:
+    name: Publish Python package
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    needs: [verify-release-version]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: selene-api-models-python
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+
+  publish-rust:
+    name: Publish Rust crate
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    needs: [verify-release-version]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish
+        run: cargo publish --package selene-api-models
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-typescript:
+    name: Publish TypeScript package
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    needs: [verify-release-version]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Publish
+        run: pnpm --dir selene-protocol/typescript publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

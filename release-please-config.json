@@ -71,6 +71,37 @@
                     "path": "/selene-sim/python/selene_sim/__init__.py"
                 }
             ]
+        },
+        "selene-protocol": {
+            "release-type": "python",
+            "package-name": "selene-api-models",
+            "component": "selene-api-models",
+            "draft": false,
+            "versioning": "default",
+            "prerelease": false,
+            "draft-pull-request": true,
+            "extra-files": [
+                {
+                    "type": "toml",
+                    "path": "selene-protocol/rust/Cargo.toml",
+                    "jsonpath": "$.package.version"
+                },
+                {
+                    "type": "json",
+                    "path": "selene-protocol/typescript/package.json",
+                    "jsonpath": "$.version"
+                },
+                {
+                    "type": "toml",
+                    "path": "Cargo.lock",
+                    "jsonpath": "$.package[?(@.name.value=='selene-api-models')].version"
+                },
+                {
+                    "type": "toml",
+                    "path": "uv.lock",
+                    "jsonpath": "$.package[?(@.name.value=='selene-api-models')].version"
+                }
+            ]
         }
     }
 }
