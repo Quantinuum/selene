@@ -14,6 +14,9 @@ in {
       graph-easy
       libffi
       cargo-expand
+      nodejs_22
+      pnpm
+      typescript
     ];
 
     enterShell = ''

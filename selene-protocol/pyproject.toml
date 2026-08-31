@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "selene-api-models"
+version = "0.1.0"
+description = "Selene API models for Python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = ["pydantic~=2.12"]
+authors = [
+  { name = "Quantinuum" },
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.urls]
+repository = "https://github.com/quantinuum/selene"
+
+[dependency-groups]
+test = ["pytest>=8.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/selene_api_models"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/trace/0.1.0.schema.json" = "selene_api_models/schemas/trace/0.1.0.schema.json"
+
+[tool.hatch.build.targets.sdist.force-include]
+"schemas/trace/0.1.0.schema.json" = "schemas/trace/0.1.0.schema.json"
