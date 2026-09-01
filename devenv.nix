@@ -78,6 +78,36 @@
           "selene-ext/simulators/stim/python/gate_definitions.py"
         ];
       };
+      api-models-python-test = {
+        enable = true;
+        name = "API models Python tests";
+        description = "Run the Python API model test suite.";
+        package = pkgs.uv;
+        entry = "uv run --locked --package selene-api-models --group test pytest selene-protocol/python/tests";
+        files = "^(selene-protocol/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        pass_filenames = false;
+      };
+      api-models-rust-test = {
+        enable = true;
+        name = "API models Rust tests";
+        description = "Run the Rust API model test suite.";
+        package = pkgs.cargo;
+        entry = "cargo test --package selene-api-models";
+        files = "^(selene-protocol/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        pass_filenames = false;
+      };
+      api-models-typescript-test = {
+        enable = true;
+        name = "API models TypeScript tests";
+        description = "Install locked dependencies and run the TypeScript API model test suite.";
+        package = pkgs.pnpm;
+        entry = "${pkgs.writeShellScript "api-models-typescript-test" ''
+          ${pkgs.pnpm}/bin/pnpm install --frozen-lockfile
+          ${pkgs.pnpm}/bin/pnpm --filter @quantinuum/selene-api-models test
+        ''}";
+        files = "^(selene-protocol/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        pass_filenames = false;
+      };
     };
   };
 }
