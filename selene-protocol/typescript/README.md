@@ -11,11 +11,13 @@ import { trace } from "@quantinuum/selene-api-models";
 
 const document = trace.parseTrace(value); // Throws ZodError if invalid.
 const result = trace.safeParseTrace(value); // Non-throwing validation result.
+const jsonReady = trace.serializeTrace(document);
 ```
 
 Each `*Schema` has a normalized inferred type, such as `trace.Trace`, and an
 `*Input` type for values which rely on protocol defaults, such as
-`trace.TraceInput`.
+`trace.TraceInput`. Unsigned 64-bit trace values are decoded to `bigint`; use
+`serializeTrace` before passing a trace to `JSON.stringify`.
 
 From the repository root, build the package with the project-managed tooling:
 

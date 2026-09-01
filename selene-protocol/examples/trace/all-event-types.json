@@ -2,32 +2,32 @@
   "schema_version": "0.1.0",
   "events": [
     {
-      "source": { "kind": "UserProgram", "index": 0 },
+      "source": { "kind": "UserProgram", "index": "0" },
       "event": {
         "kind": "Gate",
-        "qubits": [0, 1],
+        "qubits": ["0", "1"],
         "gate_name": "RZZ",
         "params": [0.25, true],
         "predicates": [{ "predicate": "ready", "result": true }]
       }
     },
     {
-      "source": { "kind": "Runtime", "start_time": 20, "end_time": 50 },
-      "event": { "kind": "Measurement", "qubit": 0 }
+      "source": { "kind": "Runtime", "start_time": "20", "end_time": "50" },
+      "event": { "kind": "Measurement", "qubit": "0" }
     },
     {
-      "source": { "kind": "ErrorModel", "index": 0 },
-      "event": { "kind": "Reset", "qubit": 1 }
+      "source": { "kind": "ErrorModel", "index": "0" },
+      "event": { "kind": "Reset", "qubit": "1" }
     },
     {
-      "source": { "kind": "Simulator", "index": 0, "duration_ns": 123 },
+      "source": { "kind": "Simulator", "index": "0", "duration_ns": "123" },
       "event": {
         "kind": "Custom",
-        "payload": { "kind": "OpaquePayload", "tag": 7, "data": "c2VsZW5l" }
+        "payload": { "kind": "OpaquePayload", "tag": "7", "data": "c2VsZW5l" }
       }
     },
     {
-      "source": { "kind": "UserProgram", "index": 1 },
+      "source": { "kind": "UserProgram", "index": "1" },
       "event": {
         "kind": "Custom",
         "payload": {

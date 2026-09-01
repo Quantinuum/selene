@@ -36,10 +36,26 @@ pub struct EventRecord {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind")]
 pub enum Source {
-    UserProgram { index: u64 },
-    Runtime { start_time: u64, end_time: u64 },
-    ErrorModel { index: u64 },
-    Simulator { index: u64, duration_ns: u64 },
+    UserProgram {
+        #[serde(with = "u64_decimal_string")]
+        index: u64,
+    },
+    Runtime {
+        #[serde(with = "u64_decimal_string")]
+        start_time: u64,
+        #[serde(with = "u64_decimal_string")]
+        end_time: u64,
+    },
+    ErrorModel {
+        #[serde(with = "u64_decimal_string")]
+        index: u64,
+    },
+    Simulator {
+        #[serde(with = "u64_decimal_string")]
+        index: u64,
+        #[serde(with = "u64_decimal_string")]
+        duration_ns: u64,
+    },
 }
 
 /// An event in the Selene trace protocol.
@@ -48,6 +64,7 @@ pub enum Source {
 pub enum Event {
     Gate {
         #[serde(default)]
+        #[serde(with = "u64_decimal_strings")]
         qubits: Vec<u64>,
         gate_name: String,
         #[serde(default)]
@@ -56,9 +73,11 @@ pub enum Event {
         predicates: Vec<PredicateResult>,
     },
     Measurement {
+        #[serde(with = "u64_decimal_string")]
         qubit: u64,
     },
     Reset {
+        #[serde(with = "u64_decimal_string")]
         qubit: u64,
     },
     Custom {
@@ -87,6 +106,7 @@ pub enum GateParameter {
 #[serde(tag = "kind")]
 pub enum CustomPayload {
     OpaquePayload {
+        #[serde(with = "u64_decimal_string")]
         tag: u64,
         #[serde(with = "base64_bytes")]
         data: Vec<u8>,
@@ -129,6 +149,58 @@ mod base64_bytes {
     }
 }
 
+mod u64_decimal_string {
+    use super::*;
+
+    pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        parse(&value).map_err(serde::de::Error::custom)
+    }
+
+    pub(super) fn parse(value: &str) -> Result<u64, &'static str> {
+        (!value.is_empty()
+            && (value == "0" || !value.starts_with('0'))
+            && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .then_some(())
+        .ok_or("expected a canonical unsigned decimal string")?;
+
+        value
+            .parse()
+            .map_err(|_| "expected an unsigned 64-bit integer")
+    }
+}
+
+mod u64_decimal_strings {
+    use super::*;
+
+    pub fn serialize<S>(values: &[u64], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_seq(values.iter().map(u64::to_string))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Vec::<String>::deserialize(deserializer)?
+            .into_iter()
+            .map(|value| u64_decimal_string::parse(&value).map_err(serde::de::Error::custom))
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +231,29 @@ mod tests {
     }
 
     #[test]
+    fn unsigned_trace_values_reject_negative_integers() {
+        for source in [
+            r#"{"kind":"UserProgram","index":"-1"}"#,
+            r#"{"kind":"Runtime","start_time":"-1","end_time":"0"}"#,
+            r#"{"kind":"Runtime","start_time":"0","end_time":"-1"}"#,
+            r#"{"kind":"ErrorModel","index":"-1"}"#,
+            r#"{"kind":"Simulator","index":"-1","duration_ns":"0"}"#,
+            r#"{"kind":"Simulator","index":"0","duration_ns":"-1"}"#,
+        ] {
+            assert!(serde_json::from_str::<Source>(source).is_err());
+        }
+
+        for event in [
+            r#"{"kind":"Gate","gate_name":"H","qubits":["-1"]}"#,
+            r#"{"kind":"Measurement","qubit":"-1"}"#,
+            r#"{"kind":"Reset","qubit":"-1"}"#,
+            r#"{"kind":"Custom","payload":{"kind":"OpaquePayload","tag":"-1","data":"dHJhY2U="}}"#,
+        ] {
+            assert!(serde_json::from_str::<Event>(event).is_err());
+        }
+    }
+
+    #[test]
     fn opaque_payload_uses_base64url_in_json() {
         let payload = CustomPayload::OpaquePayload {
             tag: 1,
@@ -167,7 +262,32 @@ mod tests {
 
         assert_eq!(
             serde_json::to_string(&payload).expect("payload must serialize"),
+            r#"{"kind":"OpaquePayload","tag":"1","data":"dHJhY2U="}"#,
+        );
+    }
+
+    #[test]
+    fn opaque_payload_tag_requires_a_canonical_uint64_decimal_string() {
+        for tag in [
+            "1",
+            "0",
+            "18446744073709551615",
+            "18446744073709551616",
+            "-1",
+            "01",
+        ] {
+            let document = format!(r#"{{"kind":"OpaquePayload","tag":{tag:?},"data":"dHJhY2U="}}"#);
+            let result = serde_json::from_str::<CustomPayload>(&document);
+
+            assert_eq!(
+                result.is_ok(),
+                matches!(tag, "0" | "1" | "18446744073709551615")
+            );
+        }
+
+        let numeric_tag = serde_json::from_str::<CustomPayload>(
             r#"{"kind":"OpaquePayload","tag":1,"data":"dHJhY2U="}"#,
         );
+        assert!(numeric_tag.is_err());
     }
 }

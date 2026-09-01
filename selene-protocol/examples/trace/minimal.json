@@ -4,11 +4,11 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 0
+        "index": "0"
       },
       "event": {
         "kind": "Gate",
-        "qubits": [0],
+        "qubits": ["0"],
         "gate_name": "RXY",
         "params": [0.5, 0],
         "predicates": []
