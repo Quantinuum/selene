@@ -44,17 +44,20 @@ bool ___measure(uint64_t q) {
     DIAGNOSTIC("   returned %s\n", result ? "true" : "false");
     return result;
 }
-uint64_t ___lazy_measure(uint64_t q) {
-    DIAGNOSTIC("___lazy_measure(%" PRIu64 ")\n", q);
-    uint64_t reference = unwrap(selene_qubit_lazy_measure(selene_instance, q));
+uint64_t ___future_measure(uint64_t q, uint64_t flags) {
+    DIAGNOSTIC("___future_measure(%" PRIu64 ", %" PRIu64 ")\n", q, flags);
+    uint64_t reference = 0;
+    switch(flags){
+        case 0:
+            reference = unwrap(selene_qubit_lazy_measure(selene_instance, q));
+        break;
+        case 1:
+            reference = unwrap(selene_qubit_lazy_measure_leaked(selene_instance, q));
+        break;
+    }
     DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
     return reference;
-}
-uint64_t ___lazy_measure_leaked(uint64_t q) {
-    DIAGNOSTIC("___lazy_measure_leaked(%" PRIu64 ")\n", q);
-    uint64_t reference = unwrap(selene_qubit_lazy_measure_leaked(selene_instance, q));
-    DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
-    return reference;
+
 }
 void ___dec_future_refcount(uint64_t r) {
     DIAGNOSTIC("___dec_future_refcount(%" PRIu64 ")\n", r);
@@ -113,4 +116,19 @@ void ___sleep(uint64_t* qubits, uint64_t qubits_len, uint64_t sleep_time) {
     }
     unwrap(selene_local_barrier(selene_instance, qubits, qubits_len, sleep_time));
     DIAGNOSTIC("   [done]\n");
+}
+
+// DEPRECATED: use ___future_measure instead
+uint64_t ___lazy_measure(uint64_t q) {
+    DIAGNOSTIC("___lazy_measure(%" PRIu64 ")\n", q);
+    uint64_t reference = unwrap(selene_qubit_lazy_measure(selene_instance, q));
+    DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
+    return reference;
+}
+
+uint64_t ___lazy_measure_leaked(uint64_t q) {
+    DIAGNOSTIC("___lazy_measure_leaked(%" PRIu64 ")\n", q);
+    uint64_t reference = unwrap(selene_qubit_lazy_measure_leaked(selene_instance, q));
+    DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
+    return reference;
 }
