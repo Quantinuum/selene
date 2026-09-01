@@ -14,8 +14,8 @@ dependencies = [
   "llvmlite==0.45.1; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "llvmlite~=0.45; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "networkx>=2.6,<4",
-  "pydantic~=2.12",
   "pydot>=4.0.0",
+  "selene-api-models~=0.1.0",
   "pyyaml>=5.0",
   "typing_extensions>=4",
   "ziglang~=0.16",
@@ -26,7 +26,7 @@ homepage = "https://github.com/quantinuum/selene/selene-core"
 repository = "https://github.com/quantinuum/selene/selene-core"
 
 [build-system]
-requires = ["hatchling", "pydantic>=2.12.5"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
@@ -38,6 +38,9 @@ dev = [
 packages = ['python/selene_core']
 exclude = ['python/selene_core/README.md']
 
+[tool.hatch.build.targets.sdist.force-include]
+"../selene-protocol/schemas/trace/0.1.0.schema.json" = "trace_schema/trace.json"
+
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
 
@@ -46,7 +49,7 @@ cache-keys = [
   { file = "examples/**/*.rs" },
   { file = "examples/**/Cargo.lock" },
   { file = "examples/**/Cargo.toml" },
-  { file = "python/selene_core/trace.py" },
+  { file = "../selene-protocol/schemas/trace/0.1.0.schema.json" },
   { file = "c/include/selene/*.h" },
   { file = "Cargo.toml" },
 ]

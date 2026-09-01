@@ -1,9 +1,10 @@
 {
+  "schema_version": "0.1.0",
   "events": [
     {
       "source": {
         "kind": "UserProgram",
-        "index": 0
+        "index": "0"
       },
       "event": {
         "kind": "Custom",
@@ -20,7 +21,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 1
+        "index": "1"
       },
       "event": {
         "kind": "Custom",
@@ -37,7 +38,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 2
+        "index": "2"
       },
       "event": {
         "kind": "Custom",
@@ -54,7 +55,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 3
+        "index": "3"
       },
       "event": {
         "kind": "Custom",

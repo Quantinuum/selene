@@ -40,5 +40,9 @@ __pycache__/
 _dist/
 
 wheelhouse/
+node_modules/
+selene-protocol/typescript/dist/
 !.cargo
 scratch/
+
+.idea

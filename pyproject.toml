@@ -62,9 +62,10 @@ dev = [
 [tool.uv.sources]
 selene-sim = { workspace = true }
 selene-core = { workspace = true }
+selene-api-models = { workspace = true }
 
 [tool.uv.workspace]
-members = ["selene-core"]
+members = ["selene-core", "selene-protocol"]
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
@@ -142,6 +143,7 @@ norecursedirs = ['*.egg', '.*', 'build', 'target', 'dist', 'venv']
 [tool.deptry]
 known_first_party = [
   "selene_sim",
+  "selene_api_models",
   # Error models
   "selene_depolarizing_error_model_plugin",
   "selene_ideal_error_model_plugin",
