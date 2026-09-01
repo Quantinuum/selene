@@ -24,6 +24,21 @@ def test_trace_requires_a_supported_protocol_version():
         Trace(events=[])
 
 
+def test_trace_requires_source_and_event_discriminators():
+    with pytest.raises(ValidationError):
+        Trace.model_validate(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "events": [
+                    {
+                        "source": {"start_time": 0, "end_time": 1},
+                        "event": {"gate_name": "H"},
+                    }
+                ],
+            }
+        )
+
+
 @pytest.mark.parametrize("example_name", ["minimal.json", "all-event-types.json"])
 def test_examples_conform_to_python_model(example_name: str):
     example_path = Path(__file__).parents[2] / "examples" / "trace" / example_name
