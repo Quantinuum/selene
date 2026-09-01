@@ -1,10 +1,55 @@
 """Python models for version 0.1.0 of the Selene trace protocol."""
 
-from typing import Annotated, Callable, Literal, Union
+from typing import Annotated, Any, Callable, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_core import core_schema
 
 SCHEMA_VERSION = "0.1.0"
+MAX_UINT64 = 2**64 - 1
+
+
+class _UInt64DecimalString:
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, _source_type: Any, _handler: Any
+    ) -> core_schema.CoreSchema:
+        decimal_string_schema = core_schema.no_info_after_validator_function(
+            cls._parse_decimal_string,
+            core_schema.str_schema(pattern=r"^(0|[1-9][0-9]*)$"),
+        )
+        return core_schema.json_or_python_schema(
+            json_schema=decimal_string_schema,
+            python_schema=core_schema.union_schema(
+                [
+                    core_schema.int_schema(strict=True, ge=0, le=MAX_UINT64),
+                    decimal_string_schema,
+                ]
+            ),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                str,
+                return_schema=core_schema.str_schema(),
+                when_used="json",
+            ),
+        )
+
+    @staticmethod
+    def _parse_decimal_string(value: str) -> int:
+        parsed = int(value)
+        if parsed > MAX_UINT64:
+            raise ValueError(
+                "value must not exceed the maximum unsigned 64-bit integer"
+            )
+        return parsed
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict[str, Any]:
+        json_schema = handler(schema)
+        json_schema["format"] = "uint64"
+        return json_schema
+
+
+UInt64DecimalString = Annotated[int, _UInt64DecimalString]
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -35,24 +80,24 @@ class PredicateResult(BaseModel):
 
 class UserProgramSource(BaseModel):
     kind: Literal["UserProgram"] = "UserProgram"
-    index: int
+    index: UInt64DecimalString
 
 
 class RuntimeSource(BaseModel):
     kind: Literal["Runtime"] = "Runtime"
-    start_time: int
-    end_time: int
+    start_time: UInt64DecimalString
+    end_time: UInt64DecimalString
 
 
 class ErrorModelSource(BaseModel):
     kind: Literal["ErrorModel"] = "ErrorModel"
-    index: int
+    index: UInt64DecimalString
 
 
 class SimulatorSource(BaseModel):
     kind: Literal["Simulator"] = "Simulator"
-    index: int
-    duration_ns: int
+    index: UInt64DecimalString
+    duration_ns: UInt64DecimalString
 
 
 class AbstractEvent(BaseModel):
@@ -66,7 +111,7 @@ class AbstractEvent(BaseModel):
 
 class GateEvent(AbstractEvent):
     kind: Literal["Gate"] = "Gate"
-    qubits: list[int] = Field(default_factory=list)
+    qubits: list[UInt64DecimalString] = Field(default_factory=list)
     gate_name: str
     params: list[float | int | bool] = Field(default_factory=list)
     predicates: list[PredicateResult] = Field(default_factory=list)
@@ -74,17 +119,17 @@ class GateEvent(AbstractEvent):
 
 class MeasurementEvent(AbstractEvent):
     kind: Literal["Measurement"] = "Measurement"
-    qubit: int
+    qubit: UInt64DecimalString
 
 
 class ResetEvent(AbstractEvent):
     kind: Literal["Reset"] = "Reset"
-    qubit: int
+    qubit: UInt64DecimalString
 
 
 class OpaquePayload(AbstractEvent):
     kind: Literal["OpaquePayload"] = "OpaquePayload"
-    tag: int
+    tag: UInt64DecimalString
     data: bytes
 
 

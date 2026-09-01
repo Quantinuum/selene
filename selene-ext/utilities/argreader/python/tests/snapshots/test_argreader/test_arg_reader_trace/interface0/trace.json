@@ -4,13 +4,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 0
+        "index": "0"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF9ib29sCnZhbHVlOiB0cnVlCg=="
         }
       }
@@ -18,13 +18,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 1
+        "index": "1"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF91NjQKdmFsdWU6IDIK"
         }
       }
@@ -32,13 +32,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 2
+        "index": "2"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF9pNjQKdmFsdWU6IC00Cg=="
         }
       }
@@ -46,13 +46,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 3
+        "index": "3"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF9mNjQKdmFsdWU6IDAuMDEyNQo="
         }
       }
@@ -60,13 +60,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 4
+        "index": "4"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF9ib29sX2FycmF5CnZhbHVlOgotIGZhbHNlCi0gdHJ1ZQotIHRydWUKLSB0cnVlCi0gdHJ1ZQo="
         }
       }
@@ -74,13 +74,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 5
+        "index": "5"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF91NjRfYXJyYXkKdmFsdWU6Ci0gOAotIDIKLSA1Ci0gNAotIDEK"
         }
       }
@@ -88,13 +88,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 6
+        "index": "6"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF9pNjRfYXJyYXkKdmFsdWU6Ci0gMTAKLSAyMAotIDE1Ci0gLTI1Ci0gMzAK"
         }
       }
@@ -102,13 +102,13 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": 7
+        "index": "7"
       },
       "event": {
         "kind": "Custom",
         "payload": {
           "kind": "OpaquePayload",
-          "tag": 11616494188317837126,
+          "tag": "11616494188317837126",
           "data": "a2V5OiBpbnB1dF9mNjRfYXJyYXkKdmFsdWU6Ci0gMC4wCi0gMC4xMjUKLSAwLjI1Ci0gMC4zNzUKLSAwLjUK"
         }
       }

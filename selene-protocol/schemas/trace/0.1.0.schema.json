@@ -27,7 +27,7 @@
     "ErrorModelSource": {
       "properties": {
         "kind": { "const": "ErrorModel", "default": "ErrorModel", "title": "Kind", "type": "string" },
-        "index": { "title": "Index", "type": "integer" }
+        "index": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Index", "type": "string" }
       },
       "required": ["kind", "index"],
       "title": "ErrorModelSource",
@@ -79,7 +79,7 @@
     "GateEvent": {
       "properties": {
         "kind": { "const": "Gate", "default": "Gate", "title": "Kind", "type": "string" },
-        "qubits": { "items": { "type": "integer" }, "title": "Qubits", "type": "array" },
+        "qubits": { "items": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "type": "string" }, "title": "Qubits", "type": "array" },
         "gate_name": { "title": "Gate Name", "type": "string" },
         "params": {
           "items": {
@@ -129,7 +129,7 @@
     "MeasurementEvent": {
       "properties": {
         "kind": { "const": "Measurement", "default": "Measurement", "title": "Kind", "type": "string" },
-        "qubit": { "title": "Qubit", "type": "integer" }
+        "qubit": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Qubit", "type": "string" }
       },
       "required": ["kind", "qubit"],
       "title": "MeasurementEvent",
@@ -138,7 +138,7 @@
     "OpaquePayload": {
       "properties": {
         "kind": { "const": "OpaquePayload", "default": "OpaquePayload", "title": "Kind", "type": "string" },
-        "tag": { "title": "Tag", "type": "integer" },
+        "tag": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Tag", "type": "string" },
         "data": { "format": "base64url", "title": "Data", "type": "string" }
       },
       "required": ["kind", "tag", "data"],
@@ -157,7 +157,7 @@
     "ResetEvent": {
       "properties": {
         "kind": { "const": "Reset", "default": "Reset", "title": "Kind", "type": "string" },
-        "qubit": { "title": "Qubit", "type": "integer" }
+        "qubit": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Qubit", "type": "string" }
       },
       "required": ["kind", "qubit"],
       "title": "ResetEvent",
@@ -166,8 +166,8 @@
     "RuntimeSource": {
       "properties": {
         "kind": { "const": "Runtime", "default": "Runtime", "title": "Kind", "type": "string" },
-        "start_time": { "title": "Start Time", "type": "integer" },
-        "end_time": { "title": "End Time", "type": "integer" }
+        "start_time": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Start Time", "type": "string" },
+        "end_time": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "End Time", "type": "string" }
       },
       "required": ["kind", "start_time", "end_time"],
       "title": "RuntimeSource",
@@ -176,8 +176,8 @@
     "SimulatorSource": {
       "properties": {
         "kind": { "const": "Simulator", "default": "Simulator", "title": "Kind", "type": "string" },
-        "index": { "title": "Index", "type": "integer" },
-        "duration_ns": { "title": "Duration Ns", "type": "integer" }
+        "index": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Index", "type": "string" },
+        "duration_ns": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Duration Ns", "type": "string" }
       },
       "required": ["kind", "index", "duration_ns"],
       "title": "SimulatorSource",
@@ -186,7 +186,7 @@
     "UserProgramSource": {
       "properties": {
         "kind": { "const": "UserProgram", "default": "UserProgram", "title": "Kind", "type": "string" },
-        "index": { "title": "Index", "type": "integer" }
+        "index": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Index", "type": "string" }
       },
       "required": ["kind", "index"],
       "title": "UserProgramSource",
