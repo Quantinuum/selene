@@ -12,6 +12,11 @@ crate-type = ["cdylib"]
 [build-dependencies]
 cc = { version="1.2" }
 
+[features]
+default = []
+cuda = ["quest-sys/cuda"]
+cuquantum = ["quest-sys/cuquantum"]
+
 [dependencies]
 anyhow = { workspace = true }
 quest-sys = {version = "0.16"}

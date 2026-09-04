@@ -46,9 +46,13 @@ jobs:
       - name: Rust format check
         run: cargo fmt --all -- --check
       - name: Rust lint
-        run: cargo clippy --all --all-features -- -D warnings
+        run: |
+          cargo clippy --workspace --all-features --exclude selene-simulator-quest -- -D warnings
+          cargo clippy --package selene-simulator-quest -- -D warnings
       - name: Build docs
-        run: cargo doc --no-deps --all-features
+        run: |
+          cargo doc --no-deps --workspace --all-features --exclude selene-simulator-quest
+          cargo doc --no-deps --package selene-simulator-quest
         env:
           RUSTDOCFLAGS: "-Dwarnings"
       - name: UV sync

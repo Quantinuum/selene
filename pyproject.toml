@@ -1,5 +1,12 @@
 [build-system]
-requires = ["hatchling", "packaging"]
+requires = [
+  "hatchling",
+  "packaging",
+  "custatevec-cu12>=1.8.0; sys_platform == 'linux'",
+  "nvidia-cuda-cccl-cu12>=12.9.27; sys_platform == 'linux'",
+  "nvidia-cuda-runtime-cu12>=12.9.37; sys_platform == 'linux'",
+  "nvidia-cublas-cu12>=12.9.0.13; sys_platform == 'linux'",
+]
 build-backend = "hatchling.build"
 
 [project]
@@ -16,6 +23,7 @@ dependencies = [
   # TODO: decide if we want this as a formal dependency or not
   #"selene-hugr-qis-compiler~=0.3.0", 
 ]
+
 authors = [
   { name = "Jake Arkinstall", email = "jake.arkinstall@quantinuum.com" },
   { name = "TKET development team", email = "tket-support@quantinuum.com" },
@@ -39,6 +47,13 @@ classifiers = [
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[project.optional-dependencies]
+quest-cuquantum = [
+  "custatevec-cu12>=1.8.0; sys_platform == 'linux'",
+  "nvidia-cuda-runtime-cu12>=12.9.37; sys_platform == 'linux'",
+  "nvidia-cublas-cu12>=12.9.0.13; sys_platform == 'linux'",
 ]
 
 [project.urls]
@@ -137,6 +152,9 @@ exclude = ["test_.*.py$", "^target/.*$", "^selene-core/.*$", "^scratch/.*$"]
 
 [tool.pytest.ini_options]
 norecursedirs = ['*.egg', '.*', 'build', 'target', 'dist', 'venv']
+markers = [
+  "cuda: tests that execute on a CUDA-capable GPU",
+]
 
 
 [tool.deptry]
@@ -193,12 +211,28 @@ skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-frontend = { name = "build[uv]", args = ["-C--profile=release"] }
 environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-groups = ["test"]
-test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
+test-command = "pytest -m 'not cuda' {project}/selene-sim {project}/selene-ext {project}/selene-core"
 [tool.cibuildwheel.linux]
-environment = { PATH = "$PATH:$HOME/.cargo/bin" }
+environment = { PATH = "$PATH:$HOME/.cargo/bin:/usr/local/cuda-12.9/bin" }
+repair-wheel-command = '''
+    auditwheel repair \
+        --exclude libcustatevec.so.1 \
+        --exclude libcudart.so.12 \
+        --exclude libcublas.so.12 \
+        --exclude libcublasLt.so.12 \
+        --only-plat \
+        -w {dest_dir} {wheel}
+'''
 before-all = '''
     # clean any non-version-controlled files, e.g. when building locally.
     git clean -dfX;
+
+    # QuEST's optional GPU implementations are compiled into additional shared
+    # objects. CUDA hardware is not needed to build them, but nvcc is.
+    cuda_arch=x86_64;
+    if [ "$(uname -m)" = "aarch64" ]; then cuda_arch=sbsa; fi;
+    curl -fsSL "https://developer.download.nvidia.com/compute/cuda/repos/rhel8/${cuda_arch}/cuda-rhel8.repo" -o /etc/yum.repos.d/cuda-rhel8.repo;
+    dnf -y install cuda-nvcc-12-9;
 
     # extract any caching if present
     if [ -d /host/tmp/ci-cache/selene/.cargo ]; then

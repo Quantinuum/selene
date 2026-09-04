@@ -16,7 +16,7 @@
 
     enterShell = ''
       eval "$(just --completions bash)"
-      export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc ]}:/usr/lib/wsl/lib:''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     '';
 
     env = {

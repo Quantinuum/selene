@@ -2,6 +2,7 @@ import subprocess
 import shutil
 import sys
 import os
+from importlib.metadata import distribution
 from packaging.tags import sys_tags
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from pathlib import Path
@@ -69,6 +70,103 @@ class CargoWorkspaceBuild:
             ]
         )
         self.hook.app.display_success("Cargo build completed successfully")
+
+    def build_quest_gpu_variants(self):
+        """Build and distribute the Linux-only GPU variants of QuEST."""
+        if sys.platform != "linux":
+            return
+
+        cudart_header = self._distribution_file(
+            "nvidia-cuda-runtime-cu12",
+            "nvidia/cuda_runtime/include/cuda_runtime.h",
+        )
+        cudart_library = self._distribution_file(
+            "nvidia-cuda-runtime-cu12",
+            "nvidia/cuda_runtime/lib/libcudart_static.a",
+        )
+        cccl_header = self._distribution_file(
+            "nvidia-cuda-cccl-cu12",
+            "nvidia/cuda_cccl/include/thrust/device_ptr.h",
+        )
+        gpu_env = os.environ.copy()
+        self._prepend_env_path(gpu_env, "CPATH", cudart_header.parent)
+        self._prepend_env_path(gpu_env, "CPATH", cccl_header.parent.parent)
+        self._prepend_env_path(gpu_env, "LIBRARY_PATH", cudart_library.parent)
+        self._build_quest_variant("cuda", "libselene_quest_cuda_plugin.so", env=gpu_env)
+
+        custatevec_header = self._distribution_file(
+            "custatevec-cu12", "cuquantum/include/custatevec.h"
+        )
+        custatevec_library = self._distribution_file(
+            "custatevec-cu12", "cuquantum/lib/libcustatevec.so.1"
+        )
+        link_dir = Path(self.hook.root) / "target/quest-cuquantum-link"
+        link_dir.mkdir(parents=True, exist_ok=True)
+        unversioned_library = link_dir / "libcustatevec.so"
+        unversioned_library.unlink(missing_ok=True)
+        unversioned_library.symlink_to(custatevec_library)
+
+        cuquantum_env = gpu_env.copy()
+        cuquantum_env["CUSTATE_INCLUDE_DIR"] = str(custatevec_header.parent)
+        self._prepend_env_path(cuquantum_env, "LIBRARY_PATH", link_dir)
+        self._build_quest_variant(
+            "cuquantum",
+            "libselene_quest_cuquantum_plugin.so",
+            env=cuquantum_env,
+        )
+
+    @staticmethod
+    def _prepend_env_path(env: dict[str, str], name: str, path: Path) -> None:
+        current = env.get(name)
+        env[name] = os.pathsep.join(filter(None, [str(path), current]))
+
+    @staticmethod
+    def _distribution_file(package: str, filename: str) -> Path:
+        installed = distribution(package)
+        for file in installed.files or []:
+            if file.as_posix().endswith(filename):
+                return Path(file.locate())
+        raise FileNotFoundError(f"Could not find {filename!r} in {package!r}")
+
+    def _build_quest_variant(
+        self, feature: str, output_filename: str, env: dict[str, str] | None = None
+    ):
+        self.hook.app.display_mini_header(f"Building {feature} QuEST plugin")
+        target_dir = Path(self.hook.root) / f"target/quest-{feature}"
+        self._run_build(
+            [
+                "cargo",
+                "build",
+                "--release",
+                "--locked",
+                "--package",
+                "selene-simulator-quest",
+                "--features",
+                feature,
+                "--target-dir",
+                str(target_dir),
+            ],
+            env=env,
+        )
+
+        target = os.environ.get("CARGO_BUILD_TARGET")
+        release_dir = (
+            target_dir / target / "release" if target else target_dir / "release"
+        )
+        library = release_dir / "libselene_quest_plugin.so"
+        assert library.exists(), (
+            f"Compiled {feature} QuEST plugin not found at {library}"
+        )
+
+        destination = (
+            Path(self.hook.root)
+            / "selene-ext/simulators/quest/python/selene_quest_plugin/_dist/lib"
+        )
+        destination.mkdir(parents=True, exist_ok=True)
+        output_library = destination / output_filename
+        self.hook.app.display_info(f"Copying {library} to {output_library}")
+        shutil.copy(library, output_library)
+        self.hook.app.display_success(f"{feature} QuEST plugin build completed")
 
     def extract_libs(self):
         release_dir = self.hook.get_cargo_release_dir()
@@ -283,6 +381,7 @@ class BundleBuildHook(BuildHookInterface):
         cargo_runner = CargoWorkspaceBuild(self)
         cargo_runner.build_all()
         cargo_runner.extract_libs()
+        cargo_runner.build_quest_gpu_variants()
         self.build_selene_c_interface()
         self.build_base_qis()
         self.build_platform_qis("helios")
