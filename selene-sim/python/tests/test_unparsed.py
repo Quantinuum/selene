@@ -296,6 +296,7 @@ def test_panic_unparsed(compiled_guppy):
             n_shots=100,
             random_seed=1,
             parse_results=False,
+            seed_mode="legacy",
         )
     )
     assert error is not None

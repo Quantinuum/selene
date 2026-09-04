@@ -71,8 +71,14 @@ def test_flip_some(compiled_guppy):
     # the coinflip simulator should reliably produce identical results across platforms.
     # note that a change in the runtime optimiser might reorder the evaluation of measurements,
     # resulting in a permutation.
-    got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4))
-    assert got["cs"] == [1, 0, 0, 1], f"Coinflip test: expected {expected}, got {got}"
+    got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4, seed_mode="legacy"))
+    assert got["cs"] == [1, 0, 0, 1], (
+        f"Coinflip test (legacy seeding): expected [1, 0, 0, 1], got {got}"
+    )
+    got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4, seed_mode="default"))
+    assert got["cs"] == [1, 1, 0, 1], (
+        f"Coinflip test (default seeding): expected [1, 1, 0, 1], got {got}"
+    )
     # and the replay simulator should produce the same results as the input.
     # for this program this results in trivial behaviour, but it's useful to
     # verify the basics.
@@ -229,7 +235,8 @@ def test_panic(compiled_guppy):
         )
 
 
-def test_measure_leaked(snapshot, compiled_guppy):
+@pytest.mark.parametrize("seed_mode", ["default", "legacy"])
+def test_measure_leaked(snapshot, compiled_guppy, seed_mode):
     cx_from_head_source = dedent(
         """
         from guppylang.decorator import guppy
@@ -272,6 +279,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
             error_model=error_model,
             n_qubits=40,
             n_shots=50,
+            seed_mode=seed_mode,
         )
     ]
     snapshot.assert_match(
@@ -316,6 +324,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
             error_model=error_model,
             n_qubits=40,
             n_shots=50,
+            seed_mode=seed_mode,
         )
     ]
     snapshot.assert_match(
@@ -388,6 +397,7 @@ def test_rus(compiled_guppy):
             n_qubits=4,
             n_shots=10,
             timeout=datetime.timedelta(seconds=1),
+            seed_mode="legacy",
         )
     )
     measured = "".join(shots.register_bitstrings()["result"])

@@ -1,3 +1,6 @@
+use anyhow::{Result, bail};
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64Mcg;
 use selene_core::encoder::{InternalBuffer, OutputWriter};
 use serde::Deserialize;
 use std::io::Write;
@@ -49,6 +52,7 @@ pub struct Configuration {
     pub runtime: PluginConfig,
     pub event_hooks: EventHookConfig,
     pub shots: ShotConfig,
+    pub seed_mode: String,
 }
 
 impl Configuration {
@@ -90,6 +94,22 @@ impl Configuration {
                     }
                     _ => panic!("Unsupported output scheme: {}", url.scheme()),
                 }
+            }
+        }
+    }
+    pub fn get_seed_for_shot(&self, start_seed: u64, shot_id: u64) -> Result<u64> {
+        match self.seed_mode.as_str() {
+            "default" => {
+                let mut rng = Pcg64Mcg::seed_from_u64(start_seed);
+                rng.advance(shot_id.into());
+                Ok(rng.random::<u64>())
+            }
+            "legacy" => Ok(start_seed.wrapping_add(shot_id)),
+            _ => {
+                bail!(
+                    "Unsupported seed mode: {}. Supported modes are 'default' and 'legacy'.",
+                    self.seed_mode
+                )
             }
         }
     }

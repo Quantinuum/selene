@@ -1,11 +1,13 @@
 from textwrap import dedent
+import pytest
 
 from selene_sim import Stim, DepolarizingErrorModel, SoftRZRuntime
 from selene_sim.build import build
 from selene_sim.event_hooks import CircuitExtractor
 
 
-def test_ghz_trace(compiled_guppy, snapshot):
+@pytest.mark.parametrize("seed_mode", ["default", "legacy"])
+def test_ghz_trace(compiled_guppy, snapshot, seed_mode):
     guppy_source = dedent(
         """
         from guppylang.decorator import guppy
@@ -39,6 +41,7 @@ def test_ghz_trace(compiled_guppy, snapshot):
             n_qubits=10,
             random_seed=10,
             event_hook=circuit_extractor,
+            seed_mode=seed_mode,
         )
     )
     trace = circuit_extractor.shots[0].get_trace()

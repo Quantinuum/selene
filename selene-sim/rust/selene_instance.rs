@@ -80,9 +80,15 @@ impl SeleneInstance {
         let shot_id = self.config.shots.offset + self.config.shots.increment * shot_index;
         self.shot_number = shot_id;
         self.print_shot_start()?;
-        let runtime_seed = self.config.runtime.seed + shot_id;
-        let error_model_seed = self.config.error_model.seed + shot_id;
-        let simulator_seed = self.config.simulator.seed + shot_id;
+        let runtime_seed = self
+            .config
+            .get_seed_for_shot(self.config.runtime.seed, shot_id)?;
+        let error_model_seed = self
+            .config
+            .get_seed_for_shot(self.config.error_model.seed, shot_id)?;
+        let simulator_seed = self
+            .config
+            .get_seed_for_shot(self.config.simulator.seed, shot_id)?;
 
         // Now we fire off any shot start event hooks and prepare the
         // runtime and error model for the new shot.
