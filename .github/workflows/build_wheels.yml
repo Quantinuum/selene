@@ -110,6 +110,10 @@ jobs:
           mkdir /tmp/ci-cache
           chmod 755 /tmp/ci-cache
 
+      - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
+        with:
+          packages: "llvm"
+
       # --------------------------------
       # Build selene-sim wheel
       # --------------------------------

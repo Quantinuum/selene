@@ -1,9 +1,9 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 from enum import Enum
 
 from ..exceptions import (
-    SelenePanicError,
     SeleneStartupError,
     SeleneRuntimeError,
 )
@@ -36,6 +36,18 @@ class FullPanicMessage:
 
     message: str
     code: int
+
+
+@dataclass
+class DebugTraceMessage:
+    """
+    Upon a panic, this may be emitted to provide the address of each element in the
+    stack frame. This address may be utilised to extract symbol information for
+    stacktrace printing.
+    """
+
+    module: Path
+    address: int
 
 
 @dataclass
@@ -133,11 +145,13 @@ ShotEntry = (
     UserResult
     | UserStateResult
     | ShotExitMessage
+    | FullPanicMessage
     | MetricValue
     | InstructionLogEntry
     | ShotMeasurements
+    | DebugTraceMessage
 )
-ExtractedStreamEntry = ShotStart | ShotEnd | ShotEntry | FullPanicMessage
+ExtractedStreamEntry = ShotStart | ShotEnd | ShotEntry
 
 
 def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
@@ -165,6 +179,12 @@ def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
             return FullPanicMessage(message=entry.tag, code=code)
         else:
             return ShotExitMessage(message=entry.tag, code=code)
+    elif entry.tag.startswith("DEBUG:BACKTRACE:"):
+        module = entry.tag.split(":", maxsplit=2)[-1]
+        assert isinstance(entry.values[0], int), (
+            f"Expected backtrace address to be an integer, got {type(entry.values[0])}"
+        )
+        return DebugTraceMessage(module=Path(module), address=entry.values[0])
     elif entry.tag.startswith("USER:"):
         if entry.tag.startswith("USER:STATE:"):
             assert len(entry.values) == 1, (
@@ -244,12 +264,12 @@ def extract_shot(
                     raise SeleneRuntimeError(
                         f"Received shot end for shot ID {reported_shot_id} while shot ID {shot_id} is in progress"
                     )
-            case ShotExitMessage(message=message, code=code) as exit_msg:
+            case ShotExitMessage() as exit_msg:
                 shot_status = ShotStatus.ENDING
                 yield exit_msg
-            case FullPanicMessage(message=message, code=code):
+            case FullPanicMessage() as panic:
                 shot_status = ShotStatus.ENDING
-                raise SelenePanicError(message=message, code=code)
+                yield panic
             case other:
                 # all other entries, such as user results, state results, metadata, etc
                 # are expected strictly within shot boundaries.

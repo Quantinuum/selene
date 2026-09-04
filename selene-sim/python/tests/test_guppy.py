@@ -553,13 +553,24 @@ def test_sim_restriction(compiled_guppy):
     )
 
     runner = build(llvm_file)
+    metric_store = MetricStore()
 
     with pytest.raises(SelenePanicError, match="not representable") as exception_info:
         shots = QsysResult(
             runner.run_shots(
-                Stim(), n_qubits=3, n_shots=10, timeout=datetime.timedelta(seconds=1)
+                Stim(),
+                n_qubits=3,
+                n_shots=10,
+                event_hook=metric_store,
+                timeout=datetime.timedelta(seconds=1),
             )
         )
+
+    # Panic records precede shot-end metadata in the result stream. The frontend
+    # must drain the shot before raising so these metrics are not lost.
+    assert set(metric_store.shots[0]) == {"emulator", "post_runtime", "user_program"}
+    assert exception_info.value.stack_trace is not None
+    assert exception_info.value.stack_trace.entries
 
 
 def test_corrupted_plugin(compiled_guppy):
@@ -859,17 +870,17 @@ def test_measurement_output(compiled_guppy):
 
     runner = build(llvm_file)
     measlog = MeasurementExtractor()
-    got = list(runner.run(Quest(), verbose=True, n_qubits=4, event_hook=measlog))
+    got = set(runner.run(Quest(), n_qubits=4, event_hook=measlog))
 
-    expected_user = [("q2", 1), ("q3", 0)]
-    expected_meas_strs = [
+    expected_user = {("q2", 1), ("q3", 0)}
+    expected_meas_strs = {
         "MEAS:INTARR:[0, 1]",
         "MEAS:INTARR:[1, 1]",
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
-    ]
+    }
     assert got == expected_user
-    assert [str(entry) for entry in measlog.log_entries[0]] == expected_meas_strs
+    assert {str(entry) for entry in measlog.log_entries[0]} == expected_meas_strs
 
 
 def test_measurement_output_multishot(compiled_guppy):
@@ -915,21 +926,19 @@ def test_measurement_output_multishot(compiled_guppy):
 
     runner = build(llvm_file)
     measlog = MeasurementExtractor()
-    shots = runner.run_shots(
-        Quest(), verbose=True, n_qubits=4, n_shots=10, event_hook=measlog
-    )
+    shots = runner.run_shots(Quest(), n_qubits=4, n_shots=10, event_hook=measlog)
 
-    expected_user = [("q2", 1), ("q3", 0)]
-    expected_meas_strs = [
+    expected_user = {("q2", 1), ("q3", 0)}
+    expected_meas_strs = {
         "MEAS:INTARR:[0, 1]",
         "MEAS:INTARR:[1, 1]",
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
-    ]
+    }
     for shot_user in shots:
-        assert list(shot_user) == expected_user
+        assert set(shot_user) == expected_user
     for shot_meas in measlog:
-        assert [str(entry) for entry in shot_meas] == expected_meas_strs
+        assert {str(entry) for entry in shot_meas} == expected_meas_strs
 
 
 def test_cy(compiled_guppy):

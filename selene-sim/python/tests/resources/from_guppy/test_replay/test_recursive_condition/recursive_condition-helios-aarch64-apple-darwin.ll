@@ -10,16 +10,16 @@ define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   br label %tailrecurse.i
 
-tailrecurse.i:                                    ; preds = %__hugr__.__tk2_helios_qalloc.44.exit.i, %alloca_block
+tailrecurse.i:                                    ; preds = %__hugr__.__tk2_helios_qalloc.32.exit.i, %alloca_block
   %qalloc.i.i = tail call i64 @___qalloc()
   %not_max.not.not.i.i = icmp eq i64 %qalloc.i.i, -1
-  br i1 %not_max.not.not.i.i, label %cond_48_case_0.i.i, label %__hugr__.__tk2_helios_qalloc.44.exit.i
+  br i1 %not_max.not.not.i.i, label %cond_36_case_0.i.i, label %__hugr__.__tk2_helios_qalloc.32.exit.i
 
-cond_48_case_0.i.i:                               ; preds = %tailrecurse.i
+cond_36_case_0.i.i:                               ; preds = %tailrecurse.i
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_helios_qalloc.44.exit.i:           ; preds = %tailrecurse.i
+__hugr__.__tk2_helios_qalloc.32.exit.i:           ; preds = %tailrecurse.i
   tail call void @___reset(i64 %qalloc.i.i)
   tail call void @___rxy(i64 %qalloc.i.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i.i, double 0x400921FB54442D18)
@@ -28,9 +28,9 @@ __hugr__.__tk2_helios_qalloc.44.exit.i:           ; preds = %tailrecurse.i
   %read_bool.i = tail call i1 @___read_future_bool(i64 %lazy_measure.i)
   tail call void @___dec_future_refcount(i64 %lazy_measure.i)
   tail call void @print_bool(ptr nonnull @res_c.1C9EF4D1.0, i64 11, i1 %read_bool.i)
-  br i1 %read_bool.i, label %tailrecurse.i, label %__hugr__.__main__.recursive_condition.12.exit
+  br i1 %read_bool.i, label %tailrecurse.i, label %__hugr__.__main__.recursive_condition.5.exit
 
-__hugr__.__main__.recursive_condition.12.exit:    ; preds = %__hugr__.__tk2_helios_qalloc.44.exit.i
+__hugr__.__main__.recursive_condition.5.exit:     ; preds = %__hugr__.__tk2_helios_qalloc.32.exit.i
   ret void
 }
 

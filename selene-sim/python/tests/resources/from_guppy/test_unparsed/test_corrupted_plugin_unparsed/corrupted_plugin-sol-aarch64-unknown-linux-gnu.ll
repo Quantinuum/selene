@@ -10,13 +10,13 @@ define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_21_case_0.i, label %__hugr__.__tk2_sol_qalloc.17.exit
+  br i1 %not_max.not.not.i, label %cond_13_case_0.i, label %__hugr__.__tk2_sol_qalloc.9.exit
 
-cond_21_case_0.i:                                 ; preds = %alloca_block
+cond_13_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.17.exit:                ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.9.exit:                 ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
   tail call void @___rp(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i, double 0x400921FB54442D18)

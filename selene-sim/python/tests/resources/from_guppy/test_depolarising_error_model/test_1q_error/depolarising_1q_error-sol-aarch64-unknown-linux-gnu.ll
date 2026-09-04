@@ -11,47 +11,35 @@ define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_34_case_0.i, label %__hugr__.__tk2_sol_qalloc.30.exit
+  br i1 %not_max.not.not.i, label %cond_17_case_0.i, label %__hugr__.__tk2_sol_qalloc.13.exit
 
-cond_34_case_0.i:                                 ; preds = %alloca_block
+cond_17_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.30.exit:                ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.13.exit:                ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
   tail call void @___rp(i64 %qalloc.i, double 0x400921FB54442D18, double 0.000000e+00)
-  %qalloc.i22 = tail call i64 @___qalloc()
-  %not_max.not.not.i23 = icmp eq i64 %qalloc.i22, -1
-  br i1 %not_max.not.not.i23, label %cond_48_case_0.i, label %__hugr__.__tk2_sol_qalloc.44.exit
+  %qalloc.i14 = tail call i64 @___qalloc()
+  %not_max.not.not.i15 = icmp eq i64 %qalloc.i14, -1
+  br i1 %not_max.not.not.i15, label %cond_17_case_0.i16, label %__hugr__.__tk2_sol_qalloc.13.exit17
 
-cond_48_case_0.i:                                 ; preds = %__hugr__.__tk2_sol_qalloc.30.exit
+cond_17_case_0.i16:                               ; preds = %__hugr__.__tk2_sol_qalloc.13.exit
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.44.exit:                ; preds = %__hugr__.__tk2_sol_qalloc.30.exit
-  tail call void @___reset(i64 %qalloc.i22)
-  tail call void @___rp(i64 %qalloc.i22, double 0x400921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rp(i64 %qalloc.i22, double 0x400921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rp(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rpp(i64 %qalloc.i, i64 %qalloc.i22, double 0x3FF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i22, double 0xBFF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i, double 0xBFF921FB54442D18)
-  tail call void @___rp(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rpp(i64 %qalloc.i, i64 %qalloc.i22, double 0x3FF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i22, double 0xBFF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i, double 0xBFF921FB54442D18)
+__hugr__.__tk2_sol_qalloc.13.exit17:              ; preds = %__hugr__.__tk2_sol_qalloc.13.exit
+  tail call void @___reset(i64 %qalloc.i14)
   %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
   %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
   tail call void @___dec_future_refcount(i64 %lazy_measure)
   tail call void @print_bool(ptr nonnull @res_c1.1F7A6571.0, i64 12, i1 %read_bool)
-  %lazy_measure13 = tail call i64 @___lazy_measure(i64 %qalloc.i22)
-  tail call void @___qfree(i64 %qalloc.i22)
-  %read_bool15 = tail call i1 @___read_future_bool(i64 %lazy_measure13)
-  tail call void @___dec_future_refcount(i64 %lazy_measure13)
-  tail call void @print_bool(ptr nonnull @res_c2.60825383.0, i64 12, i1 %read_bool15)
+  %lazy_measure7 = tail call i64 @___lazy_measure(i64 %qalloc.i14)
+  tail call void @___qfree(i64 %qalloc.i14)
+  %read_bool9 = tail call i1 @___read_future_bool(i64 %lazy_measure7)
+  tail call void @___dec_future_refcount(i64 %lazy_measure7)
+  tail call void @print_bool(ptr nonnull @res_c2.60825383.0, i64 12, i1 %read_bool9)
   ret void
 }
 
@@ -73,10 +61,6 @@ declare void @___reset(i64) local_unnamed_addr
 declare void @panic(i32, ptr) local_unnamed_addr #0
 
 declare void @___rp(i64, double, double) local_unnamed_addr
-
-declare void @___rpp(i64, i64, double, double) local_unnamed_addr
-
-declare void @___rz(i64, double) local_unnamed_addr
 
 define i64 @qmain(i64 %0) local_unnamed_addr {
 entry:

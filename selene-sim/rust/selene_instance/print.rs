@@ -1,3 +1,4 @@
+use super::super::backtrace::Module;
 use super::SeleneInstance;
 use anyhow::Result;
 use selene_core::encoder::{OutputStream, StreamWritable};
@@ -23,6 +24,29 @@ impl SeleneInstance {
     pub fn print<T: StreamWritable>(&mut self, tag: &str, value: T) -> Result<()> {
         print_directly_to_stream(&mut self.out_encoder, self.time_cursor, tag, value)
     }
+    fn emit_debug_trace(&mut self) -> Result<()> {
+        // Capture the backtrace at the point of the panic and include it in the output stream.
+        // This can be used by the frontend to provide more context about where a panic occurred,
+        // which is especially useful for panics originating from compiled user code, where the
+        // source of the panic may not be immediately obvious.
+        let mut status = Ok(());
+        backtrace::trace(|frame| {
+            let ip = frame.ip() as u64;
+            if ip != 0 {
+                let pc = ip - 1;
+                let Some(module) = Module::from_program_counter(pc) else {
+                    return true;
+                };
+                let tag = format!("DEBUG:BACKTRACE:{}", module.path.display());
+                if let Err(e) = self.print(&tag, module.address) {
+                    status = Err(anyhow::anyhow!("Failed to emit debug trace: {:?}", e));
+                    return false;
+                }
+            }
+            true
+        });
+        status
+    }
     pub fn print_panic(&mut self, message: &str, error_code: u32) -> Result<()> {
         // In some cases, e.g. the compiled user program, the exit namespace is already
         // encoded in the provided message. In others, e.g. runtime panics from components,
@@ -32,7 +56,14 @@ impl SeleneInstance {
         } else {
             format!("EXIT:INT:{}", message)
         };
-        self.print(&tag, error_code as u64)
+        self.print(&tag, error_code as u64)?;
+
+        if error_code >= 1000 {
+            // The panic is already safely in the stream. A backtrace is supplementary
+            // and must not prevent the original panic from being reported.
+            let _ = self.emit_debug_trace();
+        }
+        Ok(())
     }
     pub fn print_exit(&mut self, message: &str, error_code: u32) -> Result<()> {
         // At present, we handle exits in the same way as panics - the code

@@ -303,6 +303,9 @@ def test_panic_unparsed(compiled_guppy):
     assert isinstance(error, SelenePanicError)
     assert error.code == 1001
     assert error.message == "Postselection failed"
+    assert error.stack_trace is not None
+    assert error.stack_trace.entries
+    assert error.stack_trace.symbolization_attempted
 
     assert len(shots) == 3
     assert shots[0] == [("USER:BOOL:c", 0)]

@@ -10,11 +10,11 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: noreturn
 define void @__hugr__.__main__.main.1() local_unnamed_addr #0 {
 alloca_block:
-  %0 = tail call fastcc i64 @__hugr__.__tk2_helios_qalloc.39()
-  %1 = tail call fastcc i64 @__hugr__.__tk2_helios_h.81(i64 %0)
-  %2 = tail call fastcc i64 @__hugr__.__tk2_helios_qalloc.53()
-  %3 = tail call fastcc i64 @__hugr__.__tk2_helios_qalloc.67()
-  %4 = tail call fastcc i64 @__hugr__.__tk2_helios_toffoli.92(i64 %0, i64 %2, i64 %3)
+  %0 = tail call fastcc i64 @__hugr__.__tk2_helios_qalloc.26()
+  %1 = tail call fastcc i64 @__hugr__.__tk2_helios_h.40(i64 %0)
+  %2 = tail call fastcc i64 @__hugr__.__tk2_helios_qalloc.26()
+  %3 = tail call fastcc i64 @__hugr__.__tk2_helios_qalloc.26()
+  %4 = tail call fastcc i64 @__hugr__.__tk2_helios_toffoli.52(i64 %0, i64 %2, i64 %3)
   %lazy_measure = tail call i64 @___lazy_measure(i64 %4)
   tail call void @___qfree(i64 %4)
   %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
@@ -24,59 +24,29 @@ alloca_block:
   unreachable
 }
 
-define internal fastcc range(i64 0, -1) i64 @__hugr__.__tk2_helios_qalloc.39() unnamed_addr {
+define internal fastcc range(i64 0, -1) i64 @__hugr__.__tk2_helios_qalloc.26() unnamed_addr {
 alloca_block:
   %qalloc = tail call i64 @___qalloc()
   %not_max.not.not = icmp eq i64 %qalloc, -1
-  br i1 %not_max.not.not, label %cond_43_case_0, label %reset_bb
+  br i1 %not_max.not.not, label %cond_30_case_0, label %reset_bb
 
 reset_bb:                                         ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc)
   ret i64 %qalloc
 
-cond_43_case_0:                                   ; preds = %alloca_block
+cond_30_case_0:                                   ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 }
 
-define internal fastcc i64 @__hugr__.__tk2_helios_h.81(i64 returned %0) unnamed_addr {
+define internal fastcc i64 @__hugr__.__tk2_helios_h.40(i64 returned %0) unnamed_addr {
 alloca_block:
   tail call void @___rxy(i64 %0, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %0, double 0x400921FB54442D18)
   ret i64 %0
 }
 
-define internal fastcc range(i64 0, -1) i64 @__hugr__.__tk2_helios_qalloc.53() unnamed_addr {
-alloca_block:
-  %qalloc = tail call i64 @___qalloc()
-  %not_max.not.not = icmp eq i64 %qalloc, -1
-  br i1 %not_max.not.not, label %cond_57_case_0, label %reset_bb
-
-reset_bb:                                         ; preds = %alloca_block
-  tail call void @___reset(i64 %qalloc)
-  ret i64 %qalloc
-
-cond_57_case_0:                                   ; preds = %alloca_block
-  tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
-  unreachable
-}
-
-define internal fastcc range(i64 0, -1) i64 @__hugr__.__tk2_helios_qalloc.67() unnamed_addr {
-alloca_block:
-  %qalloc = tail call i64 @___qalloc()
-  %not_max.not.not = icmp eq i64 %qalloc, -1
-  br i1 %not_max.not.not, label %cond_71_case_0, label %reset_bb
-
-reset_bb:                                         ; preds = %alloca_block
-  tail call void @___reset(i64 %qalloc)
-  ret i64 %qalloc
-
-cond_71_case_0:                                   ; preds = %alloca_block
-  tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
-  unreachable
-}
-
-define internal fastcc i64 @__hugr__.__tk2_helios_toffoli.92(i64 %0, i64 %1, i64 %2) unnamed_addr {
+define internal fastcc i64 @__hugr__.__tk2_helios_toffoli.52(i64 %0, i64 %1, i64 %2) unnamed_addr {
 alloca_block:
   tail call void @___rxy(i64 %2, double 0x400921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rzz(i64 %1, i64 %2, double 0x3FF921FB54442D18)

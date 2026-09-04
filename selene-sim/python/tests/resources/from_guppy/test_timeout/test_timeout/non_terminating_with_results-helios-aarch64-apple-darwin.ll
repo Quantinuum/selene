@@ -9,27 +9,27 @@ target triple = "aarch64-apple-darwin"
 ; Function Attrs: noreturn
 define void @__hugr__.__main__.main.1() local_unnamed_addr #0 {
 alloca_block:
-  %qalloc.i12 = tail call i64 @___qalloc()
-  %not_max.not.not.i13 = icmp eq i64 %qalloc.i12, -1
-  br i1 %not_max.not.not.i13, label %cond_30_case_0.i, label %__hugr__.__tk2_helios_qalloc.26.exit
+  %qalloc.i8 = tail call i64 @___qalloc()
+  %not_max.not.not.i9 = icmp eq i64 %qalloc.i8, -1
+  br i1 %not_max.not.not.i9, label %cond_20_case_0.i, label %__hugr__.__tk2_helios_qalloc.16.exit
 
-cond_30_case_0.i:                                 ; preds = %__hugr__.__tk2_helios_qalloc.26.exit, %alloca_block
+cond_20_case_0.i:                                 ; preds = %__hugr__.__tk2_helios_qalloc.16.exit, %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_helios_qalloc.26.exit:             ; preds = %alloca_block, %__hugr__.__tk2_helios_qalloc.26.exit
-  %qalloc.i14 = phi i64 [ %qalloc.i, %__hugr__.__tk2_helios_qalloc.26.exit ], [ %qalloc.i12, %alloca_block ]
-  tail call void @___reset(i64 %qalloc.i14)
-  tail call void @___rxy(i64 %qalloc.i14, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i14, double 0x400921FB54442D18)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i14)
-  tail call void @___qfree(i64 %qalloc.i14)
+__hugr__.__tk2_helios_qalloc.16.exit:             ; preds = %alloca_block, %__hugr__.__tk2_helios_qalloc.16.exit
+  %qalloc.i10 = phi i64 [ %qalloc.i, %__hugr__.__tk2_helios_qalloc.16.exit ], [ %qalloc.i8, %alloca_block ]
+  tail call void @___reset(i64 %qalloc.i10)
+  tail call void @___rxy(i64 %qalloc.i10, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
+  tail call void @___rz(i64 %qalloc.i10, double 0x400921FB54442D18)
+  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i10)
+  tail call void @___qfree(i64 %qalloc.i10)
   %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
   tail call void @___dec_future_refcount(i64 %lazy_measure)
   tail call void @print_bool(ptr nonnull @res_r.F13F95F2.0, i64 11, i1 %read_bool)
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_30_case_0.i, label %__hugr__.__tk2_helios_qalloc.26.exit
+  br i1 %not_max.not.not.i, label %cond_20_case_0.i, label %__hugr__.__tk2_helios_qalloc.16.exit
 }
 
 declare i64 @___lazy_measure(i64) local_unnamed_addr

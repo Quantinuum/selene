@@ -10,86 +10,86 @@ define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_87_case_0.i, label %__hugr__.__tk2_sol_qalloc.83.exit
+  br i1 %not_max.not.not.i, label %cond_48_case_0.i, label %__hugr__.__tk2_sol_qalloc.44.exit
 
-cond_87_case_0.i:                                 ; preds = %alloca_block
+cond_48_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.83.exit:                ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.44.exit:                ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
-  %qalloc.i97.i = tail call i64 @___qalloc()
-  %not_max.not.not.i98.i = icmp eq i64 %qalloc.i97.i, -1
-  br i1 %not_max.not.not.i98.i, label %cond_101_case_0.i.i, label %__hugr__.__tk2_sol_qalloc.97.exit.i
+  %qalloc.i6676 = tail call i64 @___qalloc()
+  %not_max.not.not.i6777 = icmp eq i64 %qalloc.i6676, -1
+  br i1 %not_max.not.not.i6777, label %cond_48_case_0.i68, label %__hugr__.__tk2_sol_qalloc.44.exit69
 
-cond_101_case_0.i.i:                              ; preds = %.backedge.i, %__hugr__.__tk2_sol_qalloc.83.exit
+cond_48_case_0.i68:                               ; preds = %.backedge, %__hugr__.__tk2_sol_qalloc.44.exit
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.97.exit.i:              ; preds = %__hugr__.__tk2_sol_qalloc.83.exit, %.backedge.i
-  %qalloc.i99.i = phi i64 [ %qalloc.i.i, %.backedge.i ], [ %qalloc.i97.i, %__hugr__.__tk2_sol_qalloc.83.exit ]
-  tail call void @___reset(i64 %qalloc.i99.i)
-  %qalloc.i93.i = tail call i64 @___qalloc()
-  %not_max.not.not.i94.i = icmp eq i64 %qalloc.i93.i, -1
-  br i1 %not_max.not.not.i94.i, label %cond_115_case_0.i.i, label %__hugr__.__tk2_sol_qalloc.111.exit.i
+__hugr__.__tk2_sol_qalloc.44.exit69:              ; preds = %__hugr__.__tk2_sol_qalloc.44.exit, %.backedge
+  %qalloc.i6678 = phi i64 [ %qalloc.i66, %.backedge ], [ %qalloc.i6676, %__hugr__.__tk2_sol_qalloc.44.exit ]
+  tail call void @___reset(i64 %qalloc.i6678)
+  tail call void @___rp(i64 %qalloc.i6678, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
+  tail call void @___rz(i64 %qalloc.i6678, double 0x400921FB54442D18)
+  tail call void @___rz(i64 %qalloc.i6678, double 0xBFE921FB54442D18)
+  %qalloc.i70 = tail call i64 @___qalloc()
+  %not_max.not.not.i71 = icmp eq i64 %qalloc.i70, -1
+  br i1 %not_max.not.not.i71, label %cond_48_case_0.i72, label %__hugr__.__tk2_sol_qalloc.44.exit73
 
-cond_115_case_0.i.i:                              ; preds = %__hugr__.__tk2_sol_qalloc.97.exit.i
+cond_48_case_0.i72:                               ; preds = %__hugr__.__tk2_sol_qalloc.44.exit69
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.111.exit.i:             ; preds = %__hugr__.__tk2_sol_qalloc.97.exit.i
-  tail call void @___reset(i64 %qalloc.i93.i)
-  tail call void @___rp(i64 %qalloc.i93.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i93.i, double 0x400921FB54442D18)
-  tail call void @___rp(i64 %qalloc.i99.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i99.i, double 0x400921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i99.i, double 0xBFE921FB54442D18)
-  tail call void @___rp(i64 %qalloc.i93.i, double 0x3FF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rpp(i64 %qalloc.i93.i, i64 %qalloc.i99.i, double 0x3FF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i99.i, double 0xBFF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i93.i, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i93.i, double 0xBFF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i99.i, double 0x3FE921FB54442D18)
-  %lazy_measure.i = tail call i64 @___lazy_measure(i64 %qalloc.i99.i)
-  tail call void @___qfree(i64 %qalloc.i99.i)
-  %read_bool.i = tail call i1 @___read_future_bool(i64 %lazy_measure.i)
-  tail call void @___dec_future_refcount(i64 %lazy_measure.i)
-  br i1 %read_bool.i, label %1, label %0
+__hugr__.__tk2_sol_qalloc.44.exit73:              ; preds = %__hugr__.__tk2_sol_qalloc.44.exit69
+  tail call void @___reset(i64 %qalloc.i70)
+  tail call void @___rp(i64 %qalloc.i70, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
+  tail call void @___rz(i64 %qalloc.i70, double 0x400921FB54442D18)
+  tail call void @___rp(i64 %qalloc.i70, double 0x3FF921FB54442D18, double 0x3FF921FB54442D18)
+  tail call void @___rpp(i64 %qalloc.i70, i64 %qalloc.i6678, double 0x3FF921FB54442D18, double 0.000000e+00)
+  tail call void @___rp(i64 %qalloc.i6678, double 0xBFF921FB54442D18, double 0.000000e+00)
+  tail call void @___rp(i64 %qalloc.i70, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18)
+  tail call void @___rz(i64 %qalloc.i70, double 0xBFF921FB54442D18)
+  tail call void @___rz(i64 %qalloc.i6678, double 0x3FE921FB54442D18)
+  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i6678)
+  tail call void @___qfree(i64 %qalloc.i6678)
+  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
+  tail call void @___dec_future_refcount(i64 %lazy_measure)
+  br i1 %read_bool, label %1, label %0
 
-0:                                                ; preds = %__hugr__.__tk2_sol_qalloc.111.exit.i
-  tail call void @___qfree(i64 %qalloc.i93.i)
-  br label %.backedge.i
+0:                                                ; preds = %__hugr__.__tk2_sol_qalloc.44.exit73
+  tail call void @___qfree(i64 %qalloc.i70)
+  br label %.backedge
 
-.backedge.i:                                      ; preds = %2, %0
-  %qalloc.i.i = tail call i64 @___qalloc()
-  %not_max.not.not.i.i = icmp eq i64 %qalloc.i.i, -1
-  br i1 %not_max.not.not.i.i, label %cond_101_case_0.i.i, label %__hugr__.__tk2_sol_qalloc.97.exit.i
+.backedge:                                        ; preds = %0, %2
+  %qalloc.i66 = tail call i64 @___qalloc()
+  %not_max.not.not.i67 = icmp eq i64 %qalloc.i66, -1
+  br i1 %not_max.not.not.i67, label %cond_48_case_0.i68, label %__hugr__.__tk2_sol_qalloc.44.exit69
 
-1:                                                ; preds = %__hugr__.__tk2_sol_qalloc.111.exit.i
+1:                                                ; preds = %__hugr__.__tk2_sol_qalloc.44.exit73
   tail call void @___rz(i64 %qalloc.i, double 0x3FE921FB54442D18)
   tail call void @___rz(i64 %qalloc.i, double 0x400921FB54442D18)
   tail call void @___rp(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0x3FF921FB54442D18)
-  tail call void @___rpp(i64 %qalloc.i, i64 %qalloc.i93.i, double 0x3FF921FB54442D18, double 0.000000e+00)
-  tail call void @___rp(i64 %qalloc.i93.i, double 0xBFF921FB54442D18, double 0.000000e+00)
+  tail call void @___rpp(i64 %qalloc.i, i64 %qalloc.i70, double 0x3FF921FB54442D18, double 0.000000e+00)
+  tail call void @___rp(i64 %qalloc.i70, double 0xBFF921FB54442D18, double 0.000000e+00)
   tail call void @___rp(i64 %qalloc.i, double 0xBFF921FB54442D18, double 0x3FF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i, double 0xBFF921FB54442D18)
-  tail call void @___rz(i64 %qalloc.i93.i, double 0x3FE921FB54442D18)
-  %lazy_measure52.i = tail call i64 @___lazy_measure(i64 %qalloc.i93.i)
-  tail call void @___qfree(i64 %qalloc.i93.i)
-  %read_bool54.i = tail call i1 @___read_future_bool(i64 %lazy_measure52.i)
-  tail call void @___dec_future_refcount(i64 %lazy_measure52.i)
-  br i1 %read_bool54.i, label %__hugr__.__main__.rus.17.exit, label %2
+  tail call void @___rz(i64 %qalloc.i70, double 0x3FE921FB54442D18)
+  %lazy_measure33 = tail call i64 @___lazy_measure(i64 %qalloc.i70)
+  tail call void @___qfree(i64 %qalloc.i70)
+  %read_bool35 = tail call i1 @___read_future_bool(i64 %lazy_measure33)
+  tail call void @___dec_future_refcount(i64 %lazy_measure33)
+  br i1 %read_bool35, label %3, label %2
 
 2:                                                ; preds = %1
   tail call void @___rp(i64 %qalloc.i, double 0x400921FB54442D18, double 0.000000e+00)
-  br label %.backedge.i
+  br label %.backedge
 
-__hugr__.__main__.rus.17.exit:                    ; preds = %1
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i)
+3:                                                ; preds = %1
+  %lazy_measure48 = tail call i64 @___lazy_measure(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
-  tail call void @___dec_future_refcount(i64 %lazy_measure)
-  tail call void @print_bool(ptr nonnull @res_result.457DE32D.0, i64 16, i1 %read_bool)
+  %read_bool50 = tail call i1 @___read_future_bool(i64 %lazy_measure48)
+  tail call void @___dec_future_refcount(i64 %lazy_measure48)
+  tail call void @print_bool(ptr nonnull @res_result.457DE32D.0, i64 16, i1 %read_bool50)
   ret void
 }
 
