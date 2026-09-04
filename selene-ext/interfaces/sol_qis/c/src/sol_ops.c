@@ -3,6 +3,7 @@
 #include <selene/selene.h> // selene_ functions
 #include <base_qis/selene_lifetime.h> // selene_instance
 #include <base_qis/unwrap.h> // unwrap
+#include <base_qis/panic.h> // panic_str
 
 #include "logging.h" // DIAGNOSTIC
 
@@ -54,6 +55,8 @@ uint64_t ___future_measure(uint64_t q, uint64_t flags) {
         case 1:
             reference = unwrap(selene_qubit_lazy_measure_leaked(selene_instance, q));
         break;
+        default:
+            panic_str(20000, "___future_measure: invalid flags value (expect 0 or 1)");
     }
     DIAGNOSTIC("   reference: %" PRIu64 "\n", reference);
     return reference;
