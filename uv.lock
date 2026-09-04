@@ -102,6 +102,15 @@ wheels = [
 ]
 
 [[package]]
+name = "custatevec-cu12"
+version = "1.14.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/5f/8c63defcc9b57a8c0f9ed9b89fd49fe69b3ac5c923ac06c5e424783d6611/custatevec_cu12-1.14.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:be8877308b5af440d815d8f768233265354d38f0f84cd38619ca1beb8b16591c", size = 73183432, upload-time = "2026-06-29T20:30:42.093Z" },
+    { url = "https://files.pythonhosted.org/packages/00/a1/a5fcf208e5e2c25eb8861532193102821d80cea36f99c9884a7b4102a4f4/custatevec_cu12-1.14.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:f5e1c22cface48ee3a6f6067238a91603899fd180c45eb2a7727e957e85825cf", size = 73170563, upload-time = "2026-06-29T20:31:00.039Z" },
+]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -866,6 +875,36 @@ wheels = [
 ]
 
 [[package]]
+name = "nvidia-cublas-cu12"
+version = "12.9.2.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/a2/c96163a0fff1839c0c9548bbdeae7b853b867009e33b9b9264adc238b1cf/nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:5572131a59c3eebeeb1c4c8144f772d49372c20124916e072a0e3fc30df421d5", size = 575012079, upload-time = "2026-04-08T18:51:47.303Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/c0/0a517bfe63ccd3b92eb254d264e28fca3c7cab75d07daea315250fb1bf73/nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:e4f53a8ca8c5d6e8c492d0d0a3d565ecb59a751b19cfdaa4f6da0ab2104c1702", size = 581240110, upload-time = "2026-04-08T18:52:31.532Z" },
+]
+
+[[package]]
+name = "nvidia-cuda-nvrtc-cu12"
+version = "12.9.86"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/85/e4af82cc9202023862090bfca4ea827d533329e925c758f0cde964cb54b7/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:210cf05005a447e29214e9ce50851e83fc5f4358df8b453155d5e1918094dcb4", size = 89568129, upload-time = "2025-06-05T20:02:41.973Z" },
+    { url = "https://files.pythonhosted.org/packages/64/eb/c2295044b8f3b3b08860e2f6a912b702fc92568a167259df5dddb78f325e/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:096d4de6bda726415dfaf3198d4f5c522b8e70139c97feef5cd2ca6d4cd9cead", size = 44528905, upload-time = "2025-06-05T20:02:29.754Z" },
+]
+
+[[package]]
+name = "nvidia-cuda-runtime-cu12"
+version = "12.9.79"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/e0/0279bd94539fda525e0c8538db29b72a5a8495b0c12173113471d28bce78/nvidia_cuda_runtime_cu12-12.9.79-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:83469a846206f2a733db0c42e223589ab62fd2fabac4432d2f8802de4bded0a4", size = 3515012, upload-time = "2025-06-05T20:00:35.519Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/46/a92db19b8309581092a3add7e6fceb4c301a3fd233969856a8cbf042cd3c/nvidia_cuda_runtime_cu12-12.9.79-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:25bba2dfb01d48a9b59ca474a1ac43c6ebf7011f1b0b8cc44f54eb6ac48a96c3", size = 3493179, upload-time = "2025-06-05T20:00:53.735Z" },
+]
+
+[[package]]
 name = "packaging"
 version = "26.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1492,6 +1531,13 @@ dependencies = [
     { name = "tqdm" },
 ]
 
+[package.optional-dependencies]
+quest-cuquantum = [
+    { name = "custatevec-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform == 'linux'" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "hugr" },
@@ -1512,11 +1558,15 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "custatevec-cu12", marker = "sys_platform == 'linux' and extra == 'quest-cuquantum'", specifier = ">=1.8.0" },
     { name = "numpy", specifier = "~=2.0" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux' and extra == 'quest-cuquantum'", specifier = ">=12.9.0.13" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform == 'linux' and extra == 'quest-cuquantum'", specifier = ">=12.9.37" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "selene-core", editable = "selene-core" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
+provides-extras = ["quest-cuquantum"]
 
 [package.metadata.requires-dev]
 dev = [

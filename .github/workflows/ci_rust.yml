@@ -36,7 +36,9 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run rust tests
-        run: cargo test --all-features
+        run: |
+          cargo test --workspace --all-features --exclude selene-simulator-quest
+          cargo test --package selene-simulator-quest
       # ensure that C interfaces are up to date
       - uses: extractions/setup-just@v4
       - uses: cargo-bins/cargo-binstall@v1.18.1
