@@ -211,7 +211,7 @@ skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-frontend = { name = "build[uv]", args = ["-C--profile=release"] }
 environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-groups = ["test"]
-test-command = "pytest -m 'not cuda' {project}/selene-sim {project}/selene-ext {project}/selene-core"
+test-command = 'pytest -m "not cuda" {project}/selene-sim {project}/selene-ext {project}/selene-core'
 [tool.cibuildwheel.linux]
 environment = { PATH = "$PATH:$HOME/.cargo/bin:/usr/local/cuda-12.9/bin" }
 repair-wheel-command = '''
