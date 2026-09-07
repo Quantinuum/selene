@@ -32,7 +32,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: wheelhouse/selene_core-*.whl
-          key: selene-core-wheel-${{ hashFiles('selene-core/**') }}-cache
+          key: selene-core-wheel-${{ hashFiles('selene-core/**') }}
 
       ##################################################################
       #
@@ -115,23 +115,6 @@ jobs:
         with:
           packages: "llvm"
 
-      - name: Remove hugrenv clang from PATH on Windows
-        # We add hugrenv to provide llvm tools bundled with selene.
-        # However, on Windows, this has the side effect of adding clang
-        # into the build environment in which e.g. stim is built, instead
-        # of the default compiler, and the build fails.
-        #
-        # TODO: investigate why that build fails.
-        #
-        # For now we just remove the bundled clang from the path.
-        if: ${{ startsWith(matrix.os, 'windows-') }}
-        shell: pwsh
-        run: |
-          $hugrBin = 'C:\hugrverse\bin'
-          $parts = $env:PATH -split ';' | Where-Object { $_ -and ($_ -ne $hugrBin) }
-          $env:PATH = ($parts -join ';')
-          "PATH=$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       # --------------------------------
       # Build selene-sim wheel
       # --------------------------------
@@ -156,7 +139,7 @@ jobs:
           path: |
             /tmp/ci-cache/selene
             target/
-          key: selene-sim--build-env--${{ matrix.os }}--${{ hashFiles('Cargo.lock') }}-cache
+          key: selene-sim--build-env--${{ matrix.os }}--${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             selene-sim--build-env--${{ matrix.os }}--
 
