@@ -20,10 +20,10 @@ __hugr__.__tk2_helios_qalloc.30.exit:             ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i), !dbg !8
   tail call void @___rxy(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i, double 0x400921FB54442D18)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i), !dbg !9
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i), !dbg !9
   tail call void @___qfree(i64 %qalloc.i), !dbg !9
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure), !dbg !9
-  tail call void @___dec_future_refcount(i64 %lazy_measure), !dbg !9
+  %read_bool = tail call i1 @___read_future_bool(i64 %___lazy_measure), !dbg !9
+  tail call void @___dec_future_refcount(i64 %___lazy_measure), !dbg !9
   br i1 %read_bool, label %0, label %1
 
 0:                                                ; preds = %__hugr__.__tk2_helios_qalloc.30.exit
@@ -72,7 +72,7 @@ attributes #0 = { noreturn }
 !name = !{!3}
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
-!1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v1.0.2)-v1.0.2", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
+!1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v1.0.1)-v1.0.1", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
 !2 = !DIFile(filename: "/sanitized/path/program.py", directory: "/sanitized/path")
 !3 = !{!"mainlib"}
 !4 = distinct !DISubprogram(name: "main", linkageName: "__hugr__.__main__.main.1", scope: null, file: !5, line: 12, type: !6, scopeLine: 13, spFlags: DISPFlagDefinition, unit: !1)

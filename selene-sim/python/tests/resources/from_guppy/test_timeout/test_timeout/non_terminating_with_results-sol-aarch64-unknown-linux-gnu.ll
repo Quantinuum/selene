@@ -22,17 +22,17 @@ __hugr__.__tk2_sol_qalloc.16.exit:                ; preds = %alloca_block, %__hu
   tail call void @___reset(i64 %qalloc.i10)
   tail call void @___rp(i64 %qalloc.i10, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i10, double 0x400921FB54442D18)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i10)
+  %___future_measure = tail call i64 @___future_measure(i64 %qalloc.i10, i64 0)
   tail call void @___qfree(i64 %qalloc.i10)
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
-  tail call void @___dec_future_refcount(i64 %lazy_measure)
+  %read_bool = tail call i1 @___read_future_bool(i64 %___future_measure)
+  tail call void @___dec_future_refcount(i64 %___future_measure)
   tail call void @print_bool(ptr nonnull @res_r.F13F95F2.0, i64 11, i1 %read_bool)
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
   br i1 %not_max.not.not.i, label %cond_20_case_0.i, label %__hugr__.__tk2_sol_qalloc.16.exit
 }
 
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___qfree(i64) local_unnamed_addr
 

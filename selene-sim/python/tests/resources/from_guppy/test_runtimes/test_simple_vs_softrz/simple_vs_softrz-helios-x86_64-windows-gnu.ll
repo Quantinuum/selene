@@ -197,7 +197,7 @@ panic.i745:                                       ; preds = %__barray_check_boun
   %40 = or disjoint i64 %36, 1
   store i64 %40, ptr %3, align 4
   %41 = load i64, ptr %2, align 4
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %41)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %41)
   tail call void @___qfree(i64 %41)
   %42 = load i64, ptr %1, align 4
   %43 = trunc i64 %42 to i1
@@ -206,7 +206,7 @@ panic.i745:                                       ; preds = %__barray_check_boun
 cond_exit_180:                                    ; preds = %.thread
   %44 = and i64 %42, -2
   store i64 %44, ptr %1, align 4
-  store i64 %lazy_measure, ptr %0, align 4
+  store i64 %___lazy_measure, ptr %0, align 4
   %45 = load i64, ptr %3, align 4
   %46 = and i64 %45, 2
   %.not791 = icmp eq i64 %46, 0
@@ -216,7 +216,7 @@ cond_exit_180:                                    ; preds = %.thread
   %47 = or disjoint i64 %45, 2
   store i64 %47, ptr %3, align 4
   %48 = load i64, ptr %10, align 4
-  %lazy_measure.1 = tail call i64 @___lazy_measure(i64 %48)
+  %___lazy_measure.1 = tail call i64 @___lazy_measure(i64 %48)
   tail call void @___qfree(i64 %48)
   %49 = load i64, ptr %1, align 4
   %50 = and i64 %49, 2
@@ -227,7 +227,7 @@ __barray_check_bounds.exit744.2:                  ; preds = %.thread.1
   %51 = and i64 %49, -3
   store i64 %51, ptr %1, align 4
   %52 = getelementptr inbounds nuw i8, ptr %0, i64 8
-  store i64 %lazy_measure.1, ptr %52, align 4
+  store i64 %___lazy_measure.1, ptr %52, align 4
   %53 = load i64, ptr %3, align 4
   %54 = and i64 %53, 4
   %.not793 = icmp eq i64 %54, 0
@@ -237,7 +237,7 @@ __barray_check_bounds.exit740.2:                  ; preds = %__barray_check_boun
   %55 = or disjoint i64 %53, 4
   store i64 %55, ptr %3, align 4
   %56 = load i64, ptr %14, align 4
-  %lazy_measure.2 = tail call i64 @___lazy_measure(i64 %56)
+  %___lazy_measure.2 = tail call i64 @___lazy_measure(i64 %56)
   tail call void @___qfree(i64 %56)
   %57 = load i64, ptr %1, align 4
   %58 = and i64 %57, 4
@@ -248,7 +248,7 @@ cond_exit_180.2:                                  ; preds = %__barray_check_boun
   %59 = and i64 %57, -5
   store i64 %59, ptr %1, align 4
   %60 = getelementptr inbounds nuw i8, ptr %0, i64 16
-  store i64 %lazy_measure.2, ptr %60, align 4
+  store i64 %___lazy_measure.2, ptr %60, align 4
   %61 = load i64, ptr %3, align 4
   %62 = or i64 %61, -8
   store i64 %62, ptr %3, align 4

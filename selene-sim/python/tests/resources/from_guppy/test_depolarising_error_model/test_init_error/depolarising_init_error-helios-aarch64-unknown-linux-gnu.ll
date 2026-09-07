@@ -29,15 +29,15 @@ cond_16_case_0.i15:                               ; preds = %__hugr__.__tk2_heli
 
 __hugr__.__tk2_helios_qalloc.12.exit16:           ; preds = %__hugr__.__tk2_helios_qalloc.12.exit
   tail call void @___reset(i64 %qalloc.i13)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
-  tail call void @___dec_future_refcount(i64 %lazy_measure)
+  %read_bool = tail call i1 @___read_future_bool(i64 %___lazy_measure)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure)
   tail call void @print_bool(ptr nonnull @res_c1.1F7A6571.0, i64 12, i1 %read_bool)
-  %lazy_measure6 = tail call i64 @___lazy_measure(i64 %qalloc.i13)
+  %___lazy_measure6 = tail call i64 @___lazy_measure(i64 %qalloc.i13)
   tail call void @___qfree(i64 %qalloc.i13)
-  %read_bool8 = tail call i1 @___read_future_bool(i64 %lazy_measure6)
-  tail call void @___dec_future_refcount(i64 %lazy_measure6)
+  %read_bool8 = tail call i1 @___read_future_bool(i64 %___lazy_measure6)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure6)
   tail call void @print_bool(ptr nonnull @res_c2.60825383.0, i64 12, i1 %read_bool8)
   ret void
 }

@@ -52,10 +52,10 @@ cond_277_case_0.i387:                             ; preds = %__hugr__.__tk2_heli
 
 __hugr__.__tk2_helios_qalloc.273.exit388:         ; preds = %__hugr__.__tk2_helios_qalloc.273.exit384
   tail call void @___reset(i64 %qalloc.i385)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
-  tail call void @___dec_future_refcount(i64 %lazy_measure)
+  %read_bool = tail call i1 @___read_future_bool(i64 %___lazy_measure)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure)
   br i1 %read_bool, label %1, label %0
 
 0:                                                ; preds = %__hugr__.__tk2_helios_qalloc.273.exit388
@@ -76,40 +76,40 @@ __hugr__.__tk2_helios_qalloc.273.exit388:         ; preds = %__hugr__.__tk2_heli
 
 2:                                                ; preds = %0, %1
   tail call void @___rz(i64 %qalloc.i381, double 0xBFF921FB54442D18)
-  %lazy_measure46 = tail call i64 @___lazy_measure(i64 %qalloc.i377)
+  %___lazy_measure46 = tail call i64 @___lazy_measure(i64 %qalloc.i377)
   tail call void @___qfree(i64 %qalloc.i377)
-  %read_bool48 = tail call i1 @___read_future_bool(i64 %lazy_measure46)
-  tail call void @___dec_future_refcount(i64 %lazy_measure46)
+  %read_bool48 = tail call i1 @___read_future_bool(i64 %___lazy_measure46)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure46)
   br i1 %read_bool48, label %cond_exit_76, label %cond_exit_141
 
 cond_exit_141:                                    ; preds = %2
-  %lazy_measure_leaked126 = tail call i64 @___lazy_measure_leaked(i64 %qalloc.i381)
+  %___lazy_measure_leaked126 = tail call i64 @___lazy_measure_leaked(i64 %qalloc.i381)
   tail call void @___qfree(i64 %qalloc.i381)
-  %read_uint133 = tail call i64 @___read_future_uint(i64 %lazy_measure_leaked126)
-  tail call void @___dec_future_refcount(i64 %lazy_measure_leaked126)
+  %read_uint133 = tail call i64 @___read_future_uint(i64 %___lazy_measure_leaked126)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure_leaked126)
   %.not.not = icmp eq i64 %read_uint133, 2
   %3 = icmp eq i64 %read_uint133, 1
   %"250_0.0" = zext i1 %3 to i64
   %"255_0.0" = select i1 %.not.not, i64 2, i64 %"250_0.0"
   tail call void @print_int(ptr nonnull @res_q2.798C5BAD.0, i64 11, i64 %"255_0.0")
-  %lazy_measure273 = tail call i64 @___lazy_measure(i64 %qalloc.i385)
+  %___lazy_measure273 = tail call i64 @___lazy_measure(i64 %qalloc.i385)
   tail call void @___qfree(i64 %qalloc.i385)
-  %read_bool275 = tail call i1 @___read_future_bool(i64 %lazy_measure273)
-  tail call void @___dec_future_refcount(i64 %lazy_measure273)
+  %read_bool275 = tail call i1 @___read_future_bool(i64 %___lazy_measure273)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure273)
   tail call void @print_bool(ptr nonnull @res_q3.C33BF3D1.0, i64 12, i1 %read_bool275)
   br label %5
 
 cond_exit_76:                                     ; preds = %2
-  %lazy_measure_leaked = tail call i64 @___lazy_measure_leaked(i64 %qalloc.i385)
+  %___lazy_measure_leaked = tail call i64 @___lazy_measure_leaked(i64 %qalloc.i385)
   tail call void @___qfree(i64 %qalloc.i385)
-  %lazy_measure60 = tail call i64 @___lazy_measure(i64 %qalloc.i381)
+  %___lazy_measure60 = tail call i64 @___lazy_measure(i64 %qalloc.i381)
   tail call void @___qfree(i64 %qalloc.i381)
-  %read_uint = tail call i64 @___read_future_uint(i64 %lazy_measure_leaked)
-  tail call void @___dec_future_refcount(i64 %lazy_measure_leaked)
+  %read_uint = tail call i64 @___read_future_uint(i64 %___lazy_measure_leaked)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure_leaked)
   %.not.not376 = icmp eq i64 %read_uint, 2
   %4 = icmp eq i64 %read_uint, 1
-  %read_bool117 = tail call i1 @___read_future_bool(i64 %lazy_measure60)
-  tail call void @___dec_future_refcount(i64 %lazy_measure60)
+  %read_bool117 = tail call i1 @___read_future_bool(i64 %___lazy_measure60)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure60)
   tail call void @print_bool(ptr nonnull @res_q2.2A5B30FD.0, i64 12, i1 %read_bool117)
   %"205_0.0" = zext i1 %4 to i64
   %"210_0.0" = select i1 %.not.not376, i64 2, i64 %"205_0.0"

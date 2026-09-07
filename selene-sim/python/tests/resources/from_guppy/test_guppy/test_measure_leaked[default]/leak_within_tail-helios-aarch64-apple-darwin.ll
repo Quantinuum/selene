@@ -170,22 +170,22 @@ __barray_mask_return.exit1268:                    ; preds = %__barray_check_boun
   br i1 %exitcond1325, label %cond_exit_189, label %__barray_check_bounds.exit1252
 
 cond_exit_189:                                    ; preds = %__barray_mask_return.exit1268
-  %lazy_measure_leaked = tail call i64 @___lazy_measure_leaked(i64 %qalloc.i)
+  %___lazy_measure_leaked = tail call i64 @___lazy_measure_leaked(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
-  tail call void @___inc_future_refcount(i64 %lazy_measure_leaked)
-  %read_uint = tail call i64 @___read_future_uint(i64 %lazy_measure_leaked)
-  tail call void @___dec_future_refcount(i64 %lazy_measure_leaked)
+  tail call void @___inc_future_refcount(i64 %___lazy_measure_leaked)
+  %read_uint = tail call i64 @___read_future_uint(i64 %___lazy_measure_leaked)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure_leaked)
   %43 = icmp eq i64 %read_uint, 2
   br i1 %43, label %44, label %cond_exit_267
 
 cond_exit_267:                                    ; preds = %cond_exit_189
-  %read_uint378 = tail call i64 @___read_future_uint(i64 %lazy_measure_leaked)
-  tail call void @___dec_future_refcount(i64 %lazy_measure_leaked)
+  %read_uint378 = tail call i64 @___read_future_uint(i64 %___lazy_measure_leaked)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure_leaked)
   %.not = icmp eq i64 %read_uint378, 2
   br i1 %.not, label %cond_247_case_0, label %cond_247_case_1
 
 44:                                               ; preds = %cond_exit_189
-  tail call void @___dec_future_refcount(i64 %lazy_measure_leaked)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure_leaked)
   tail call void @print_int(ptr nonnull @res_head_leake.F4F32972.0, i64 20, i64 1)
   br label %__barray_check_bounds.exit1274.preheader
 
@@ -246,7 +246,7 @@ panic.i1275:                                      ; preds = %__barray_check_boun
   %58 = getelementptr inbounds nuw i64, ptr %4, i64 %"310_0.sroa.15.01330"
   %59 = load i64, ptr %58, align 4
   %60 = add i64 %"310_2.01329", 1
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %59)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %59)
   tail call void @___qfree(i64 %59)
   %61 = icmp ult i64 %"310_2.01329", 20
   br i1 %61, label %__barray_check_bounds.exit1270, label %out_of_bounds.i1269
@@ -256,7 +256,7 @@ cond_exit_314:                                    ; preds = %__barray_check_boun
   %63 = xor i64 %46, %62
   store i64 %63, ptr %3, align 4
   %64 = getelementptr inbounds nuw i64, ptr %2, i64 %"310_2.01329"
-  store i64 %lazy_measure, ptr %64, align 4
+  store i64 %___lazy_measure, ptr %64, align 4
   %65 = icmp samesign ugt i64 %"310_0.sroa.15.01330", 18
   br i1 %65, label %mask_block_ok.i, label %__barray_check_bounds.exit1274
 

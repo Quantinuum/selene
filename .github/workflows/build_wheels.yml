@@ -104,11 +104,12 @@ jobs:
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
 
-      - name: Prepare cache dir (linux)
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: |
-          mkdir /tmp/ci-cache
-          chmod 755 /tmp/ci-cache
+        #TODO: re-enable
+        #- name: Prepare cache dir (linux)
+        #  if: ${{ matrix.os == 'ubuntu-latest' }}
+        #  run: |
+        #    mkdir /tmp/ci-cache
+        #    chmod 755 /tmp/ci-cache
 
       - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
         with:
@@ -132,6 +133,8 @@ jobs:
 
       # Cache the rust build intermediates
       - uses: actions/cache@v5
+        # TODO: re-enable ubuntu-latest caching
+        if: ${{ matrix.os != 'ubuntu-latest' }}
         with:
           path: |
             /tmp/ci-cache/selene

@@ -162,7 +162,7 @@ panic.i1806:                                      ; preds = %loop_body321.prehea
   %45 = getelementptr inbounds nuw i64, ptr %8, i64 %"476_0.sroa.15.01905"
   %46 = load i64, ptr %45, align 4
   %47 = add i64 %"476_2.01904", 1
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %46)
+  %___future_measure = tail call i64 @___future_measure(i64 %46, i64 0)
   tail call void @___qfree(i64 %46)
   %48 = icmp ult i64 %"476_2.01904", 10
   br i1 %48, label %__barray_check_bounds.exit1801, label %out_of_bounds.i1800
@@ -172,7 +172,7 @@ cond_exit_480:                                    ; preds = %__barray_check_boun
   %50 = xor i64 %33, %49
   store i64 %50, ptr %3, align 4
   %51 = getelementptr inbounds nuw i64, ptr %2, i64 %"476_2.01904"
-  store i64 %lazy_measure, ptr %51, align 4
+  store i64 %___future_measure, ptr %51, align 4
   %52 = icmp samesign ugt i64 %"476_0.sroa.15.01905", 8
   br i1 %52, label %mask_block_ok.i, label %loop_body321.preheader
 
@@ -606,7 +606,7 @@ declare void @panic(i32, ptr) local_unnamed_addr #1
 
 declare void @heap_free(ptr) local_unnamed_addr
 
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___qfree(i64) local_unnamed_addr
 
