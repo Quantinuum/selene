@@ -125,11 +125,12 @@ jobs:
         #
         # For now we just remove the bundled clang from the path.
         if: ${{ startsWith(matrix.os, 'windows-') }}
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          cleaned="$(printf '%s' "$PATH" | tr ';' '\n' | grep -vi '^C:\\hugrverse\\bin$' | paste -sd ';' -)"
-          echo "PATH=$cleaned" >> "$GITHUB_ENV"
+          $hugrBin = 'C:\hugrverse\bin'
+          $parts = $env:PATH -split ';' | Where-Object { $_ -and ($_ -ne $hugrBin) }
+          $env:PATH = ($parts -join ';')
+          "PATH=$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       # --------------------------------
       # Build selene-sim wheel
