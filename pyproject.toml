@@ -246,6 +246,8 @@ before-test = [
 [tool.cibuildwheel.windows.environment]
 PATH = "$PATH:$HOME/.cargo/bin"
 CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu"
+CC = "C:/mingw64/bin/gcc.exe"
+CXX = "C:/mingw64/bin/g++.exe"
 [tool.cibuildwheel.windows]
 before-all = [
     'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y',
