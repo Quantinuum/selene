@@ -23,10 +23,10 @@ __hugr__.__tk2_helios_qalloc.32.exit.i:           ; preds = %tailrecurse.i
   tail call void @___reset(i64 %qalloc.i.i)
   tail call void @___rxy(i64 %qalloc.i.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i.i, double 0x400921FB54442D18)
-  %lazy_measure.i = tail call i64 @___lazy_measure(i64 %qalloc.i.i)
+  %___lazy_measure.i = tail call i64 @___lazy_measure(i64 %qalloc.i.i)
   tail call void @___qfree(i64 %qalloc.i.i)
-  %read_bool.i = tail call i1 @___read_future_bool(i64 %lazy_measure.i)
-  tail call void @___dec_future_refcount(i64 %lazy_measure.i)
+  %read_bool.i = tail call i1 @___read_future_bool(i64 %___lazy_measure.i)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure.i)
   tail call void @print_bool(ptr nonnull @res_c.1C9EF4D1.0, i64 11, i1 %read_bool.i)
   br i1 %read_bool.i, label %tailrecurse.i, label %__hugr__.__main__.recursive_condition.5.exit
 

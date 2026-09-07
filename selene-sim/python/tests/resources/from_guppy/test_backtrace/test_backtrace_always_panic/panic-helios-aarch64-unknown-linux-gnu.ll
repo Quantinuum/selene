@@ -32,7 +32,7 @@ attributes #0 = { noreturn }
 !name = !{!3}
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
-!1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v1.0.2)-v1.0.2", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
+!1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v1.0.1)-v1.0.1", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
 !2 = !DIFile(filename: "/sanitized/path/program.py", directory: "/sanitized/path")
 !3 = !{!"mainlib"}
 !4 = distinct !DISubprogram(name: "main", linkageName: "__hugr__.__main__.main.1", scope: null, file: !5, line: 11, type: !6, scopeLine: 12, spFlags: DISPFlagDefinition, unit: !1)

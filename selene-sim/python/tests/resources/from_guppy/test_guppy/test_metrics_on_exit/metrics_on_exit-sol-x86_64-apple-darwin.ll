@@ -15,10 +15,10 @@ alloca_block:
   %2 = tail call fastcc i64 @__hugr__.__tk2_sol_qalloc.26()
   %3 = tail call fastcc i64 @__hugr__.__tk2_sol_qalloc.26()
   %4 = tail call fastcc i64 @__hugr__.__tk2_sol_toffoli.52(i64 %0, i64 %2, i64 %3)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %4)
+  %___future_measure = tail call i64 @___future_measure(i64 %4, i64 0)
   tail call void @___qfree(i64 %4)
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
-  tail call void @___dec_future_refcount(i64 %lazy_measure)
+  %read_bool = tail call i1 @___read_future_bool(i64 %___future_measure)
+  tail call void @___dec_future_refcount(i64 %___future_measure)
   tail call void @print_bool(ptr nonnull @res_c0.7C14CD6E.0, i64 12, i1 %read_bool)
   tail call void @panic(i32 0, ptr nonnull @"s_Testing ex.5E6E1E51.0")
   unreachable
@@ -73,7 +73,7 @@ alloca_block:
   ret i64 %0
 }
 
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___qfree(i64) local_unnamed_addr
 

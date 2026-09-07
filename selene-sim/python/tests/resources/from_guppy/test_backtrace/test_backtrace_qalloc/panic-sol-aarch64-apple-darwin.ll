@@ -21,10 +21,10 @@ __hugr__.__tk2_sol_qalloc.55.exit:                ; preds = %alloca_block
   tail call void @___rp(i64 %qalloc.i, double 0x3FF921FB54442D18, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i, double 0x400921FB54442D18)
   %0 = tail call fastcc i64 @__hugr__.__main__.recursive_cx.12(i64 %qalloc.i, i64 1000), !dbg !9
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i), !dbg !10
+  %___future_measure = tail call i64 @___future_measure(i64 %qalloc.i, i64 0), !dbg !10
   tail call void @___qfree(i64 %qalloc.i), !dbg !10
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure), !dbg !10
-  tail call void @___dec_future_refcount(i64 %lazy_measure), !dbg !10
+  %read_bool = tail call i1 @___read_future_bool(i64 %___future_measure), !dbg !10
+  tail call void @___dec_future_refcount(i64 %___future_measure), !dbg !10
   tail call void @print_bool(ptr nonnull @res_q.B83B1738.0, i64 11, i1 %read_bool), !dbg !11
   ret void
 }
@@ -50,10 +50,10 @@ __hugr__.__tk2_sol_qalloc.55.exit:                ; preds = %alloca_block
   br i1 %2, label %4, label %3
 
 3:                                                ; preds = %__hugr__.__tk2_sol_qalloc.55.exit, %4
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i), !dbg !18
+  %___future_measure = tail call i64 @___future_measure(i64 %qalloc.i, i64 0), !dbg !18
   tail call void @___qfree(i64 %qalloc.i), !dbg !18
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure), !dbg !18
-  tail call void @___dec_future_refcount(i64 %lazy_measure), !dbg !18
+  %read_bool = tail call i1 @___read_future_bool(i64 %___future_measure), !dbg !18
+  tail call void @___dec_future_refcount(i64 %___future_measure), !dbg !18
   tail call void @print_bool(ptr nonnull @res_q.B83B1738.0, i64 11, i1 %read_bool), !dbg !19
   ret i64 %0
 
@@ -63,7 +63,7 @@ __hugr__.__tk2_sol_qalloc.55.exit:                ; preds = %alloca_block
   br label %3
 }
 
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___qfree(i64) local_unnamed_addr
 
@@ -105,7 +105,7 @@ attributes #0 = { noreturn }
 !name = !{!3}
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
-!1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v1.0.2)-v1.0.2", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
+!1 = distinct !DICompileUnit(language: DW_LANG_Python, file: !2, producer: "guppylang (guppylang-internals-v1.0.1)-v1.0.1", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
 !2 = !DIFile(filename: "/sanitized/path/program.py", directory: "/sanitized/path")
 !3 = !{!"mainlib"}
 !4 = distinct !DISubprogram(name: "main", linkageName: "__hugr__.__main__.main.1", scope: null, file: !5, line: 20, type: !6, scopeLine: 21, spFlags: DISPFlagDefinition, unit: !1)

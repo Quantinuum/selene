@@ -73,7 +73,7 @@ __barray_mask_check_not_borrowed.exit103:         ; preds = %__hugr__.__tk2_sol_
   store i64 0, ptr %7, align 1
   %8 = load i64, ptr %0, align 4
   %9 = load i64, ptr %2, align 4
-  %lazy_measure = call i64 @___lazy_measure(i64 %8)
+  %___future_measure = call i64 @___future_measure(i64 %8, i64 0)
   call void @___qfree(i64 %8)
   %10 = call ptr @heap_alloc(i64 8)
   %11 = call ptr @heap_alloc(i64 8)
@@ -90,8 +90,8 @@ mask_block_err.i104:                              ; preds = %__barray_mask_check
   unreachable
 
 __barray_mask_check_not_borrowed.exit107:         ; preds = %__barray_mask_check_not_borrowed.exit103
-  %read_bool = call i1 @___read_future_bool(i64 %lazy_measure)
-  call void @___dec_future_refcount(i64 %lazy_measure)
+  %read_bool = call i1 @___read_future_bool(i64 %___future_measure)
+  call void @___dec_future_refcount(i64 %___future_measure)
   call void @print_bool(ptr nonnull @res_c0.7C14CD6E.0, i64 12, i1 %read_bool)
   %out_arr_alloca34 = alloca <{ i32, i32, ptr, ptr }>, align 8
   %y_ptr36 = getelementptr inbounds nuw i8, ptr %out_arr_alloca34, i64 4
@@ -107,10 +107,10 @@ __barray_mask_check_not_borrowed.exit107:         ; preds = %__barray_mask_check
   %16 = call ptr @heap_alloc(i64 8)
   store i64 0, ptr %16, align 1
   %17 = load i64, ptr %10, align 4
-  %lazy_measure48 = call i64 @___lazy_measure(i64 %17)
+  %___future_measure48 = call i64 @___future_measure(i64 %17, i64 0)
   call void @___qfree(i64 %17)
-  %read_bool50 = call i1 @___read_future_bool(i64 %lazy_measure48)
-  call void @___dec_future_refcount(i64 %lazy_measure48)
+  %read_bool50 = call i1 @___read_future_bool(i64 %___future_measure48)
+  call void @___dec_future_refcount(i64 %___future_measure48)
   call void @print_bool(ptr nonnull @res_c1.1F7A6571.0, i64 12, i1 %read_bool50)
   ret void
 }
@@ -122,7 +122,7 @@ declare void @panic(i32, ptr) local_unnamed_addr #0
 
 declare void @print_state_result(ptr, i64, ptr) local_unnamed_addr
 
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___qfree(i64) local_unnamed_addr
 

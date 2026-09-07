@@ -349,7 +349,7 @@ panic.i1621:                                      ; preds = %__barray_check_boun
   %89 = getelementptr inbounds nuw i64, ptr %8, i64 %"363_0.sroa.15.01730"
   %90 = load i64, ptr %89, align 4
   %91 = add i64 %"363_2.01729", 1
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %90)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %90)
   tail call void @___qfree(i64 %90)
   %92 = icmp ult i64 %"363_2.01729", 10
   br i1 %92, label %__barray_check_bounds.exit1616, label %out_of_bounds.i1615
@@ -359,7 +359,7 @@ cond_exit_367:                                    ; preds = %__barray_check_boun
   %94 = xor i64 %77, %93
   store i64 %94, ptr %3, align 4
   %95 = getelementptr inbounds nuw i64, ptr %2, i64 %"363_2.01729"
-  store i64 %lazy_measure, ptr %95, align 4
+  store i64 %___lazy_measure, ptr %95, align 4
   %96 = icmp samesign ugt i64 %"363_0.sroa.15.01730", 8
   br i1 %96, label %mask_block_ok.i, label %__barray_check_bounds.exit1620
 

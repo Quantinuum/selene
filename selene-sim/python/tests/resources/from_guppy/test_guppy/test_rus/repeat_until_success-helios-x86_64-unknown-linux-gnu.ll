@@ -50,10 +50,10 @@ __hugr__.__tk2_helios_qalloc.44.exit73:           ; preds = %__hugr__.__tk2_heli
   tail call void @___rxy(i64 %qalloc.i6678, double 0x3FF921FB54442D18, double 0x400921FB54442D18)
   tail call void @___rz(i64 %qalloc.i6678, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i6678, double 0x3FE921FB54442D18)
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i6678)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %qalloc.i6678)
   tail call void @___qfree(i64 %qalloc.i6678)
-  %read_bool = tail call i1 @___read_future_bool(i64 %lazy_measure)
-  tail call void @___dec_future_refcount(i64 %lazy_measure)
+  %read_bool = tail call i1 @___read_future_bool(i64 %___lazy_measure)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure)
   br i1 %read_bool, label %1, label %0
 
 0:                                                ; preds = %__hugr__.__tk2_helios_qalloc.44.exit73
@@ -74,10 +74,10 @@ __hugr__.__tk2_helios_qalloc.44.exit73:           ; preds = %__hugr__.__tk2_heli
   tail call void @___rxy(i64 %qalloc.i70, double 0x3FF921FB54442D18, double 0x400921FB54442D18)
   tail call void @___rz(i64 %qalloc.i70, double 0xBFF921FB54442D18)
   tail call void @___rz(i64 %qalloc.i70, double 0x3FE921FB54442D18)
-  %lazy_measure33 = tail call i64 @___lazy_measure(i64 %qalloc.i70)
+  %___lazy_measure33 = tail call i64 @___lazy_measure(i64 %qalloc.i70)
   tail call void @___qfree(i64 %qalloc.i70)
-  %read_bool35 = tail call i1 @___read_future_bool(i64 %lazy_measure33)
-  tail call void @___dec_future_refcount(i64 %lazy_measure33)
+  %read_bool35 = tail call i1 @___read_future_bool(i64 %___lazy_measure33)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure33)
   br i1 %read_bool35, label %3, label %2
 
 2:                                                ; preds = %1
@@ -85,10 +85,10 @@ __hugr__.__tk2_helios_qalloc.44.exit73:           ; preds = %__hugr__.__tk2_heli
   br label %.backedge
 
 3:                                                ; preds = %1
-  %lazy_measure48 = tail call i64 @___lazy_measure(i64 %qalloc.i)
+  %___lazy_measure48 = tail call i64 @___lazy_measure(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
-  %read_bool50 = tail call i1 @___read_future_bool(i64 %lazy_measure48)
-  tail call void @___dec_future_refcount(i64 %lazy_measure48)
+  %read_bool50 = tail call i1 @___read_future_bool(i64 %___lazy_measure48)
+  tail call void @___dec_future_refcount(i64 %___lazy_measure48)
   tail call void @print_bool(ptr nonnull @res_result.457DE32D.0, i64 16, i1 %read_bool50)
   ret void
 }

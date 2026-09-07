@@ -190,7 +190,7 @@ panic.i850:                                       ; preds = %cond_exit_142.2, %c
   %44 = or disjoint i64 %42, 1
   store i64 %44, ptr %5, align 4
   %45 = load i64, ptr %4, align 4
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %45)
+  %___future_measure = tail call i64 @___future_measure(i64 %45, i64 0)
   tail call void @___qfree(i64 %45)
   %46 = load i64, ptr %3, align 4
   %47 = trunc i64 %46 to i1
@@ -199,7 +199,7 @@ panic.i850:                                       ; preds = %cond_exit_142.2, %c
 cond_exit_142:                                    ; preds = %.thread
   %48 = and i64 %46, -2
   store i64 %48, ptr %3, align 4
-  store i64 %lazy_measure, ptr %2, align 4
+  store i64 %___future_measure, ptr %2, align 4
   %49 = load i64, ptr %5, align 4
   %50 = and i64 %49, 2
   %.not920 = icmp eq i64 %50, 0
@@ -210,7 +210,7 @@ cond_exit_142:                                    ; preds = %.thread
   store i64 %51, ptr %5, align 4
   %52 = getelementptr inbounds nuw i8, ptr %4, i64 8
   %53 = load i64, ptr %52, align 4
-  %lazy_measure.1 = tail call i64 @___lazy_measure(i64 %53)
+  %___future_measure.1 = tail call i64 @___future_measure(i64 %53, i64 0)
   tail call void @___qfree(i64 %53)
   %54 = load i64, ptr %3, align 4
   %55 = and i64 %54, 2
@@ -221,7 +221,7 @@ cond_exit_142.1:                                  ; preds = %.thread.1
   %56 = and i64 %54, -3
   store i64 %56, ptr %3, align 4
   %57 = getelementptr inbounds nuw i8, ptr %2, i64 8
-  store i64 %lazy_measure.1, ptr %57, align 4
+  store i64 %___future_measure.1, ptr %57, align 4
   %58 = load i64, ptr %5, align 4
   %59 = and i64 %58, 4
   %.not922 = icmp eq i64 %59, 0
@@ -232,7 +232,7 @@ cond_exit_142.1:                                  ; preds = %.thread.1
   store i64 %60, ptr %5, align 4
   %61 = getelementptr inbounds nuw i8, ptr %4, i64 16
   %62 = load i64, ptr %61, align 4
-  %lazy_measure.2 = tail call i64 @___lazy_measure(i64 %62)
+  %___future_measure.2 = tail call i64 @___future_measure(i64 %62, i64 0)
   tail call void @___qfree(i64 %62)
   %63 = load i64, ptr %3, align 4
   %64 = and i64 %63, 4
@@ -243,7 +243,7 @@ cond_exit_142.2:                                  ; preds = %.thread.2
   %65 = and i64 %63, -5
   store i64 %65, ptr %3, align 4
   %66 = getelementptr inbounds nuw i8, ptr %2, i64 16
-  store i64 %lazy_measure.2, ptr %66, align 4
+  store i64 %___future_measure.2, ptr %66, align 4
   %67 = load i64, ptr %5, align 4
   %68 = and i64 %67, 8
   %.not924 = icmp eq i64 %68, 0
@@ -254,7 +254,7 @@ cond_exit_142.2:                                  ; preds = %.thread.2
   store i64 %69, ptr %5, align 4
   %70 = getelementptr inbounds nuw i8, ptr %4, i64 24
   %71 = load i64, ptr %70, align 4
-  %lazy_measure.3 = tail call i64 @___lazy_measure(i64 %71)
+  %___future_measure.3 = tail call i64 @___future_measure(i64 %71, i64 0)
   tail call void @___qfree(i64 %71)
   %72 = load i64, ptr %3, align 4
   %73 = and i64 %72, 8
@@ -265,7 +265,7 @@ cond_exit_142.3:                                  ; preds = %.thread.3
   %74 = and i64 %72, -9
   store i64 %74, ptr %3, align 4
   %75 = getelementptr inbounds nuw i8, ptr %2, i64 24
-  store i64 %lazy_measure.3, ptr %75, align 4
+  store i64 %___future_measure.3, ptr %75, align 4
   %76 = load i64, ptr %5, align 4
   %77 = or i64 %76, -16
   store i64 %77, ptr %5, align 4
@@ -526,7 +526,7 @@ declare void @panic(i32, ptr) local_unnamed_addr #0
 
 declare void @heap_free(ptr) local_unnamed_addr
 
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___qfree(i64) local_unnamed_addr
 

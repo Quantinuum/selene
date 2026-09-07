@@ -22,8 +22,7 @@ cond_104_case_1:
   %1 = tail call ptr @heap_alloc(i64 8)
   store i64 -1, ptr %1, align 1
   %shot = tail call i64 @get_current_shot()
-  tail call void @random_seed(i64 %shot)
-  %shot2 = tail call i64 @get_current_shot()
+  %shot1 = tail call i64 @get_current_shot()
   %2 = tail call ptr @heap_alloc(i64 40)
   %3 = tail call ptr @heap_alloc(i64 8)
   store i64 -1, ptr %3, align 1
@@ -231,7 +230,7 @@ panic.i1123:                                      ; preds = %__barray_check_boun
   tail call void @panic(i32 1002, ptr nonnull @"e_Array alre.5A300C2A.0")
   unreachable
 
-loop_out318:                                      ; preds = %cond_exit_298.4
+loop_out317:                                      ; preds = %cond_exit_298.4
   tail call void @heap_free(ptr nonnull %2)
   tail call void @heap_free(ptr nonnull %3)
   %63 = load i64, ptr %1, align 4
@@ -250,7 +249,7 @@ panic.i1127:                                      ; preds = %__barray_check_boun
   %65 = or disjoint i64 %61, 1
   store i64 %65, ptr %3, align 4
   %66 = load i64, ptr %2, align 4
-  %lazy_measure = tail call i64 @___lazy_measure(i64 %66)
+  %___lazy_measure = tail call i64 @___lazy_measure(i64 %66)
   tail call void @___qfree(i64 %66)
   %67 = load i64, ptr %1, align 4
   %68 = trunc i64 %67 to i1
@@ -259,7 +258,7 @@ panic.i1127:                                      ; preds = %__barray_check_boun
 cond_exit_298:                                    ; preds = %.thread
   %69 = and i64 %67, -2
   store i64 %69, ptr %1, align 4
-  store i64 %lazy_measure, ptr %0, align 4
+  store i64 %___lazy_measure, ptr %0, align 4
   %70 = load i64, ptr %3, align 4
   %71 = and i64 %70, 2
   %.not1190 = icmp eq i64 %71, 0
@@ -269,7 +268,7 @@ cond_exit_298:                                    ; preds = %.thread
   %72 = or disjoint i64 %70, 2
   store i64 %72, ptr %3, align 4
   %73 = load i64, ptr %32, align 4
-  %lazy_measure.1 = tail call i64 @___lazy_measure(i64 %73)
+  %___lazy_measure.1 = tail call i64 @___lazy_measure(i64 %73)
   tail call void @___qfree(i64 %73)
   %74 = load i64, ptr %1, align 4
   %75 = and i64 %74, 2
@@ -280,7 +279,7 @@ cond_exit_298.1:                                  ; preds = %.thread.1
   %76 = and i64 %74, -3
   store i64 %76, ptr %1, align 4
   %77 = getelementptr inbounds nuw i8, ptr %0, i64 8
-  store i64 %lazy_measure.1, ptr %77, align 4
+  store i64 %___lazy_measure.1, ptr %77, align 4
   %78 = load i64, ptr %3, align 4
   %79 = and i64 %78, 4
   %.not1192 = icmp eq i64 %79, 0
@@ -290,7 +289,7 @@ cond_exit_298.1:                                  ; preds = %.thread.1
   %80 = or disjoint i64 %78, 4
   store i64 %80, ptr %3, align 4
   %81 = load i64, ptr %40, align 4
-  %lazy_measure.2 = tail call i64 @___lazy_measure(i64 %81)
+  %___lazy_measure.2 = tail call i64 @___lazy_measure(i64 %81)
   tail call void @___qfree(i64 %81)
   %82 = load i64, ptr %1, align 4
   %83 = and i64 %82, 4
@@ -301,7 +300,7 @@ cond_exit_298.2:                                  ; preds = %.thread.2
   %84 = and i64 %82, -5
   store i64 %84, ptr %1, align 4
   %85 = getelementptr inbounds nuw i8, ptr %0, i64 16
-  store i64 %lazy_measure.2, ptr %85, align 4
+  store i64 %___lazy_measure.2, ptr %85, align 4
   %86 = load i64, ptr %3, align 4
   %87 = and i64 %86, 8
   %.not1194 = icmp eq i64 %87, 0
@@ -311,7 +310,7 @@ cond_exit_298.2:                                  ; preds = %.thread.2
   %88 = or disjoint i64 %86, 8
   store i64 %88, ptr %3, align 4
   %89 = load i64, ptr %48, align 4
-  %lazy_measure.3 = tail call i64 @___lazy_measure(i64 %89)
+  %___lazy_measure.3 = tail call i64 @___lazy_measure(i64 %89)
   tail call void @___qfree(i64 %89)
   %90 = load i64, ptr %1, align 4
   %91 = and i64 %90, 8
@@ -322,7 +321,7 @@ __barray_check_bounds.exit1126.4:                 ; preds = %.thread.3
   %92 = and i64 %90, -9
   store i64 %92, ptr %1, align 4
   %93 = getelementptr inbounds nuw i8, ptr %0, i64 24
-  store i64 %lazy_measure.3, ptr %93, align 4
+  store i64 %___lazy_measure.3, ptr %93, align 4
   %94 = load i64, ptr %3, align 4
   %95 = and i64 %94, 16
   %.not1196 = icmp eq i64 %95, 0
@@ -332,7 +331,7 @@ __barray_check_bounds.exit1122.4:                 ; preds = %__barray_check_boun
   %96 = or disjoint i64 %94, 16
   store i64 %96, ptr %3, align 4
   %97 = load i64, ptr %56, align 4
-  %lazy_measure.4 = tail call i64 @___lazy_measure(i64 %97)
+  %___lazy_measure.4 = tail call i64 @___lazy_measure(i64 %97)
   tail call void @___qfree(i64 %97)
   %98 = load i64, ptr %1, align 4
   %99 = and i64 %98, 16
@@ -343,18 +342,18 @@ cond_exit_298.4:                                  ; preds = %__barray_check_boun
   %100 = and i64 %98, -17
   store i64 %100, ptr %1, align 4
   %101 = getelementptr inbounds nuw i8, ptr %0, i64 32
-  store i64 %lazy_measure.4, ptr %101, align 4
+  store i64 %___lazy_measure.4, ptr %101, align 4
   %102 = load i64, ptr %3, align 4
   %103 = or i64 %102, -32
   store i64 %103, ptr %3, align 4
   %104 = icmp eq i64 %103, -1
-  br i1 %104, label %loop_out318, label %mask_block_err.i
+  br i1 %104, label %loop_out317, label %mask_block_err.i
 
-panic.i1129:                                      ; preds = %loop_out318
+panic.i1129:                                      ; preds = %loop_out317
   tail call void @panic(i32 1002, ptr nonnull @"e_Array elem.E746B1A3.0")
   unreachable
 
-__barray_mask_borrow.exit1130:                    ; preds = %loop_out318
+__barray_mask_borrow.exit1130:                    ; preds = %loop_out317
   %105 = or disjoint i64 %63, 1
   store i64 %105, ptr %1, align 4
   %106 = load i64, ptr %0, align 4
@@ -555,27 +554,28 @@ cond_exit_558.4:                                  ; preds = %__barray_mask_borro
   %163 = or i64 %162, -32
   store i64 %163, ptr %1, align 4
   %164 = icmp eq i64 %163, -1
-  br i1 %164, label %loop_out620, label %mask_block_err.i1152
+  br i1 %164, label %loop_out619, label %mask_block_err.i1152
 
-loop_out620:                                      ; preds = %cond_exit_558.4
+loop_out619:                                      ; preds = %cond_exit_558.4
   tail call void @heap_free(ptr nonnull %0)
   tail call void @heap_free(ptr nonnull %1)
   %read_bool = tail call i1 @___read_future_bool(i64 %106)
   tail call void @___dec_future_refcount(i64 %106)
   tail call void @print_bool(ptr nonnull @res_a.A4A74DAF.0, i64 11, i1 %read_bool)
-  %read_bool690 = tail call i1 @___read_future_bool(i64 %113)
+  %read_bool689 = tail call i1 @___read_future_bool(i64 %113)
   tail call void @___dec_future_refcount(i64 %113)
-  tail call void @print_bool(ptr nonnull @res_b.3BD50C23.0, i64 11, i1 %read_bool690)
-  %read_bool705 = tail call i1 @___read_future_bool(i64 %120)
+  tail call void @print_bool(ptr nonnull @res_b.3BD50C23.0, i64 11, i1 %read_bool689)
+  %read_bool704 = tail call i1 @___read_future_bool(i64 %120)
   tail call void @___dec_future_refcount(i64 %120)
-  tail call void @print_bool(ptr nonnull @res_c.1C9EF4D1.0, i64 11, i1 %read_bool705)
-  %read_bool720 = tail call i1 @___read_future_bool(i64 %127)
+  tail call void @print_bool(ptr nonnull @res_c.1C9EF4D1.0, i64 11, i1 %read_bool704)
+  %read_bool719 = tail call i1 @___read_future_bool(i64 %127)
   tail call void @___dec_future_refcount(i64 %127)
-  tail call void @print_bool(ptr nonnull @res_d.00B84DC7.0, i64 11, i1 %read_bool720)
-  %read_bool735 = tail call i1 @___read_future_bool(i64 %134)
+  tail call void @print_bool(ptr nonnull @res_d.00B84DC7.0, i64 11, i1 %read_bool719)
+  %read_bool734 = tail call i1 @___read_future_bool(i64 %134)
   tail call void @___dec_future_refcount(i64 %134)
-  tail call void @print_bool(ptr nonnull @res_e.B9A29CAF.0, i64 11, i1 %read_bool735)
-  tail call void @print_int(ptr nonnull @res_shot.6D86EAF7.0, i64 13, i64 %shot2)
+  tail call void @print_bool(ptr nonnull @res_e.B9A29CAF.0, i64 11, i1 %read_bool734)
+  tail call void @print_int(ptr nonnull @res_shot.6D86EAF7.0, i64 13, i64 %shot1)
+  tail call void @random_seed(i64 %shot)
   %rint = tail call i32 @random_int()
   %rfloat = tail call double @random_float()
   %165 = sext i32 %rint to i64
@@ -587,8 +587,6 @@ loop_out620:                                      ; preds = %cond_exit_558.4
 declare ptr @heap_alloc(i64) local_unnamed_addr
 
 declare i64 @get_current_shot() local_unnamed_addr
-
-declare void @random_seed(i64) local_unnamed_addr
 
 ; Function Attrs: noreturn
 declare void @panic(i32, ptr) local_unnamed_addr #0
@@ -608,6 +606,8 @@ declare i1 @___read_future_bool(i64) local_unnamed_addr
 declare void @print_bool(ptr, i64, i1) local_unnamed_addr
 
 declare void @print_int(ptr, i64, i64) local_unnamed_addr
+
+declare void @random_seed(i64) local_unnamed_addr
 
 declare i32 @random_int() local_unnamed_addr
 
