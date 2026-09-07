@@ -128,10 +128,9 @@ jobs:
         shell: pwsh
         run: |
           $hugrBin = 'C:\hugrverse\bin'
-          $hugrBinNorm = $hugrBin.TrimEnd('\\')
-          $parts = $env:PATH -split ';' | Where-Object { $_ -and ($_.TrimEnd('\\') -ne $hugrBinNorm) }
+          $parts = $env:PATH -split ';' | Where-Object { $_ -and ($_ -ne $hugrBin) }
           $env:PATH = ($parts -join ';')
-          "PATH=$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PATH=$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       # --------------------------------
       # Build selene-sim wheel
@@ -157,9 +156,9 @@ jobs:
           path: |
             /tmp/ci-cache/selene
             target/
-          key: selene-sim--build-env--cache--${{ matrix.os }}--${{ hashFiles('Cargo.lock') }}
+          key: selene-sim--build-env--${{ matrix.os }}--${{ hashFiles('Cargo.lock') }}-cache
           restore-keys: |
-            selene-sim--build-env--cache--${{ matrix.os }}--
+            selene-sim--build-env--${{ matrix.os }}--
 
       # Perform the selene-sim build
       - name: Build selene-sim wheels
