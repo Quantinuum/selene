@@ -115,15 +115,6 @@ cache-keys = [
   { file = "selene-core/rust/**/*.rs" },
 ]
 
-# We maintain support for macos x86-64, but some deps have dropped support.
-# Where possible we can just pin them to specific older (but known to work)
-# versions for macos x86-64 without constraining other platforms. This, however,
-# encourages UV to pin all platforms to the same version, which isn't what we want.
-# As such, we use environments to force that split.
-constraint-dependencies = [
-  "llvmlite>0.45.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-]
-
 [tool.ruff]
 # exclude any external code (e.g. stim) fetched in the build process
 extend-exclude = ["target"]
