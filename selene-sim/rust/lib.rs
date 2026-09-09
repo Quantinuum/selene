@@ -1,3 +1,4 @@
+pub mod backtrace;
 pub mod emulator;
 pub mod event_hooks;
 pub mod selene_instance;

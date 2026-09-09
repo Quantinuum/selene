@@ -164,6 +164,7 @@ class SeleneInstance:
         shot_increment: int = 1,
         n_processes: int = 1,
         parse_results: bool = True,
+        seed_mode: str = "default",
     ) -> Iterator[Iterator[TaggedResult]]:
         """
         Run the compiled program through multiple selene shots.
@@ -186,7 +187,8 @@ class SeleneInstance:
             results_logfile: The file to write the results to (if any)
             random_seed: The random seed to use for the simulator, error model,
                          and runtime if they have not been set explicitly. On
-                         each shot, the random seed will be incremented by 1.
+                         each shot, the random seed will be updated according to
+                         to `seed_mode`.
             parse_results:
                 Whether to interpret tags in the result stream.
                 If True (default), tags will be stripped, interpreted,
@@ -207,6 +209,10 @@ class SeleneInstance:
                 Setting to True provides the high level Selene interface, and
                 using False allows for Selene to be used as an intermediate
                 component for use with an external result stream handler.
+            seed_mode: The mode for handling random seeds.
+                       - "default" uses `random_seed` as a seed for an RNG that
+                         itself generates the seeds on all shots.
+                       - "legacy" increments the seed by 1 on each shot.
         """
 
         self._check_health()
@@ -219,12 +225,18 @@ class SeleneInstance:
         library_search_dirs = self.library_search_dirs.copy()
         for component in (simulator, error_model, runtime):
             library_search_dirs.extend(component.library_search_dirs)
+
+        assert seed_mode in ("default", "legacy"), (
+            f"Invalid seed_mode: {seed_mode}, must be one of 'default' or 'legacy'"
+        )
+
         global_configuration = {
             "event_hooks": {flag: True for flag in event_hook.get_selene_flags()},
             "n_qubits": n_qubits,
             "simulator": self._get_component_config(simulator, random_seed),
             "error_model": self._get_component_config(error_model, random_seed),
             "runtime": self._get_component_config(runtime, random_seed),
+            "seed_mode": seed_mode,
         }
         with TCPStream(
             timeout=timeout,
@@ -292,6 +304,7 @@ class SeleneInstance:
         random_seed: int | None = None,
         shot_offset: int = 0,
         parse_results: bool = True,
+        seed_mode: str = "default",
     ) -> Iterator[TaggedResult]:
         """
         Run the compiled program through a single selene shot.
@@ -309,6 +322,9 @@ class SeleneInstance:
             results_logfile: The file to write the results to (if any)
             random_seed: The random seed to use for the simulator, error model,
                          and runtime if they have not been set explicitly
+            seed_mode: The mode for handling random seeds. If "legacy", the
+                       random_seed is used as-is. If "default", it first goes
+                       through RNG, reproducing the behaviour of run_shots.
         """
         shot_generator = self.run_shots(
             simulator=simulator,
@@ -323,6 +339,7 @@ class SeleneInstance:
             random_seed=random_seed,
             shot_offset=shot_offset,
             parse_results=parse_results,
+            seed_mode=seed_mode,
         )
         # We cannot simply yield from the shot generator, as this can
         # cause lifetime issues with the run_shots generator.

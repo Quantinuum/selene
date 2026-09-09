@@ -1461,7 +1461,7 @@ test = [{ name = "pytest", specifier = ">=8.3" }]
 
 [[package]]
 name = "selene-core"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "selene-core" }
 dependencies = [
     { name = "hugr" },
@@ -1501,7 +1501,7 @@ dev = [{ name = "qir-qis", specifier = "~=0.1.10" }]
 
 [[package]]
 name = "selene-sim"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },

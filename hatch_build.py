@@ -252,6 +252,62 @@ class UtilitiesBuild:
                             shutil.copy(lib_path, destination)
 
 
+class HugrenvTools:
+    def __init__(self, hook: "BundleBuildHook") -> None:
+        self.hook = hook
+        assert "HUGRENV_PATH" in os.environ, (
+            "HUGRENV_PATH environment variable is not set. This is required for bundling Hugrenv tools into selene's _dist directory."
+        )
+        self.hugrenv_path = Path(os.environ["HUGRENV_PATH"])
+        self.is_cibw_host_path = str(self.hugrenv_path).startswith("/host/")
+        assert self.hugrenv_path.is_dir(), (
+            f"HUGRENV_PATH ('{self.hugrenv_path}') does not exist or is not a directory as required."
+        )
+
+    def resolve_artifact(self, directory: str, name: str) -> Path:
+        seen: set[Path] = set()
+        path = self.hugrenv_path / directory / name
+        while path.is_symlink():
+            if path in seen:
+                raise RuntimeError(f"Symlink loop while resolving {path}")
+            seen.add(path)
+            target = path.readlink()
+            if target.is_absolute():
+                if self.is_cibw_host_path:
+                    target = Path("/host") / target.relative_to("/")
+                path = target
+            else:
+                path = Path(os.path.normpath(path.parent / target))
+        return path
+
+    def extract_artifact(self, directory: str, name: str):
+        artifact_path = self.resolve_artifact(directory, name)
+        assert artifact_path.is_file(), (
+            f"Hugrenv artifact '{name}' not found at {artifact_path}"
+        )
+        dist_dir = (
+            Path(self.hook.root) / f"selene-sim/python/selene_sim/_dist/{directory}"
+        )
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
+        shutil.copy(artifact_path, dist_dir)
+        dist_path = dist_dir / name
+        dist_path.chmod(0o755)
+
+    def extract_binary(self, name):
+        if sys.platform == "win32":
+            name += ".exe"
+        self.extract_artifact("bin", name)
+
+    def extract_library(self, name):
+        raise NotImplementedError("extract_library is not implemented yet.")
+
+    def extract(self):
+        self.extract_binary("llvm-symbolizer")
+        if sys.platform == "darwin":
+            self.extract_binary("dsymutil")
+
+
 class BundleBuildHook(BuildHookInterface):
     def target_is_windows(self) -> bool:
         return sys.platform == "win32" or os.environ.get(
@@ -290,6 +346,8 @@ class BundleBuildHook(BuildHookInterface):
         utilities_builder = UtilitiesBuild(self)
         utilities_builder.build_all()
         utilities_builder.extract_libs()
+        hugrenv_tools = HugrenvTools(self)
+        hugrenv_tools.extract()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():

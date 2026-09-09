@@ -106,7 +106,7 @@
     "source": "Source.USER",
     "operation": {
       "op": "Rxy",
-      "qubit": 0,
+      "qubit": 1,
       "theta": 1.5707963267948966,
       "phi": -1.5707963267948966
     }
@@ -115,7 +115,7 @@
     "source": "Source.USER",
     "operation": {
       "op": "Rz",
-      "qubit": 0,
+      "qubit": 1,
       "theta": 3.141592653589793
     }
   },
@@ -123,7 +123,7 @@
     "source": "Source.USER",
     "operation": {
       "op": "Rxy",
-      "qubit": 1,
+      "qubit": 0,
       "theta": 1.5707963267948966,
       "phi": -1.5707963267948966
     }
@@ -132,7 +132,7 @@
     "source": "Source.USER",
     "operation": {
       "op": "Rz",
-      "qubit": 1,
+      "qubit": 0,
       "theta": 3.141592653589793
     }
   },
@@ -553,7 +553,7 @@
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "Rxy",
-      "qubit": 0,
+      "qubit": 1,
       "theta": 1.5707963267948966,
       "phi": 0.0
     }
@@ -562,7 +562,7 @@
     "source": "Source.ERROR_MODEL",
     "operation": {
       "op": "Rxy",
-      "qubit": 0,
+      "qubit": 1,
       "theta": 1.5707963267948966,
       "phi": 0.0
     }
@@ -571,7 +571,7 @@
     "source": "Source.SIMULATOR",
     "operation": {
       "op": "Rxy",
-      "qubit": 0,
+      "qubit": 1,
       "theta": 1.5707963267948966,
       "phi": 0.0,
       "duration_ns": 0
@@ -589,7 +589,7 @@
     "source": "Source.OPTIMISER",
     "operation": {
       "op": "Rxy",
-      "qubit": 1,
+      "qubit": 0,
       "theta": 1.5707963267948966,
       "phi": 0.0
     }
@@ -598,7 +598,7 @@
     "source": "Source.ERROR_MODEL",
     "operation": {
       "op": "Rxy",
-      "qubit": 1,
+      "qubit": 0,
       "theta": 1.5707963267948966,
       "phi": 0.0
     }
@@ -607,7 +607,7 @@
     "source": "Source.SIMULATOR",
     "operation": {
       "op": "Rxy",
-      "qubit": 1,
+      "qubit": 0,
       "theta": 1.5707963267948966,
       "phi": 0.0,
       "duration_ns": 0

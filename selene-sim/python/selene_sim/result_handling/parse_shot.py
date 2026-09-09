@@ -7,6 +7,7 @@ from ..exceptions import (
     SeleneRuntimeError,
     SeleneStartupError,
     SeleneTimeoutError,
+    StackTrace,
 )
 from .result_stream import ResultStream, TaggedResult
 from .exception_encoding import (
@@ -19,6 +20,8 @@ from .extract_shot import (
     UserResult,
     UserStateResult,
     ShotExitMessage,
+    FullPanicMessage,
+    DebugTraceMessage,
     MetricValue,
     InstructionLogEntry,
     ShotMeasurements,
@@ -65,6 +68,8 @@ def parsed_interface(
     also raised, with contextual information via the stdout and stderr
     corresponding to the process that is feeding the results stream.
     """
+    stack_trace = StackTrace()
+    pending_panic: SelenePanicError | None = None
     try:
         for entry in shot_entries:
             match entry:
@@ -84,6 +89,8 @@ def parsed_interface(
                     # TODO: this is a string, but TaggedResult currently expects an int,
                     # float, bool, or a list of those.
                     yield ((tag_split[1], path))  # type: ignore
+                case DebugTraceMessage(module=module, address=address):
+                    stack_trace.add_entry(module=module, address=address)
                 case ShotExitMessage(message=message, code=code):
                     message_split = message.split(":", maxsplit=2)
                     if len(message_split) != 3:
@@ -91,13 +98,21 @@ def parsed_interface(
                             f"Expected exit message tag to have three parts, got {message}"
                         )
                     yield ((f"exit: {message_split[2]}", code))
+                case FullPanicMessage(message=message, code=code):
+                    if pending_panic is None:
+                        pending_panic = SelenePanicError(message=message, code=code)
                 case MetricValue(name=name, value=value):
                     event_hook.try_invoke(name, [value])
-                case InstructionLogEntry(tag=tag, values=values) as entry:
+                case InstructionLogEntry(tag=tag, values=values):
                     event_hook.try_invoke(tag, values)
                 case ShotMeasurements(tag=tag, values=values):
                     event_hook.try_invoke(tag, values)
-    except Exception as error:
+        if pending_panic is not None:
+            raise pending_panic
+    except Exception as caught_error:
+        # Once a panic has been reported, failures while draining the remainder
+        # of the shot must not mask it.
+        error = pending_panic or caught_error
         # taint the stream to prevent further reading
         stream.taint()
 
@@ -121,8 +136,10 @@ def parsed_interface(
                 error, (SeleneStartupError, SelenePanicError)
             )
         )
+        stack_trace.symbolize(process.executable)
         error.stdout = process.stdout.read_text()
         error.stderr = process.stderr.read_text()
+        error.stack_trace = stack_trace
         raise error from None
 
 
@@ -146,6 +163,8 @@ def unparsed_interface(
     are encountered, they are caught and encoded with special tags such that
     they can be decoded further down the line (e.g. with postprocess_unparsed_stream).
     """
+    stack_trace: StackTrace = StackTrace()
+    pending_panic: SelenePanicError | None = None
     try:
         for entry in shot_entries:
             match entry:
@@ -157,8 +176,13 @@ def unparsed_interface(
                     )
                 case ShotExitMessage(message=message, code=code):
                     yield ((message, code))
+                case FullPanicMessage(message=message, code=code):
+                    if pending_panic is None:
+                        pending_panic = SelenePanicError(message=message, code=code)
                 case MetricValue(name=name, value=value):
                     yield ((name, value))
+                case DebugTraceMessage(module=module, address=address):
+                    stack_trace.add_entry(module=module, address=address)
                 case InstructionLogEntry():
                     raise SeleneRuntimeError(
                         "Instruction log entries are not compatible with selene's unparsed interface"
@@ -169,15 +193,24 @@ def unparsed_interface(
                     raise SeleneRuntimeError(
                         "Measurement log entries are not compatible with selene's unparsed interface"
                     )
-    except Exception as e:
+        if pending_panic is not None:
+            raise pending_panic
+    except Exception as caught_error:
+        # Preserve a reported panic if draining its supplementary records fails.
+        error = pending_panic or caught_error
         # taint the stream to prevent further reading
         stream.taint()
         process.terminate(
-            expected_natural_exit=isinstance(e, (SelenePanicError, SeleneStartupError))
+            expected_natural_exit=isinstance(
+                error, (SelenePanicError, SeleneStartupError)
+            )
         )
         process.wait(check_return_code=False)
+        # This machine has the executable and its debug artifacts. Symbolize
+        # before encoding the exception for transport to another machine.
+        stack_trace.symbolize(process.executable)
         # encode the exception as tagged results
-        yield from encode_exception(e, process.stdout, process.stderr)
+        yield from encode_exception(error, process.stdout, process.stderr, stack_trace)
 
 
 # Post-processing for unparsed streams

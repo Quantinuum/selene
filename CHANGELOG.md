@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.1](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0...selene-sim-v0.3.1) (2026-09-07)
+
+
+### Features
+
+* backtraces on panic ([#210](https://github.com/Quantinuum/selene/issues/210)) ([9f89a02](https://github.com/Quantinuum/selene/commit/9f89a02882a022fdff3b98bb0d9723574041204b))
+* Modify inter-shot random_seed behaviour, provide legacy behaviour through seed_mode ([#209](https://github.com/Quantinuum/selene/issues/209)) ([d71751a](https://github.com/Quantinuum/selene/commit/d71751a81a1fc4f10bc51ea5fb64f612f5cc863b))
+* Support sol ___future_measure ([#213](https://github.com/Quantinuum/selene/issues/213)) ([eb527d5](https://github.com/Quantinuum/selene/commit/eb527d5822b420ca3c8801205f82c018f8051d72))
+
+
+### Dependencies
+
+* Widen numpy, llvmlite, pyyaml, pydantic dependencies. Bump minimum ziglang and lief. ([#204](https://github.com/Quantinuum/selene/issues/204)) ([0e8aea3](https://github.com/Quantinuum/selene/commit/0e8aea3f930b33f437f744306258c4bc501f0834))
+
 ## [0.3.0](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0-alpha.3...selene-sim-v0.3.0) (2026-07-22)
 
 

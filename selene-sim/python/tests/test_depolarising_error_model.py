@@ -77,6 +77,7 @@ def test_measurement_error(snapshot, compiled_guppy):
                     error_model=error_model,
                     n_qubits=2,
                     n_shots=len(measurements),
+                    seed_mode="legacy",
                 )
             )
         )
@@ -101,6 +102,7 @@ def test_measurement_error(snapshot, compiled_guppy):
         error_model=error_model,
         n_qubits=2,
         n_shots=len(measurements),
+        seed_mode="legacy",
     )
     snapshot.assert_match(yaml.dump(counts), "counts_pmeas_1pc")
 
@@ -146,6 +148,7 @@ def test_measurement_error(snapshot, compiled_guppy):
             n_qubits=2,
             n_shots=len(measurements),
             event_hook=metric_store,
+            seed_mode="legacy",
         )
     )
 
@@ -206,7 +209,11 @@ def test_init_error(snapshot, compiled_guppy):
     error_model.p_init = 0
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -217,7 +224,11 @@ def test_init_error(snapshot, compiled_guppy):
     error_model.p_init = 0.01
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -229,7 +240,11 @@ def test_init_error(snapshot, compiled_guppy):
     error_model.p_init = 0.25
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -239,7 +254,11 @@ def test_init_error(snapshot, compiled_guppy):
     error_model.p_init = 0.5
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -250,7 +269,11 @@ def test_init_error(snapshot, compiled_guppy):
     error_model.p_init = 1
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -305,7 +328,11 @@ def test_1q_error(snapshot, compiled_guppy):
     error_model.p_1q = 0
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -316,7 +343,11 @@ def test_1q_error(snapshot, compiled_guppy):
     error_model.p_1q = 0.01
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -327,7 +358,11 @@ def test_1q_error(snapshot, compiled_guppy):
     error_model.p_1q = 0.25
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -337,7 +372,11 @@ def test_1q_error(snapshot, compiled_guppy):
     error_model.p_1q = 0.5
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -348,7 +387,11 @@ def test_1q_error(snapshot, compiled_guppy):
     error_model.p_1q = 1
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -402,7 +445,11 @@ def test_2q_error(snapshot, compiled_guppy):
     error_model.p_2q = 0
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -413,7 +460,11 @@ def test_2q_error(snapshot, compiled_guppy):
     error_model.p_2q = 0.01
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -424,7 +475,11 @@ def test_2q_error(snapshot, compiled_guppy):
     error_model.p_2q = 0.25
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -434,7 +489,11 @@ def test_2q_error(snapshot, compiled_guppy):
     error_model.p_2q = 0.5
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)
@@ -445,7 +504,11 @@ def test_2q_error(snapshot, compiled_guppy):
     error_model.p_2q = 1
     shots = QsysResult(
         runner.run_shots(
-            simulator=simulator, error_model=error_model, n_qubits=2, n_shots=1000
+            simulator=simulator,
+            error_model=error_model,
+            n_qubits=2,
+            n_shots=1000,
+            seed_mode="legacy",
         )
     )
     counts = count_occurances(shots)

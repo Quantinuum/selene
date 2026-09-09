@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.0...selene-core-v0.3.1) (2026-09-07)
+
+
+### Dependencies
+
+* Widen numpy, llvmlite, pyyaml, pydantic dependencies. Bump minimum ziglang and lief. ([#204](https://github.com/Quantinuum/selene/issues/204)) ([0e8aea3](https://github.com/Quantinuum/selene/commit/0e8aea3f930b33f437f744306258c4bc501f0834))
+
 ## [0.3.0](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.0-alpha.2...selene-core-v0.3.0) (2026-07-22)
 
 

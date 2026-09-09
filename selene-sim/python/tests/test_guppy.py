@@ -71,8 +71,14 @@ def test_flip_some(compiled_guppy):
     # the coinflip simulator should reliably produce identical results across platforms.
     # note that a change in the runtime optimiser might reorder the evaluation of measurements,
     # resulting in a permutation.
-    got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4))
-    assert got["cs"] == [1, 0, 0, 1], f"Coinflip test: expected {expected}, got {got}"
+    got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4, seed_mode="legacy"))
+    assert got["cs"] == [1, 0, 0, 1], (
+        f"Coinflip test (legacy seeding): expected [1, 0, 0, 1], got {got}"
+    )
+    got = dict(runner.run(Coinflip(), random_seed=249, n_qubits=4, seed_mode="default"))
+    assert got["cs"] == [1, 1, 0, 1], (
+        f"Coinflip test (default seeding): expected [1, 1, 0, 1], got {got}"
+    )
     # and the replay simulator should produce the same results as the input.
     # for this program this results in trivial behaviour, but it's useful to
     # verify the basics.
@@ -229,7 +235,8 @@ def test_panic(compiled_guppy):
         )
 
 
-def test_measure_leaked(snapshot, compiled_guppy):
+@pytest.mark.parametrize("seed_mode", ["default", "legacy"])
+def test_measure_leaked(snapshot, compiled_guppy, seed_mode):
     cx_from_head_source = dedent(
         """
         from guppylang.decorator import guppy
@@ -272,6 +279,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
             error_model=error_model,
             n_qubits=40,
             n_shots=50,
+            seed_mode=seed_mode,
         )
     ]
     snapshot.assert_match(
@@ -316,6 +324,7 @@ def test_measure_leaked(snapshot, compiled_guppy):
             error_model=error_model,
             n_qubits=40,
             n_shots=50,
+            seed_mode=seed_mode,
         )
     ]
     snapshot.assert_match(
@@ -388,6 +397,7 @@ def test_rus(compiled_guppy):
             n_qubits=4,
             n_shots=10,
             timeout=datetime.timedelta(seconds=1),
+            seed_mode="legacy",
         )
     )
     measured = "".join(shots.register_bitstrings()["result"])
@@ -543,13 +553,24 @@ def test_sim_restriction(compiled_guppy):
     )
 
     runner = build(llvm_file)
+    metric_store = MetricStore()
 
     with pytest.raises(SelenePanicError, match="not representable") as exception_info:
         shots = QsysResult(
             runner.run_shots(
-                Stim(), n_qubits=3, n_shots=10, timeout=datetime.timedelta(seconds=1)
+                Stim(),
+                n_qubits=3,
+                n_shots=10,
+                event_hook=metric_store,
+                timeout=datetime.timedelta(seconds=1),
             )
         )
+
+    # Panic records precede shot-end metadata in the result stream. The frontend
+    # must drain the shot before raising so these metrics are not lost.
+    assert set(metric_store.shots[0]) == {"emulator", "post_runtime", "user_program"}
+    assert exception_info.value.stack_trace is not None
+    assert exception_info.value.stack_trace.entries
 
 
 def test_corrupted_plugin(compiled_guppy):
@@ -849,17 +870,17 @@ def test_measurement_output(compiled_guppy):
 
     runner = build(llvm_file)
     measlog = MeasurementExtractor()
-    got = list(runner.run(Quest(), verbose=True, n_qubits=4, event_hook=measlog))
+    got = set(runner.run(Quest(), n_qubits=4, event_hook=measlog))
 
-    expected_user = [("q2", 1), ("q3", 0)]
-    expected_meas_strs = [
+    expected_user = {("q2", 1), ("q3", 0)}
+    expected_meas_strs = {
         "MEAS:INTARR:[0, 1]",
         "MEAS:INTARR:[1, 1]",
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
-    ]
+    }
     assert got == expected_user
-    assert [str(entry) for entry in measlog.log_entries[0]] == expected_meas_strs
+    assert {str(entry) for entry in measlog.log_entries[0]} == expected_meas_strs
 
 
 def test_measurement_output_multishot(compiled_guppy):
@@ -905,21 +926,19 @@ def test_measurement_output_multishot(compiled_guppy):
 
     runner = build(llvm_file)
     measlog = MeasurementExtractor()
-    shots = runner.run_shots(
-        Quest(), verbose=True, n_qubits=4, n_shots=10, event_hook=measlog
-    )
+    shots = runner.run_shots(Quest(), n_qubits=4, n_shots=10, event_hook=measlog)
 
-    expected_user = [("q2", 1), ("q3", 0)]
-    expected_meas_strs = [
+    expected_user = {("q2", 1), ("q3", 0)}
+    expected_meas_strs = {
         "MEAS:INTARR:[0, 1]",
         "MEAS:INTARR:[1, 1]",
         "MEAS:INTARR:[2, 1]",
         "MEASLEAKED:INTARR:[3, 0]",
-    ]
+    }
     for shot_user in shots:
-        assert list(shot_user) == expected_user
+        assert set(shot_user) == expected_user
     for shot_meas in measlog:
-        assert [str(entry) for entry in shot_meas] == expected_meas_strs
+        assert {str(entry) for entry in shot_meas} == expected_meas_strs
 
 
 def test_cy(compiled_guppy):

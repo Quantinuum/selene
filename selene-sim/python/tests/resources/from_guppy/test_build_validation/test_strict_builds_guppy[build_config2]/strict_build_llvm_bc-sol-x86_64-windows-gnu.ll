@@ -9,13 +9,13 @@ define void @__hugr__.__main__.main.1() local_unnamed_addr {
 alloca_block:
   %qalloc.i = tail call i64 @___qalloc()
   %not_max.not.not.i = icmp eq i64 %qalloc.i, -1
-  br i1 %not_max.not.not.i, label %cond_17_case_0.i, label %__hugr__.__tk2_sol_qalloc.13.exit
+  br i1 %not_max.not.not.i, label %cond_10_case_0.i, label %__hugr__.__tk2_sol_qalloc.6.exit
 
-cond_17_case_0.i:                                 ; preds = %alloca_block
+cond_10_case_0.i:                                 ; preds = %alloca_block
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 
-__hugr__.__tk2_sol_qalloc.13.exit:                ; preds = %alloca_block
+__hugr__.__tk2_sol_qalloc.6.exit:                 ; preds = %alloca_block
   tail call void @___reset(i64 %qalloc.i)
   tail call void @___qfree(i64 %qalloc.i)
   ret void
@@ -35,9 +35,9 @@ entry:
   tail call void @setup(i64 %0)
   %qalloc.i.i = tail call i64 @___qalloc()
   %not_max.not.not.i.i = icmp eq i64 %qalloc.i.i, -1
-  br i1 %not_max.not.not.i.i, label %cond_17_case_0.i.i, label %__hugr__.__main__.main.1.exit
+  br i1 %not_max.not.not.i.i, label %cond_10_case_0.i.i, label %__hugr__.__main__.main.1.exit
 
-cond_17_case_0.i.i:                               ; preds = %entry
+cond_10_case_0.i.i:                               ; preds = %entry
   tail call void @panic(i32 1001, ptr nonnull @"e_No more qu.3B2EEBF0.0")
   unreachable
 

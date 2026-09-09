@@ -18,6 +18,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_yml = "0.0.12"
 rand_pcg = "0.9"
 url = "2.5"
+backtrace = "0.3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_System_LibraryLoader",
+] }
 
 [lints]
 workspace = true

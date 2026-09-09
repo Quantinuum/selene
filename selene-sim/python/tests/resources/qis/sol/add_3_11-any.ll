@@ -16,7 +16,7 @@ declare void @___qfree(i64) local_unnamed_addr
 declare void @___rp(i64, double, double) local_unnamed_addr
 declare void @___rpp(i64, i64, double, double) local_unnamed_addr
 declare void @___rz(i64, double) local_unnamed_addr
-declare i64 @___lazy_measure(i64) local_unnamed_addr
+declare i64 @___future_measure(i64, i64) local_unnamed_addr
 
 declare void @___dec_future_refcount(i64) local_unnamed_addr
 declare void @print_int(i8*, i64, i64) local_unnamed_addr
@@ -464,11 +464,11 @@ entry:
     tail call void @___rp(i64 %rhs_3, double %minus_half_pi, double %zero)
 
     ; allocate 4 int64s for measurement handles
-    %ref_0 = tail call i64 @___lazy_measure(i64 %rhs_0)
-    %ref_1 = tail call i64 @___lazy_measure(i64 %rhs_1)
-    %ref_2 = tail call i64 @___lazy_measure(i64 %rhs_2)
-    %ref_3 = tail call i64 @___lazy_measure(i64 %rhs_3)
-    %ref_4 = tail call i64 @___lazy_measure(i64 %carry)
+    %ref_0 = tail call i64 @___future_measure(i64 %rhs_0, i64 0)
+    %ref_1 = tail call i64 @___future_measure(i64 %rhs_1, i64 0)
+    %ref_2 = tail call i64 @___future_measure(i64 %rhs_2, i64 0)
+    %ref_3 = tail call i64 @___future_measure(i64 %rhs_3, i64 0)
+    %ref_4 = tail call i64 @___future_measure(i64 %carry, i64 0)
 
     ; read them back as booleans
     %ans_0 = tail call i1 @___read_future_bool(i64 %ref_0)
