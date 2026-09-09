@@ -29,7 +29,7 @@ class MetricStore(EventHook):
     def __init__(self):
         self.shots = []
 
-    def try_invoke(self, tag: str, data: list):
+    def try_invoke(self, tag: str, data: list) -> bool:
         if not tag.startswith("METRICS:"):
             return False
         stripped_tag = ":".join(tag.split(":")[2:])
@@ -43,6 +43,7 @@ class MetricStore(EventHook):
         )
         # Store the metric in the latest shot's metrics dictionary
         self.shots[-1].setdefault(category, dict())[stripped_tag] = data[0]
+        return True
 
     def on_new_shot(self):
         self.shots.append(dict())

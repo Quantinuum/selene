@@ -1,11 +1,12 @@
 import yaml
 import datetime
+import pytest
 from pathlib import Path
 from textwrap import dedent
 
 from selene_sim.build import build
-from selene_sim import Quest, Stim
-from selene_sim.event_hooks import MetricStore
+from selene_sim import Quest, Stim, DepolarizingErrorModel, SoftRZRuntime
+from selene_sim.event_hooks import MetricStore, CircuitExtractor
 from selene_sim.exceptions import (
     SelenePanicError,
     SeleneStartupError,
@@ -43,7 +44,11 @@ def test_flip_some_unparsed(compiled_guppy):
     )
 
     runner = build(llvm_file)
-    got = list(runner.run(Quest(), verbose=True, n_qubits=4, parse_results=False))
+    shots, error = postprocess_unparsed_stream(
+        [runner.run(Quest(), verbose=True, n_qubits=4, parse_results=False)]
+    )
+    assert error is None
+    [got] = shots
     expected = [
         ("USER:BOOL:c0", 1),
         ("USER:BOOL:c1", 0),
@@ -91,8 +96,9 @@ def test_flip_some_multishot_unparsed(compiled_guppy):
         ("USER:BOOL:c2", 1),
         ("USER:BOOL:c3", 1),
     ]
-    for shot in shots:
-        got = list(shot)
+    results, error = postprocess_unparsed_stream(shots)
+    assert error is None
+    for got in results:
         assert got == expected, f"expected {expected}, got {got}"
 
 
@@ -125,12 +131,46 @@ def test_flip_some_with_metrics_unparsed(snapshot, compiled_guppy):
     )
     runner = build(llvm_file)
     store = MetricStore()
-    got = list(
-        runner.run(
-            Quest(), verbose=True, n_qubits=4, parse_results=False, event_hook=store
+    raw_shots = [
+        list(shot)
+        for shot in runner.run_shots(
+            Quest(), n_qubits=4, n_shots=2, parse_results=False, event_hook=store
         )
-    )
-    snapshot.assert_match(yaml.dump(got), "unparsed_metrics")
+    ]
+    assert store.shots == []
+    raw_metrics = [
+        [(tag, values[0]) for tag, values in shot if tag.startswith("METRICS:")]
+        for shot in raw_shots
+    ]
+    assert all(raw_metrics)
+
+    # Without a postprocessing hook, the original metric tags and values survive.
+    retained, error = postprocess_unparsed_stream(raw_shots)
+    assert error is None
+    assert store.shots == []
+    assert [
+        [(tag, value) for tag, value in shot if tag.startswith("METRICS:")]
+        for shot in retained
+    ] == raw_metrics
+    snapshot.assert_match(yaml.dump(retained[0]), "unparsed_metrics")
+
+    # Process the exact same feed with the store: metrics move into the hook.
+    consumed, error = postprocess_unparsed_stream(raw_shots, event_hook=store)
+    assert error is None
+    assert len(store.shots) == len(raw_shots)
+    assert consumed == [
+        [(tag, value) for tag, value in shot if not tag.startswith("METRICS:")]
+        for shot in retained
+    ]
+    for stored, metrics in zip(store.shots, raw_metrics):
+        stored_metrics = {
+            f"{category}:{name}" if category != "DEFAULT" else name: value
+            for category, entries in stored.items()
+            for name, value in entries.items()
+        }
+        assert stored_metrics == {
+            tag.split(":", maxsplit=2)[2]: value for tag, value in metrics
+        }
 
 
 def test_array_results_unparsed(compiled_guppy):
@@ -159,12 +199,12 @@ def test_array_results_unparsed(compiled_guppy):
 
     runner = build(llvm_file)
 
-    shots = list(
-        list(shot)
-        for shot in runner.run_shots(
+    shots, error = postprocess_unparsed_stream(
+        runner.run_shots(
             Stim(), n_qubits=10, n_shots=20, parse_results=False, verbose=True
         )
     )
+    assert error is None
 
     expected = [
         ("USER:BOOLARR:bools", [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
@@ -226,14 +266,16 @@ def test_exit_unparsed(compiled_guppy):
     n_1 = 0
     n_0 = 0
     n_exit = 0
-    for shot in runner.run_shots(
+    unparsed_results = runner.run_shots(
         Quest(),
         n_qubits=1,
         n_shots=100,
         random_seed=0,
         parse_results=False,
-    ):
-        shot = list(shot)
+    )
+    results, error = postprocess_unparsed_stream(unparsed_results)
+    assert error is None
+    for shot in results:
         if shot == [
             ("EXIT:INT:Postselection failed", 42),
         ]:
@@ -480,3 +522,79 @@ def test_corrupted_plugin_unparsed(compiled_guppy):
     assert len(shots) == 0
     assert isinstance(error, SeleneStartupError)
     assert "Failed to load runtime plugin" in error.stderr
+
+
+@pytest.mark.parametrize("seed_mode", ["default", "legacy"])
+def test_ghz_trace_unparsed(compiled_guppy, snapshot, seed_mode):
+    guppy_source = dedent(
+        """
+        from guppylang.decorator import guppy
+        from guppylang.std.builtins import array, result
+        from guppylang.std.quantum import qubit, h, cx, measure_array, collect_measurements
+
+        @guppy
+        def main() -> None:
+            qs = array(qubit() for _ in range(10))
+            h(qs[0])
+            for i in range(9):
+                cx(qs[i], qs[i+1])
+            result("outcomes", collect_measurements(measure_array(qs)))
+        """
+    )
+
+    llvm_file = compiled_guppy(
+        program_name="trace_test",
+        guppy_source=guppy_source,
+    )
+    extractor = CircuitExtractor()
+    runner = build(llvm_file)
+    raw_shots = [
+        list(shot)
+        for shot in runner.run_shots(
+            simulator=Stim(),
+            runtime=SoftRZRuntime(),
+            error_model=DepolarizingErrorModel(
+                p_init=0.05, p_meas=0.05, p_1q=0.05, p_2q=0.05
+            ),
+            n_qubits=10,
+            n_shots=2,
+            random_seed=10,
+            seed_mode=seed_mode,
+            parse_results=False,
+            event_hook=extractor,
+        )
+    ]
+    assert extractor.shots == []
+    assert all(
+        any(tag == "INSTRUCTIONLOG" and values for tag, values in shot)
+        for shot in raw_shots
+    )
+
+    # Omitting the hook should strip instruction logs, as they aren't
+    # compatible with the final stream format (they don't adhere to
+    # TaggedResult).
+    stripped, error = postprocess_unparsed_stream(raw_shots)
+    assert error is None
+    assert extractor.shots == []
+    expected = [
+        [(tag, values[0]) for tag, values in shot if tag.startswith("USER:")]
+        for shot in raw_shots
+    ]
+    assert stripped == expected
+    assert all(expected)
+
+    # But that's a silly illustration - we passed the extractor to run_shots so
+    # that the instruction log would be included in the results, and that adds
+    # performance costs. So let's now pass the event hook into postprocess_unparsed_stream,
+    # and verify that those entries reconstruct the trace (while also stripping the instruction
+    # logs from the final results).
+    results, error = postprocess_unparsed_stream(raw_shots, event_hook=extractor)
+    assert error is None
+    assert results == stripped
+    assert len(extractor.shots) == len(raw_shots)
+    for raw, extracted in zip(raw_shots, extractor.shots):
+        assert extracted.instructions == [
+            value for tag, values in raw if tag == "INSTRUCTIONLOG" for value in values
+        ]
+    trace = extractor.shots[0].get_trace().clear_simulator_perf_timing()
+    snapshot.assert_match(trace.model_dump_json(indent=2), "trace.json")
