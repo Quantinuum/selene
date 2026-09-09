@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.1...selene-sim-v0.3.2) (2026-09-09)
+
+
+### Features
+
+* resolve confusing llvmlite version resolution ([#218](https://github.com/Quantinuum/selene/issues/218)) ([eaea43d](https://github.com/Quantinuum/selene/commit/eaea43d49032ba83e05a92f4543202e1a024bc08))
+* Support event hooks through the unparsed interface. ([#217](https://github.com/Quantinuum/selene/issues/217)) ([9152f82](https://github.com/Quantinuum/selene/commit/9152f82580fce6055c6bd7a921e6864a542a6c31))
+
 ## [0.3.1](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.0...selene-sim-v0.3.1) (2026-09-07)
 
 
