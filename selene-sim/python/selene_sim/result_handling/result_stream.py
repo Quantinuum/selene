@@ -71,6 +71,11 @@ class ResultStream:
             result = self.stream.read_chunk(length)
         except BlockingIOError:
             raise
+        except OSError as e:
+            raise SeleneRuntimeError(
+                f"Could not read {length} bytes from result stream: "
+                f"{type(e).__name__}: {e}"
+            ) from e
         if len(result) < length:
             raise SeleneRuntimeError("Parsing error: Unexpected end of stream")
         return result
@@ -99,10 +104,16 @@ class ResultStream:
             raise SeleneRuntimeError(
                 f"Expected tag as the first entry in a stream record, but got type {datatype} ({datatype:04x}) for with length {size} ({size:04x})"
             )
-        val = self.get_chunk(size).decode("utf-8")
+        try:
+            val = self.get_chunk(size).decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise SeleneRuntimeError(
+                f"Parsing error: Invalid UTF-8 in record tag ({size} bytes): "
+                f"{type(e).__name__}: {e}"
+            ) from e
         return val
 
-    def _extract_values(self) -> list[StreamEntryPart]:
+    def _extract_values(self, tag: str) -> list[StreamEntryPart]:
         # Loop through entries in the row
         values: list[StreamEntryPart] = []
         while True:
@@ -157,10 +168,17 @@ class ResultStream:
             except SeleneTimeoutError as e:
                 # propagate timeout errors
                 raise e
-            except Exception as e:
-                # struct parsing error, do not update the cursor, need more data
+            except UnicodeDecodeError as e:
                 raise SeleneRuntimeError(
-                    "Parsing error: Malformed result stream"
+                    f"Parsing error: Invalid UTF-8 in value {len(values) + 1} "
+                    f"of record {tag!r} ({size} bytes): {type(e).__name__}: {e}"
+                ) from e
+            except Exception as e:
+                # The unparsed interface transports the message but not the
+                # Python exception chain, so include the cause here as well.
+                raise SeleneRuntimeError(
+                    f"Failed to parse value {len(values) + 1} of record {tag!r}: "
+                    f"{type(e).__name__}: {e}"
                 ) from e
         return values
 
@@ -175,5 +193,5 @@ class ResultStream:
             return None
 
         tag = self._extract_tag()
-        values = self._extract_values()
+        values = self._extract_values(tag)
         return StreamEntry(tag=tag, values=values)
