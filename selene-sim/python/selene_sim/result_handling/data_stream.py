@@ -5,7 +5,11 @@ from typing import BinaryIO
 import struct
 from selectors import DefaultSelector, EVENT_READ
 from dataclasses import dataclass
-from selene_sim.exceptions import SeleneStartupError, SeleneTimeoutError
+from selene_sim.exceptions import (
+    SeleneRuntimeError,
+    SeleneStartupError,
+    SeleneTimeoutError,
+)
 from selene_sim.timeout import Timeout, Timer
 
 
@@ -51,23 +55,57 @@ class TCPClient:
         logfile: Path | None = None,
     ):
         self.socket = sock
-        self.address = sock.getsockname()
+        self.address = sock.getpeername()
         self.configuration = configuration
         self.receive_buffer = b""
         self.logfile_handle: BinaryIO | None = None
         self.is_open = True
         if logfile is not None:
-            self.logfile_handle = logfile.open("wb")
+            try:
+                self.logfile_handle = logfile.open("wb")
+            except OSError as error:
+                raise SeleneRuntimeError(
+                    f"Could not open result log {str(logfile)!r} for {self.description}: "
+                    f"{type(error).__name__}: {error}"
+                ) from error
+
+    @property
+    def description(self) -> str:
+        config = self.configuration
+        return (
+            f"result client {self.address} (shot offset {config.shot_offset}, "
+            f"increment {config.shot_increment}, count {config.n_shots})"
+        )
 
     def sync(self):
-        data = self.socket.recv(4096)
+        try:
+            data = self.socket.recv(4096)
+        except OSError as error:
+            raise SeleneRuntimeError(
+                f"Could not read from {self.description}: "
+                f"{type(error).__name__}: {error}"
+            ) from error
         if not data:
             self.is_open = False
             self.close()
             return
         self.receive_buffer += data
         if self.logfile_handle is not None:
-            self.logfile_handle.write(data)
+            try:
+                self.logfile_handle.write(data)
+            except OSError as error:
+                logfile = self.logfile_handle
+                self.logfile_handle = None
+                # Closing a buffered file can retry the failed write. We should
+                # report the first failure, even if closing the log also fails.
+                try:
+                    logfile.close()
+                except OSError:
+                    pass
+                raise SeleneRuntimeError(
+                    f"Could not write result log {str(logfile.name)!r} for "
+                    f"{self.description}: {type(error).__name__}: {error}"
+                ) from error
 
     def take(self, length: int) -> bytes:
         result = self.receive_buffer[:length]
@@ -78,9 +116,19 @@ class TCPClient:
         return len(self.receive_buffer) >= length
 
     def close(self):
-        if self.logfile_handle is not None:
-            self.logfile_handle.close()
-        self.socket.close()
+        try:
+            if self.logfile_handle is not None:
+                logfile = self.logfile_handle
+                self.logfile_handle = None
+                try:
+                    logfile.close()
+                except OSError as error:
+                    raise SeleneRuntimeError(
+                        f"Could not close result log {str(logfile.name)!r} for "
+                        f"{self.description}: {type(error).__name__}: {error}"
+                    ) from error
+        finally:
+            self.socket.close()
 
 
 class TCPStream(DataStream):
@@ -128,9 +176,18 @@ class TCPStream(DataStream):
         self.selector.close()
         if self.server_socket:
             self.server_socket.close()
+        close_error = None
         for client in self.clients:
-            client.close()
+            try:
+                client.close()
+            except SeleneRuntimeError as error:
+                if close_error is None:
+                    close_error = error
         self.done = True
+        # Close every client, but don't replace an error already being raised
+        # with another failure from flushing a result log during cleanup.
+        if exc_type is None and close_error is not None:
+            raise close_error
 
     def get_uri(self):
         assert self.server_socket is not None, "get_uri called on an unopened stream"
@@ -186,10 +243,14 @@ class TCPStream(DataStream):
             client_logfile = self.logfile.with_suffix(
                 f"{self.logfile.suffix}.{offset_str}.{increment_str}.{shot_str}.log"
             )
+        try:
+            client = TCPClient(client_socket, shot_configuration, client_logfile)
+        except Exception:
+            self.selector.unregister(client_socket)
+            client_socket.close()
+            raise
         self.clients_by_fileno[client_socket.fileno()] = len(self.clients)
-        self.clients.append(
-            TCPClient(client_socket, shot_configuration, client_logfile)
-        )
+        self.clients.append(client)
 
     def _sync(self, timeout: float | None = None) -> bool:
         """
