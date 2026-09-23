@@ -2,7 +2,11 @@
 
 import json
 from importlib.resources import files
-from importlib.resources.abc import Traversable
+
+try:
+    from importlib.resources.abc import Traversable  # Python 3.11+
+except ImportError:
+    from importlib.abc import Traversable  # Python 3.10
 from pathlib import Path
 from typing import Any
 
