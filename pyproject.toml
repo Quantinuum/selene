@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "selene-sim"
 description = "Quantinuum's open source emulator for quantum computation"
-version = "0.3.1"
+version = "0.3.2"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 dependencies = [
@@ -114,15 +114,6 @@ cache-keys = [
   { file = "selene-ext/**/Cargo.toml" },
   { file = "selene-ext/**/Cargo.lock" },
   { file = "selene-core/rust/**/*.rs" },
-]
-
-# We maintain support for macos x86-64, but some deps have dropped support.
-# Where possible we can just pin them to specific older (but known to work)
-# versions for macos x86-64 without constraining other platforms. This, however,
-# encourages UV to pin all platforms to the same version, which isn't what we want.
-# As such, we use environments to force that split.
-constraint-dependencies = [
-  "llvmlite>0.45.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]
 
 [tool.ruff]

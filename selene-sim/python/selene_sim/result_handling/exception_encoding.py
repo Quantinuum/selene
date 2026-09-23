@@ -143,7 +143,7 @@ def encode_exception(
 
 
 def detect_exception(
-    result: TaggedResult,
+    result: tuple[str, object],
 ) -> bool:
     """
     Given a single tagged result, check if it is part of an encoded exception.
@@ -152,7 +152,7 @@ def detect_exception(
 
 
 def decode_exception(
-    detected_entry: TaggedResult,
+    detected_entry: tuple[str, object],
     remaining_results: Iterator[TaggedResult],
 ) -> Exception:
     exception_type = detected_entry[0].removeprefix(EXCEPTION_TYPE_PREFIX)

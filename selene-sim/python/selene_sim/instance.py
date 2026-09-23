@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Literal, overload
 from dataclasses import dataclass
 import yaml
 
@@ -8,7 +8,7 @@ import yaml
 from selene_core import SeleneComponent, Simulator, ErrorModel, Runtime
 
 from .backends import SimpleRuntime, IdealErrorModel
-from .result_handling import TaggedResult
+from .result_handling import TaggedResult, TaggedStreamEntry
 from .event_hooks import EventHook, NoEventHook
 from .result_handling import ResultStream, TCPStream, parse_shot
 from .timeout import Timeout, TimeoutInput
@@ -148,6 +148,66 @@ class SeleneInstance:
             print("Warning: The runs directory does not exist. Creating it again.")
             self.runs.mkdir(parents=True, exist_ok=True)
 
+    @overload
+    def run_shots(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        n_shots: int = ...,
+        error_model: ErrorModel = ...,
+        runtime: Runtime = ...,
+        event_hook: EventHook = ...,
+        verbose: bool = ...,
+        timeout: TimeoutInput = ...,
+        results_logfile: Path | None = ...,
+        random_seed: int | None = ...,
+        shot_offset: int = ...,
+        shot_increment: int = ...,
+        n_processes: int = ...,
+        parse_results: Literal[True] = ...,
+        seed_mode: str = ...,
+    ) -> Iterator[Iterator[TaggedResult]]: ...
+
+    @overload
+    def run_shots(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        n_shots: int = ...,
+        error_model: ErrorModel = ...,
+        runtime: Runtime = ...,
+        event_hook: EventHook = ...,
+        verbose: bool = ...,
+        timeout: TimeoutInput = ...,
+        results_logfile: Path | None = ...,
+        random_seed: int | None = ...,
+        shot_offset: int = ...,
+        shot_increment: int = ...,
+        n_processes: int = ...,
+        parse_results: Literal[False] = ...,
+        seed_mode: str = ...,
+    ) -> Iterator[Iterator[TaggedStreamEntry]]: ...
+
+    @overload
+    def run_shots(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        n_shots: int = ...,
+        error_model: ErrorModel = ...,
+        runtime: Runtime = ...,
+        event_hook: EventHook = ...,
+        verbose: bool = ...,
+        timeout: TimeoutInput = ...,
+        results_logfile: Path | None = ...,
+        random_seed: int | None = ...,
+        shot_offset: int = ...,
+        shot_increment: int = ...,
+        n_processes: int = ...,
+        parse_results: bool = ...,
+        seed_mode: str = ...,
+    ) -> Iterator[Iterator[TaggedResult] | Iterator[TaggedStreamEntry]]: ...
+
     def run_shots(
         self,
         simulator: Simulator,
@@ -165,9 +225,14 @@ class SeleneInstance:
         n_processes: int = 1,
         parse_results: bool = True,
         seed_mode: str = "default",
-    ) -> Iterator[Iterator[TaggedResult]]:
+    ) -> Iterator[Iterator[TaggedResult] | Iterator[TaggedStreamEntry]]:
         """
         Run the compiled program through multiple selene shots.
+
+        Parsed shots yield TaggedResult entries. With parse_results=False,
+        shots yield TaggedStreamEntry entries, retaining tags and log payloads
+        for later postprocessing. Event hooks configure output in both modes,
+        but only process entries in parsed mode.
         Args:
             simulator: The simulator plugin to use
             n_qubits: The maximum number of qubits to simulate
@@ -279,7 +344,8 @@ class SeleneInstance:
                     raise Exception(
                         "Results stream has ended before all shots are processed"
                     )
-                event_hook.on_new_shot()
+                if parse_results:
+                    event_hook.on_new_shot()
                 relevant_process = processes.find(shot_idx)
                 assert relevant_process is not None
                 yield parse_shot(
@@ -290,6 +356,57 @@ class SeleneInstance:
                 )
 
         processes.wait(check_return_code=not result_stream.tainted)
+
+    @overload
+    def run(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        runtime: Runtime = ...,
+        error_model: ErrorModel = ...,
+        event_hook: EventHook = ...,
+        verbose: bool = ...,
+        timeout: TimeoutInput = ...,
+        results_logfile=None,
+        random_seed: int | None = ...,
+        shot_offset: int = ...,
+        parse_results: Literal[True] = ...,
+        seed_mode: str = ...,
+    ) -> Iterator[TaggedResult]: ...
+
+    @overload
+    def run(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        runtime: Runtime = ...,
+        error_model: ErrorModel = ...,
+        event_hook: EventHook = ...,
+        verbose: bool = ...,
+        timeout: TimeoutInput = ...,
+        results_logfile=None,
+        random_seed: int | None = ...,
+        shot_offset: int = ...,
+        parse_results: Literal[False] = ...,
+        seed_mode: str = ...,
+    ) -> Iterator[TaggedStreamEntry]: ...
+
+    @overload
+    def run(
+        self,
+        simulator: Simulator,
+        n_qubits: int,
+        runtime: Runtime = ...,
+        error_model: ErrorModel = ...,
+        event_hook: EventHook = ...,
+        verbose: bool = ...,
+        timeout: TimeoutInput = ...,
+        results_logfile=None,
+        random_seed: int | None = ...,
+        shot_offset: int = ...,
+        parse_results: bool = ...,
+        seed_mode: str = ...,
+    ) -> Iterator[TaggedResult] | Iterator[TaggedStreamEntry]: ...
 
     def run(
         self,
@@ -305,9 +422,12 @@ class SeleneInstance:
         shot_offset: int = 0,
         parse_results: bool = True,
         seed_mode: str = "default",
-    ) -> Iterator[TaggedResult]:
+    ) -> Iterator[TaggedResult | TaggedStreamEntry]:
         """
         Run the compiled program through a single selene shot.
+
+        With parse_results=False, yields TaggedStreamEntry entries with tags
+        and raw log payloads retained, as in run_shots.
 
         Args:
             simulator: The simulator plugin to use

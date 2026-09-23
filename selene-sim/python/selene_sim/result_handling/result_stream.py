@@ -14,6 +14,8 @@ DataValue = DataPrimitive | list[DataPrimitive]
 TaggedResult = tuple[str, DataValue]
 
 StreamEntryPart = int | float | bool | str | bytes | list[int | float | bool]
+# Raw entries carry the complete argument list, including for scalar results.
+TaggedStreamEntry = tuple[str, list[StreamEntryPart]]
 
 
 @dataclass
