@@ -212,8 +212,6 @@ before-all = '''
     rustup toolchain install;
 '''
 before-test = '''
-    python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel";
-
     # if we have caching enabled and it exists, copy caches to the
     # host so that it can be reused in the next build.
     if [ -d /host/tmp/ci-cache ]; then
@@ -233,14 +231,15 @@ before-test = '''
         chmod -R a+rX /host/tmp/ci-cache/selene
     fi;
     uv pip install "{project}/selene-core";
+    python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel";
 '''
 [tool.cibuildwheel.macos.environment]
 PATH = "$PATH:$HOME/.cargo/bin:${HUGRENV_PATH}"
 MACOSX_DEPLOYMENT_TARGET = "12.0"
 [tool.cibuildwheel.macos]
 before-test = [
-    'python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel"',
-    'uv pip install "{project}/selene-core"'
+    'uv pip install "{project}/selene-core"',
+    'python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel"'
 ]
 
 [tool.cibuildwheel.windows.environment]
@@ -255,6 +254,6 @@ before-all = [
     'rustup target add x86_64-pc-windows-gnu'
 ]
 before-test = [
-    'python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel"',
-    'uv pip install "{project}/selene-core"'
+    'uv pip install "{project}/selene-core"',
+    'python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel"'
 ]

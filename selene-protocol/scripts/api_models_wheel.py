@@ -28,6 +28,7 @@ def install(wheel_directory: Path) -> None:
             "pip",
             "install",
             "--force-reinstall",
+            "--no-deps",
             str(wheel),
         ],
         check=True,
