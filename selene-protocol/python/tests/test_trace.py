@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
-
 from selene_api_models.trace import (
+    MAX_SAFE_INTEGER,
     SCHEMA_VERSION,
     ErrorModelSource,
     GateEvent,
@@ -15,6 +15,8 @@ from selene_api_models.trace import (
     SimulatorSource,
     Trace,
     UserProgramSource,
+    parse_trace,
+    parse_trace_json,
 )
 
 
@@ -104,7 +106,7 @@ def test_opaque_payload_rejects_noncanonical_uint64_json_tags(tag):
         )
 
 
-def test_uint64_trace_fields_serialize_as_decimal_strings():
+def test_safe_unsigned_trace_fields_serialize_as_json_integers():
     trace = Trace(
         schema_version=SCHEMA_VERSION,
         events=[
@@ -117,15 +119,51 @@ def test_uint64_trace_fields_serialize_as_decimal_strings():
 
     serialized = json.loads(trace.model_dump_json())
     assert serialized["events"][0] == {
-        "source": {"kind": "Runtime", "start_time": "0", "end_time": "1"},
+        "source": {"kind": "Runtime", "start_time": 0, "end_time": 1},
         "event": {
             "kind": "Gate",
-            "qubits": ["0", "1"],
+            "qubits": [0, 1],
             "gate_name": "H",
             "params": [],
             "predicates": [],
         },
     }
+
+
+@pytest.mark.parametrize("value", [-1, MAX_SAFE_INTEGER + 1])
+def test_safe_unsigned_trace_fields_enforce_javascript_range(value):
+    with pytest.raises(ValidationError):
+        UserProgramSource(index=value)
+
+
+def test_versionless_legacy_trace_is_upgraded():
+    trace = parse_trace(
+        {
+            "events": [
+                {
+                    "source": {"kind": "UserProgram", "index": 0},
+                    "event": {"kind": "Measurement", "qubit": 1},
+                }
+            ]
+        }
+    )
+
+    assert trace.schema_version == SCHEMA_VERSION
+    assert trace.events[0].source == UserProgramSource(index=0)
+    assert trace.events[0].event == MeasurementEvent(qubit=1)
+
+
+def test_legacy_json_preserves_a_numeric_uint64_opaque_payload_tag():
+    example_path = Path(__file__).parents[2] / "examples" / "trace" / "legacy.json"
+    trace = parse_trace_json(example_path.read_text())
+
+    assert trace.schema_version == SCHEMA_VERSION
+    assert isinstance(trace.events[1].event.payload, OpaquePayload)
+    assert trace.events[1].event.payload.tag == 11616494188317837126
+    assert (
+        json.loads(trace.model_dump_json())["events"][1]["event"]["payload"]["tag"]
+        == "11616494188317837126"
+    )
 
 
 @pytest.mark.parametrize("example_name", ["minimal.json", "all-event-types.json"])

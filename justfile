@@ -8,8 +8,8 @@ clean-artifacts:
 build-wheels:
     uv build --all-packages
 
-test-py *TEST_ARGS: develop
-    uv run pytest {{TEST_ARGS}}
+test-py *TEST_ARGS:
+    uv run --locked --all-packages --all-groups pytest {{TEST_ARGS}}
 
 test-rs *TEST_ARGS:
     uv run cargo test {{TEST_ARGS}}

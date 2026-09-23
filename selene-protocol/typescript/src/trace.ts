@@ -1,6 +1,7 @@
 /** TypeScript bindings for version 0.1.0 of the Selene trace protocol. */
 
 import { z } from "zod";
+import { isLosslessNumber, parse as parseLosslessJson } from "lossless-json";
 
 export const SCHEMA_VERSION = "0.1.0" as const;
 export const SchemaVersionSchema = z.literal(SCHEMA_VERSION);
@@ -8,6 +9,15 @@ export type SchemaVersion = z.infer<typeof SchemaVersionSchema>;
 
 /** The largest value representable by an unsigned 64-bit integer. */
 export const UINT64_MAX = (1n << 64n) - 1n;
+export const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+
+/** A non-negative JSON integer that can be represented exactly by JavaScript. */
+export const SafeUIntSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(MAX_SAFE_INTEGER);
+export type SafeUInt = z.infer<typeof SafeUIntSchema>;
 
 /** A canonical unsigned 64-bit integer encoded as a decimal string. */
 export const UInt64DecimalStringSchema = z
@@ -30,30 +40,30 @@ export type PredicateResult = z.infer<typeof PredicateResultSchema>;
 
 export const UserProgramSourceSchema = z.object({
   kind: z.literal("UserProgram"),
-  index: UInt64Schema,
+  index: SafeUIntSchema,
 });
 export type UserProgramSource = z.infer<typeof UserProgramSourceSchema>;
 export type UserProgramSourceInput = z.input<typeof UserProgramSourceSchema>;
 
 export const RuntimeSourceSchema = z.object({
   kind: z.literal("Runtime"),
-  start_time: UInt64Schema,
-  end_time: UInt64Schema,
+  start_time: SafeUIntSchema,
+  end_time: SafeUIntSchema,
 });
 export type RuntimeSource = z.infer<typeof RuntimeSourceSchema>;
 export type RuntimeSourceInput = z.input<typeof RuntimeSourceSchema>;
 
 export const ErrorModelSourceSchema = z.object({
   kind: z.literal("ErrorModel"),
-  index: UInt64Schema,
+  index: SafeUIntSchema,
 });
 export type ErrorModelSource = z.infer<typeof ErrorModelSourceSchema>;
 export type ErrorModelSourceInput = z.input<typeof ErrorModelSourceSchema>;
 
 export const SimulatorSourceSchema = z.object({
   kind: z.literal("Simulator"),
-  index: UInt64Schema,
-  duration_ns: UInt64Schema,
+  index: SafeUIntSchema,
+  duration_ns: SafeUIntSchema,
 });
 export type SimulatorSource = z.infer<typeof SimulatorSourceSchema>;
 export type SimulatorSourceInput = z.input<typeof SimulatorSourceSchema>;
@@ -72,7 +82,7 @@ export type GateParameter = z.infer<typeof GateParameterSchema>;
 
 export const GateEventSchema = z.object({
   kind: z.literal("Gate"),
-  qubits: z.array(UInt64Schema).default([]),
+  qubits: z.array(SafeUIntSchema).default([]),
   gate_name: z.string(),
   params: z.array(GateParameterSchema).default([]),
   predicates: z.array(PredicateResultSchema).default([]),
@@ -82,14 +92,14 @@ export type GateEventInput = z.input<typeof GateEventSchema>;
 
 export const MeasurementEventSchema = z.object({
   kind: z.literal("Measurement"),
-  qubit: UInt64Schema,
+  qubit: SafeUIntSchema,
 });
 export type MeasurementEvent = z.infer<typeof MeasurementEventSchema>;
 export type MeasurementEventInput = z.input<typeof MeasurementEventSchema>;
 
 export const ResetEventSchema = z.object({
   kind: z.literal("Reset"),
-  qubit: UInt64Schema,
+  qubit: SafeUIntSchema,
 });
 export type ResetEvent = z.infer<typeof ResetEventSchema>;
 export type ResetEventInput = z.input<typeof ResetEventSchema>;
@@ -171,19 +181,125 @@ export const TraceSchema = z.object({
 export type Trace = z.infer<typeof TraceSchema>;
 export type TraceInput = z.input<typeof TraceSchema>;
 
+const LegacyOpaquePayloadSchema = OpaquePayloadSchema.extend({
+  tag: z.union([
+    z.number().int().nonnegative().safe().transform((value) => BigInt(value)),
+    z.bigint().min(0n).max(UINT64_MAX),
+  ]),
+});
+
+const LegacyCustomPayloadSchema = z.discriminatedUnion("kind", [
+  LegacyOpaquePayloadSchema,
+  KeyValuePairPayloadSchema,
+]);
+
+const LegacyCustomEventSchema = CustomEventSchema.extend({
+  payload: LegacyCustomPayloadSchema,
+});
+
+const LegacyEventSchema = z.discriminatedUnion("kind", [
+  GateEventSchema,
+  MeasurementEventSchema,
+  ResetEventSchema,
+  LegacyCustomEventSchema,
+]);
+
+const LegacyEventRecordSchema = EventRecordSchema.extend({
+  event: LegacyEventSchema,
+});
+
+/** The versionless trace representation emitted before protocol versioning. */
+export const LegacyTraceSchema = z.object({
+  events: z.array(LegacyEventRecordSchema).default([]),
+}).passthrough().refine((value) => !("schema_version" in value), {
+  message: "Legacy trace documents must not contain schema_version",
+});
+export type LegacyTrace = z.infer<typeof LegacyTraceSchema>;
+
 /** Create a trace document with the protocol version set correctly. */
 export function createTrace(events: EventRecordInput[] = []): Trace {
   return TraceSchema.parse({ schema_version: SCHEMA_VERSION, events });
 }
 
-/** Parse a JSON-compatible trace; opaque-payload tags are decoded to bigint. */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Upgrade a validated versionless trace into the current in-memory model. */
+export function upgradeLegacyTrace(value: unknown): Trace {
+  const legacy = LegacyTraceSchema.parse(value);
+  return {
+    schema_version: SCHEMA_VERSION,
+    events: legacy.events as EventRecord[],
+  };
+}
+
+/** Parse a JSON-compatible current or versionless legacy trace value. */
 export function parseTrace(value: unknown): Trace {
+  if (isObject(value) && !("schema_version" in value)) {
+    return upgradeLegacyTrace(value);
+  }
   return TraceSchema.parse(value);
+}
+
+function normalizeLosslessJson(value: unknown, legacy: boolean): unknown {
+  if (isLosslessNumber(value)) {
+    const converted = value.valueOf();
+    if (typeof converted === "bigint") {
+      return Number(converted);
+    }
+    return converted;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeLosslessJson(item, legacy));
+  }
+
+  if (!isObject(value)) {
+    return value;
+  }
+
+  const normalized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (
+      legacy &&
+      value.kind === "OpaquePayload" &&
+      key === "tag" &&
+      isLosslessNumber(child)
+    ) {
+      const decimal = child.toString();
+      if (!/^(0|[1-9][0-9]*)$/.test(decimal)) {
+        throw new RangeError("legacy OpaquePayload.tag must be an unsigned JSON integer");
+      }
+      const tag = BigInt(decimal);
+      if (tag > UINT64_MAX) {
+        throw new RangeError("legacy OpaquePayload.tag exceeds the uint64 range");
+      }
+      normalized[key] = tag;
+    } else {
+      normalized[key] = normalizeLosslessJson(child, legacy);
+    }
+  }
+  return normalized;
+}
+
+/** Parse trace JSON while preserving a legacy numeric opaque-payload tag. */
+export function parseTraceJson(json: string): Trace {
+  const parsed = parseLosslessJson(json);
+  const legacy = isObject(parsed) && !("schema_version" in parsed);
+  return parseTrace(normalizeLosslessJson(parsed, legacy));
 }
 
 /** Validate a JSON-compatible value as a Selene trace without throwing. */
 export function safeParseTrace(value: unknown): z.SafeParseReturnType<unknown, Trace> {
-  return TraceSchema.safeParse(value);
+  try {
+    return { success: true, data: parseTrace(value) };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error };
+    }
+    throw error;
+  }
 }
 
 function serializeCustomPayload(payload: CustomPayload): CustomPayloadInput {
@@ -197,33 +313,17 @@ function serializeCustomPayload(payload: CustomPayload): CustomPayloadInput {
 function serializeEvent(event: Event): EventInput {
   switch (event.kind) {
     case "Gate":
-      return { ...event, qubits: event.qubits.map((qubit) => qubit.toString()) };
+      return event;
     case "Measurement":
     case "Reset":
-      return { ...event, qubit: event.qubit.toString() };
+      return event;
     case "Custom":
       return { ...event, payload: serializeCustomPayload(event.payload) };
   }
 }
 
 function serializeSource(source: Source): SourceInput {
-  switch (source.kind) {
-    case "UserProgram":
-    case "ErrorModel":
-      return { ...source, index: source.index.toString() };
-    case "Runtime":
-      return {
-        ...source,
-        start_time: source.start_time.toString(),
-        end_time: source.end_time.toString(),
-      };
-    case "Simulator":
-      return {
-        ...source,
-        index: source.index.toString(),
-        duration_ns: source.duration_ns.toString(),
-      };
-  }
+  return source;
 }
 
 /** Convert a parsed trace to its JSON-compatible representation. */

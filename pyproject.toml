@@ -137,6 +137,7 @@ ignore_missing_imports = true
 exclude = ["test_.*.py$", "^target/.*$", "^selene-core/.*$", "^scratch/.*$"]
 
 [tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
 norecursedirs = ['*.egg', '.*', 'build', 'target', 'dist', 'venv']
 
 

@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
-from selene_api_models import get_trace_schema
+import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+from selene_api_models import get_legacy_trace_schema, get_trace_schema
 from selene_api_models.trace import Trace
 
 
@@ -23,3 +26,24 @@ def test_installed_schema_matches_the_canonical_schema():
     schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.1.0.schema.json"
 
     assert get_trace_schema() == json.loads(schema_path.read_text())
+
+
+def test_installed_legacy_schema_matches_the_canonical_schema():
+    schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "legacy.schema.json"
+
+    assert get_legacy_trace_schema() == json.loads(schema_path.read_text())
+
+
+def test_legacy_example_conforms_to_the_legacy_schema():
+    schema = get_legacy_trace_schema()
+    example_path = Path(__file__).parents[2] / "examples" / "trace" / "legacy.json"
+
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(json.loads(example_path.read_text()))
+
+
+def test_legacy_schema_rejects_a_versioned_trace():
+    with pytest.raises(ValidationError):
+        Draft202012Validator(get_legacy_trace_schema()).validate(
+            {"schema_version": "0.1.0", "events": []}
+        )

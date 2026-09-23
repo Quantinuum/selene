@@ -9,6 +9,7 @@ has its own versioned JSON Schema, documentation, examples, and bindings.
 | API | Version | Schema | Semantics |
 | --- | --- | --- | --- |
 | Trace | 0.1.0 | [`schemas/trace/0.1.0.schema.json`](schemas/trace/0.1.0.schema.json) | [`docs/trace/0.1.0.md`](docs/trace/0.1.0.md) |
+| Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [`docs/trace/legacy.md`](docs/trace/legacy.md) |
 
 Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.md).
 

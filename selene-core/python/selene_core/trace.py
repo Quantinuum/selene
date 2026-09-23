@@ -24,6 +24,8 @@ from selene_api_models.trace import (
     Source,
     Trace,
     UserProgramSource,
+    parse_trace,
+    parse_trace_json,
 )
 
 __all__ = [
@@ -45,4 +47,6 @@ __all__ = [
     "Source",
     "Trace",
     "UserProgramSource",
+    "parse_trace",
+    "parse_trace_json",
 ]
