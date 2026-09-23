@@ -187,7 +187,10 @@ skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-frontend = { name = "build[uv]", args = ["-C--profile=release"] }
 environment-pass = ["UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL", "CACHE_CARGO"]
 test-groups = ["test"]
-test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selene-core"
+test-command = [
+  'python "{project}/selene-protocol/scripts/api_models_wheel.py" verify "{project}"',
+  'pytest "{project}/selene-sim" "{project}/selene-ext" "{project}/selene-core"',
+]
 [tool.cibuildwheel.linux.environment]
 PATH = "$PATH:$HOME/.cargo/bin:/host$HUGRENV_PATH"
 HUGRENV_PATH = "/host$HUGRENV_PATH"
@@ -209,6 +212,8 @@ before-all = '''
     rustup toolchain install;
 '''
 before-test = '''
+    python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel";
+
     # if we have caching enabled and it exists, copy caches to the
     # host so that it can be reused in the next build.
     if [ -d /host/tmp/ci-cache ]; then
@@ -227,14 +232,15 @@ before-test = '''
         # make sure the cache is readable by the host
         chmod -R a+rX /host/tmp/ci-cache/selene
     fi;
-    uv pip install ./selene-core;
+    uv pip install "{project}/selene-core";
 '''
 [tool.cibuildwheel.macos.environment]
 PATH = "$PATH:$HOME/.cargo/bin:${HUGRENV_PATH}"
 MACOSX_DEPLOYMENT_TARGET = "12.0"
 [tool.cibuildwheel.macos]
 before-test = [
-    'uv pip install ./selene-core'
+    'python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel"',
+    'uv pip install "{project}/selene-core"'
 ]
 
 [tool.cibuildwheel.windows.environment]
@@ -249,5 +255,6 @@ before-all = [
     'rustup target add x86_64-pc-windows-gnu'
 ]
 before-test = [
-    'uv pip install ./selene-core'
+    'python "{project}/selene-protocol/scripts/api_models_wheel.py" install "{project}/api-model-wheel"',
+    'uv pip install "{project}/selene-core"'
 ]
