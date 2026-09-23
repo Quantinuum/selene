@@ -38,6 +38,29 @@ jobs:
           import os
           import subprocess
 
+          def schema_paths_at(revision):
+              result = subprocess.run(
+                  [
+                      "git",
+                      "ls-tree",
+                      "-r",
+                      "--name-only",
+                      revision,
+                      "--",
+                      "selene-protocol/schemas",
+                  ],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              )
+              return {
+                  path
+                  for path in result.stdout.splitlines()
+                  if path.endswith(".schema.json")
+              }
+
+          base_schemas = schema_paths_at(os.environ["BASE_SHA"])
+          head_schemas = schema_paths_at(os.environ["HEAD_SHA"])
           result = subprocess.run(
               [
                   "git",
@@ -60,12 +83,31 @@ jobs:
               if status != "A" and any(path.endswith(".schema.json") for path in paths):
                   violations.append(line)
 
+          if base_schemas:
+              print(f"Previously published schemas ({len(base_schemas)}):")
+              for schema in sorted(base_schemas):
+                  print(f"  - {schema}")
+          else:
+              print("No previously published schemas were found.")
+
+          new_schemas = sorted(head_schemas - base_schemas)
+          if new_schemas:
+              print(f"New schemas ({len(new_schemas)}):")
+              for schema in new_schemas:
+                  print(f"  - {schema}")
+          else:
+              print("No new schemas were found.")
+
           if violations:
               details = "\n".join(f"  {violation}" for violation in violations)
               raise SystemExit(
                   "Published JSON Schemas are immutable. Add a schema with a new "
                   f"versioned filename instead of changing an existing one:\n{details}"
               )
+
+          if base_schemas:
+              print("All previously published schemas are unchanged.")
+          print("Schema immutability check passed.")
           PY
       - name: Validate and stage schemas
         run: |
