@@ -21,23 +21,6 @@ env:
   CARGO_TERM_COLOR: always
   CACHE_CARGO: true
 jobs:
-  build_python_api_models:
-    name: Build Python API-model wheel
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8.1.0
-        with:
-          enable-cache: true
-      - name: Build wheel
-        run: uv build --package selene-api-models --wheel --out-dir wheelhouse
-      - name: Upload wheel
-        uses: actions/upload-artifact@v7
-        with:
-          name: selene-api-models-wheel
-          path: wheelhouse/*.whl
-          if-no-files-found: error
-
   build_selene_core:
     runs-on: ubuntu-latest
     outputs:
@@ -92,7 +75,6 @@ jobs:
           if-no-files-found: error
 
   build_selene_sim:
-    needs: build_python_api_models
     strategy:
       fail-fast: false
       matrix:
@@ -101,12 +83,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
-
-      - name: Download Python API-model wheel
-        uses: actions/download-artifact@v8
-        with:
-          name: selene-api-models-wheel
-          path: api-model-wheel
 
       - name: Set up UV
         if: ${{ matrix.os != 'ubuntu-latest' }}
