@@ -85,6 +85,16 @@ in {
           "selene-ext/simulators/stim/python/gate_definitions.py"
         ];
       };
+      schema-immutability = {
+        enable = true;
+        name = "Schema immutability";
+        description = "Prevent changes to JSON Schemas already present on origin/0.3-series.";
+        package = pkgs.python3;
+        entry = "${pkgs.python3}/bin/python3 selene-protocol/scripts/check_schema_immutability.py";
+        args = ["--base=origin/0.3-series" "--staged"];
+        files = "^(selene-protocol/schemas/.*\\.schema\\.json|selene-protocol/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
+        pass_filenames = false;
+      };
       api-models-python-test = {
         enable = true;
         name = "API models Python tests";
