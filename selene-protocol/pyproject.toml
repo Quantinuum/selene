@@ -25,13 +25,15 @@ classifiers = [
 repository = "https://github.com/quantinuum/selene"
 
 [dependency-groups]
-test = ["pytest>=8.3"]
+test = ["jsonschema>=4.23", "pytest>=8.3"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["python/selene_api_models"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "schemas/trace/0.1.0.schema.json" = "selene_api_models/schemas/trace/0.1.0.schema.json"
+"schemas/trace/legacy.schema.json" = "selene_api_models/schemas/trace/legacy.schema.json"
 
 [tool.hatch.build.targets.sdist.force-include]
 "schemas/trace/0.1.0.schema.json" = "schemas/trace/0.1.0.schema.json"
+"schemas/trace/legacy.schema.json" = "schemas/trace/legacy.schema.json"

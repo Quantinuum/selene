@@ -1,12 +1,16 @@
-"""Python models for version 0.1.0 of the Selene trace protocol."""
+"""Python models and compatibility adapters for the Selene trace protocol."""
 
-from typing import Annotated, Any, Callable, Literal, Union
+import copy
+import json
+from collections.abc import Callable, Mapping
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_core import core_schema
 
 SCHEMA_VERSION = "0.1.0"
 MAX_UINT64 = 2**64 - 1
+MAX_SAFE_INTEGER = 2**53 - 1
 
 
 class _UInt64DecimalString:
@@ -50,8 +54,10 @@ class _UInt64DecimalString:
 
 
 UInt64DecimalString = Annotated[int, _UInt64DecimalString]
+JsonSafeUInt = Annotated[int, Field(strict=True, ge=0, le=MAX_SAFE_INTEGER)]
 
 __all__ = [
+    "MAX_SAFE_INTEGER",
     "SCHEMA_VERSION",
     "AbstractEvent",
     "CustomEvent",
@@ -70,6 +76,8 @@ __all__ = [
     "Source",
     "Trace",
     "UserProgramSource",
+    "parse_trace",
+    "parse_trace_json",
 ]
 
 
@@ -80,24 +88,24 @@ class PredicateResult(BaseModel):
 
 class UserProgramSource(BaseModel):
     kind: Literal["UserProgram"] = "UserProgram"
-    index: UInt64DecimalString
+    index: JsonSafeUInt
 
 
 class RuntimeSource(BaseModel):
     kind: Literal["Runtime"] = "Runtime"
-    start_time: UInt64DecimalString
-    end_time: UInt64DecimalString
+    start_time: JsonSafeUInt
+    end_time: JsonSafeUInt
 
 
 class ErrorModelSource(BaseModel):
     kind: Literal["ErrorModel"] = "ErrorModel"
-    index: UInt64DecimalString
+    index: JsonSafeUInt
 
 
 class SimulatorSource(BaseModel):
     kind: Literal["Simulator"] = "Simulator"
-    index: UInt64DecimalString
-    duration_ns: UInt64DecimalString
+    index: JsonSafeUInt
+    duration_ns: JsonSafeUInt
 
 
 class AbstractEvent(BaseModel):
@@ -111,7 +119,7 @@ class AbstractEvent(BaseModel):
 
 class GateEvent(AbstractEvent):
     kind: Literal["Gate"] = "Gate"
-    qubits: list[UInt64DecimalString] = Field(default_factory=list)
+    qubits: list[JsonSafeUInt] = Field(default_factory=list)
     gate_name: str
     params: list[float | int | bool] = Field(default_factory=list)
     predicates: list[PredicateResult] = Field(default_factory=list)
@@ -119,12 +127,12 @@ class GateEvent(AbstractEvent):
 
 class MeasurementEvent(AbstractEvent):
     kind: Literal["Measurement"] = "Measurement"
-    qubit: UInt64DecimalString
+    qubit: JsonSafeUInt
 
 
 class ResetEvent(AbstractEvent):
     kind: Literal["Reset"] = "Reset"
-    qubit: UInt64DecimalString
+    qubit: JsonSafeUInt
 
 
 class OpaquePayload(AbstractEvent):
@@ -141,7 +149,7 @@ class KeyValuePairPayload(AbstractEvent):
 
 
 CustomPayload = Annotated[
-    Union[OpaquePayload, KeyValuePairPayload],
+    OpaquePayload | KeyValuePairPayload,
     Field(discriminator="kind"),
 ]
 
@@ -152,11 +160,11 @@ class CustomEvent(AbstractEvent):
 
 
 Event = Annotated[
-    Union[GateEvent, MeasurementEvent, ResetEvent, CustomEvent],
+    GateEvent | MeasurementEvent | ResetEvent | CustomEvent,
     Field(discriminator="kind"),
 ]
 Source = Annotated[
-    Union[UserProgramSource, RuntimeSource, ErrorModelSource, SimulatorSource],
+    UserProgramSource | RuntimeSource | ErrorModelSource | SimulatorSource,
     Field(discriminator="kind"),
 ]
 
@@ -254,3 +262,48 @@ class Trace(BaseModel):
                 for record in self.events
             ],
         )
+
+
+def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
+    upgraded = copy.deepcopy(dict(value))
+    upgraded["schema_version"] = SCHEMA_VERSION
+
+    for record in upgraded.get("events", []):
+        if not isinstance(record, dict):
+            continue
+        event = record.get("event")
+        if not isinstance(event, dict) or event.get("kind") != "Custom":
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict) or payload.get("kind") != "OpaquePayload":
+            continue
+        tag = payload.get("tag")
+        if isinstance(tag, bool) or not isinstance(tag, int):
+            raise ValueError("legacy OpaquePayload.tag must be a JSON integer")
+        if not 0 <= tag <= MAX_UINT64:
+            raise ValueError(
+                "legacy OpaquePayload.tag must be an unsigned 64-bit integer"
+            )
+        payload["tag"] = str(tag)
+
+    return upgraded
+
+
+def parse_trace(value: Any) -> Trace:
+    """Parse a JSON-compatible current or versionless legacy trace value.
+
+    Versionless legacy documents are upgraded to the current in-memory model.
+    """
+    if not isinstance(value, Mapping):
+        raise TypeError("trace document must be a JSON object")
+
+    document = dict(value)
+    if "schema_version" not in document:
+        document = _upgrade_legacy_trace(document)
+
+    return Trace.model_validate_json(json.dumps(document))
+
+
+def parse_trace_json(data: str | bytes | bytearray) -> Trace:
+    """Parse current or versionless legacy trace JSON without losing integers."""
+    return parse_trace(json.loads(data))

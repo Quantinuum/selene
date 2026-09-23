@@ -4,7 +4,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "0"
+        "index": 0
       },
       "event": {
         "kind": "Custom",
@@ -18,7 +18,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "1"
+        "index": 1
       },
       "event": {
         "kind": "Custom",
@@ -32,7 +32,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "2"
+        "index": 2
       },
       "event": {
         "kind": "Custom",
@@ -46,7 +46,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "3"
+        "index": 3
       },
       "event": {
         "kind": "Custom",
@@ -60,7 +60,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "4"
+        "index": 4
       },
       "event": {
         "kind": "Custom",
@@ -74,7 +74,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "5"
+        "index": 5
       },
       "event": {
         "kind": "Custom",
@@ -88,7 +88,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "6"
+        "index": 6
       },
       "event": {
         "kind": "Custom",
@@ -102,7 +102,7 @@
     {
       "source": {
         "kind": "UserProgram",
-        "index": "7"
+        "index": 7
       },
       "event": {
         "kind": "Custom",

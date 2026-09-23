@@ -22,7 +22,6 @@ in {
     enterShell = ''
       eval "$(just --completions bash)"
       export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-      export PATH="${hugrenv}/bin:$PATH"
     '';
 
     env = {
@@ -48,13 +47,17 @@ in {
     git-hooks.hooks = {
       ruff = {
         enable = true;
+        package = pkgs.uv;
+        entry = "${pkgs.uv}/bin/uv run --locked ruff check --fix";
         args = ["--config=pyproject.toml"];
-        pass_filenames = false;
+        pass_filenames = true;
       };
       ruff-format = {
         enable = true;
+        package = pkgs.uv;
+        entry = "${pkgs.uv}/bin/uv run --locked ruff format";
         args = ["--config=pyproject.toml"];
-        pass_filenames = false;
+        pass_filenames = true;
       };
       clippy = {
         enable = true;

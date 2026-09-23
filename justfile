@@ -12,8 +12,8 @@ clean-artifacts:
 build-wheels:
     uv run --no-project python scripts/build_wheels.py
 
-test-py *TEST_ARGS: develop
-    uv run pytest {{TEST_ARGS}}
+test-py *TEST_ARGS:
+    uv run --locked --all-packages --all-groups pytest {{TEST_ARGS}}
 
 test-rs *TEST_ARGS:
     uv run cargo test {{TEST_ARGS}}

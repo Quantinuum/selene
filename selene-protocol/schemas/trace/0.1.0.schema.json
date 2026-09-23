@@ -27,7 +27,7 @@
     "ErrorModelSource": {
       "properties": {
         "kind": { "const": "ErrorModel", "default": "ErrorModel", "title": "Kind", "type": "string" },
-        "index": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Index", "type": "string" }
+        "index": { "maximum": 9007199254740991, "minimum": 0, "title": "Index", "type": "integer" }
       },
       "required": ["kind", "index"],
       "title": "ErrorModelSource",
@@ -79,7 +79,7 @@
     "GateEvent": {
       "properties": {
         "kind": { "const": "Gate", "default": "Gate", "title": "Kind", "type": "string" },
-        "qubits": { "items": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "type": "string" }, "title": "Qubits", "type": "array" },
+        "qubits": { "items": { "maximum": 9007199254740991, "minimum": 0, "type": "integer" }, "title": "Qubits", "type": "array" },
         "gate_name": { "title": "Gate Name", "type": "string" },
         "params": {
           "items": {
@@ -129,7 +129,7 @@
     "MeasurementEvent": {
       "properties": {
         "kind": { "const": "Measurement", "default": "Measurement", "title": "Kind", "type": "string" },
-        "qubit": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Qubit", "type": "string" }
+        "qubit": { "maximum": 9007199254740991, "minimum": 0, "title": "Qubit", "type": "integer" }
       },
       "required": ["kind", "qubit"],
       "title": "MeasurementEvent",
@@ -157,7 +157,7 @@
     "ResetEvent": {
       "properties": {
         "kind": { "const": "Reset", "default": "Reset", "title": "Kind", "type": "string" },
-        "qubit": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Qubit", "type": "string" }
+        "qubit": { "maximum": 9007199254740991, "minimum": 0, "title": "Qubit", "type": "integer" }
       },
       "required": ["kind", "qubit"],
       "title": "ResetEvent",
@@ -166,8 +166,8 @@
     "RuntimeSource": {
       "properties": {
         "kind": { "const": "Runtime", "default": "Runtime", "title": "Kind", "type": "string" },
-        "start_time": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Start Time", "type": "string" },
-        "end_time": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "End Time", "type": "string" }
+        "start_time": { "maximum": 9007199254740991, "minimum": 0, "title": "Start Time", "type": "integer" },
+        "end_time": { "maximum": 9007199254740991, "minimum": 0, "title": "End Time", "type": "integer" }
       },
       "required": ["kind", "start_time", "end_time"],
       "title": "RuntimeSource",
@@ -176,8 +176,8 @@
     "SimulatorSource": {
       "properties": {
         "kind": { "const": "Simulator", "default": "Simulator", "title": "Kind", "type": "string" },
-        "index": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Index", "type": "string" },
-        "duration_ns": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Duration Ns", "type": "string" }
+        "index": { "maximum": 9007199254740991, "minimum": 0, "title": "Index", "type": "integer" },
+        "duration_ns": { "maximum": 9007199254740991, "minimum": 0, "title": "Duration Ns", "type": "integer" }
       },
       "required": ["kind", "index", "duration_ns"],
       "title": "SimulatorSource",
@@ -186,7 +186,7 @@
     "UserProgramSource": {
       "properties": {
         "kind": { "const": "UserProgram", "default": "UserProgram", "title": "Kind", "type": "string" },
-        "index": { "format": "uint64", "pattern": "^(0|[1-9][0-9]*)$", "title": "Index", "type": "string" }
+        "index": { "maximum": 9007199254740991, "minimum": 0, "title": "Index", "type": "integer" }
       },
       "required": ["kind", "index"],
       "title": "UserProgramSource",
