@@ -1,3 +1,7 @@
+// Exported plugin macros must resolve this dependency through selene-core.
+#[doc(hidden)]
+pub use parking_lot as __parking_lot;
+
 pub mod encoder;
 pub mod error_model;
 pub mod operation;

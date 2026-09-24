@@ -10,6 +10,7 @@ path = "rust/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
+parking_lot.workspace = true
 selene-core = { path = "../selene-core" }
 anyhow = { workspace = true }
 rand = { workspace = true }

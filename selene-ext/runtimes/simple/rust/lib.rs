@@ -1,7 +1,5 @@
-use std::{
-    collections::VecDeque,
-    sync::{Mutex, RwLock},
-};
+use parking_lot::{Mutex, RwLock};
+use std::collections::VecDeque;
 
 use anyhow::{Result, bail};
 use clap::Parser;
@@ -100,14 +98,8 @@ impl SimpleRuntime {
 
 impl RuntimeInterface for SimpleRuntime {
     fn exit(&self) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
-        let mut results = self
-            .results
-            .write()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let state = &mut *self.state.lock();
+        let mut results = self.results.write();
         state.operation_queue.clear();
         state.qubits.clear();
         results.clear();
@@ -115,10 +107,7 @@ impl RuntimeInterface for SimpleRuntime {
     }
     // Engine ops
     fn get_next_operations(&self) -> Result<Option<BatchOperation>> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         Ok(state.operation_queue.pop_front())
     }
 
@@ -126,14 +115,8 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn shot_end(&self) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
-        let mut results = self
-            .results
-            .write()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let state = &mut *self.state.lock();
+        let mut results = self.results.write();
         state.qubits = vec![QubitStatus::Free; state.qubits.len()];
         state.operation_queue.clear();
         results.clear();
@@ -151,10 +134,7 @@ impl RuntimeInterface for SimpleRuntime {
     }
     // Allocation
     fn qalloc(&self) -> Result<u64> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         for (i, qubit) in state.qubits.iter_mut().enumerate() {
             if *qubit == QubitStatus::Free {
                 *qubit = QubitStatus::Active;
@@ -164,10 +144,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(u64::MAX)
     }
     fn qfree(&self, qubit_id: u64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         if qubit_id >= state.qubits.len() as u64 {
             bail!("freeing out-of-bounds qubit {qubit_id}")
         } else {
@@ -176,10 +153,7 @@ impl RuntimeInterface for SimpleRuntime {
         }
     }
     fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         if qubit_id >= state.qubits.len() as u64 {
             bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
         }
@@ -194,10 +168,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         if qubit_id_1 >= state.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
         }
@@ -212,10 +183,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         if qubit_id >= state.qubits.len() as u64 {
             bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
         }
@@ -226,10 +194,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn rpp_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         if qubit_id_1 >= state.qubits.len() as u64 {
             bail!("applying rpp gate to out-of-bounds qubit1 {qubit_id_1}");
         }
@@ -252,14 +217,8 @@ impl RuntimeInterface for SimpleRuntime {
     }
     // Lifetime ops
     fn measure(&self, qubit_id: u64) -> Result<u64> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
-        let mut results = self
-            .results
-            .write()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let state = &mut *self.state.lock();
+        let mut results = self.results.write();
         if qubit_id >= state.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -275,14 +234,8 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(result_id)
     }
     fn measure_leaked(&self, qubit_id: u64) -> Result<u64> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
-        let mut results = self
-            .results
-            .write()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let state = &mut *self.state.lock();
+        let mut results = self.results.write();
         if qubit_id >= state.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
@@ -299,10 +252,7 @@ impl RuntimeInterface for SimpleRuntime {
     }
 
     fn reset(&self, qubit_id: u64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         if qubit_id >= state.qubits.len() as u64 {
             bail!("resetting out-of-bounds qubit {qubit_id}")
         }
@@ -310,10 +260,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn force_result(&self, result_id: u64) -> Result<()> {
-        let results = self
-            .results
-            .read()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let results = self.results.read();
         if result_id >= results.len() as u64 {
             bail!("forcing out-of-bounds measurement {result_id}")
         }
@@ -322,10 +269,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
-        let results = self
-            .results
-            .read()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let results = self.results.read();
         if result_id >= results.len() as u64 {
             bail!("getting out-of-bounds measurement {result_id}");
         }
@@ -337,10 +281,7 @@ impl RuntimeInterface for SimpleRuntime {
         })
     }
     fn set_bool_result(&self, result_id: u64, result: bool) -> Result<()> {
-        let mut results = self
-            .results
-            .write()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let mut results = self.results.write();
         if result_id >= results.len() as u64 {
             bail!("setting out-of-bounds measurement {result_id}");
         }
@@ -349,10 +290,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(())
     }
     fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>> {
-        let results = self
-            .results
-            .read()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let results = self.results.read();
         if result_id >= results.len() as u64 {
             bail!("getting out-of-bounds measurement {result_id}");
         }
@@ -364,10 +302,7 @@ impl RuntimeInterface for SimpleRuntime {
         })
     }
     fn set_u64_result(&self, result_id: u64, result: u64) -> Result<()> {
-        let mut results = self
-            .results
-            .write()
-            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        let mut results = self.results.write();
         if result_id >= results.len() as u64 {
             bail!("setting out-of-bounds measurement {result_id}");
         }
@@ -386,10 +321,7 @@ impl RuntimeInterface for SimpleRuntime {
         Ok(None)
     }
     fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
-        let state = &mut *self
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let state = &mut *self.state.lock();
         state.start += selene_core::time::Duration::from(delay_ns);
         Ok(())
     }
@@ -463,7 +395,7 @@ mod tests {
         );
         let qubit = runtime.qalloc().unwrap();
         let id = runtime.measure(qubit).unwrap();
-        let _scheduling = runtime.state.lock().unwrap();
+        let _scheduling = runtime.state.lock();
         runtime.set_bool_result(id, true).unwrap();
         assert_eq!(runtime.get_bool_result(id).unwrap(), Some(true));
     }

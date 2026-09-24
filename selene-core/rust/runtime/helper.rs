@@ -485,11 +485,10 @@ macro_rules! export_runtime_plugin {
                 argv: *const *const c_char,
             ) -> i32 {
                 use std::cell::OnceCell;
-                use std::sync::Mutex;
+                use $crate::__parking_lot::Mutex;
                 static FACTORY: Mutex<OnceCell<Helper>> = Mutex::new(OnceCell::new());
                 FACTORY
                     .lock()
-                    .unwrap()
                     .get_or_init(|| Helper::default())
                     .init(instance, n_qubits, start.into(), argc, argv)
             }

@@ -19,6 +19,7 @@ path = "rust/lib.rs"
 crate-type = ["lib"]
 
 [dependencies]
+parking_lot = "0.12"
 anyhow = "1.0"
 thiserror = "2.0"
 libloading = "0.8"
