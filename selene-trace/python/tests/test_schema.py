@@ -62,6 +62,49 @@ def test_uint64_pattern_enforces_range_without_a_format_checker():
                 OpaquePayload.model_validate_json(json.dumps(payload))
 
 
+@pytest.mark.parametrize(
+    "data,valid",
+    [
+        ("", True),
+        ("dHJhY2U=", True),
+        ("-_8=", True),
+        ("-w==", True),
+        ("YWJj", True),
+        ("not+base64url", False),
+        ("+/8=", False),
+        ("a", False),
+        ("Zg=", False),
+        ("Zg===", False),
+        ("=Zg=", False),
+        ("Zg==\n", False),
+        (" Zg==", False),
+    ],
+)
+def test_base64url_schema_validation_without_a_format_checker(data, valid):
+    document = {
+        "schema_version": "0.1.0",
+        "events": [
+            {
+                "source": {"kind": "UserProgram", "index": 0},
+                "event": {
+                    "kind": "Custom",
+                    "payload": {
+                        "kind": "OpaquePayload",
+                        "tag": "1",
+                        "data": data,
+                    },
+                },
+            }
+        ],
+    }
+    assert Draft202012Validator(get_trace_schema()).is_valid(document) == valid
+    if valid:
+        parse_trace(document)
+    else:
+        with pytest.raises(ValueError):
+            parse_trace(document)
+
+
 @pytest.mark.parametrize("tag", ["", "00", "01", "+1", "1.0", "1e2", " 1", "1\n", 1])
 def test_uint64_schema_rejects_noncanonical_strings(tag):
     validator = Draft202012Validator(get_trace_schema()["$defs"]["OpaquePayload"])
