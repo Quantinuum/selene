@@ -27,7 +27,7 @@ const struct SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descript
 /**
  * The current runtime plugin API version, packed for the C descriptor ABI.
  */
-#define SELENE_RUNTIME_CURRENT_API_VERSION 768
+#define SELENE_RUNTIME_CURRENT_API_VERSION 1024
 
 /**
  * A decomposed runtime API version.
@@ -112,13 +112,41 @@ typedef struct RuntimeExtractOperationHandle {
   struct SeleneRuntimeExtractOperationInterface interface;
 } RuntimeExtractOperationHandle;
 
-typedef void *RuntimeInstance;
+/**
+ * Shared opaque instance handle. Constness does not imply immutable state;
+ * the plugin synchronizes mutation according to the descriptor contract.
+ */
+typedef const void *RuntimeInstance;
 
 /**
  * The C ABI descriptor exported by a runtime plugin.
  *
  * Function pointer fields documented as optional may be null. All other
  * function pointer fields must be populated.
+ *
+ * # Concurrency and safety
+ *
+ * All operational functions must be safe to call concurrently on the same
+ * instance and across instances. This includes allocation, gates, measurements,
+ * barriers, delays, custom calls, forcing, result access/publication, and reference
+ * counts. The plugin is responsible for synchronizing its mutable state.
+ *
+ * One consumer retrieves and executes batches in order and publishes results;
+ * retrieval may overlap user calls. After force_result_fn succeeds, draining must
+ * expose the work needed for that result unless already dispatched or resolved.
+ * Concurrent submissions must not indefinitely postpone it. Executing the work
+ * and publishing its results makes the result getter report availability; an
+ * empty batch alone does not prove a dispatched result has been published.
+ *
+ * Initialization completes before sharing the instance. The caller excludes all
+ * other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
+ * entire get_metrics_fn enumeration. Only these calls may access state exclusively.
+ * No runtime lock may block the consumer while a user waits for a result.
+ *
+ * Handles must remain live throughout calls. Output buffers must be writable and
+ * exclusively accessible for the call; inputs must remain readable and unmodified.
+ * The operation callback handle and its buffers are borrowed only for retrieval
+ * and must not be retained or invoked concurrently by the plugin.
  */
 typedef struct SeleneRuntimePluginDescriptorV1 {
   /**

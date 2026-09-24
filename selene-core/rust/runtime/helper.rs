@@ -2,7 +2,7 @@
 //! plugins as rust crates.
 //!
 //! See `selene-simple-runtime-plugin` for a fully worked example.
-use std::{ffi, mem, sync::Arc};
+use std::{ffi, sync::Arc};
 
 use crate::operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface};
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
@@ -16,7 +16,14 @@ use super::{
 #[derive(Default)]
 /// A helper struct used by [crate::export_runtime_plugin!] to implement the runtime
 /// plugin entry points defined by [super::plugin::RuntimePluginInterface] using an
-/// implentation of [RuntimeInterfaceFactory]`.
+/// implementation of [RuntimeInterfaceFactory].
+///
+/// # Safety
+///
+/// Entry points require a live handle returned by this helper's `init`, valid
+/// call-scoped buffers, and the concurrency/exclusion rules documented on
+/// [super::plugin::RuntimePluginDescriptorV1]. In particular, lifecycle and
+/// metric calls must not overlap any other calls on the instance.
 pub struct Helper<F>(Arc<F>);
 
 impl<F: RuntimeInterfaceFactory> Helper<F> {
@@ -24,19 +31,14 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         Box::into_raw(r) as RuntimeInstance
     }
 
-    unsafe fn from_runtime_instance(instance: RuntimeInstance) -> Box<F::Interface> {
-        unsafe { Box::from_raw(instance as *mut F::Interface) }
-    }
-
     fn with_runtime_instance<T>(
         instance: RuntimeInstance,
-        mut go: impl FnMut(&mut F::Interface) -> T,
+        go: impl FnOnce(&F::Interface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        let mut r = unsafe { Self::from_runtime_instance(instance) };
-        let t = go(&mut r);
-        mem::forget(r);
-        t
+        // SAFETY: entry points require a live instance from init. Every call
+        // borrows it through a shared reference; RuntimeInterface is Sync.
+        go(unsafe { &*instance.cast::<F::Interface>() })
     }
 
     fn factory(&self) -> Arc<F> {
@@ -73,12 +75,8 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     }
 
     pub unsafe fn exit(instance: RuntimeInstance) -> Errno {
-        // For now we don't: unconditionally drop the box here.
-        // `selene_runtime_exit` is specified to cause all operations to fail on
-        // the RuntimeInstance, but we don't actually check for that right now.
-        // If we uncommented the below, to drop the box, then future calls to
-        // other functions with that instance would be undefined behaviour.
-        // let _ = Self::from_runtime_instance(instance);
+        // Keep the allocation alive: the existing exit contract permits later
+        // calls to report errors. Destruction needs a separate API contract.
         result_to_errno(
             "Failed to exit the runtime plugin",
             Self::with_runtime_instance(instance, |runtime| runtime.exit()),
@@ -487,11 +485,10 @@ macro_rules! export_runtime_plugin {
                 argv: *const *const c_char,
             ) -> i32 {
                 use std::cell::OnceCell;
-                use std::sync::Mutex;
+                use $crate::__parking_lot::Mutex;
                 static FACTORY: Mutex<OnceCell<Helper>> = Mutex::new(OnceCell::new());
                 FACTORY
                     .lock()
-                    .unwrap()
                     .get_or_init(|| Helper::default())
                     .init(instance, n_qubits, start.into(), argc, argv)
             }
