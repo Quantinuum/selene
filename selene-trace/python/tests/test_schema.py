@@ -105,6 +105,50 @@ def test_base64url_schema_validation_without_a_format_checker(data, valid):
             parse_trace(document)
 
 
+@pytest.mark.parametrize(
+    "data,valid",
+    [
+        ("", True),
+        ("dHJhY2U=", True),
+        ("YWJj", True),
+        ("+/8=", True),
+        ("-_8=", True),
+        ("+w==", True),
+        ("-w==", True),
+        ("/w==", True),
+        ("_w==", True),
+        ("not!base64", False),
+        ("a", False),
+        ("Zg=", False),
+        ("Zg===", False),
+        ("=Zg=", False),
+        ("+/8=\n", False),
+        (" +/8=", False),
+    ],
+)
+def test_legacy_base64_schema_validation_without_a_format_checker(data, valid):
+    document = {
+        "events": [
+            {
+                "source": {"kind": "UserProgram", "index": 0},
+                "event": {
+                    "kind": "Custom",
+                    "payload": {"kind": "OpaquePayload", "tag": 1, "data": data},
+                },
+            }
+        ],
+    }
+    assert Draft202012Validator(get_legacy_trace_schema()).is_valid(document) == valid
+    if valid:
+        upgraded = parse_trace(document)
+        assert Draft202012Validator(get_trace_schema()).is_valid(
+            json.loads(upgraded.model_dump_json())
+        )
+    else:
+        with pytest.raises(ValueError):
+            parse_trace(document)
+
+
 @pytest.mark.parametrize("tag", ["", "00", "01", "+1", "1.0", "1e2", " 1", "1\n", 1])
 def test_uint64_schema_rejects_noncanonical_strings(tag):
     validator = Draft202012Validator(get_trace_schema()["$defs"]["OpaquePayload"])
@@ -127,7 +171,8 @@ def test_uint64_schema_rejects_noncanonical_strings(tag):
         (True, True),
     ],
 )
-def test_numeric_values_agree_between_schema_and_python(value, valid):
+@pytest.mark.parametrize("legacy", [False, True])
+def test_numeric_values_agree_between_schema_and_python(value, valid, legacy):
     for event in [
         {"kind": "Gate", "gate_name": "test", "params": [value]},
         {
@@ -154,7 +199,11 @@ def test_numeric_values_agree_between_schema_and_python(value, valid):
                 }
             ],
         }
-        assert Draft202012Validator(get_trace_schema()).is_valid(document) == valid
+        schema = get_trace_schema()
+        if legacy:
+            document.pop("schema_version")
+            schema = get_legacy_trace_schema()
+        assert Draft202012Validator(schema).is_valid(document) == valid
         if valid:
             parsed = parse_trace(document)
             assert Draft202012Validator(get_trace_schema()).is_valid(

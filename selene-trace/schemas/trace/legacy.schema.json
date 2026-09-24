@@ -61,8 +61,8 @@
         "params": {
           "items": {
             "anyOf": [
-              { "type": "number" },
-              { "type": "integer" },
+              { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] },
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
               { "type": "boolean" }
             ]
           },
@@ -83,11 +83,11 @@
           "additionalProperties": {
             "anyOf": [
               { "type": "string" },
-              { "type": "integer" },
-              { "type": "number" },
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] },
               { "type": "boolean" },
-              { "items": { "type": "integer" }, "type": "array" },
-              { "items": { "type": "number" }, "type": "array" },
+              { "items": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }, "type": "array" },
+              { "items": { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] }, "type": "array" },
               { "items": { "type": "string" }, "type": "array" },
               { "items": { "type": "boolean" }, "type": "array" }
             ]
@@ -114,7 +114,11 @@
           "minimum": 0,
           "type": "integer"
         },
-        "data": { "format": "base64url", "type": "string" }
+        "data": {
+          "description": "Base64-encoded bytes using the standard or URL-safe alphabet.",
+          "pattern": "^(?:[A-Za-z0-9_+/-]{4})*(?:[A-Za-z0-9_+/-]{2}(?:==)?|[A-Za-z0-9_+/-]{3}=?)?(?![\\s\\S])",
+          "type": "string"
+        }
       },
       "required": ["kind", "tag", "data"],
       "type": "object"
