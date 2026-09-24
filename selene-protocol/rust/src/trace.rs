@@ -23,10 +23,35 @@ pub enum SchemaVersion {
 
 /// A complete trace document.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Trace {
     pub schema_version: SchemaVersion,
     #[serde(default)]
     pub events: Vec<EventRecord>,
+}
+
+/// The unversioned contents of one emulation trace.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TraceData {
+    #[serde(default)]
+    pub events: Vec<EventRecord>,
+}
+
+/// A versioned collection of trace data.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Traces {
+    pub schema_version: SchemaVersion,
+    pub traces: Vec<TraceData>,
+}
+
+/// Either top-level document shape accepted by the trace protocol schema.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum TraceDocument {
+    Trace(Trace),
+    Traces(Traces),
 }
 
 /// One observed event and the stage that produced it.
@@ -254,38 +279,61 @@ pub fn parse_trace_value(mut value: Value) -> Result<Trace, serde_json::Error> {
     serde_json::from_value(value)
 }
 
+/// Parse a current trace or trace collection, or a versionless legacy trace.
+pub fn parse_trace_document_json(input: &str) -> Result<TraceDocument, serde_json::Error> {
+    parse_trace_document_value(serde_json::from_str(input)?)
+}
+
+/// Parse a current trace-document value or a versionless legacy trace value.
+pub fn parse_trace_document_value(value: Value) -> Result<TraceDocument, serde_json::Error> {
+    let is_legacy = value
+        .as_object()
+        .is_some_and(|document| !document.contains_key("schema_version"));
+    if is_legacy {
+        return parse_trace_value(value).map(TraceDocument::Trace);
+    }
+    serde_json::from_value(value)
+}
+
 fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
     let document = value.as_object_mut().ok_or_else(|| {
         <serde_json::Error as serde::de::Error>::custom("trace document must be a JSON object")
     })?;
+    if document.contains_key("traces") {
+        return Err(<serde_json::Error as serde::de::Error>::custom(
+            "versionless trace collections are not supported",
+        ));
+    }
     document.insert(
         "schema_version".to_owned(),
         Value::String(SCHEMA_VERSION.to_owned()),
     );
 
-    let Some(events) = document.get_mut("events").and_then(Value::as_array_mut) else {
-        return Ok(());
-    };
+    if let Some(events) = document.get_mut("events").and_then(Value::as_array_mut) {
+        for record in events {
+            let Some(payload) = record
+                .get_mut("event")
+                .and_then(Value::as_object_mut)
+                .filter(|event| event.get("kind").and_then(Value::as_str) == Some("Custom"))
+                .and_then(|event| event.get_mut("payload"))
+                .and_then(Value::as_object_mut)
+                .filter(|payload| {
+                    payload.get("kind").and_then(Value::as_str) == Some("OpaquePayload")
+                })
+            else {
+                continue;
+            };
 
-    for record in events {
-        let Some(payload) = record
-            .get_mut("event")
-            .and_then(Value::as_object_mut)
-            .filter(|event| event.get("kind").and_then(Value::as_str) == Some("Custom"))
-            .and_then(|event| event.get_mut("payload"))
-            .and_then(Value::as_object_mut)
-            .filter(|payload| payload.get("kind").and_then(Value::as_str) == Some("OpaquePayload"))
-        else {
-            continue;
-        };
-
-        let tag = payload.get("tag").and_then(Value::as_u64).ok_or_else(|| {
-            <serde_json::Error as serde::de::Error>::custom(
-                "legacy OpaquePayload.tag must be an unsigned JSON integer",
-            )
-        })?;
-        payload.insert("tag".to_owned(), Value::String(tag.to_string()));
+            let tag = payload.get("tag").and_then(Value::as_u64).ok_or_else(|| {
+                <serde_json::Error as serde::de::Error>::custom(
+                    "legacy OpaquePayload.tag must be an unsigned JSON integer",
+                )
+            })?;
+            payload.insert("tag".to_owned(), Value::String(tag.to_string()));
+        }
     }
+
+    document.retain(|key, _| matches!(key.as_str(), "schema_version" | "events"));
 
     Ok(())
 }
@@ -310,6 +358,36 @@ mod tests {
                 .expect("all event types example must conform to the trace model");
 
         assert_eq!(trace.events.len(), 5);
+    }
+
+    #[test]
+    fn traces_example_deserializes_as_a_collection_document() {
+        let document: TraceDocument =
+            serde_json::from_str(include_str!("../../examples/trace/traces.json"))
+                .expect("traces example must conform to the trace model");
+
+        let TraceDocument::Traces(traces) = document else {
+            panic!("traces example must deserialize as Traces");
+        };
+        assert_eq!(traces.schema_version, SchemaVersion::V0_1_0);
+        assert_eq!(traces.traces.len(), 2);
+    }
+
+    #[test]
+    fn trace_document_parser_accepts_singular_and_collection_documents() {
+        assert!(matches!(
+            parse_trace_document_json(include_str!("../../examples/trace/minimal.json")),
+            Ok(TraceDocument::Trace(_))
+        ));
+        assert!(matches!(
+            parse_trace_document_json(include_str!("../../examples/trace/traces.json")),
+            Ok(TraceDocument::Traces(_))
+        ));
+    }
+
+    #[test]
+    fn trace_document_parser_rejects_a_versionless_collection() {
+        assert!(parse_trace_document_json(r#"{"traces":[]}"#).is_err());
     }
 
     #[test]

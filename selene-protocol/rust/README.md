@@ -6,4 +6,6 @@ directory.
 
 Trace types are available from the `selene_api_models::trace` module.
 `trace::parse_trace_json` accepts both current and versionless legacy trace
-documents and upgrades legacy input to the current model.
+documents and upgrades legacy input to the current model. Use
+`trace::parse_trace_document_json` when the input may be either a `Trace` or a
+`Traces` collection.

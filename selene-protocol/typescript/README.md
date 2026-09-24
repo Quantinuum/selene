@@ -13,13 +13,16 @@ const document = trace.parseTrace(value); // Throws ZodError if invalid.
 const fromJson = trace.parseTraceJson(jsonText); // Also handles legacy traces.
 const result = trace.safeParseTrace(value); // Non-throwing validation result.
 const jsonReady = trace.serializeTrace(document);
+const collection = trace.createTraces([trace.createTraceData(document.events)]);
+const eitherShape = trace.parseTraceDocument(value);
 ```
 
 Each `*Schema` has a normalized inferred type, such as `trace.Trace`, and an
 `*Input` type for values which rely on protocol defaults, such as
 `trace.TraceInput`. Indices, times, durations, and qubit IDs are safe
 non-negative JavaScript numbers. Opaque-payload tags are decoded to `bigint`;
-use `serializeTrace` before passing a trace to `JSON.stringify`.
+use `serializeTrace` or `serializeTraceDocument` before passing a document to
+`JSON.stringify`.
 
 Pass legacy JSON text directly to `parseTraceJson` when it may contain an
 opaque tag larger than `Number.MAX_SAFE_INTEGER`. Calling `JSON.parse` first
