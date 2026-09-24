@@ -199,6 +199,10 @@ export type TraceDocument = z.infer<typeof TraceDocumentSchema>;
 export type TraceDocumentInput = z.input<typeof TraceDocumentSchema>;
 
 const LegacyOpaquePayloadSchema = OpaquePayloadSchema.extend({
+  // Normalize either legacy alphabet before validating as base64url.
+  data: z.string()
+    .transform((value) => value.replace(/\+/g, "-").replace(/\//g, "_"))
+    .pipe(Base64UrlSchema),
   tag: z.union([
     z.number().int().nonnegative().safe().transform((value) => BigInt(value)),
     z.bigint().min(0n).max(UINT64_MAX),

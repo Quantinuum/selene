@@ -193,6 +193,45 @@ test("versionless legacy traces are upgraded", () => {
   });
 });
 
+test("legacy opaque payloads normalize both Base64 alphabets to URL-safe output", () => {
+  for (const data of ["+/8=", "-_8=", "+w==", "-w=="]) {
+    const input = {
+      events: [{
+        source: { kind: "UserProgram", index: 0 },
+        event: {
+          kind: "Custom",
+          payload: { kind: "OpaquePayload", tag: 1, data },
+        },
+      }],
+    };
+    const parsed = trace.parseTraceJson(JSON.stringify(input));
+    assert.deepEqual(trace.parseTrace(input), parsed);
+    assert.deepEqual(trace.parseTraceDocumentJson(JSON.stringify(input)), parsed);
+
+    const output = trace.serializeTrace(parsed);
+    const encoded = output.events[0].event.payload.data;
+    assert.equal(encoded, data.length === 4 && data.endsWith("==") ? "-w==" : "-_8=");
+    assert.deepEqual(Buffer.from(encoded, "base64url"), Buffer.from(data, "base64"));
+    assert.deepEqual(trace.parseTraceJson(JSON.stringify(output)), parsed);
+
+    output.events[0].event.payload.data = "+/8=";
+    assert.throws(() => trace.parseTraceJson(JSON.stringify(output)));
+  }
+});
+
+test("legacy opaque payload normalization still rejects malformed Base64", () => {
+  const input = {
+    events: [{
+      source: { kind: "UserProgram", index: 0 },
+      event: {
+        kind: "Custom",
+        payload: { kind: "OpaquePayload", tag: 1, data: "+/!= " },
+      },
+    }],
+  };
+  assert.throws(() => trace.parseTraceJson(JSON.stringify(input)));
+});
+
 test("legacy JSON preserves an unsafe numeric opaque-payload tag", () => {
   const legacyUrl = new URL("../../examples/trace/legacy.json", import.meta.url);
   const parsed = trace.parseTraceJson(readFileSync(legacyUrl, "utf8"));

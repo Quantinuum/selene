@@ -330,6 +330,11 @@ fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
                 )
             })?;
             payload.insert("tag".to_owned(), Value::String(tag.to_string()));
+            // Accept either legacy alphabet; the normal decoder still validates
+            // padding and contents, and serialization always uses base64url.
+            if let Some(Value::String(data)) = payload.get_mut("data") {
+                *data = data.replace('+', "-").replace('/', "_");
+            }
         }
     }
 
@@ -474,6 +479,41 @@ mod tests {
             r#"{"kind":"OpaquePayload","tag":1,"data":"dHJhY2U="}"#,
         );
         assert!(numeric_tag.is_err());
+    }
+
+    #[test]
+    fn legacy_opaque_payload_alphabets_round_trip_as_base64url() {
+        for encoded in ["+/8=", "-_8="] {
+            let input = serde_json::json!({
+                "events": [{
+                    "source": {"kind": "UserProgram", "index": 0},
+                    "event": {
+                        "kind": "Custom",
+                        "payload": {"kind": "OpaquePayload", "tag": 1, "data": encoded}
+                    }
+                }]
+            });
+            let trace = parse_trace_json(&input.to_string()).expect("legacy alphabet is accepted");
+            let Event::Custom {
+                payload: CustomPayload::OpaquePayload { tag, data },
+            } = &trace.events[0].event
+            else {
+                panic!("expected opaque payload");
+            };
+            assert_eq!(*tag, 1);
+            assert_eq!(data, &[0xfb, 0xff]);
+
+            let mut output = serde_json::to_value(&trace).expect("trace serializes");
+            assert_eq!(output["events"][0]["event"]["payload"]["data"], "-_8=");
+            assert_eq!(output["events"][0]["event"]["payload"]["tag"], "1");
+            assert_eq!(parse_trace_value(output.clone()).unwrap(), trace);
+
+            output["events"][0]["event"]["payload"]["data"] = Value::String("+/8=".into());
+            assert!(
+                parse_trace_value(output).is_err(),
+                "versioned input requires base64url"
+            );
+        }
     }
 
     #[test]

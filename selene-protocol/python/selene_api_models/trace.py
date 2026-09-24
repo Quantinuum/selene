@@ -117,6 +117,7 @@ class AbstractEvent(BaseModel):
     model_config = ConfigDict(
         use_enum_values=True,
         extra="ignore",
+        # Pydantic's "base64" bytes codec serializes using the URL-safe alphabet.
         ser_json_bytes="base64",
         val_json_bytes="base64",
     )
