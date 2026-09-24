@@ -114,10 +114,9 @@ def test_unsigned_trace_values_require_integers(value):
         UserProgramSource(index=value)
 
 
-@pytest.mark.parametrize("encoded", ["-_8=", "+/8="])
-def test_opaque_payload_normalizes_both_base64_alphabets_to_base64url(encoded):
+def test_opaque_payload_round_trips_base64url():
     payload = OpaquePayload.model_validate_json(
-        json.dumps({"kind": "OpaquePayload", "tag": "1", "data": encoded})
+        json.dumps({"kind": "OpaquePayload", "tag": "1", "data": "-_8="})
     )
 
     assert payload.data == b"\xfb\xff"
@@ -125,6 +124,52 @@ def test_opaque_payload_normalizes_both_base64_alphabets_to_base64url(encoded):
     assert json.loads(serialized)["data"] == "-_8="
     assert OpaquePayload.model_validate_json(serialized) == payload
     assert OpaquePayload(tag=1, data=b"\xfb\xff").model_dump_json() == serialized
+
+
+@pytest.mark.parametrize("encoded", ["+w==", "/w==", "+/8="])
+def test_current_payload_rejects_standard_base64(encoded):
+    payload = {"kind": "OpaquePayload", "tag": "1", "data": encoded}
+    with pytest.raises(ValidationError):
+        OpaquePayload.model_validate(payload)
+    with pytest.raises(ValidationError):
+        OpaquePayload.model_validate_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("encoded", ["-_8=", "+/8="])
+def test_legacy_base64_is_normalized_only_during_upgrade(encoded):
+    document = {
+        "events": [
+            {
+                "source": {"kind": "UserProgram", "index": 0},
+                "event": {
+                    "kind": "Custom",
+                    "payload": {
+                        "kind": "OpaquePayload",
+                        "tag": 1,
+                        "data": encoded,
+                    },
+                },
+            }
+        ]
+    }
+    parsed = parse_trace_json(json.dumps(document))
+    assert parsed == parse_trace(document)
+    assert parsed.events[0].event.payload.data == b"\xfb\xff"
+    output = json.loads(parsed.model_dump_json())
+    assert output["events"][0]["event"]["payload"]["data"] == "-_8="
+    assert parse_trace_json(json.dumps(output)) == parsed
+    assert document["events"][0]["event"]["payload"]["data"] == encoded
+
+    output["events"][0]["event"]["payload"]["data"] = "+/8="
+    with pytest.raises(ValidationError):
+        parse_trace_json(json.dumps(output))
+    with pytest.raises(ValidationError):
+        parse_trace_document(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "traces": [{"events": output["events"]}],
+            }
+        )
 
 
 def test_opaque_payload_serializes_its_uint64_tag_as_a_decimal_string():

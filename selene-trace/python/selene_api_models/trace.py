@@ -3,6 +3,7 @@
 import copy
 import json
 import math
+import re
 from collections.abc import Callable, Mapping
 from typing import Annotated, Any, Literal
 
@@ -13,6 +14,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     WithJsonSchema,
+    field_validator,
 )
 from pydantic_core import core_schema
 
@@ -198,6 +200,17 @@ class OpaquePayload(AbstractEvent):
     tag: UInt64DecimalString
     data: bytes
 
+    @field_validator("data", mode="before")
+    @classmethod
+    def validate_base64url_alphabet(cls, value: Any) -> Any:
+        # Native bytes are already decoded; strings must use the wire alphabet.
+        if (
+            isinstance(value, str)
+            and re.fullmatch(r"[A-Za-z0-9_-]*={0,2}", value) is None
+        ):
+            raise ValueError("expected URL-safe Base64 data")
+        return value
+
 
 class KeyValuePairPayload(AbstractEvent):
     kind: Literal["KeyValuePairPayload"] = "KeyValuePairPayload"
@@ -376,6 +389,9 @@ def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
                 "legacy OpaquePayload.tag must be an unsigned 64-bit integer"
             )
         payload["tag"] = str(tag)
+        data = payload.get("data")
+        if isinstance(data, str):
+            payload["data"] = data.replace("+", "-").replace("/", "_")
 
     return {
         "schema_version": SCHEMA_VERSION,
