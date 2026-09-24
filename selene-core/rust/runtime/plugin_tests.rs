@@ -1,13 +1,13 @@
 //! Probe guards inside foreign callbacks without relying on thread scheduling.
 use super::*;
-use std::sync::{Mutex, RwLock, TryLockError};
+use parking_lot::{Mutex, RwLock};
 
 unsafe fn check_access(handle: RuntimeInstance, exclusive: bool) -> Errno {
     // SAFETY: the test pins the RuntimePlugin in a Box and uses its access
     // lock as the opaque handle for these test-only foreign functions.
     let access = unsafe { &*handle.cast::<RwLock<()>>() };
-    let writer_blocked = matches!(access.try_write(), Err(TryLockError::WouldBlock));
-    let reader_blocked = matches!(access.try_read(), Err(TryLockError::WouldBlock));
+    let writer_blocked = access.try_write().is_none();
+    let reader_blocked = access.try_read().is_none();
     if writer_blocked && reader_blocked == exclusive {
         0
     } else {

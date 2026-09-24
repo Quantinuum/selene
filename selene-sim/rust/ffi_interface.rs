@@ -1,3 +1,16 @@
+//! C entry points for user-program QIS calls and host lifecycle control.
+//!
+//! User-program calls may overlap on the same live instance. Runtime calls run on
+//! the calling thread; one consumer retrieves batches, executes them, and publishes
+//! results. Output messages and PRNG operations are serialized. The PRNG and output
+//! time cursor remain shared across the instance; ordering between threads is not
+//! deterministic, and setting the cursor then printing is not an atomic operation.
+//!
+//! The host must exclude all user-program calls during shot start/end, metric
+//! collection, and destruction, and join its user threads before `selene_exit`.
+//! Input buffers must remain valid and unmodified until their call returns. Result
+//! handles must retain a live reference throughout use, including concurrent reads.
+
 use super::selene_instance::SeleneInstance;
 use crate::selene_instance::configuration::Configuration;
 use anyhow::Result;
@@ -187,12 +200,12 @@ pub unsafe extern "C" fn selene_load_config(
 
 fn with_instance_void<F>(instance: *mut SeleneInstance, f: F) -> VoidResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<()>,
+    F: FnOnce(&SeleneInstance) -> Result<()>,
 {
     if instance.is_null() {
         return VoidResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     if let Err(e) = f(instance) {
         let code = 100001;
         instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -203,12 +216,12 @@ where
 }
 fn with_instance_bool<F>(instance: *mut SeleneInstance, f: F) -> BoolResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<bool>,
+    F: FnOnce(&SeleneInstance) -> Result<bool>,
 {
     if instance.is_null() {
         return BoolResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => BoolResult::ok(value),
         Err(e) => {
@@ -221,12 +234,12 @@ where
 
 fn with_instance_u64<F>(instance: *mut SeleneInstance, f: F) -> U64Result
 where
-    F: FnOnce(&mut SeleneInstance) -> anyhow::Result<u64>,
+    F: FnOnce(&SeleneInstance) -> anyhow::Result<u64>,
 {
     if instance.is_null() {
         return U64Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => U64Result::ok(value),
         Err(e) => {
@@ -238,12 +251,12 @@ where
 }
 fn with_instance_f64<F>(instance: *mut SeleneInstance, f: F) -> F64Result
 where
-    F: FnOnce(&mut SeleneInstance) -> anyhow::Result<f64>,
+    F: FnOnce(&SeleneInstance) -> anyhow::Result<f64>,
 {
     if instance.is_null() {
         return F64Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => F64Result::ok(value),
         Err(e) => {
@@ -256,12 +269,12 @@ where
 
 fn with_instance_u32<F>(instance: *mut SeleneInstance, f: F) -> U32Result
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<u32>,
+    F: FnOnce(&SeleneInstance) -> Result<u32>,
 {
     if instance.is_null() {
         return U32Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => U32Result::ok(value),
         Err(e) => {
@@ -274,12 +287,12 @@ where
 
 fn with_instance_future_bool<F>(instance: *mut SeleneInstance, f: F) -> FutureResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<u64>,
+    F: FnOnce(&SeleneInstance) -> Result<u64>,
 {
     if instance.is_null() {
         return FutureResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => FutureResult::ok(value),
         Err(e) => {
@@ -320,12 +333,32 @@ pub unsafe extern "C" fn selene_on_shot_start(
     instance: *mut SeleneInstance,
     shot_index: u64,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.shot_start(shot_index))
+    if instance.is_null() {
+        return VoidResult::err(100000);
+    }
+    let instance = unsafe { &mut *instance };
+    match instance.shot_start(shot_index) {
+        Ok(()) => VoidResult::ok(),
+        Err(error) => {
+            instance.fallible_print_panic(&format!("{error:#}"), 100001);
+            VoidResult::err(100001)
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_on_shot_end(instance: *mut SeleneInstance) -> VoidResult {
-    with_instance_void(instance, |instance| instance.shot_end())
+    if instance.is_null() {
+        return VoidResult::err(100000);
+    }
+    let instance = unsafe { &mut *instance };
+    match instance.shot_end() {
+        Ok(()) => VoidResult::ok(),
+        Err(error) => {
+            instance.fallible_print_panic(&format!("{error:#}"), 100001);
+            VoidResult::err(100001)
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -643,14 +676,14 @@ pub unsafe extern "C" fn selene_global_barrier(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_set_tc(instance: *mut SeleneInstance, tc: u64) -> VoidResult {
     with_instance_void(instance, |instance| {
-        instance.time_cursor = tc;
+        instance.set_time_cursor(tc);
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_get_tc(instance: *mut SeleneInstance) -> U64Result {
-    with_instance_u64(instance, |instance| Ok(instance.time_cursor))
+    with_instance_u64(instance, |instance| Ok(instance.time_cursor()))
 }
 
 /// Some runtimes have additional capabilities outside of the core API. These can be triggered
@@ -741,7 +774,8 @@ pub unsafe extern "C" fn selene_fetch_output(
     out_max_len: u64,
 ) -> U64Result {
     with_instance_u64(instance, |instance| {
-        let data = instance.out_encoder.try_read(out_max_len as usize)?;
+        let mut out_encoder = instance.out_encoder.lock();
+        let data = out_encoder.try_read(out_max_len as usize)?;
         let len = data.len() as u64;
         unsafe {
             std::ptr::copy_nonoverlapping(data.as_ptr(), out_ptr, data.len());

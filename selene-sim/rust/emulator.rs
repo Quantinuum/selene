@@ -1,12 +1,16 @@
 use crate::event_hooks::{Operation, SharedEventHook};
 use crate::selene_instance::configuration::Configuration;
 use anyhow::{Result, anyhow};
-use selene_core::error_model::{BatchResult, ErrorModel, ErrorModelInterface};
+use selene_core::error_model::BatchResult;
 use selene_core::runtime::{
     BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInterface,
 };
-use selene_core::simulator::{Simulator, SimulatorInterface};
+use selene_core::simulator::SimulatorInterface;
+use std::sync::Arc;
 use std::time::Instant;
+
+mod consumer;
+use consumer::Consumer;
 
 struct HookedSimulator {
     inner: Box<dyn SimulatorInterface>,
@@ -82,9 +86,8 @@ impl SimulatorInterface for HookedSimulator {
 }
 
 pub struct Emulator {
-    pub runtime: Runtime,
-    pub simulator: Simulator,
-    pub error_model: ErrorModel,
+    pub runtime: Arc<Runtime>,
+    consumer: Consumer,
     pub event_hooks: SharedEventHook,
 }
 
@@ -92,24 +95,12 @@ pub struct Emulator {
 impl Emulator {
     pub fn from_configuration(config: &Configuration) -> Result<Self> {
         let n_qubits = config.n_qubits;
-        let error_model = ErrorModel::load_from_file(
-            &config.error_model.file,
-            n_qubits,
-            config.error_model.args.as_ref(),
-        )?;
-
-        let simulator = Simulator::load_from_file(
-            &config.simulator.file,
-            n_qubits,
-            config.simulator.args.as_ref(),
-        )?;
-
-        let runtime = Runtime::load_from_file(
+        let runtime = Arc::new(Runtime::load_from_file(
             &config.runtime.file,
             n_qubits,
             selene_core::time::Instant::default(),
             config.runtime.args.as_ref(),
-        )?;
+        )?);
 
         // Set up the event hooks
         let event_hooks = SharedEventHook::default();
@@ -129,15 +120,10 @@ impl Emulator {
             ));
         }
 
-        let simulator = Simulator::from_boxed(Box::new(HookedSimulator::new(
-            simulator.into_boxed(),
-            event_hooks.clone(),
-        )));
-
+        let consumer = Consumer::new(config, runtime.clone(), event_hooks.clone())?;
         Ok(Self {
             runtime,
-            simulator,
-            error_model,
+            consumer,
             event_hooks,
         })
     }
@@ -148,120 +134,106 @@ impl Emulator {
         simulator_seed: u64,
         error_model_seed: u64,
     ) -> Result<()> {
-        self.event_hooks.on_shot_start(shot_id);
-        self.runtime.shot_start(shot_id, runtime_seed)?;
-        self.simulator.shot_start(shot_id, simulator_seed)?;
-        self.error_model.shot_start(shot_id, error_model_seed)?;
-        // Process any operations that might be issued during shot start
-        self.poke()?;
-        Ok(())
+        self.consumer.call(move |state| {
+            state.shot_start(shot_id, runtime_seed, simulator_seed, error_model_seed)
+        })
     }
     pub fn shot_end(&mut self) -> Result<()> {
-        // Tell the runtime that it's time to shut down.
-        // This may flush additional operations as part of
-        // the shutdown process.
-        self.runtime.shot_end()?;
-        // Handle any operations that resulted from the runtime's shot
-        // end process
-        self.poke()?;
-        // Tell the error model, having already processed anything from
-        // the current runtime shot, that the shot is ending. The error model
-        // must also end the shot on its internal simulator.
-        self.error_model.shot_end()?;
-        self.simulator.shot_end()?;
-        // Write out any stored metadata e.g. instruction logs
-        // and inform event hooks that the shot has ended.
-        self.event_hooks.on_shot_end();
-        // Print shot boundary information so that the result stream
-        // is properly delimited.
-        Ok(())
+        self.consumer.call(|state| state.shot_end())
     }
-    pub fn poke(&mut self) -> Result<()> {
+    pub fn poke(&self) -> Result<()> {
         self.process_runtime()
     }
-    pub fn dump_quantum_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+    pub fn dump_quantum_state(&self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
         self.runtime.global_barrier(0)?;
-        self.process_runtime()?;
-        self.simulator.dump_state(file, qubits)
+        let file = file.to_owned();
+        let qubits = qubits.to_owned();
+        self.consumer.call(move |state| {
+            state.process_runtime()?;
+            state.simulator.dump_state(&file, &qubits)
+        })
     }
-    pub fn user_issued_qalloc(&mut self) -> Result<u64> {
+    pub fn metrics(&self) -> Result<Vec<(&'static str, String, selene_core::utils::MetricValue)>> {
+        self.consumer.call(|state| state.metrics())
+    }
+    pub fn user_issued_qalloc(&self) -> Result<u64> {
         let address = self.runtime.qalloc()?;
         self.event_hooks.on_user_call(&Operation::QAlloc(address));
         self.process_runtime()?;
         Ok(address)
     }
-    pub fn user_issued_qfree(&mut self, address: u64) -> Result<()> {
+    pub fn user_issued_qfree(&self, address: u64) -> Result<()> {
         self.runtime.qfree(address)?;
         self.event_hooks.on_user_call(&Operation::QFree(address));
         self.process_runtime()
     }
-    pub fn user_issued_local_barrier(&mut self, qubits: &[u64], sleep_time: u64) -> Result<()> {
+    pub fn user_issued_local_barrier(&self, qubits: &[u64], sleep_time: u64) -> Result<()> {
         self.runtime.local_barrier(qubits, sleep_time)?;
         self.event_hooks
             .on_user_call(&Operation::LocalBarrier(qubits.to_vec(), sleep_time));
         self.process_runtime()
     }
-    pub fn user_issued_global_barrier(&mut self, sleep_time: u64) -> Result<()> {
+    pub fn user_issued_global_barrier(&self, sleep_time: u64) -> Result<()> {
         self.runtime.global_barrier(sleep_time)?;
         self.event_hooks
             .on_user_call(&Operation::GlobalBarrier(sleep_time));
         self.process_runtime()
     }
-    pub fn user_issued_rxy(&mut self, q0: u64, theta: f64, phi: f64) -> Result<()> {
+    pub fn user_issued_rxy(&self, q0: u64, theta: f64, phi: f64) -> Result<()> {
         self.runtime.rxy_gate(q0, theta, phi)?;
         self.event_hooks
             .on_user_call(&Operation::RXY(q0, theta, phi));
         self.process_runtime()
     }
-    pub fn user_issued_rzz(&mut self, q0: u64, q1: u64, theta: f64) -> Result<()> {
+    pub fn user_issued_rzz(&self, q0: u64, q1: u64, theta: f64) -> Result<()> {
         self.runtime.rzz_gate(q0, q1, theta)?;
         self.event_hooks
             .on_user_call(&Operation::RZZ(q0, q1, theta));
         self.process_runtime()
     }
-    pub fn user_issued_rpp(&mut self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
+    pub fn user_issued_rpp(&self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
         self.runtime.rpp_gate(q0, q1, theta, phi)?;
         self.event_hooks
             .on_user_call(&Operation::RPP(q0, q1, theta, phi));
         self.process_runtime()
     }
-    pub fn user_issued_rz(&mut self, q0: u64, theta: f64) -> Result<()> {
+    pub fn user_issued_rz(&self, q0: u64, theta: f64) -> Result<()> {
         self.runtime.rz_gate(q0, theta)?;
         self.event_hooks.on_user_call(&Operation::RZ(q0, theta));
         self.process_runtime()
     }
-    pub fn user_issued_reset(&mut self, q0: u64) -> Result<()> {
+    pub fn user_issued_reset(&self, q0: u64) -> Result<()> {
         self.runtime.reset(q0)?;
         self.event_hooks.on_user_call(&Operation::Reset(q0));
         self.process_runtime()
     }
-    pub fn user_issued_lazy_measure(&mut self, q0: u64) -> Result<u64> {
+    pub fn user_issued_lazy_measure(&self, q0: u64) -> Result<u64> {
         let result_id = self.runtime.measure(q0)?;
         self.event_hooks
             .on_user_call(&Operation::MeasureRequest(q0));
         self.process_runtime()?;
         Ok(result_id)
     }
-    pub fn user_issued_lazy_measure_leaked(&mut self, q0: u64) -> Result<u64> {
+    pub fn user_issued_lazy_measure_leaked(&self, q0: u64) -> Result<u64> {
         let result_id = self.runtime.measure_leaked(q0)?;
         self.event_hooks
             .on_user_call(&Operation::MeasureLeakedRequest(q0));
         self.process_runtime()?;
         Ok(result_id)
     }
-    pub fn user_issued_eager_measure(&mut self, q0: u64) -> Result<bool> {
+    pub fn user_issued_eager_measure(&self, q0: u64) -> Result<bool> {
         let result_id = self.user_issued_lazy_measure(q0)?;
         self.user_issued_read_future_bool(result_id)
     }
-    pub fn user_issued_increment_measurement_refcount(&mut self, result_id: u64) -> Result<()> {
+    pub fn user_issued_increment_measurement_refcount(&self, result_id: u64) -> Result<()> {
         self.runtime.increment_future_refcount(result_id)?;
         self.process_runtime()
     }
-    pub fn user_issued_decrement_measurement_refcount(&mut self, result_id: u64) -> Result<()> {
+    pub fn user_issued_decrement_measurement_refcount(&self, result_id: u64) -> Result<()> {
         self.runtime.decrement_future_refcount(result_id)?;
         self.process_runtime()
     }
-    pub fn user_issued_read_future_bool(&mut self, result_id: u64) -> Result<bool> {
+    pub fn user_issued_read_future_bool(&self, result_id: u64) -> Result<bool> {
         self.event_hooks
             .on_user_call(&Operation::FutureRead(result_id));
         match self.runtime.get_bool_result(result_id)? {
@@ -278,7 +250,7 @@ impl Emulator {
             }
         }
     }
-    pub fn user_issued_read_future_u64(&mut self, result_id: u64) -> Result<u64> {
+    pub fn user_issued_read_future_u64(&self, result_id: u64) -> Result<u64> {
         self.event_hooks
             .on_user_call(&Operation::FutureRead(result_id));
         match self.runtime.get_u64_result(result_id)? {
@@ -295,7 +267,7 @@ impl Emulator {
             }
         }
     }
-    pub fn custom_runtime_call(&mut self, tag: u64, data: &[u8]) -> Result<u64> {
+    pub fn custom_runtime_call(&self, tag: u64, data: &[u8]) -> Result<u64> {
         self.event_hooks
             .on_user_call(&Operation::Custom(tag, data.to_vec()));
         let result = self.runtime.custom_call(tag, data)?;
@@ -303,12 +275,12 @@ impl Emulator {
         Ok(result)
     }
 
-    pub fn log_custom_call(&mut self, tag: u64, data: &[u8]) {
+    pub fn log_custom_call(&self, tag: u64, data: &[u8]) {
         self.event_hooks
             .on_user_call(&Operation::Custom(tag, data.to_vec()))
     }
 
-    pub fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
+    pub fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
         self.runtime.simulate_delay(delay_ns)?;
         self.event_hooks
             .on_user_call(&Operation::ClassicalDelay(delay_ns));
@@ -317,22 +289,10 @@ impl Emulator {
 }
 
 impl Emulator {
-    fn process_runtime(&mut self) -> Result<()> {
-        while let Some(batch) = self.runtime.get_next_operations()? {
-            self.event_hooks.on_runtime_batch(&batch);
-            let results = self
-                .error_model
-                .handle_operations_with_simulator(batch, &mut self.simulator)?;
-            self.event_hooks.on_runtime_results(&results);
-            for bool_result in results.bool_results {
-                self.runtime
-                    .set_bool_result(bool_result.result_id, bool_result.value)?;
-            }
-            for u64_result in results.u64_results {
-                self.runtime
-                    .set_u64_result(u64_result.result_id, u64_result.value)?;
-            }
-        }
-        Ok(())
+    fn process_runtime(&self) -> Result<()> {
+        self.consumer.call(|state| state.process_runtime())
     }
 }
+
+#[cfg(test)]
+mod tests;

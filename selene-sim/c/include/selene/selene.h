@@ -8,6 +8,15 @@
 #include <stdlib.h>
 
 
+/**
+ * Opaque instance shared by user-program QIS calls.
+ *
+ * QIS calls may run concurrently on this instance. The host must exclude them
+ * during `selene_on_shot_start`, `selene_on_shot_end`, metric collection, and
+ * `selene_exit`, and keep the instance alive until all user threads have joined.
+ * Simulator and error-model calls run on one consumer thread. Output records and
+ * PRNG operations are serialized; the output time cursor remains instance-wide.
+ */
 typedef struct SeleneInstance SeleneInstance;
 
 typedef struct selene_u64_result_t {
