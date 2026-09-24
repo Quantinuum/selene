@@ -14,8 +14,12 @@ from selene_api_models.trace import (
     RuntimeSource,
     SimulatorSource,
     Trace,
+    TraceData,
+    Traces,
     UserProgramSource,
     parse_trace,
+    parse_trace_document,
+    parse_trace_document_json,
     parse_trace_json,
 )
 
@@ -35,6 +39,38 @@ def test_trace_serializes_its_protocol_version():
 def test_trace_requires_a_supported_protocol_version():
     with pytest.raises(ValidationError):
         Trace(events=[])
+
+
+def test_traces_versions_unversioned_trace_data_once():
+    document = Traces(
+        schema_version=SCHEMA_VERSION,
+        traces=[TraceData(events=[])],
+    )
+
+    assert json.loads(document.model_dump_json()) == {
+        "schema_version": SCHEMA_VERSION,
+        "traces": [{"events": []}],
+    }
+
+
+def test_trace_document_parser_accepts_both_document_shapes():
+    singular = parse_trace_document({"schema_version": SCHEMA_VERSION, "events": []})
+    collection = parse_trace_document_json(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "traces": [{"events": []}],
+            }
+        )
+    )
+
+    assert isinstance(singular, Trace)
+    assert isinstance(collection, Traces)
+
+
+def test_trace_document_parser_rejects_a_versionless_collection():
+    with pytest.raises(ValueError, match="versionless trace collections"):
+        parse_trace_document({"traces": []})
 
 
 def test_trace_requires_source_and_event_discriminators():

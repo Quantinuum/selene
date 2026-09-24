@@ -8,12 +8,12 @@ has its own versioned JSON Schema, documentation, examples, and bindings.
 
 | API | Version | Schema | Semantics |
 | --- | --- | --- | --- |
-| Trace | 0.1.0 | [`schemas/trace/0.1.0.schema.json`](schemas/trace/0.1.0.schema.json) | [`docs/trace/0.1.0.md`](docs/trace/0.1.0.md) |
+| Trace documents (`Trace` and `Traces`) | 0.1.0 | [`schemas/trace/0.1.0.schema.json`](schemas/trace/0.1.0.schema.json) | [`docs/trace/0.1.0.md`](docs/trace/0.1.0.md) |
 | Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [`docs/trace/legacy.md`](docs/trace/legacy.md) |
 
 Schemas are also published at their canonical `$id` URLs:
 
-* [Trace 0.1.0](https://quantinuum.github.io/selene/schemas/trace/0.1.0.schema.json)
+* [Trace documents 0.1.0](https://quantinuum.github.io/selene/schemas/trace/0.1.0.schema.json)
 * [Trace (legacy input)](https://quantinuum.github.io/selene/schemas/trace/legacy.schema.json)
 
 Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.md).

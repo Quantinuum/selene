@@ -5,7 +5,7 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from pydantic_core import core_schema
 
 SCHEMA_VERSION = "0.1.0"
@@ -75,8 +75,13 @@ __all__ = [
     "SimulatorSource",
     "Source",
     "Trace",
+    "TraceData",
+    "TraceDocument",
+    "Traces",
     "UserProgramSource",
     "parse_trace",
+    "parse_trace_document",
+    "parse_trace_document_json",
     "parse_trace_json",
 ]
 
@@ -174,8 +179,18 @@ class EventRecord(BaseModel):
     event: Event
 
 
+class TraceData(BaseModel):
+    """The unversioned contents of one emulation trace."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    events: list[EventRecord] = Field(default_factory=list)
+
+
 class Trace(BaseModel):
     """A serializable Selene trace conforming to protocol version 0.1.0."""
+
+    model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["0.1.0"]
     events: list[EventRecord] = Field(default_factory=list)
@@ -264,8 +279,23 @@ class Trace(BaseModel):
         )
 
 
+class Traces(BaseModel):
+    """A versioned collection of trace data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["0.1.0"]
+    traces: list[TraceData]
+
+
+TraceDocument = Trace | Traces
+_TRACE_DOCUMENT_ADAPTER = TypeAdapter(TraceDocument)
+
+
 def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
     upgraded = copy.deepcopy(dict(value))
+    if "traces" in upgraded:
+        raise ValueError("versionless trace collections are not supported")
     upgraded["schema_version"] = SCHEMA_VERSION
 
     for record in upgraded.get("events", []):
@@ -286,7 +316,10 @@ def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
             )
         payload["tag"] = str(tag)
 
-    return upgraded
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "events": upgraded.get("events", []),
+    }
 
 
 def parse_trace(value: Any) -> Trace:
@@ -307,3 +340,20 @@ def parse_trace(value: Any) -> Trace:
 def parse_trace_json(data: str | bytes | bytearray) -> Trace:
     """Parse current or versionless legacy trace JSON without losing integers."""
     return parse_trace(json.loads(data))
+
+
+def parse_trace_document(value: Any) -> TraceDocument:
+    """Parse a current trace or trace collection, or a legacy singular trace."""
+    if not isinstance(value, Mapping):
+        raise TypeError("trace document must be a JSON object")
+
+    document = dict(value)
+    if "schema_version" not in document:
+        return parse_trace(document)
+
+    return _TRACE_DOCUMENT_ADAPTER.validate_json(json.dumps(document))
+
+
+def parse_trace_document_json(data: str | bytes | bytearray) -> TraceDocument:
+    """Parse current trace-document JSON or versionless legacy trace JSON."""
+    return parse_trace_document(json.loads(data))

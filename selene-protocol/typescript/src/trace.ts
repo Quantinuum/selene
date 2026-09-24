@@ -174,12 +174,29 @@ export const EventRecordSchema = z.object({
 export type EventRecord = z.infer<typeof EventRecordSchema>;
 export type EventRecordInput = z.input<typeof EventRecordSchema>;
 
+export const TraceDataSchema = z.object({
+  events: z.array(EventRecordSchema).default([]),
+}).strict();
+export type TraceData = z.infer<typeof TraceDataSchema>;
+export type TraceDataInput = z.input<typeof TraceDataSchema>;
+
 export const TraceSchema = z.object({
   schema_version: SchemaVersionSchema,
   events: z.array(EventRecordSchema).default([]),
-});
+}).strict();
 export type Trace = z.infer<typeof TraceSchema>;
 export type TraceInput = z.input<typeof TraceSchema>;
+
+export const TracesSchema = z.object({
+  schema_version: SchemaVersionSchema,
+  traces: z.array(TraceDataSchema),
+}).strict();
+export type Traces = z.infer<typeof TracesSchema>;
+export type TracesInput = z.input<typeof TracesSchema>;
+
+export const TraceDocumentSchema = z.union([TraceSchema, TracesSchema]);
+export type TraceDocument = z.infer<typeof TraceDocumentSchema>;
+export type TraceDocumentInput = z.input<typeof TraceDocumentSchema>;
 
 const LegacyOpaquePayloadSchema = OpaquePayloadSchema.extend({
   tag: z.union([
@@ -213,12 +230,24 @@ export const LegacyTraceSchema = z.object({
   events: z.array(LegacyEventRecordSchema).default([]),
 }).passthrough().refine((value) => !("schema_version" in value), {
   message: "Legacy trace documents must not contain schema_version",
+}).refine((value) => !("traces" in value), {
+  message: "Versionless trace collections are not supported",
 });
 export type LegacyTrace = z.infer<typeof LegacyTraceSchema>;
 
 /** Create a trace document with the protocol version set correctly. */
 export function createTrace(events: EventRecordInput[] = []): Trace {
   return TraceSchema.parse({ schema_version: SCHEMA_VERSION, events });
+}
+
+/** Create the unversioned contents of one emulation trace. */
+export function createTraceData(events: EventRecordInput[] = []): TraceData {
+  return TraceDataSchema.parse({ events });
+}
+
+/** Create a trace collection with the protocol version set correctly. */
+export function createTraces(traces: TraceDataInput[]): Traces {
+  return TracesSchema.parse({ schema_version: SCHEMA_VERSION, traces });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -240,6 +269,14 @@ export function parseTrace(value: unknown): Trace {
     return upgradeLegacyTrace(value);
   }
   return TraceSchema.parse(value);
+}
+
+/** Parse either current trace-document shape, or a versionless legacy trace. */
+export function parseTraceDocument(value: unknown): TraceDocument {
+  if (isObject(value) && !("schema_version" in value)) {
+    return upgradeLegacyTrace(value);
+  }
+  return TraceDocumentSchema.parse(value);
 }
 
 function normalizeLosslessJson(value: unknown, legacy: boolean): unknown {
@@ -290,10 +327,31 @@ export function parseTraceJson(json: string): Trace {
   return parseTrace(normalizeLosslessJson(parsed, legacy));
 }
 
+/** Parse trace-document JSON while preserving a legacy numeric opaque tag. */
+export function parseTraceDocumentJson(json: string): TraceDocument {
+  const parsed = parseLosslessJson(json);
+  const legacy = isObject(parsed) && !("schema_version" in parsed);
+  return parseTraceDocument(normalizeLosslessJson(parsed, legacy));
+}
+
 /** Validate a JSON-compatible value as a Selene trace without throwing. */
 export function safeParseTrace(value: unknown): z.SafeParseReturnType<unknown, Trace> {
   try {
     return { success: true, data: parseTrace(value) };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error };
+    }
+    throw error;
+  }
+}
+
+/** Validate either trace-document shape without throwing. */
+export function safeParseTraceDocument(
+  value: unknown,
+): z.SafeParseReturnType<unknown, TraceDocument> {
+  try {
+    return { success: true, data: parseTraceDocument(value) };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { success: false, error };
@@ -326,13 +384,33 @@ function serializeSource(source: Source): SourceInput {
   return source;
 }
 
-/** Convert a parsed trace to its JSON-compatible representation. */
-export function serializeTrace(trace: Trace): TraceInput {
+/** Convert parsed trace data to its JSON-compatible representation. */
+export function serializeTraceData(trace: TraceData): TraceDataInput {
   return {
-    schema_version: trace.schema_version,
     events: trace.events.map(({ source, event }) => ({
       source: serializeSource(source),
       event: serializeEvent(event),
     })),
   };
+}
+
+/** Convert a parsed trace to its JSON-compatible representation. */
+export function serializeTrace(trace: Trace): TraceInput {
+  return {
+    schema_version: trace.schema_version,
+    ...serializeTraceData(trace),
+  };
+}
+
+/** Convert a parsed trace collection to its JSON-compatible representation. */
+export function serializeTraces(traces: Traces): TracesInput {
+  return {
+    schema_version: traces.schema_version,
+    traces: traces.traces.map(serializeTraceData),
+  };
+}
+
+/** Convert either parsed trace-document shape to a JSON-compatible value. */
+export function serializeTraceDocument(document: TraceDocument): TraceDocumentInput {
+  return "traces" in document ? serializeTraces(document) : serializeTrace(document);
 }

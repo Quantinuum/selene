@@ -183,6 +183,37 @@
       "title": "SimulatorSource",
       "type": "object"
     },
+    "Trace": {
+      "additionalProperties": false,
+      "description": "A serializable Selene trace conforming to protocol version 0.1.0.",
+      "properties": {
+        "schema_version": { "const": "0.1.0", "title": "Schema Version", "type": "string" },
+        "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
+      },
+      "required": ["schema_version"],
+      "title": "Trace",
+      "type": "object"
+    },
+    "TraceData": {
+      "additionalProperties": false,
+      "description": "The unversioned contents of one emulation trace.",
+      "properties": {
+        "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
+      },
+      "title": "TraceData",
+      "type": "object"
+    },
+    "Traces": {
+      "additionalProperties": false,
+      "description": "A versioned collection of trace data.",
+      "properties": {
+        "schema_version": { "const": "0.1.0", "title": "Schema Version", "type": "string" },
+        "traces": { "items": { "$ref": "#/$defs/TraceData" }, "title": "Traces", "type": "array" }
+      },
+      "required": ["schema_version", "traces"],
+      "title": "Traces",
+      "type": "object"
+    },
     "UserProgramSource": {
       "properties": {
         "kind": { "const": "UserProgram", "default": "UserProgram", "title": "Kind", "type": "string" },
@@ -193,12 +224,8 @@
       "type": "object"
     }
   },
-  "description": "A serializable Selene trace conforming to protocol version 0.1.0.",
-  "properties": {
-    "schema_version": { "const": "0.1.0", "title": "Schema Version", "type": "string" },
-    "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
-  },
-  "required": ["schema_version"],
-  "title": "Trace",
-  "type": "object"
+  "oneOf": [
+    { "$ref": "#/$defs/Trace" },
+    { "$ref": "#/$defs/Traces" }
+  ]
 }

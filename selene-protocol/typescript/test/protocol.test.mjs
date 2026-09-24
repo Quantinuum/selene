@@ -11,6 +11,13 @@ test("createTrace emits the current protocol version", () => {
   });
 });
 
+test("createTraces versions unversioned trace data once", () => {
+  assert.deepEqual(trace.createTraces([trace.createTraceData()]), {
+    schema_version: trace.SCHEMA_VERSION,
+    traces: [{ events: [] }],
+  });
+});
+
 test("shared protocol examples identify the current protocol version", () => {
   for (const exampleName of ["minimal.json", "all-event-types.json"]) {
     const exampleUrl = new URL(
@@ -27,6 +34,37 @@ test("shared protocol examples identify the current protocol version", () => {
     assert.deepEqual(trace.serializeTrace(parsed), exampleTrace, exampleName);
     assert.deepEqual(trace.serializeTrace(parsedJson), exampleTrace, exampleName);
   }
+});
+
+test("the shared traces example parses as a collection document", () => {
+  const exampleUrl = new URL("../../examples/trace/traces.json", import.meta.url);
+  const exampleJson = readFileSync(exampleUrl, "utf8");
+  const exampleDocument = JSON.parse(exampleJson);
+
+  const parsed = trace.parseTraceDocument(exampleDocument);
+  const parsedJson = trace.parseTraceDocumentJson(exampleJson);
+  assert.equal(parsed.schema_version, trace.SCHEMA_VERSION);
+  assert.equal(parsed.traces.length, 2);
+  assert.deepEqual(trace.serializeTraceDocument(parsed), exampleDocument);
+  assert.deepEqual(trace.serializeTraceDocument(parsedJson), exampleDocument);
+});
+
+test("trace-document validation distinguishes singular and collection documents", () => {
+  const singular = trace.parseTraceDocument({
+    schema_version: trace.SCHEMA_VERSION,
+    events: [],
+  });
+  const collection = trace.parseTraceDocument({
+    schema_version: trace.SCHEMA_VERSION,
+    traces: [],
+  });
+
+  assert.ok("events" in singular);
+  assert.ok("traces" in collection);
+});
+
+test("trace-document validation rejects a versionless collection", () => {
+  assert.equal(trace.safeParseTraceDocument({ traces: [] }).success, false);
 });
 
 test("validation rejects documents with an unsupported schema version", () => {
