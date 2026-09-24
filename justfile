@@ -19,7 +19,7 @@ test-ts:
     pnpm --filter @quantinuum/selene-api-models test
 
 test-api-models:
-    uv run --locked --package selene-api-models --group test pytest selene-protocol/python/tests
+    uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests
     cargo test --package selene-api-models
     just test-ts
 

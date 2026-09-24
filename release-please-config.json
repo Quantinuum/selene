@@ -64,7 +64,7 @@
                 }
             ]
         },
-        "selene-protocol": {
+        "selene-trace": {
             "release-type": "python",
             "package-name": "selene-api-models",
             "component": "selene-api-models",
@@ -75,12 +75,12 @@
             "extra-files": [
                 {
                     "type": "toml",
-                    "path": "selene-protocol/rust/Cargo.toml",
+                    "path": "selene-trace/rust/Cargo.toml",
                     "jsonpath": "$.package.version"
                 },
                 {
                     "type": "json",
-                    "path": "selene-protocol/typescript/package.json",
+                    "path": "selene-trace/typescript/package.json",
                     "jsonpath": "$.version"
                 },
                 {

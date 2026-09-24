@@ -41,7 +41,7 @@ _dist/
 
 wheelhouse/
 node_modules/
-selene-protocol/typescript/dist/
+selene-trace/typescript/dist/
 !.cargo
 scratch/
 

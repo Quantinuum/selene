@@ -1,7 +1,7 @@
 # @quantinuum/selene-api-models
 
 TypeScript types for the versioned, serializable Selene trace protocol. See the
-protocol documentation and JSON Schema in the repository's `selene-protocol/`
+protocol documentation and JSON Schema in the repository's `selene-trace/`
 directory.
 
 Trace types, Zod schemas, and helpers are exported from the `trace` namespace:
@@ -31,11 +31,11 @@ would lose precision before validation can occur.
 From the repository root, build the package with the project-managed tooling:
 
 ```sh
-devenv shell -- pnpm --dir selene-protocol/typescript build
+devenv shell -- pnpm --dir selene-trace/typescript build
 ```
 
 Run the package tests with:
 
 ```sh
-devenv shell -- pnpm --dir selene-protocol/typescript test
+devenv shell -- pnpm --dir selene-trace/typescript test
 ```

@@ -7,7 +7,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-SCHEMA_DIRECTORY = "selene-protocol/schemas"
+SCHEMA_DIRECTORY = "selene-trace/schemas"
 SCHEMA_SUFFIX = ".schema.json"
 
 
