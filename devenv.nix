@@ -90,9 +90,9 @@ in {
         name = "Schema immutability";
         description = "Prevent changes to JSON Schemas already present on origin/0.3-series.";
         package = pkgs.python3;
-        entry = "${pkgs.python3}/bin/python3 selene-protocol/scripts/check_schema_immutability.py";
+        entry = "${pkgs.python3}/bin/python3 selene-trace/scripts/check_schema_immutability.py";
         args = ["--base=origin/0.3-series" "--staged"];
-        files = "^(selene-protocol/schemas/.*\\.schema\\.json|selene-protocol/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
+        files = "^(selene-trace/schemas/.*\\.schema\\.json|selene-trace/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
         pass_filenames = false;
       };
       api-models-python-test = {
@@ -100,8 +100,8 @@ in {
         name = "API models Python tests";
         description = "Run the Python API model test suite.";
         package = pkgs.uv;
-        entry = "uv run --locked --package selene-api-models --group test pytest selene-protocol/python/tests";
-        files = "^(selene-protocol/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        entry = "uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests";
+        files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
       };
       api-models-rust-test = {
@@ -110,7 +110,7 @@ in {
         description = "Run the Rust API model test suite.";
         package = pkgs.cargo;
         entry = "cargo test --package selene-api-models";
-        files = "^(selene-protocol/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
       };
       api-models-typescript-test = {
@@ -122,7 +122,7 @@ in {
           ${pkgs.pnpm}/bin/pnpm install --frozen-lockfile
           ${pkgs.pnpm}/bin/pnpm --filter @quantinuum/selene-api-models test
         ''}";
-        files = "^(selene-protocol/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
       };
     };

@@ -1,8 +1,8 @@
-# Selene Protocol
+# Selene Trace
 
-`selene-protocol` contains Selene's public, serializable interoperability
-protocols. It intentionally has no dependency on the emulator. Each protocol
-has its own versioned JSON Schema, documentation, examples, and bindings.
+`selene-trace` contains the schemas, documentation, examples, and language
+models for Selene's public serialized traces. It has no dependency on the
+emulator.
 
 ## APIs
 
@@ -27,6 +27,3 @@ Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.
   package.
 
 The binding release process is described in [`docs/publishing.md`](docs/publishing.md).
-
-The trace API is currently the only protocol. Future APIs belong in their own
-directories under `schemas/`, `examples/`, and language-specific modules.

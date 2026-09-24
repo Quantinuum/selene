@@ -65,7 +65,7 @@ selene-core = { workspace = true }
 selene-api-models = { workspace = true }
 
 [tool.uv.workspace]
-members = ["selene-core", "selene-protocol"]
+members = ["selene-core", "selene-trace"]
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"

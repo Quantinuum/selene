@@ -9,7 +9,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "pyproject.toml"
-      - "selene-protocol/**"
+      - "selene-trace/**"
       - "uv.lock"
   push:
     branches:
@@ -32,7 +32,7 @@ jobs:
         with:
           enable-cache: true
       - name: Test
-        run: uv run --locked --package selene-api-models --group test pytest selene-protocol/python/tests
+        run: uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests
       - name: Build distributions
         run: uv build --package selene-api-models --out-dir dist/python
       - name: Upload distributions
@@ -74,11 +74,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Test
-        run: pnpm --dir selene-protocol/typescript test
+        run: pnpm --dir selene-trace/typescript test
       - name: Prepare package directory
         run: mkdir -p dist/typescript
       - name: Package
-        run: pnpm --dir selene-protocol/typescript pack --pack-destination "$GITHUB_WORKSPACE/dist/typescript"
+        run: pnpm --dir selene-trace/typescript pack --pack-destination "$GITHUB_WORKSPACE/dist/typescript"
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
@@ -104,9 +104,9 @@ jobs:
 
           expected = sys.argv[1]
           versions = {
-              "Python": tomllib.loads(Path("selene-protocol/pyproject.toml").read_text())["project"]["version"],
-              "Rust": tomllib.loads(Path("selene-protocol/rust/Cargo.toml").read_text())["package"]["version"],
-              "TypeScript": json.loads(Path("selene-protocol/typescript/package.json").read_text())["version"],
+              "Python": tomllib.loads(Path("selene-trace/pyproject.toml").read_text())["project"]["version"],
+              "Rust": tomllib.loads(Path("selene-trace/rust/Cargo.toml").read_text())["package"]["version"],
+              "TypeScript": json.loads(Path("selene-trace/typescript/package.json").read_text())["version"],
           }
           mismatches = [f"{name}={version}" for name, version in versions.items() if version != expected]
           if mismatches:
@@ -164,6 +164,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Publish
-        run: pnpm --dir selene-protocol/typescript publish --access public --no-git-checks
+        run: pnpm --dir selene-trace/typescript publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

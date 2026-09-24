@@ -6,7 +6,7 @@ settings:
 
 importers:
 
-  selene-protocol/typescript:
+  selene-trace/typescript:
     dependencies:
       lossless-json:
         specifier: ^4.3.1

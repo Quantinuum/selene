@@ -1751,7 +1751,7 @@ wheels = [
 [[package]]
 name = "selene-api-models"
 version = "0.1.0"
-source = { editable = "selene-protocol" }
+source = { editable = "selene-trace" }
 dependencies = [
     { name = "pydantic" },
 ]
@@ -1803,7 +1803,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=5.0" },
-    { name = "selene-api-models", editable = "selene-protocol" },
+    { name = "selene-api-models", editable = "selene-trace" },
     { name = "typing-extensions", specifier = ">=4" },
     { name = "ziglang", specifier = "~=0.16" },
 ]
