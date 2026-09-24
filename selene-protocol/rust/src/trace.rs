@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn minimal_example_deserializes() {
-        let trace: Trace = serde_json::from_str(include_str!("../../examples/trace/minimal.json"))
+        let trace: Trace = serde_json::from_str(include_str!("../tests/fixtures/minimal.json"))
             .expect("minimal example must conform to the trace model");
 
         assert_eq!(trace.schema_version, SchemaVersion::V0_1_0);
@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn all_event_types_example_deserializes() {
         let trace: Trace =
-            serde_json::from_str(include_str!("../../examples/trace/all-event-types.json"))
+            serde_json::from_str(include_str!("../tests/fixtures/all-event-types.json"))
                 .expect("all event types example must conform to the trace model");
 
         assert_eq!(trace.events.len(), 5);
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn traces_example_deserializes_as_a_collection_document() {
         let document: TraceDocument =
-            serde_json::from_str(include_str!("../../examples/trace/traces.json"))
+            serde_json::from_str(include_str!("../tests/fixtures/traces.json"))
                 .expect("traces example must conform to the trace model");
 
         let TraceDocument::Traces(traces) = document else {
@@ -479,11 +479,11 @@ mod tests {
     #[test]
     fn trace_document_parser_accepts_singular_and_collection_documents() {
         assert!(matches!(
-            parse_trace_document_json(include_str!("../../examples/trace/minimal.json")),
+            parse_trace_document_json(include_str!("../tests/fixtures/minimal.json")),
             Ok(TraceDocument::Trace(_))
         ));
         assert!(matches!(
-            parse_trace_document_json(include_str!("../../examples/trace/traces.json")),
+            parse_trace_document_json(include_str!("../tests/fixtures/traces.json")),
             Ok(TraceDocument::Traces(_))
         ));
     }
@@ -616,7 +616,7 @@ mod tests {
 
     #[test]
     fn versionless_legacy_trace_is_upgraded() {
-        let trace = parse_trace_json(include_str!("../../examples/trace/legacy.json"))
+        let trace = parse_trace_json(include_str!("../tests/fixtures/legacy.json"))
             .expect("legacy example must be supported");
 
         assert_eq!(trace.schema_version, SchemaVersion::V0_1_0);

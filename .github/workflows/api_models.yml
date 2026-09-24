@@ -51,7 +51,12 @@ jobs:
       - name: Test
         run: cargo test --package selene-api-models
       - name: Package
-        run: cargo package --allow-dirty --no-verify --package selene-api-models
+        run: cargo package --allow-dirty --package selene-api-models
+      - name: Test packaged crate
+        run: |
+          package_dir="$(mktemp -d)"
+          tar -xzf target/package/selene-api-models-*.crate -C "$package_dir"
+          cargo test --manifest-path "$package_dir"/selene-api-models-*/Cargo.toml
 
   typescript:
     name: TypeScript
