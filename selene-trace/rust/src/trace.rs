@@ -211,6 +211,7 @@ mod safe_numbers {
 
 mod base64_bytes {
     use super::*;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
     pub fn serialize<S>(value: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -224,7 +225,13 @@ mod base64_bytes {
         D: Deserializer<'de>,
     {
         let encoded = String::deserialize(deserializer)?;
-        URL_SAFE.decode(encoded).map_err(serde::de::Error::custom)
+        // Accept omitted padding, but keep explicitly padded input strict.
+        let engine = if encoded.contains('=') {
+            &URL_SAFE
+        } else {
+            &URL_SAFE_NO_PAD
+        };
+        engine.decode(encoded).map_err(serde::de::Error::custom)
     }
 }
 
@@ -552,6 +559,49 @@ mod tests {
             serde_json::to_string(&payload).expect("payload must serialize"),
             r#"{"kind":"OpaquePayload","tag":"1","data":"dHJhY2U="}"#,
         );
+    }
+
+    #[test]
+    fn opaque_payload_accepts_optional_base64url_padding() {
+        for (encoded, decoded, canonical) in [
+            ("Zg", &b"f"[..], "Zg=="),
+            ("Zg==", &b"f"[..], "Zg=="),
+            ("Zm8", &b"fo"[..], "Zm8="),
+            ("Zm8=", &b"fo"[..], "Zm8="),
+            ("-_8", &[0xfb, 0xff][..], "-_8="),
+        ] {
+            let input = serde_json::json!({
+                "kind": "OpaquePayload", "tag": "1", "data": encoded
+            });
+            let payload: CustomPayload = serde_json::from_value(input).unwrap();
+            assert_eq!(
+                payload,
+                CustomPayload::OpaquePayload {
+                    tag: 1,
+                    data: decoded.to_vec()
+                },
+                "{encoded}"
+            );
+            let output = serde_json::to_value(&payload).unwrap();
+            assert_eq!(output["data"], canonical);
+            assert_eq!(
+                serde_json::from_value::<CustomPayload>(output).unwrap(),
+                payload
+            );
+        }
+    }
+
+    #[test]
+    fn opaque_payload_rejects_invalid_base64url() {
+        for encoded in ["Z", "Zg=", "Zg===", "Zm8==", "+/8=", "+/8", "Zg==\n"] {
+            let input = serde_json::json!({
+                "kind": "OpaquePayload", "tag": "1", "data": encoded
+            });
+            assert!(
+                serde_json::from_value::<CustomPayload>(input).is_err(),
+                "{encoded:?}"
+            );
+        }
     }
 
     #[test]
