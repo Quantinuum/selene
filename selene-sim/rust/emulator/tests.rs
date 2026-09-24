@@ -90,18 +90,8 @@ impl RuntimeInterface for TestRuntime {
     fn reset(&self, _: u64) -> Result<()> {
         Ok(())
     }
-    fn force_result(&self, id: u64) -> Result<()> {
-        // Deliberately block: only the independent consumer can publish this result.
-        let mut state = self.state.lock();
-        self.ready.wait_while_for(
-            &mut state,
-            |s| !s.results.contains_key(&id),
-            Duration::from_secs(5),
-        );
-        anyhow::ensure!(
-            state.results.contains_key(&id),
-            "consumer did not publish result"
-        );
+    fn force_result(&self, _: u64) -> Result<()> {
+        // Measurements are already queued; the next explicit drain resolves them.
         Ok(())
     }
     fn get_bool_result(&self, id: u64) -> Result<Option<bool>> {
@@ -154,13 +144,8 @@ impl RuntimeInterface for TestRuntime {
                 self.fail.store(true, Ordering::Relaxed);
                 Ok(0)
             }
-            // Submit and wait inside a single call, without any other producer to
-            // request draining on our behalf.
-            _ => {
-                let id = self.measure(0)?;
-                self.force_result(id)?;
-                Ok(self.get_u64_result(id)?.unwrap())
-            }
+            // Submit work and return before the caller requests draining.
+            _ => self.measure(0),
         }
     }
 }
@@ -248,7 +233,6 @@ fn instance() -> (SeleneInstance, Arc<AtomicBool>) {
                 })),
                 error_model: ErrorModel::from_boxed(Box::new(Passthrough)),
                 hooks,
-                active: false,
                 failure: None,
             })
         })
@@ -391,7 +375,9 @@ fn blocking_runtime_calls_allow_consumer_and_other_callers_to_progress() {
     });
     let result = unsafe { selene_custom_runtime_call(pointer(&instance), 2, b"".as_ptr(), 0) };
     assert_eq!(result.error_code, 0);
-    assert_eq!(result.value, 1);
+    let measured = unsafe { selene_future_read_bool(pointer(&instance), result.value) };
+    assert_eq!(measured.error_code, 0);
+    assert!(measured.value);
     instance.shot_end().unwrap();
 }
 

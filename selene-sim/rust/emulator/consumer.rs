@@ -10,7 +10,6 @@ use selene_core::{
 use std::{
     sync::{Arc, mpsc},
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 type Request = Box<dyn FnOnce(&mut State) + Send>;
@@ -51,7 +50,6 @@ impl Consumer {
                 simulator,
                 error_model,
                 hooks,
-                active: false,
                 failure: None,
             })
         })
@@ -73,28 +71,10 @@ impl Consumer {
                 if ready.send(Ok(())).is_err() {
                     return;
                 }
-                loop {
-                    // Keep consuming while a runtime call is blocked on a result. The
-                    // runtime API has no work-available notification, so idle shots poll.
-                    let request = if state.active && state.failure.is_none() {
-                        match receiver.recv_timeout(Duration::from_millis(1)) {
-                            Ok(request) => Some(request),
-                            Err(mpsc::RecvTimeoutError::Timeout) => None,
-                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                        }
-                    } else {
-                        match receiver.recv() {
-                            Ok(request) => Some(request),
-                            Err(_) => break,
-                        }
-                    };
-                    if let Some(request) = request {
-                        request(&mut state);
-                    }
-                    if state.active {
-                        // Retain failures so the next QIS/lifecycle call can report them.
-                        let _ = state.process_runtime();
-                    }
+                // QIS calls explicitly request draining after submitting work.
+                // Block between requests; no runtime polling is needed.
+                for request in receiver {
+                    request(&mut state);
                 }
             })?;
         let consumer = Self {
@@ -139,7 +119,6 @@ pub(super) struct State {
     pub(super) simulator: Simulator,
     pub(super) error_model: ErrorModel,
     pub(super) hooks: SharedEventHook,
-    pub(super) active: bool,
     pub(super) failure: Option<String>,
 }
 
@@ -157,12 +136,10 @@ impl State {
         self.simulator.shot_start(shot, simulator_seed)?;
         self.error_model.shot_start(shot, error_seed)?;
         self.process_runtime()?;
-        self.active = true;
         Ok(())
     }
 
     pub(super) fn shot_end(&mut self) -> Result<()> {
-        self.active = false;
         self.runtime.shot_end()?;
         self.process_runtime()?;
         self.error_model.shot_end()?;
