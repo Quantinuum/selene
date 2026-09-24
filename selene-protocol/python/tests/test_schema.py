@@ -6,7 +6,12 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 from pydantic import TypeAdapter
 from selene_api_models import get_legacy_trace_schema, get_trace_schema
-from selene_api_models.trace import TraceDocument, parse_trace
+from selene_api_models.trace import (
+    MAX_UINT64,
+    OpaquePayload,
+    TraceDocument,
+    parse_trace,
+)
 
 
 def test_checked_in_schema_matches_the_python_model_with_required_discriminators():
@@ -28,6 +33,31 @@ def test_installed_schema_matches_the_canonical_schema():
     schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.1.0.schema.json"
 
     assert get_trace_schema() == json.loads(schema_path.read_text())
+
+
+def test_uint64_pattern_enforces_range_without_a_format_checker():
+    schema = get_trace_schema()["$defs"]["OpaquePayload"]
+    validator = Draft202012Validator(schema)
+    # Exercise both sides of each decimal-prefix boundary in the upper limit.
+    candidates = {0, 1, MAX_UINT64 - 1, MAX_UINT64, MAX_UINT64 + 1, 10**100}
+    for digits in range(21):
+        boundary = (MAX_UINT64 // 10**digits) * 10**digits
+        candidates.update([boundary - 1, boundary, boundary + 1, 10**digits - 1])
+    for value in candidates:
+        payload = {"kind": "OpaquePayload", "tag": str(value), "data": ""}
+        valid = 0 <= value <= MAX_UINT64
+        assert validator.is_valid(payload) == valid, value
+        if valid:
+            assert OpaquePayload.model_validate_json(json.dumps(payload)).tag == value
+        else:
+            with pytest.raises(ValueError):
+                OpaquePayload.model_validate_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("tag", ["", "00", "01", "+1", "1.0", "1e2", " 1", "1\n", 1])
+def test_uint64_schema_rejects_noncanonical_strings(tag):
+    validator = Draft202012Validator(get_trace_schema()["$defs"]["OpaquePayload"])
+    assert not validator.is_valid({"kind": "OpaquePayload", "tag": tag, "data": ""})
 
 
 @pytest.mark.parametrize(
