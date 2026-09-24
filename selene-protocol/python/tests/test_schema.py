@@ -109,8 +109,14 @@ def test_current_examples_conform_to_the_current_schema(example_name: str):
     Draft202012Validator(schema).validate(json.loads(example_path.read_text()))
 
 
-def test_legacy_schema_rejects_a_versioned_trace():
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"schema_version": "0.1.0", "events": []},
+        {"traces": []},
+        {"events": [], "traces": []},
+    ],
+)
+def test_legacy_schema_rejects_versioned_traces_and_collections(document):
     with pytest.raises(ValidationError):
-        Draft202012Validator(get_legacy_trace_schema()).validate(
-            {"schema_version": "0.1.0", "events": []}
-        )
+        Draft202012Validator(get_legacy_trace_schema()).validate(document)

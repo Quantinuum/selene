@@ -163,7 +163,12 @@
     }
   },
   "description": "The versionless Selene trace format emitted before protocol versioning.",
-  "not": { "required": ["schema_version"] },
+  "not": {
+    "anyOf": [
+      { "required": ["schema_version"] },
+      { "required": ["traces"] }
+    ]
+  },
   "properties": {
     "events": {
       "items": { "$ref": "#/$defs/EventRecord" },
