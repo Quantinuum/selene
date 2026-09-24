@@ -8,8 +8,6 @@ on:
   push:
     branches:
       - 0.3-series
-      - 1.0-series
-      - main
     paths:
       - ".github/workflows/publish_schemas.yml"
       - "selene-trace/schemas/**"
