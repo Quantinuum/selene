@@ -35,6 +35,14 @@ def test_installed_schema_matches_the_canonical_schema():
     assert get_trace_schema() == json.loads(schema_path.read_text())
 
 
+def test_packaged_rust_fixtures_match_shared_examples():
+    protocol_dir = Path(__file__).parents[2]
+    fixtures = protocol_dir / "rust" / "tests" / "fixtures"
+    examples = protocol_dir / "examples" / "trace"
+    for fixture in fixtures.glob("*.json"):
+        assert fixture.read_bytes() == (examples / fixture.name).read_bytes()
+
+
 def test_uint64_pattern_enforces_range_without_a_format_checker():
     schema = get_trace_schema()["$defs"]["OpaquePayload"]
     validator = Draft202012Validator(schema)
