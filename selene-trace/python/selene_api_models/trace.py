@@ -21,6 +21,10 @@ from pydantic_core import core_schema
 SCHEMA_VERSION = "0.1.0"
 MAX_UINT64 = 2**64 - 1
 MAX_SAFE_INTEGER = 2**53 - 1
+BASE64URL_PATTERN = (
+    r"^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-9_-]{3}=?)?"
+    r"(?![\s\S])"
+)
 
 
 class _UInt64DecimalString:
@@ -198,16 +202,13 @@ class ResetEvent(AbstractEvent):
 class OpaquePayload(AbstractEvent):
     kind: Literal["OpaquePayload"] = "OpaquePayload"
     tag: UInt64DecimalString
-    data: bytes
+    data: bytes = Field(json_schema_extra={"pattern": BASE64URL_PATTERN})
 
     @field_validator("data", mode="before")
     @classmethod
     def validate_base64url_alphabet(cls, value: Any) -> Any:
         # Native bytes are already decoded; strings must use the wire alphabet.
-        if (
-            isinstance(value, str)
-            and re.fullmatch(r"[A-Za-z0-9_-]*={0,2}", value) is None
-        ):
+        if isinstance(value, str) and re.fullmatch(BASE64URL_PATTERN, value) is None:
             raise ValueError("expected URL-safe Base64 data")
         return value
 
