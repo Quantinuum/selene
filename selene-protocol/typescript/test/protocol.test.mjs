@@ -4,6 +4,20 @@ import test from "node:test";
 
 import { trace } from "../dist/index.js";
 
+test("gate parameters and key-value numbers enforce signed safe integer bounds", () => {
+  for (const [value, valid] of [
+    [Number.MAX_SAFE_INTEGER, true], [-Number.MAX_SAFE_INTEGER, true],
+    [Number.MAX_SAFE_INTEGER + 1, false], [-Number.MAX_SAFE_INTEGER - 1, false],
+    [1e20, false], [-1e20, false], [0, true], [0.5, true], [-1.5, true],
+    [true, true], [Infinity, false], [NaN, false],
+  ]) {
+    assert.equal(trace.GateParameterSchema.safeParse(value).success, valid);
+    assert.equal(trace.KeyValueSchema.safeParse(value).success, valid);
+    assert.equal(trace.KeyValueSchema.safeParse([value]).success, valid);
+  }
+  assert.equal(trace.KeyValueSchema.safeParse("large integers as text").success, true);
+});
+
 test("createTrace emits the current protocol version", () => {
   assert.deepEqual(trace.createTrace(), {
     schema_version: trace.SCHEMA_VERSION,

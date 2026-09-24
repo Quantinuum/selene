@@ -126,8 +126,8 @@ pub struct PredicateResult {
 #[serde(untagged)]
 pub enum GateParameter {
     Boolean(bool),
-    Integer(i64),
-    Float(f64),
+    Integer(#[serde(with = "safe_numbers")] i64),
+    Float(#[serde(with = "safe_numbers")] f64),
 }
 
 /// A custom event payload.
@@ -150,13 +150,63 @@ pub enum CustomPayload {
 #[serde(untagged)]
 pub enum KeyValue {
     String(String),
-    Integer(i64),
-    Float(f64),
+    Integer(#[serde(with = "safe_numbers")] i64),
+    Float(#[serde(with = "safe_numbers")] f64),
     Boolean(bool),
-    Integers(Vec<i64>),
-    Floats(Vec<f64>),
+    Integers(#[serde(with = "safe_numbers")] Vec<i64>),
+    Floats(#[serde(with = "safe_numbers")] Vec<f64>),
     Strings(Vec<String>),
     Booleans(Vec<bool>),
+}
+
+mod safe_numbers {
+    use super::*;
+
+    pub trait Valid {
+        fn is_valid(&self) -> bool;
+    }
+
+    impl Valid for i64 {
+        fn is_valid(&self) -> bool {
+            self.unsigned_abs() <= MAX_SAFE_INTEGER
+        }
+    }
+
+    impl Valid for f64 {
+        fn is_valid(&self) -> bool {
+            self.is_finite() && (self.fract() != 0.0 || self.abs() <= MAX_SAFE_INTEGER as f64)
+        }
+    }
+
+    impl<T: Valid> Valid for Vec<T> {
+        fn is_valid(&self) -> bool {
+            self.iter().all(Valid::is_valid)
+        }
+    }
+
+    pub fn serialize<T: Valid + Serialize, S: Serializer>(
+        value: &T,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        if !value.is_valid() {
+            return Err(serde::ser::Error::custom(
+                "invalid or unsafe integer-valued number",
+            ));
+        }
+        value.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, T: Valid + Deserialize<'de>, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<T, D::Error> {
+        let value = T::deserialize(deserializer)?;
+        if !value.is_valid() {
+            return Err(serde::de::Error::custom(
+                "invalid or unsafe integer-valued number",
+            ));
+        }
+        Ok(value)
+    }
 }
 
 mod base64_bytes {
@@ -346,6 +396,54 @@ fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn numeric_values_enforce_signed_safe_integer_bounds() {
+        for (json, valid) in [
+            ("9007199254740991", true),
+            ("-9007199254740991", true),
+            ("9007199254740992", false),
+            ("-9007199254740992", false),
+            ("100000000000000000000", false),
+            ("1e20", false),
+            ("-1e20", false),
+            ("0", true),
+            ("0.5", true),
+            ("-1.5", true),
+            ("true", true),
+        ] {
+            assert_eq!(
+                serde_json::from_str::<GateParameter>(json).is_ok(),
+                valid,
+                "{json}"
+            );
+            assert_eq!(
+                serde_json::from_str::<KeyValue>(json).is_ok(),
+                valid,
+                "{json}"
+            );
+            assert_eq!(
+                serde_json::from_str::<KeyValue>(&format!("[{json}]")).is_ok(),
+                valid,
+                "{json}"
+            );
+        }
+        for value in [
+            GateParameter::Integer(i64::MAX),
+            GateParameter::Float(1e20),
+            GateParameter::Float(f64::NAN),
+        ] {
+            assert!(serde_json::to_string(&value).is_err());
+        }
+        for value in [
+            KeyValue::Integer(i64::MIN),
+            KeyValue::Float(-1e20),
+            KeyValue::Integers(vec![i64::MAX]),
+            KeyValue::Floats(vec![1e20]),
+        ] {
+            assert!(serde_json::to_string(&value).is_err());
+        }
+    }
 
     #[test]
     fn minimal_example_deserializes() {

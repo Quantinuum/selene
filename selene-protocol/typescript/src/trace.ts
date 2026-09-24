@@ -77,7 +77,13 @@ export const SourceSchema = z.discriminatedUnion("kind", [
 export type Source = z.infer<typeof SourceSchema>;
 export type SourceInput = z.input<typeof SourceSchema>;
 
-export const GateParameterSchema = z.union([z.number(), z.boolean()]);
+/** Finite numbers whose integer values are exactly representable in JavaScript. */
+export const SafeNumberSchema = z.number().finite().refine(
+  (value) => !Number.isInteger(value) || Number.isSafeInteger(value),
+  { message: "Integer-valued numbers must be within JavaScript's safe range" },
+);
+
+export const GateParameterSchema = z.union([SafeNumberSchema, z.boolean()]);
 export type GateParameter = z.infer<typeof GateParameterSchema>;
 
 export const GateEventSchema = z.object({
@@ -129,10 +135,10 @@ export type OpaquePayloadInput = z.input<typeof OpaquePayloadSchema>;
 
 export const KeyValueSchema = z.union([
   z.string(),
-  z.number(),
+  SafeNumberSchema,
   z.boolean(),
   z.array(z.string()),
-  z.array(z.number()),
+  z.array(SafeNumberSchema),
   z.array(z.boolean()),
 ]);
 export type KeyValue = z.infer<typeof KeyValueSchema>;
