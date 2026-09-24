@@ -75,22 +75,22 @@
             "extra-files": [
                 {
                     "type": "toml",
-                    "path": "selene-trace/rust/Cargo.toml",
+                    "path": "rust/Cargo.toml",
                     "jsonpath": "$.package.version"
                 },
                 {
                     "type": "json",
-                    "path": "selene-trace/typescript/package.json",
+                    "path": "typescript/package.json",
                     "jsonpath": "$.version"
                 },
                 {
                     "type": "toml",
-                    "path": "Cargo.lock",
+                    "path": "/Cargo.lock",
                     "jsonpath": "$.package[?(@.name.value=='selene-api-models')].version"
                 },
                 {
                     "type": "toml",
-                    "path": "uv.lock",
+                    "path": "/uv.lock",
                     "jsonpath": "$.package[?(@.name.value=='selene-api-models')].version"
                 }
             ]
