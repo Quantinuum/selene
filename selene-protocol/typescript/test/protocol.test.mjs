@@ -258,6 +258,21 @@ test("legacy JSON preserves an unsafe numeric opaque-payload tag", () => {
   );
 });
 
+test("the JSON Schema uint64 pattern enforces the bound in JavaScript", () => {
+  const schema = JSON.parse(readFileSync(
+    new URL("../../schemas/trace/0.1.0.schema.json", import.meta.url), "utf8",
+  ));
+  const pattern = new RegExp(schema.$defs.OpaquePayload.properties.tag.pattern);
+  for (const [tag, valid] of [
+    ["0", true], ["9999999999999999999", true], ["18446744073709551615", true],
+    ["18446744073709551616", false], ["99999999999999999999", false],
+    ["01", false], ["-1", false], ["1\n", false],
+  ]) {
+    assert.equal(pattern.test(tag), valid, tag);
+    assert.equal(trace.UInt64DecimalStringSchema.safeParse(tag).success, valid, tag);
+  }
+});
+
 test("opaque payload tags require canonical uint64 decimal strings", () => {
   for (const tag of [0, "-1", "01", "18446744073709551616"]) {
     const parsed = trace.OpaquePayloadSchema.safeParse({

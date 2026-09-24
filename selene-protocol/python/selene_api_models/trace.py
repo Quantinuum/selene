@@ -58,6 +58,20 @@ class _UInt64DecimalString:
     def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict[str, Any]:
         json_schema = handler(schema)
         json_schema["format"] = "uint64"
+        # Enforce the bound without relying on a custom JSON Schema format.
+        # Each 20-digit alternative is a prefix below (or equal to) MAX_UINT64.
+        # The final lookahead asserts absolute end, including after newlines.
+        json_schema["pattern"] = (
+            r"^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}"
+            r"|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}"
+            r"|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}"
+            r"|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}"
+            r"|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}"
+            r"|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}"
+            r"|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}"
+            r"|1844674407370955160[0-9]|1844674407370955161[0-5])"
+            r"(?![\s\S])"
+        )
         return json_schema
 
 

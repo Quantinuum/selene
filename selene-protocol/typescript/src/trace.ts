@@ -22,7 +22,7 @@ export type SafeUInt = z.infer<typeof SafeUIntSchema>;
 /** A canonical unsigned 64-bit integer encoded as a decimal string. */
 export const UInt64DecimalStringSchema = z
   .string()
-  .regex(/^(0|[1-9][0-9]*)$/, "Expected a canonical unsigned decimal string")
+  .regex(/^(0|[1-9][0-9]*)(?![\s\S])/, "Expected a canonical unsigned decimal string")
   .refine((value) => BigInt(value) <= UINT64_MAX, {
     message: "Expected an unsigned 64-bit integer",
   });
