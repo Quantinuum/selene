@@ -6,7 +6,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 from pydantic import TypeAdapter
 from selene_api_models import get_legacy_trace_schema, get_trace_schema
-from selene_api_models.trace import TraceDocument
+from selene_api_models.trace import TraceDocument, parse_trace
 
 
 def test_checked_in_schema_matches_the_python_model_with_required_discriminators():
@@ -28,6 +28,60 @@ def test_installed_schema_matches_the_canonical_schema():
     schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.1.0.schema.json"
 
     assert get_trace_schema() == json.loads(schema_path.read_text())
+
+
+@pytest.mark.parametrize(
+    "value,valid",
+    [
+        (9007199254740991, True),
+        (-9007199254740991, True),
+        (9007199254740992, False),
+        (-9007199254740992, False),
+        (10**20, False),
+        (1e20, False),
+        (-1e20, False),
+        (0, True),
+        (0.5, True),
+        (-1.5, True),
+        (True, True),
+    ],
+)
+def test_numeric_values_agree_between_schema_and_python(value, valid):
+    for event in [
+        {"kind": "Gate", "gate_name": "test", "params": [value]},
+        {
+            "kind": "Custom",
+            "payload": {
+                "kind": "KeyValuePairPayload",
+                "data": {"scalar": value},
+            },
+        },
+        {
+            "kind": "Custom",
+            "payload": {
+                "kind": "KeyValuePairPayload",
+                "data": {"array": [value]},
+            },
+        },
+    ]:
+        document = {
+            "schema_version": "0.1.0",
+            "events": [
+                {
+                    "source": {"kind": "UserProgram", "index": 0},
+                    "event": event,
+                }
+            ],
+        }
+        assert Draft202012Validator(get_trace_schema()).is_valid(document) == valid
+        if valid:
+            parsed = parse_trace(document)
+            assert Draft202012Validator(get_trace_schema()).is_valid(
+                json.loads(parsed.model_dump_json())
+            )
+        else:
+            with pytest.raises(ValueError):
+                parse_trace(document)
 
 
 def test_installed_legacy_schema_matches_the_canonical_schema():

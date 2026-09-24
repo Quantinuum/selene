@@ -2,10 +2,18 @@
 
 import copy
 import json
+import math
 from collections.abc import Callable, Mapping
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    WithJsonSchema,
+)
 from pydantic_core import core_schema
 
 SCHEMA_VERSION = "0.1.0"
@@ -55,6 +63,36 @@ class _UInt64DecimalString:
 
 UInt64DecimalString = Annotated[int, _UInt64DecimalString]
 JsonSafeUInt = Annotated[int, Field(strict=True, ge=0, le=MAX_SAFE_INTEGER)]
+JsonSafeInt = Annotated[
+    int, Field(strict=True, ge=-MAX_SAFE_INTEGER, le=MAX_SAFE_INTEGER)
+]
+
+
+def _validate_float(value: float) -> float:
+    if not math.isfinite(value) or (
+        value.is_integer() and abs(value) > MAX_SAFE_INTEGER
+    ):
+        raise ValueError(
+            "integer-valued numbers must be within JavaScript's safe range"
+        )
+    return value
+
+
+JsonSafeFloat = Annotated[
+    float,
+    Field(strict=True),
+    AfterValidator(_validate_float),
+    WithJsonSchema(
+        {
+            "type": "number",
+            "anyOf": [
+                {"not": {"type": "integer"}},
+                {"minimum": -MAX_SAFE_INTEGER, "maximum": MAX_SAFE_INTEGER},
+            ],
+        }
+    ),
+]
+StrictBool = Annotated[bool, Field(strict=True)]
 
 __all__ = [
     "MAX_SAFE_INTEGER",
@@ -127,7 +165,7 @@ class GateEvent(AbstractEvent):
     kind: Literal["Gate"] = "Gate"
     qubits: list[JsonSafeUInt] = Field(default_factory=list)
     gate_name: str
-    params: list[float | int | bool] = Field(default_factory=list)
+    params: list[JsonSafeFloat | JsonSafeInt | StrictBool] = Field(default_factory=list)
     predicates: list[PredicateResult] = Field(default_factory=list)
 
 
@@ -150,7 +188,15 @@ class OpaquePayload(AbstractEvent):
 class KeyValuePairPayload(AbstractEvent):
     kind: Literal["KeyValuePairPayload"] = "KeyValuePairPayload"
     data: dict[
-        str, str | int | float | bool | list[int] | list[float] | list[str] | list[bool]
+        str,
+        str
+        | JsonSafeInt
+        | JsonSafeFloat
+        | StrictBool
+        | list[JsonSafeInt]
+        | list[JsonSafeFloat]
+        | list[str]
+        | list[StrictBool],
     ]
 
 
