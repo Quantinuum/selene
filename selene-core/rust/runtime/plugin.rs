@@ -14,7 +14,9 @@ use libloading;
 use std::ffi::OsStr;
 use std::{ffi, sync::Arc};
 
-pub type RuntimeInstance = *mut ffi::c_void;
+/// Shared opaque instance handle. Constness does not imply immutable state;
+/// the plugin synchronizes mutation according to the descriptor contract.
+pub type RuntimeInstance = *const ffi::c_void;
 
 pub type Errno = i32;
 
@@ -24,6 +26,30 @@ pub type Errno = i32;
 ///
 /// Function pointer fields documented as optional may be null. All other
 /// function pointer fields must be populated.
+///
+/// # Concurrency and safety
+///
+/// All operational functions must be safe to call concurrently on the same
+/// instance and across instances. This includes allocation, gates, measurements,
+/// barriers, delays, custom calls, forcing, result access/publication, and reference
+/// counts. The plugin is responsible for synchronizing its mutable state.
+///
+/// One consumer retrieves and executes batches in order and publishes results;
+/// retrieval may overlap user calls. After force_result_fn succeeds, draining must
+/// expose the work needed for that result unless already dispatched or resolved.
+/// Concurrent submissions must not indefinitely postpone it. Executing the work
+/// and publishing its results makes the result getter report availability; an
+/// empty batch alone does not prove a dispatched result has been published.
+///
+/// Initialization completes before sharing the instance. The caller excludes all
+/// other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
+/// entire get_metrics_fn enumeration. Only these calls may access state exclusively.
+/// No runtime lock may block the consumer while a user waits for a result.
+///
+/// Handles must remain live throughout calls. Output buffers must be writable and
+/// exclusively accessible for the call; inputs must remain readable and unmodified.
+/// The operation callback handle and its buffers are borrowed only for retrieval
+/// and must not be retained or invoked concurrently by the plugin.
 pub struct RuntimePluginDescriptorV1 {
     /// Must be `sizeof(SeleneRuntimePluginDescriptorV1)`.
     pub struct_size: u64,
@@ -265,7 +291,7 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
         start: crate::time::Instant,
         args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
-        let mut instance = std::ptr::null_mut();
+        let mut instance = std::ptr::null();
         with_strings_to_cargs(args, |argc, argv| {
             check_errno(
                 unsafe { (self.init_fn)(&mut instance, n_qubits, start.into(), argc, argv) },
@@ -275,6 +301,8 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
         Ok(Box::new(RuntimePlugin {
             interface: self.clone(),
             instance,
+            retrieval: std::sync::Mutex::new(()),
+            access: std::sync::RwLock::new(()),
         }))
     }
 }
@@ -282,10 +310,24 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
 pub struct RuntimePlugin {
     interface: Arc<RuntimePluginInterface>,
     instance: RuntimeInstance,
+    retrieval: std::sync::Mutex<()>,
+    // Readers are operational calls; lifecycle/metrics take exclusive access.
+    access: std::sync::RwLock<()>,
 }
 
+// SAFETY: the loader accepts only the API version requiring same-instance thread
+// safety. The Arc keeps the library loaded. The access lock enforces per-call
+// lifecycle/metrics exclusion; retrieval is serialized separately. Other
+// operational calls rely on the plugin contract.
+unsafe impl Send for RuntimePlugin {}
+unsafe impl Sync for RuntimePlugin {}
+
 impl RuntimeInterface for RuntimePlugin {
-    fn exit(&mut self) -> Result<()> {
+    fn exit(&self) -> Result<()> {
+        let _access = self
+            .access
+            .write()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let Some(exit_fn) = self.interface.exit_fn else {
             return Ok(());
         };
@@ -294,7 +336,18 @@ impl RuntimeInterface for RuntimePlugin {
         })
     }
 
-    fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
+    fn get_next_operations(&self) -> Result<Option<BatchOperation>> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
+        // Safe shared Rust callers can race retrievals. Serialize the foreign
+        // calls to uphold the ABI's single-consumer requirement. The host must
+        // additionally preserve execution/publication order after retrieval.
+        let _retrieval = self
+            .retrieval
+            .lock()
+            .map_err(|_| anyhow!("Runtime retrieval lock poisoned"))?;
         let mut batch_builder = BatchBuilder::default();
         let ops = batch_builder.runtime_get_operation();
         check_errno(
@@ -304,21 +357,33 @@ impl RuntimeInterface for RuntimePlugin {
         Ok(Some(batch_builder.finish()).filter(|b| !b.is_empty()))
     }
 
-    fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
+    fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()> {
+        let _access = self
+            .access
+            .write()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
             || anyhow!("RuntimePlugin: shot_start failed"),
         )
     }
 
-    fn shot_end(&mut self) -> Result<()> {
+    fn shot_end(&self) -> Result<()> {
+        let _access = self
+            .access
+            .write()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.shot_end_fn)(self.instance) },
             || anyhow!("RuntimePlugin: shot_end failed"),
         )
     }
 
-    fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+    fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+        let _access = self
+            .access
+            .write()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let Some(get_metrics_fn) = self.interface.get_metrics_fn else {
             return Ok(None);
         };
@@ -327,7 +392,11 @@ impl RuntimeInterface for RuntimePlugin {
         })
     }
 
-    fn qalloc(&mut self) -> Result<u64> {
+    fn qalloc(&self) -> Result<u64> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let mut result = 0;
         let result_ref = &mut result;
         check_errno(
@@ -337,21 +406,33 @@ impl RuntimeInterface for RuntimePlugin {
         Ok(result)
     }
 
-    fn qfree(&mut self, qubit_id: u64) -> Result<()> {
+    fn qfree(&self, qubit_id: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.qfree_fn)(self.instance, qubit_id) },
             || anyhow!("RuntimePlugin: qfree failed"),
         )
     }
 
-    fn global_barrier(&mut self, sleep_ns: u64) -> Result<()> {
+    fn global_barrier(&self, sleep_ns: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.global_barrier_fn)(self.instance, sleep_ns) },
             || anyhow!("RuntimePlugin: global barrier failed"),
         )
     }
 
-    fn local_barrier(&mut self, qubit_ids: &[u64], sleep_ns: u64) -> Result<()> {
+    fn local_barrier(&self, qubit_ids: &[u64], sleep_ns: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let qubit_ids_len = qubit_ids.len() as u64;
         let qubit_ids_ptr = qubit_ids.as_ptr();
         check_errno(
@@ -367,28 +448,44 @@ impl RuntimeInterface for RuntimePlugin {
         )
     }
 
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+    fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.rxy_gate_fn)(self.instance, qubit_id, theta, phi) },
             || anyhow!("RuntimePlugin: rxy_gate failed"),
         )
     }
 
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
+    fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.rzz_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta) },
             || anyhow!("RuntimePlugin: rzz_gate failed"),
         )
     }
 
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
+    fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.rz_gate_fn)(self.instance, qubit_id, theta) },
             || anyhow!("RuntimePlugin: rz_gate failed"),
         )
     }
 
-    fn rpp_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
+    fn rpp_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe {
                 (self.interface.rpp_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta, phi)
@@ -397,7 +494,11 @@ impl RuntimeInterface for RuntimePlugin {
         )
     }
 
-    fn measure(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure(&self, qubit_id: u64) -> Result<u64> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let mut result = 0;
         let result_ref = &mut result;
         check_errno(
@@ -407,7 +508,11 @@ impl RuntimeInterface for RuntimePlugin {
         Ok(result)
     }
 
-    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
+    fn measure_leaked(&self, qubit_id: u64) -> Result<u64> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let mut result = 0;
         let result_ref = &mut result;
         check_errno(
@@ -419,21 +524,33 @@ impl RuntimeInterface for RuntimePlugin {
         Ok(result)
     }
 
-    fn reset(&mut self, qubit_id: u64) -> Result<()> {
+    fn reset(&self, qubit_id: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.reset_fn)(self.instance, qubit_id) },
             || anyhow!("RuntimePlugin: reset failed"),
         )
     }
 
-    fn force_result(&mut self, result_id: u64) -> Result<()> {
+    fn force_result(&self, result_id: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.force_result_fn)(self.instance, result_id) },
             || anyhow!("RuntimePlugin: force_result failed"),
         )
     }
 
-    fn get_bool_result(&mut self, result_id: u64) -> Result<Option<bool>> {
+    fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let mut result = 0i8;
         let result_ref = &mut result;
         check_errno(
@@ -450,7 +567,11 @@ impl RuntimeInterface for RuntimePlugin {
         })
     }
 
-    fn get_u64_result(&mut self, result_id: u64) -> Result<Option<u64>> {
+    fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let mut result = 0u64;
         let result_ref = &mut result;
         check_errno(
@@ -466,35 +587,55 @@ impl RuntimeInterface for RuntimePlugin {
         })
     }
 
-    fn set_bool_result(&mut self, result_id: u64, result: bool) -> Result<()> {
+    fn set_bool_result(&self, result_id: u64, result: bool) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.set_bool_result_fn)(self.instance, result_id, result) },
             || anyhow!("RuntimePlugin: set_bool_result failed"),
         )
     }
 
-    fn set_u64_result(&mut self, result_id: u64, result: u64) -> Result<()> {
+    fn set_u64_result(&self, result_id: u64, result: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.set_u64_result_fn)(self.instance, result_id, result) },
             || anyhow!("RuntimePlugin: set_u64_result failed"),
         )
     }
 
-    fn increment_future_refcount(&mut self, future_ref: u64) -> Result<()> {
+    fn increment_future_refcount(&self, future_ref: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.increment_future_refcount_fn)(self.instance, future_ref) },
             || anyhow!("RuntimePlugin: increment_future_refcount failed"),
         )
     }
 
-    fn decrement_future_refcount(&mut self, future_ref: u64) -> Result<()> {
+    fn decrement_future_refcount(&self, future_ref: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         check_errno(
             unsafe { (self.interface.decrement_future_refcount_fn)(self.instance, future_ref) },
             || anyhow!("RuntimePlugin: decrement_future_refcount failed"),
         )
     }
 
-    fn custom_call(&mut self, custom_tag: u64, data: &[u8]) -> Result<u64> {
+    fn custom_call(&self, custom_tag: u64, data: &[u8]) -> Result<u64> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         let mut result = 0;
         let result_ref = &mut result;
         if let Some(custom_call_fn) = self.interface.custom_call_fn {
@@ -518,7 +659,11 @@ impl RuntimeInterface for RuntimePlugin {
         }
     }
 
-    fn simulate_delay(&mut self, delay_ns: u64) -> Result<()> {
+    fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
+        let _access = self
+            .access
+            .read()
+            .map_err(|_| anyhow!("Runtime access lock poisoned"))?;
         if let Some(simulate_delay_fn) = self.interface.simulate_delay_fn {
             check_errno(
                 unsafe { simulate_delay_fn(self.instance, delay_ns) },
@@ -531,3 +676,7 @@ impl RuntimeInterface for RuntimePlugin {
         }
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "plugin_tests.rs"]
+mod access_tests;

@@ -1,9 +1,12 @@
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    sync::{Mutex, RwLock},
+};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use selene_core::{
     export_runtime_plugin,
-    runtime::{interface::RuntimeInterfaceFactory, BatchOperation, Operation, RuntimeInterface},
+    runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
     utils::MetricValue,
 };
 
@@ -22,22 +25,19 @@ struct FutureResult {
     value: u64,
 }
 
-
-struct ExampleRuntime {
+struct ExampleRuntimeState {
     qubits: Vec<QubitStatus>,
     operation_queue: VecDeque<BatchOperation>,
     flush_size: usize,
-    future_results: Vec<FutureResult>,
     start: selene_core::time::Instant,
 }
 
-impl ExampleRuntime {
+impl ExampleRuntimeState {
     pub fn new(n_qubits: u64, start: selene_core::time::Instant) -> Self {
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
             flush_size: 0,
-            future_results: Vec::with_capacity(1000),
             start,
         }
     }
@@ -51,95 +51,108 @@ impl ExampleRuntime {
     }
 }
 
+// Scheduling and allocation share one lock so queue/flush updates are atomic.
+// Result access is independent: publication and concurrent readers do not need
+// the scheduling lock. Calls needing both always lock state before results.
+struct ExampleRuntime {
+    state: Mutex<ExampleRuntimeState>,
+    results: RwLock<Vec<FutureResult>>,
+}
+
+impl ExampleRuntime {
+    fn new(n_qubits: u64, start: selene_core::time::Instant) -> Self {
+        Self {
+            state: Mutex::new(ExampleRuntimeState::new(n_qubits, start)),
+            results: RwLock::new(Vec::with_capacity(1000)),
+        }
+    }
+}
+
 impl RuntimeInterface for ExampleRuntime {
-    fn exit(&mut self) -> Result<()> {
-        self.operation_queue.clear();
-        self.qubits.clear();
-        self.flush_size = 0;
-        self.future_results.clear();
+    fn exit(&self) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let mut results = self
+            .results
+            .write()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        state.operation_queue.clear();
+        state.qubits.clear();
+        state.flush_size = 0;
+        results.clear();
         Ok(())
     }
     // Engine ops
-    fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
+    fn get_next_operations(&self) -> Result<Option<BatchOperation>> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
         debug_assert!(
-            self.flush_size <= self.operation_queue.len(),
+            state.flush_size <= state.operation_queue.len(),
             "flush size is greater than operation queue length"
         );
-        if self.flush_size == 0 {
+        if state.flush_size == 0 {
             return Ok(None);
         }
-        self.flush_size -= 1;
-        Ok(self.operation_queue.pop_front())
+        state.flush_size -= 1;
+        Ok(state.operation_queue.pop_front())
     }
 
-    fn shot_start(&mut self, _shot_id: u64, _seed: u64) -> Result<()> {
+    fn shot_start(&self, _shot_id: u64, _seed: u64) -> Result<()> {
         Ok(())
     }
-    fn shot_end(&mut self) -> Result<()> {
-        self.qubits = vec![QubitStatus::Free; self.qubits.len()];
-        self.operation_queue.clear();
-        self.flush_size = 0;
-        self.future_results.clear();
+    fn shot_end(&self) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let mut results = self
+            .results
+            .write()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        state.qubits = vec![QubitStatus::Free; state.qubits.len()];
+        state.operation_queue.clear();
+        state.flush_size = 0;
+        results.clear();
         Ok(())
     }
-    fn global_barrier(&mut self, _sleep_ns: u64) -> Result<()> {
-        self.flush_size = self.operation_queue.len();
+    fn global_barrier(&self, _sleep_ns: u64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        state.flush_size = state.operation_queue.len();
         Ok(())
     }
-    fn local_barrier(&mut self, qubits: &[u64], _sleep_ns: u64) -> Result<()> {
-        let mut last_op_using_qubits = 0;
-        for (i, operation) in self
+    fn local_barrier(&self, qubits: &[u64], _sleep_ns: u64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        // Flush through the last batch touching these qubits, without shrinking
+        // an existing forced prefix. Enumerate before filtering to retain indices.
+        let qubits: std::collections::HashSet<u64> = qubits.iter().copied().collect();
+        if let Some((i, _)) = state
             .operation_queue
             .iter()
-            .skip(self.flush_size)
             .enumerate()
+            .rev()
+            .find(|(_, batch)| !batch.get_qubit_ids().is_disjoint(&qubits))
         {
-            for op in operation.iter_ops() {
-                match op {
-                    Operation::RXYGate { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::RZGate { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::RZZGate {
-                        qubit_id_1,
-                        qubit_id_2,
-                        ..
-                    } => {
-                        if qubits.contains(qubit_id_1) || qubits.contains(qubit_id_2) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Measure { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::MeasureLeaked { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Reset { qubit_id, .. } => {
-                        if qubits.contains(qubit_id) {
-                            last_op_using_qubits = i;
-                        }
-                    }
-                    Operation::Custom { .. } => {}
-                }
-            }
+            state.flush_size = state.flush_size.max(i + 1);
         }
-        self.flush_size = std::cmp::max(self.flush_size, last_op_using_qubits + 1);
         Ok(())
     }
     // Allocation
-    fn qalloc(&mut self) -> Result<u64> {
-        for (i, qubit) in self.qubits.iter_mut().enumerate() {
+    fn qalloc(&self) -> Result<u64> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        for (i, qubit) in state.qubits.iter_mut().enumerate() {
             if *qubit == QubitStatus::Free {
                 *qubit = QubitStatus::Active { phase: 0.0 };
                 return Ok(i as u64);
@@ -147,106 +160,150 @@ impl RuntimeInterface for ExampleRuntime {
         }
         Ok(u64::MAX)
     }
-    fn qfree(&mut self, qubit_id: u64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
+    fn qfree(&self, qubit_id: u64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        if qubit_id >= state.qubits.len() as u64 {
             bail!("freeing out-of-bounds qubit {qubit_id}")
         } else {
-            self.qubits[qubit_id as usize] = QubitStatus::Free;
+            state.qubits[qubit_id as usize] = QubitStatus::Free;
             Ok(())
         }
     }
-    fn rxy_gate(&mut self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
+    fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        if qubit_id >= state.qubits.len() as u64 {
             bail!("applying rxy gate to out-of-bounds qubit {qubit_id}");
         }
-        let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
+        let QubitStatus::Active { phase } = state.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
-        self.push(Operation::RXYGate {
+        state.push(Operation::RXYGate {
             qubit_id,
             theta,
             phi: phi - phase, // The Z phase is enacted here.
         });
         Ok(())
     }
-    fn rzz_gate(&mut self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        if qubit_id_1 >= self.qubits.len() as u64 {
+    fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        if qubit_id_1 >= state.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit1 {qubit_id_1}");
         }
-        if qubit_id_2 >= self.qubits.len() as u64 {
+        if qubit_id_2 >= state.qubits.len() as u64 {
             bail!("applying rzz gate to out-of-bounds qubit2 {qubit_id_2}");
         }
-        self.push(Operation::RZZGate {
+        state.push(Operation::RZZGate {
             qubit_id_1,
             qubit_id_2,
             theta,
         });
         Ok(())
     }
-    fn rz_gate(&mut self, qubit_id: u64, theta: f64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
+    fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        if qubit_id >= state.qubits.len() as u64 {
             bail!("applying rz gate to out-of-bounds qubit {qubit_id}");
         }
-        let QubitStatus::Active { phase } = self.qubits[qubit_id as usize] else {
+        let QubitStatus::Active { phase } = state.qubits[qubit_id as usize] else {
             bail!("Qubit {qubit_id} is not active");
         };
         // We don't apply an RZ gate. Instead, we accumulate a phase, and mutate
         // RXY gates' phi parameters to account for the phase shift. RZZ and measurement
         // are unaffected.
-        self.qubits[qubit_id as usize] = QubitStatus::Active {
+        state.qubits[qubit_id as usize] = QubitStatus::Active {
             phase: phase + theta,
         };
         Ok(())
     }
     // Lifetime ops
-    fn measure(&mut self, qubit_id: u64) -> Result<u64> {
-        if qubit_id >= self.qubits.len() as u64 {
+    fn measure(&self, qubit_id: u64) -> Result<u64> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let mut results = self
+            .results
+            .write()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if qubit_id >= state.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
-        let result_id = self.future_results.len() as u64;
-        self.future_result.push(FutureResult {
+        let result_id = results.len() as u64;
+        results.push(FutureResult {
             is_set: false,
             value: 0,
         });
-        self.push(Operation::Measure {
+        state.push(Operation::Measure {
             qubit_id,
             result_id,
         });
         Ok(result_id)
     }
-    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
-        if qubit_id >= self.qubits.len() as u64 {
+    fn measure_leaked(&self, qubit_id: u64) -> Result<u64> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let mut results = self
+            .results
+            .write()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if qubit_id >= state.qubits.len() as u64 {
             bail!("measuring out-of-bounds qubit {qubit_id}")
         }
-        let result_id = self.future_results.len() as u64;
-        self.future_results.push(FutureResult {
+        let result_id = results.len() as u64;
+        results.push(FutureResult {
             is_set: false,
             value: 0,
         });
-        self.push(Operation::MeasureLeaked {
+        state.push(Operation::MeasureLeaked {
             qubit_id,
             result_id,
         });
         Ok(result_id)
     }
-    fn reset(&mut self, qubit_id: u64) -> Result<()> {
-        if qubit_id >= self.qubits.len() as u64 {
+    fn reset(&self, qubit_id: u64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        if qubit_id >= state.qubits.len() as u64 {
             bail!("resetting out-of-bounds qubit {qubit_id}")
         }
-        self.push(Operation::Reset { qubit_id });
+        state.push(Operation::Reset { qubit_id });
         Ok(())
     }
-    fn force_result(&mut self, result_id: u64) -> Result<()> {
-        if result_id >= self.future_results.len() as u64 {
+    fn force_result(&self, result_id: u64) -> Result<()> {
+        let state = &mut *self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Runtime state lock poisoned"))?;
+        let results = self
+            .results
+            .read()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if result_id >= results.len() as u64 {
             bail!("forcing out-of-bounds measurement {result_id}")
         }
-        for (i, operation) in self.operation_queue.iter().enumerate().rev() {
+        for (i, operation) in state.operation_queue.iter().enumerate().rev() {
             for op in operation.iter_ops() {
                 match op {
                     Operation::Measure { result_id: id, .. }
                     | Operation::MeasureLeaked { result_id: id, .. } => {
                         if *id == result_id {
-                            self.flush_size = std::cmp::max(self.flush_size, i + 1);
+                            state.flush_size = std::cmp::max(state.flush_size, i + 1);
                             return Ok(());
                         }
                     }
@@ -254,57 +311,73 @@ impl RuntimeInterface for ExampleRuntime {
                 }
             }
         }
-        bail!("No measurement operation with result {result_id} found")
+        Ok(()) // Already dispatched or resolved.
     }
-    fn get_bool_result(&mut self, result_id: u64) -> Result<Option<bool>> {
-        if result_id >= self.future_results.len() as u64 {
+    fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
+        let results = self
+            .results
+            .read()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if result_id >= results.len() as u64 {
             bail!("getting out-of-bounds measurement {result_id}");
         }
-        let result = &self.future_results[result_id as usize];
+        let result = &results[result_id as usize];
         Ok(if result.is_set {
             Some(result.value > 0)
         } else {
             None
         })
     }
-    fn get_u64_result(&mut self, result_id: u64) -> Result<Option<u64>> {
-        if result_id >= self.future_results.len() as u64 {
+    fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>> {
+        let results = self
+            .results
+            .read()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if result_id >= results.len() as u64 {
             bail!("getting out-of-bounds measurement {result_id}");
         }
-        let result = &self.future_results[result_id as usize];
+        let result = &results[result_id as usize];
         Ok(if result.is_set {
             Some(result.value)
         } else {
             None
         })
     }
-    fn set_bool_result(&mut self, result_id: u64, result: bool) -> Result<()> {
-        if result_id >= self.future_results.len() as u64 {
+    fn set_bool_result(&self, result_id: u64, result: bool) -> Result<()> {
+        let mut results = self
+            .results
+            .write()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if result_id >= results.len() as u64 {
             bail!("setting out-of-bounds measurement {result_id}");
         }
-        self.future_results[result_id as usize] = FutureResult {
+        results[result_id as usize] = FutureResult {
             is_set: true,
             value: result.into(),
         };
         Ok(())
     }
-    fn set_u64_result(&mut self, result_id: u64, result: u64) -> Result<()> {
-        if result_id >= self.future_results.len() as u64 {
+    fn set_u64_result(&self, result_id: u64, result: u64) -> Result<()> {
+        let mut results = self
+            .results
+            .write()
+            .map_err(|_| anyhow::anyhow!("Runtime results lock poisoned"))?;
+        if result_id >= results.len() as u64 {
             bail!("setting out-of-bounds measurement {result_id}");
         }
-        self.future_results[result_id as usize] = FutureResult {
+        results[result_id as usize] = FutureResult {
             is_set: true,
             value: result,
         };
         Ok(())
     }
-    fn increment_future_refcount(&mut self, _future_ref: u64) -> Result<()> {
+    fn increment_future_refcount(&self, _future_ref: u64) -> Result<()> {
         Ok(())
     }
-    fn decrement_future_refcount(&mut self, _future_ref: u64) -> Result<()> {
+    fn decrement_future_refcount(&self, _future_ref: u64) -> Result<()> {
         Ok(())
     }
-    fn get_metric(&mut self, _nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+    fn get_metric(&self, _nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         Ok(None)
     }
 }
@@ -326,3 +399,51 @@ impl RuntimeInterfaceFactory for ExampleRuntimeFactory {
 }
 
 export_runtime_plugin!(crate::ExampleRuntimeFactory);
+
+#[cfg(test)]
+#[path = "../../../tests/support/runtime_concurrency.rs"]
+mod concurrency_support;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn concurrent_forcing_and_draining() {
+        let runtime = selene_core::runtime::Runtime::from_boxed(Box::new(ExampleRuntime::new(
+            4,
+            Default::default(),
+        )));
+        runtime.shot_start(0, 0).unwrap();
+        concurrency_support::exercise(&runtime);
+        runtime.shot_end().unwrap();
+    }
+
+    #[test]
+    fn result_publication_does_not_take_scheduling_lock() {
+        let runtime = ExampleRuntime::new(4, Default::default());
+        let qubit = runtime.qalloc().unwrap();
+        let id = runtime.measure(qubit).unwrap();
+        let _scheduling = runtime.state.lock().unwrap();
+        runtime.set_bool_result(id, true).unwrap();
+        assert_eq!(runtime.get_bool_result(id).unwrap(), Some(true));
+    }
+
+    #[test]
+    fn local_barriers_preserve_queue_indices() {
+        let runtime = ExampleRuntime::new(2, Default::default());
+        runtime.local_barrier(&[0], 0).unwrap();
+        assert!(runtime.get_next_operations().unwrap().is_none());
+        let q0 = runtime.qalloc().unwrap();
+        let q1 = runtime.qalloc().unwrap();
+        runtime.rxy_gate(q0, 0.5, 0.0).unwrap();
+        runtime.rxy_gate(q1, 0.5, 0.0).unwrap();
+        runtime.rxy_gate(q1, 0.5, 0.0).unwrap();
+        runtime.local_barrier(&[q0], 0).unwrap();
+        runtime.local_barrier(&[q1], 0).unwrap();
+        for _ in 0..3 {
+            assert!(runtime.get_next_operations().unwrap().is_some());
+        }
+        assert!(runtime.get_next_operations().unwrap().is_none());
+    }
+}

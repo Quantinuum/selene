@@ -1,6 +1,6 @@
 # Runtime plugin thread safety: step 1
 
-Status: agreed scope, ready for implementation.
+Status: implemented; multithreaded user execution remains subsequent work.
 
 ## Objective
 
@@ -68,9 +68,10 @@ way that prevents the consumer from retrieving work or publishing that result.
   pointers to const.
 - Apply the instance-pointer change consistently to the plugin descriptor,
   loaded plugin wrapper, inline operation interface, adapter, and export helper.
-- Use shared Rust receivers for methods permitted to run concurrently and add
-  appropriate thread-safety bounds. Lifecycle and metrics methods may retain
-  exclusive receivers consistent with their caller-side exclusion requirements.
+- Use shared Rust receivers for every method, including lifecycle and metrics,
+  and require `Send + Sync`. Implementors synchronize mutable state internally.
+  All calls must remain memory-safe if overlapped; host-side lifecycle exclusion
+  remains a protocol requirement for correct shot semantics.
 - Document the concurrency rules in the Rust API and C-facing plugin contract.
   Const pointers express shared access; they do not establish thread safety by
   themselves.
@@ -152,3 +153,28 @@ existing process and update affected fixtures and documentation.
 - General thread-safety changes to simulator and error-model plugin interfaces.
 - A new deterministic ordering policy for independent user threads, or a broad
   runtime performance redesign.
+
+## Implementation handoff
+
+Runtime API version is now 0.4.0. Every Rust receiver is shared, and runtime
+interfaces and factories require `Send + Sync`. Implementations synchronize
+lifecycle and metric access internally as well as operational access. FFI adapters
+use shared references for every call; no `UnsafeCell` or mutable-access helper is
+needed.
+
+The simple, soft-RZ, and example runtimes use a scheduling mutex and a separate
+result read/write lock. Calls needing both acquire scheduling before results.
+Result publication and readers do not acquire the scheduling lock. The loaded
+plugin wrapper takes a shared access lock for operational calls and an exclusive
+access lock for lifecycle/metric calls, and separately serializes retrieval. This
+upholds per-call C ABI exclusion even when safe Rust callers race. The host
+remains responsible for ordered execution/publication, lifecycle sequencing, and
+keeping the instance idle throughout a complete metric enumeration.
+
+Native tests cover concurrent submission/forcing/draining, already-dispatched
+results, leakage forcing, sequential gate behavior, independent result access,
+and parallel FFI entry with reference-count updates. The example also has a
+regression test for its corrected local-barrier indices. Version rejection,
+Clippy, Rust documentation, generated-header consistency, and C/C++ header checks
+were validated. The emulator compiles against the new API. The Python integration
+suite has not been run; the current Python environment lacks `selene_sim`.
