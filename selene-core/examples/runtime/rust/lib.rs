@@ -49,9 +49,11 @@ impl ExampleRuntimeState {
     }
 }
 
-// Scheduling and allocation share one lock so queue/flush updates are atomic.
-// Result access is independent: publication and concurrent readers do not need
-// the scheduling lock. Calls needing both always lock state before results.
+// Keep scheduling and allocation under one lock so another thread can't see
+// a queue update before its flush state has been updated too. Results have their
+// own lock: the consumer can publish a value, and users can read it, without
+// waiting for scheduling. When a call needs both locks, take state first and
+// results second so two callers can't deadlock by taking them in opposite orders.
 struct ExampleRuntime {
     state: Mutex<ExampleRuntimeState>,
     results: RwLock<Vec<FutureResult>>,
@@ -109,8 +111,10 @@ impl RuntimeInterface for ExampleRuntime {
     }
     fn local_barrier(&self, qubits: &[u64], _sleep_ns: u64) -> Result<()> {
         let state = &mut *self.state.lock();
-        // Flush through the last batch touching these qubits, without shrinking
-        // an existing forced prefix. Enumerate before filtering to retain indices.
+        // Include every batch up to the last one that touches these qubits.
+        // A previous force request may already cover more work, so don't shrink
+        // that range. Enumerate before filtering so indices still refer to the
+        // original queue.
         let qubits: std::collections::HashSet<u64> = qubits.iter().copied().collect();
         if let Some((i, _)) = state
             .operation_queue

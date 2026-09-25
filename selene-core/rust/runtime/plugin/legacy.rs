@@ -7,11 +7,15 @@ use std::{
 
 type Request = Box<dyn FnOnce(&LegacyState) + Send>;
 
-/// The proxy alone is Send + Sync. The foreign instance never leaves its thread.
+/// Lets callers on several threads use a plugin that expects just one.
+///
+/// We send each call to the plugin's thread and wait for its reply. This proxy
+/// is Send + Sync, but the plugin instance itself never leaves that thread.
 pub(super) struct LegacyRuntime {
     requests: Option<mpsc::Sender<Request>>,
     thread: Option<JoinHandle<()>>,
-    // Keep the library loaded until join completes, including foreign TLS destructors.
+    // Thread-local plugin state may run destructors as the thread exits.
+    // Keep the library loaded until join confirms those have finished.
     _interface: Arc<RuntimePluginInterface>,
 }
 
@@ -354,7 +358,8 @@ impl LegacyState {
             },
             || anyhow!("RuntimePlugin: get_bool_result failed"),
         )?;
-        // TODO document this
+        // The C interface uses 0 and 1 for ready values. Anything else means
+        // the measurement is not ready yet.
         Ok(match result {
             0 => Some(false),
             1 => Some(true),
@@ -375,7 +380,7 @@ impl LegacyState {
             },
             || anyhow!("RuntimePlugin: get_u64_result failed"),
         )?;
-        // TODO document this
+        // The C interface reserves u64::MAX for a result that is not ready yet.
         Ok(match result {
             u64::MAX => None,
             n => Some(n),

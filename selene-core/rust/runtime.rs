@@ -34,10 +34,10 @@ pub struct Runtime {
     backing: RuntimeBacking,
 }
 
-// SAFETY: the handle points into the owned, heap-stable adapter, whose runtime is
-// Send + Sync. All methods create only shared runtime references; implementations
-// synchronize their own state. Moving the wrapper does not move the boxed adapter
-// or invalidate its handle.
+// SAFETY: we own the adapter in a Box, so moving Runtime leaves the adapter
+// and its handle at the same address. Calls only create shared references to
+// the runtime. Its trait requires Send + Sync, and each implementation is
+// responsible for synchronizing its state.
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 

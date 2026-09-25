@@ -79,9 +79,11 @@ impl SimpleRuntimeState {
     }
 }
 
-// Scheduling and allocation share one lock so queue/flush updates are atomic.
-// Result access is independent: publication and concurrent readers do not need
-// the scheduling lock. Calls needing both always lock state before results.
+// Keep scheduling and allocation under one lock so another thread can't see
+// a queue update before its flush state has been updated too. Results have their
+// own lock: the consumer can publish a value, and users can read it, without
+// waiting for scheduling. When a call needs both locks, take state first and
+// results second so two callers can't deadlock by taking them in opposite orders.
 struct SimpleRuntime {
     state: Mutex<SimpleRuntimeState>,
     results: RwLock<Vec<FutureResult>>,
@@ -264,8 +266,9 @@ impl RuntimeInterface for SimpleRuntime {
         if result_id >= results.len() as u64 {
             bail!("forcing out-of-bounds measurement {result_id}")
         }
-        // This runtime isn't lazy, so if a result has been defined,
-        // the measurement is already eligible for draining.
+        // This runtime makes measurements available as soon as they are queued.
+        // The consumer can already collect this one, or has collected it before
+        // this call, so there is nothing more to schedule.
         Ok(())
     }
     fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {

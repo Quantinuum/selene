@@ -1,11 +1,13 @@
-//! Probe guards inside foreign callbacks without relying on thread scheduling.
+// Each fake C function checks which lock the wrapper holds when calling it.
+// This tests shared and exclusive access without depending on thread timing.
 use super::RuntimeInstanceV2 as RuntimeInstance;
 use super::*;
 use parking_lot::{Mutex, RwLock};
 
 unsafe fn check_access(handle: RuntimeInstance, exclusive: bool) -> Errno {
-    // SAFETY: the test pins the RuntimePlugin in a Box and uses its access
-    // lock as the opaque handle for these test-only foreign functions.
+    // SAFETY: the test passes a pointer to the boxed ConcurrentRuntimePlugin's
+    // access lock. It keeps that box alive and never moves its contents while
+    // these functions use the pointer.
     let access = unsafe { &*handle.cast::<RwLock<()>>() };
     let writer_blocked = access.try_write().is_none();
     let reader_blocked = access.try_read().is_none();

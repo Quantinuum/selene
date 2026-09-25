@@ -14,8 +14,11 @@ use std::{
 
 type Request = Box<dyn FnOnce(&mut State) + Send>;
 
-/// Owns the single batch consumer. Simulator and error-model objects are created,
-/// called, and dropped on this thread; their interfaces need neither Send nor Sync.
+/// Sends work to the thread that runs batches on the simulator.
+///
+/// That thread creates the simulator and error model, makes every call to them,
+/// and drops them when it finishes. Keeping them there lets us use plugins that
+/// don't implement Send or Sync.
 pub(super) struct Consumer {
     requests: Option<mpsc::Sender<Request>>,
     thread: Option<JoinHandle<()>>,
@@ -71,8 +74,8 @@ impl Consumer {
                 if ready.send(Ok(())).is_err() {
                     return;
                 }
-                // QIS calls explicitly request draining after submitting work.
-                // Block between requests; no runtime polling is needed.
+                // QIS calls tell us when to collect work from the runtime.
+                // Wait for those requests instead of repeatedly checking for work.
                 for request in receiver {
                     request(&mut state);
                 }

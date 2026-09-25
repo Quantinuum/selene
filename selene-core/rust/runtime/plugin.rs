@@ -14,42 +14,54 @@ use libloading;
 use std::ffi::OsStr;
 use std::{ffi, sync::Arc};
 
-/// Shared opaque instance handle. Constness does not imply immutable state;
-/// the plugin synchronizes mutation according to the descriptor contract.
+/// A handle that lets several threads call the same runtime instance.
+///
+/// The pointer is const because access is shared. The runtime can still change
+/// its state, but the plugin must synchronize those changes itself.
 pub type RuntimeInstanceV2 = *const ffi::c_void;
 
 pub type Errno = i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-/// Concurrent runtime descriptor for API 0.4.x.
+/// The function table a runtime plugin exports for API 0.4.x.
 ///
-/// Function pointer fields documented as optional may be null. All other
-/// function pointer fields must be populated.
+/// Fill in every function pointer unless its documentation marks it optional.
+/// Optional function pointers may be null.
 ///
 /// # Concurrency and safety
 ///
-/// All operational functions must be safe to call concurrently on the same
-/// instance and across instances. This includes allocation, gates, measurements,
-/// barriers, delays, custom calls, forcing, result access/publication, and reference
-/// counts. The plugin is responsible for synchronizing its mutable state.
+/// Several threads can submit operations to the same instance at once. The
+/// plugin must synchronize allocation, gates, measurements, barriers, delays,
+/// custom calls, result forcing, result reads and writes, and reference counts.
+/// Calls on separate instances must also be safe to run concurrently.
 ///
-/// One consumer retrieves and executes batches in order and publishes results;
-/// retrieval may overlap user calls. After force_result_fn succeeds, draining must
-/// expose the work needed for that result unless already dispatched or resolved.
-/// Concurrent submissions must not indefinitely postpone it. Executing the work
-/// and publishing its results makes the result getter report availability; an
-/// empty batch alone does not prove a dispatched result has been published.
+/// The host collects batches, executes them in order, and writes back results.
+/// One thread does this work, which we call the consumer. User threads can keep
+/// calling the runtime while it does this. After `force_result_fn` succeeds,
+/// collecting batches must let the consumer reach the work needed for that
+/// result. New submissions must not
+/// postpone that work indefinitely. The work may already be with the consumer,
+/// or its result may already be ready.
 ///
-/// Initialization completes before sharing the instance. The caller excludes all
-/// other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
-/// entire get_metrics_fn enumeration. Only these calls may access state exclusively.
-/// No runtime lock may block the consumer while a user waits for a result.
+/// Once the consumer has executed the work and written back its result, the
+/// result getter must report that value as available. An empty batch only means
+/// there is no more work to collect right now. The consumer may still be working
+/// on an earlier batch. Never wait for a result while holding a runtime lock
+/// that the consumer needs to produce it.
 ///
-/// Handles must remain live throughout calls. Output buffers must be writable and
-/// exclusively accessible for the call; inputs must remain readable and unmodified.
-/// The operation callback handle and its buffers are borrowed only for retrieval
-/// and must not be retained or invoked concurrently by the plugin.
+/// Finish initialization before sharing the instance. The host must pause all
+/// other calls during `shot_start_fn`, `shot_end_fn`, and `exit_fn`. It must also
+/// keep the instance idle throughout a whole `get_metrics_fn` enumeration,
+/// including between calls for individual metrics. Only these calls can assume
+/// they have exclusive access to the instance.
+///
+/// Keep the instance alive until every call has finished. Input buffers must
+/// stay readable and unchanged for the duration of their call. Output buffers
+/// must be writable, and no other call may access them at the same time.
+/// The plugin may use the operation callback handle and its buffers only while
+/// retrieving a batch. It must not keep them afterwards or invoke callbacks
+/// concurrently.
 pub struct RuntimePluginDescriptorV2 {
     /// Must be `sizeof(SeleneRuntimePluginDescriptorV2)`.
     pub struct_size: u64,
@@ -143,8 +155,10 @@ pub type RuntimeInstance = *mut ffi::c_void;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-/// Legacy runtime descriptor for API 0.3.x. Calls on an instance must be serialized.
-/// The host initializes, calls, and destroys each instance on one owning thread.
+/// The function table used by older runtime plugins, built for API 0.3.x.
+///
+/// The host gives each instance its own thread. Initialization, every call, and
+/// cleanup happen on that thread, so calls on an instance never overlap.
 ///
 /// Function pointer fields documented as optional may be null. All other
 /// function pointer fields must be populated.
@@ -243,12 +257,17 @@ enum Descriptor {
     V2(RuntimePluginDescriptorV2),
 }
 
-/// Loads a runtime shared library. V2 / API 0.4.x plugins are called directly;
-/// V1 / API 0.3.x plugins run on an owning thread through a compatibility adapter.
-/// A descriptor may be exported as data or through its corresponding getter.
-/// V2 is preferred; an invalid advertised v2 interface is an error, not a reason
-/// to fall back to v1. Both variants retain the library for the instance lifetime.
-/// Plugins execute native code and must be trusted by the caller.
+/// Loads a runtime plugin from a shared library and creates its instances.
+///
+/// The loader first looks for a v2 descriptor, for API 0.4.x. If neither the v2
+/// descriptor nor its getter is exported, it tries v1, for API 0.3.x. If a plugin
+/// exports a broken v2 interface, loading fails even if it also exports v1.
+/// Either descriptor can be exported as data or through its getter function.
+///
+/// V2 instances can be called directly from several threads. Each v1 instance
+/// gets its own thread, and a compatibility adapter sends calls to it. In both
+/// cases the library stays loaded for as long as its instances need it.
+/// Only load plugins you trust: they run native code in the host process.
 pub struct RuntimePluginInterface {
     _lib: libloading::Library,
     descriptor: Descriptor,
@@ -324,12 +343,15 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
     }
 }
 
-/// A loaded runtime instance implementing the current trait for either ABI.
+/// A loaded plugin that you can use through [`RuntimeInterface`].
 ///
-/// Calls to legacy instances block for a reply from their owning thread. Slice
-/// inputs are copied; returned batches own their operations and buffers.
-/// Legacy cleanup runs at most once, on explicit exit or when this wrapper is
-/// dropped; subsequent calls after explicit exit return an error.
+/// For a legacy plugin, each call waits for the plugin's own thread to reply.
+/// Slice inputs are copied before sending them to that thread. Returned batches
+/// own their operations and buffers, so they don't borrow the plugin's memory.
+///
+/// The legacy adapter runs cleanup when you call `exit`, or when you drop it if
+/// you haven't called `exit`. Cleanup runs at most once. After an explicit exit,
+/// further calls return an error.
 pub struct RuntimePlugin {
     inner: Box<dyn RuntimeInterface>,
 }
@@ -374,9 +396,10 @@ struct ConcurrentRuntimePlugin {
     access: parking_lot::RwLock<()>,
 }
 
-// SAFETY: only v2 descriptors with the concurrent API contract reach this type.
-// The Arc keeps the library loaded; locks exclude lifecycle/metric calls and
-// serialize retrieval. Other operational calls rely on the plugin contract.
+// SAFETY: we only construct this wrapper for a v2 plugin, which promises to
+// support concurrent operational calls. The Arc keeps its library loaded.
+// Our locks keep lifecycle and metric calls from overlapping other calls and
+// allow only one batch retrieval at a time.
 unsafe impl Send for ConcurrentRuntimePlugin {}
 unsafe impl Sync for ConcurrentRuntimePlugin {}
 
@@ -393,9 +416,10 @@ impl RuntimeInterface for ConcurrentRuntimePlugin {
 
     fn get_next_operations(&self) -> Result<Option<BatchOperation>> {
         let _access = self.access.read();
-        // Safe shared Rust callers can race retrievals. Serialize the foreign
-        // calls to uphold the ABI's single-consumer requirement. The host must
-        // additionally preserve execution/publication order after retrieval.
+        // Rust callers can ask for batches at the same time, but the C plugin
+        // expects one consumer. Let only one retrieval through at a time.
+        // The host still needs to execute the returned batches in order and
+        // write back their results.
         let _retrieval = self.retrieval.lock();
         let mut batch_builder = BatchBuilder::default();
         let ops = batch_builder.runtime_get_operation();
@@ -560,7 +584,8 @@ impl RuntimeInterface for ConcurrentRuntimePlugin {
             },
             || anyhow!("RuntimePlugin: get_bool_result failed"),
         )?;
-        // TODO document this
+        // The C interface uses 0 and 1 for ready values. Anything else means
+        // the measurement is not ready yet.
         Ok(match result {
             0 => Some(false),
             1 => Some(true),
@@ -582,7 +607,7 @@ impl RuntimeInterface for ConcurrentRuntimePlugin {
             },
             || anyhow!("RuntimePlugin: get_u64_result failed"),
         )?;
-        // TODO document this
+        // The C interface reserves u64::MAX for a result that is not ready yet.
         Ok(match result {
             u64::MAX => None,
             n => Some(n),

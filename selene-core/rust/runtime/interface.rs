@@ -5,43 +5,46 @@ use crate::utils::MetricValue;
 
 use crate::operation::BatchOperation;
 
-/// Instances of runtime plugins implement this interface.
+/// Implement this trait to decide how a user program's quantum operations are
+/// grouped and scheduled for execution. Selene submits operations here, then
+/// collects batches to run on the simulator.
 ///
-/// Many instances of a plugin may exist simultaneously. Instances are
-/// generically constructed by impls of [RuntimeInterfaceFactory].
+/// Create instances through [`RuntimeInterfaceFactory`]. If your plugin is a
+/// `cdylib`, use [`crate::export_runtime_plugin!`] to expose it to Selene.
+/// Any method can return an error, which usually aborts the emulation.
 ///
-/// All functions can return an error, which will usually result in aborting the
-/// emulation.
+/// # Sharing a runtime between threads
 ///
-/// `cdylib` crates can export the runtime plugin C interface via
-/// [crate::export_runtime_plugin!]
-/// # Concurrency
+/// Several user threads can call the same runtime at once. Every method takes
+/// `&self`, so your implementation needs to protect its mutable state. This also
+/// applies to state shared between separate instances of your plugin.
 ///
-/// All methods use shared receivers. Implementations must remain memory-safe
-/// even when calls overlap, including lifecycle and metric calls, and synchronize mutable
-/// state; no lock may be held while waiting for a result if it blocks its producer.
-/// Separate instances may also be used concurrently.
+/// The host collects batches, executes them in order, and writes back their
+/// results. We call the thread doing this the consumer. There must be only one
+/// consumer per instance, including for the execution done outside this trait. Don't wait for a result while holding a lock that
+/// the consumer needs to produce it.
 ///
-/// One consumer retrieves and executes batches in order and publishes results.
-/// The caller must serialize that consumer, including execution outside this API.
-/// For correct shot semantics, the host excludes other calls during lifecycle
-/// methods (`shot_start`, `shot_end`, `exit`) and throughout metric enumeration.
-/// Rust's type system does not enforce this protocol; implementations must not
-/// rely on it for memory safety. The loaded-plugin wrapper enforces per-call
-/// lifecycle/metric exclusion and serializes retrieval at the C ABI boundary.
-/// The host remains responsible for keeping a complete metric enumeration idle.
+/// The host pauses other calls while starting or ending a shot, exiting, or
+/// collecting metrics. This gives shots their intended behavior. Rust callers
+/// can still overlap these methods, so your implementation must remain
+/// memory-safe if they do.
+///
+/// For loaded C plugins, the wrapper prevents each lifecycle or metric call
+/// from overlapping other calls. It also allows only one batch retrieval at a
+/// time. The host must still keep the runtime idle across a whole metric
+/// collection and execute the retrieved batches in order.
 pub trait RuntimeInterface: Send + Sync {
-    /// Signals that the instance of the runtime plugin should cleanup. Plugins
-    /// should `Err`` from any functions called on an instance after `exit`.
+    /// Clean up this runtime instance. Return an error from subsequent calls
+    /// to the instance.
     fn exit(&self) -> Result<()>;
-    /// Called to retrieve the next batch of operations from the runtime.
+    /// Collect the next batch of operations that are ready to execute.
     ///
-    /// An empty batch is interpreted as the plugin having no more operations at
-    /// this time. Only one consumer may drain an instance. An empty batch does
-    /// not imply that previously dispatched measurement results are available.
+    /// Return `None` when there's no work ready right now. Only one consumer may
+    /// collect and execute batches. It may still be executing a batch collected
+    /// earlier, so having no more batches doesn't mean all results are ready.
     fn get_next_operations(&self) -> Result<Option<BatchOperation>>;
 
-    /// Called to signal that the runtime should prepare to begin a shot
+    /// Prepare to begin a shot with the given ID and random seed.
     fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()>;
 
     /// Called to signal that the current shot has ended. This is an
@@ -73,11 +76,11 @@ pub trait RuntimeInterface: Send + Sync {
         ))
     }
 
-    /// Provide a metric to the output stream.
+    /// Return the requested metric, or `None` when there are no more metrics.
     ///
-    /// Will be called with incrementing `nth_metric` until `None` is returned.
-    /// The host excludes all other calls throughout this enumeration (for example,
-    /// between shots), not merely during each individual metric call.
+    /// The host calls this with increasing indices. It must pause all other
+    /// calls until collection finishes, including between individual calls to
+    /// this method. Between shots is a good time to collect metrics.
     fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>>;
 
     /// Attempt to allocate a free qubit. If no qubits are available,
@@ -119,15 +122,20 @@ pub trait RuntimeInterface: Send + Sync {
     /// Schedule a reset of allocated qubit `qubit_id`.
     fn reset(&self, qubit_id: u64) -> Result<()>;
 
-    /// Request progress towards the result with index `result_id`.
+    /// Make the work needed for `result_id` available to the consumer.
     ///
-    /// After this returns successfully, draining `get_next_operations` must expose
-    /// the work needed to resolve the result, unless already dispatched or resolved.
-    /// Executing that work and publishing its results must make the result getter
-    /// return `Some`. This may require multiple batches. Concurrent submissions
-    /// must not indefinitely postpone forced work, and a force request overlapping
-    /// retrieval must not be lost. Repeated forcing of a live result is permitted.
-    /// Waiters must check the result itself, not just whether the queue is empty.
+    /// After this succeeds, calls to [`Self::get_next_operations`] must let the
+    /// consumer reach that work. It may take several batches. New submissions
+    /// must not keep pushing the requested work back indefinitely, and a request
+    /// that overlaps batch retrieval must still take effect.
+    ///
+    /// The consumer executes the work and writes back the result. Once it has
+    /// done so, the result getter must return `Some`. The work might already be
+    /// with the consumer, or the value might already be ready, when this method
+    /// is called. Repeated requests for a live result are allowed.
+    ///
+    /// If you're waiting for the value, check the result getter. An empty queue
+    /// doesn't tell you whether the consumer has finished executing its work.
     fn force_result(&self, result_id: u64) -> Result<()>;
 
     /// Get the result of the measurement with index `result_id`. The plugin should
@@ -143,14 +151,15 @@ pub trait RuntimeInterface: Send + Sync {
     /// the corresponding measurement is returned from `get_next_operations`.
     fn set_bool_result(&self, result_id: u64, result: bool) -> Result<()>;
 
-    /// Increment the reference count of the result with index `result_id`.
     /// Set the result of the measurement with index `result_id` to `result`.
     /// This is called by the emulator with the result from the simulator after
     /// the corresponding measurement is returned from `get_next_operations`.
     fn set_u64_result(&self, result_id: u64, result: u64) -> Result<()>;
 
-    /// It is invalid to refer to a result index after its reference count has
-    /// reached zero.
+    /// Keep an additional reference to this result.
+    ///
+    /// The result must still have a live reference. Once its reference count
+    /// reaches zero, you can no longer use its index, even to retain it again.
     fn increment_future_refcount(&self, future: u64) -> Result<()>;
 
     /// Decrement the reference count of the result with index `result_id`.
@@ -169,7 +178,10 @@ pub trait RuntimeInterface: Send + Sync {
     fn global_barrier(&self, sleep_ns: u64) -> Result<()>;
 }
 
-/// Creates independent runtime instances; factories may be shared across threads.
+/// Creates independent runtime instances.
+///
+/// A factory can be shared between threads, so protect any state it shares
+/// between calls to `init`.
 pub trait RuntimeInterfaceFactory: Send + Sync {
     type Interface: RuntimeInterface;
     fn init(

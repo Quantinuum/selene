@@ -20,10 +20,12 @@ use super::{
 ///
 /// # Safety
 ///
-/// Entry points require a live handle returned by this helper's `init`, valid
-/// call-scoped buffers, and the concurrency/exclusion rules documented on
-/// [super::plugin::RuntimePluginDescriptorV2]. In particular, lifecycle and
-/// metric calls must not overlap any other calls on the instance.
+/// For calls on an instance, use a live handle created by this helper's `init`.
+/// For `init` itself, provide writable space for the new handle.
+/// Keep input buffers readable and unchanged until the call returns, and give
+/// the call exclusive access to its output buffers.
+/// Follow the rules in [`super::plugin::RuntimePluginDescriptorV2`]: pause other
+/// calls while starting or ending a shot, exiting, or collecting metrics.
 pub struct Helper<F>(Arc<F>);
 
 impl<F: RuntimeInterfaceFactory> Helper<F> {
@@ -36,8 +38,9 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         go: impl FnOnce(&F::Interface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        // SAFETY: entry points require a live instance from init. Every call
-        // borrows it through a shared reference; RuntimeInterface is Sync.
+        // SAFETY: callers must supply a live instance created by init, so this
+        // pointer refers to an F::Interface. We only create shared references.
+        // RuntimeInterface requires Sync, which allows these borrows to overlap.
         go(unsafe { &*instance.cast::<F::Interface>() })
     }
 
@@ -75,8 +78,9 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     }
 
     pub unsafe fn exit(instance: RuntimeInstance) -> Errno {
-        // Keep the allocation alive: the existing exit contract permits later
-        // calls to report errors. Destruction needs a separate API contract.
+        // A caller can still use the handle after exit to receive an error.
+        // Keep the allocation alive so those calls don't dereference freed memory.
+        // This API has no separate operation for releasing the handle.
         result_to_errno(
             "Failed to exit the runtime plugin",
             Self::with_runtime_instance(instance, |runtime| runtime.exit()),

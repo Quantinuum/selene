@@ -1,7 +1,8 @@
 #ifdef WITH_V2
 #include <selene/runtime.h>
 
-/* Stateless, concurrent v2 fixture; its allocation result identifies this ABI. */
+/* This v2 fixture has no shared mutable state, so calls can overlap safely.
+ * qalloc returns 999 so the test can tell that the loader chose v2. */
 static int init(RuntimeInstanceV2 *out, uint64_t n, uint64_t start,
                 uint32_t argc, const char *const *argv) { *out = NULL; return 0; }
 static int finish(RuntimeInstanceV2 handle) { return 0; }

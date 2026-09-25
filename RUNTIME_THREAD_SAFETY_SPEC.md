@@ -1,182 +1,137 @@
-# Runtime plugin thread safety: step 1
+# How runtime plugins share work between threads
 
-Status: implemented; multithreaded user execution remains subsequent work.
+A user program can have several threads submitting quantum operations to the
+same runtime. The runtime schedules those operations, while one consumer thread
+runs them on the simulator and writes back measurement results. This guide
+explains how those parts cooperate and where they need to wait for each other.
 
-## Objective
+For instructions on writing a plugin, start with the
+[Selene-Core README](selene-core/README.md#writing-a-runtime-plugin).
 
-Prepare runtime plugin interfaces and implementations for multithreaded user
-programs. This step establishes and implements the runtime concurrency contract;
-enabling multithreaded user execution in the emulator is subsequent work.
+## Who can call what?
 
-Correctness takes priority. Use mutexes where needed, and include straightforward
-changes that permit useful parallelism. No lock-free design or extensive
-performance redesign is required.
+Most runtime calls can overlap. A user thread can submit a gate while another
+reads a result and the consumer collects the next batch. Each plugin must protect
+its mutable state, including any state shared between separate instances.
+A mutex is fine. Supporting concurrent callers doesn't mean every operation
+needs to execute in parallel inside the plugin.
 
-## Concurrency contract
+There are a few points where the host needs to pause other calls:
 
-The contract applies to concurrent calls on the **same runtime instance**.
-Separate instances must also be safe to use concurrently; shared plugin state
-must not introduce races between them.
-
-| Calls | Required behavior |
+| Activity | How the host coordinates it |
 | --- | --- |
-| Allocation/free, gates, measurement/reset, barriers, custom calls, simulated delays | May overlap other operational calls on the same instance. |
-| Forcing results, reading/publishing results, future reference-count updates | May overlap user calls and operation retrieval. |
-| `get_next_operations` | One consumer per instance; may overlap user calls. The consumer retrieves and executes batches in order and publishes results. |
-| `shot_start`, `shot_end`, `exit` | Caller ensures no other calls overlap on that instance. |
-| Metric collection | Caller ensures the instance is quiescent throughout collection: no calls are in progress and no new calls begin until collection finishes. Between shots is an appropriate collection point. |
-| Initialization | Completes before the new instance is shared. |
+| Initializing an instance | Finish initialization before sharing it. |
+| Submitting operations, forcing or reading results, updating reference counts | Allow concurrent calls on the same instance. |
+| Collecting batches and publishing results | Use one consumer that collects and executes batches in order. User calls can overlap this work. |
+| Starting or ending a shot, or exiting | Wait for other calls to finish and keep new calls out. |
+| Collecting metrics | Keep the instance idle for the whole collection, including the gaps between calls for individual metrics. |
 
-Thread safety does not require simultaneous execution internally. Serializing
-operations with a per-instance mutex is valid. Existing validity and lifetime
-requirements for qubits, results, and input/output buffers remain applicable.
-This step does not define new user-language semantics for conflicting operations
-on a shared qubit.
+These rules don't remove the need to keep qubits, result references, and buffers
+valid while using them. They also don't give independent user threads a
+deterministic order when they operate on the same qubit.
 
-## Forced results and draining
+## Following a measurement through the system
 
-`get_next_operations` returns operations, not measurement values. The consumer
-executes returned measurements and publishes their values through
-`set_bool_result` or `set_u64_result`.
+Suppose a user thread schedules a measurement and receives a result ID. The
+runtime may keep that measurement in its queue while it builds a batch. When
+the user needs the value, `force_result` tells the runtime to make the required
+work available to the consumer.
 
-After `force_result(r)` successfully returns, subsequent draining must expose the
-operations needed to resolve `r`, unless those operations have already been
-handed to the consumer or the result is already available. Executing those
-operations and publishing their results must make `r` available through its
-result getter.
+The consumer calls `get_next_operations`, runs the returned work, and publishes
+measurement values through `set_bool_result` or `set_u64_result`. It may need to
+process several batches to reach a forced measurement. Other threads can keep
+submitting work, but they must not postpone the forced measurement indefinitely.
+A force request that arrives during batch retrieval must still take effect.
 
-This preserves the existing drain-batches guarantee. It does not require the
-measurement to appear in the very next batch. Concurrent submissions must not
-indefinitely postpone a forced measurement. A force request overlapping a batch
-retrieval must not be lost.
+The measurement might already be with the consumer when it is forced. In that
+case there's no need to queue it again. The user still needs to check its result
+getter: an empty queue doesn't mean the consumer has finished the batch it took
+earlier. Once the consumer has executed the measurement and published its value,
+the getter must report that value as ready.
 
-The eventual host integration must wait for the requested result itself, rather
-than assume a particular batch belongs to the requesting thread. An empty batch
-alone is not proof that an already-dispatched measurement result is available.
-The consumer remains responsible for executing dispatched work and publishing
-results.
+Don't hold a runtime lock while waiting if the consumer needs that lock to
+collect work or publish the result. Otherwise each side ends up waiting for
+the other.
 
-No internal runtime lock may be held while waiting for a measurement result in a
-way that prevents the consumer from retrieving work or publishing that result.
+## How Selene coordinates the calls
 
-## Interface changes
+The emulator's [consumer](selene-sim/rust/emulator/consumer.rs) owns the simulator
+and error model. It creates them, makes all their calls, and drops them on its
+own thread. Those plugins therefore don't need to support concurrent calls.
+Calls through the quantum instruction set (QIS) interface explicitly ask the
+consumer to collect work. It can therefore sleep between requests instead of
+polling the runtime.
 
-- Preserve the v1 / API 0.3.x descriptor and its `RuntimeInstance` (`*mut c_void`).
-  Add a v2 / API 0.4.x descriptor using `RuntimeInstanceV2` (`*const c_void`).
-  Prefer v2 at load time; adapt v1 through a thread that owns the instance from
-  initialization through cleanup, serializing calls without moving its state.
-- Preserve mutable output pointers, including v2 `init`'s `*mut RuntimeInstanceV2`
-  and result/metric output buffers. This is not a blanket conversion of all
-  pointers to const.
-- Apply the v2 instance-pointer type consistently to the concurrent descriptor,
-  loaded plugin wrapper, inline operation interface, adapter, and export helper.
-- Use shared Rust receivers for every method, including lifecycle and metrics,
-  and require `Send + Sync`. Implementors synchronize mutable state internally.
-  All calls must remain memory-safe if overlapped; host-side lifecycle exclusion
-  remains a protocol requirement for correct shot semantics.
-- Document the concurrency rules in the Rust API and C-facing plugin contract.
-  Const pointers express shared access; they do not establish thread safety by
-  themselves.
+Output records and random-number operations each run one at a time. Their order
+between user threads can vary. The output time cursor is also shared, so setting
+it and printing are separate operations: another thread can change it in between.
+The host must join its user threads before destroying the Selene instance.
 
-## Implementation guidance
+## Implementing the Rust interface
 
-Audit both Rust-to-FFI paths. The export helper currently reconstructs a `Box`
-and obtains mutable access for each call; the inline adapter also obtains mutable
-access for each call. These patterns must be replaced or protected so overlapping
-calls cannot create overlapping exclusive references.
+[`RuntimeInterface`](selene-core/rust/runtime/interface.rs) and its factory
+require `Send + Sync`. Every runtime method takes `&self`, including shot
+boundaries and metrics. An implementation must remain memory-safe even if Rust
+callers overlap those methods. The host's coordination is needed for correct
+shot behavior, but safe Rust code cannot rely on that coordination to prevent
+invalid memory access.
 
-Update the bundled simple and soft-RZ runtimes and the runtime example to satisfy
-the new contract. Start with per-instance synchronization where appropriate.
-Separate independently accessed state when that is straightforward and useful;
-do not require a particular lock layout. Review queue operations, forced flush
-state, result publication, and reference counts together for races and progress.
+The simple, soft-RZ, and example runtimes keep scheduling state under one mutex
+and results under a separate read/write lock. This lets the consumer publish a
+result without waiting for scheduling. Whenever a call needs both locks, it
+takes the scheduling lock first and the result lock second. Using one order
+prevents callers from deadlocking by each holding the lock the other needs.
 
-Keep synchronization scoped to instances wherever possible. Do not add unchecked
-`Send`/`Sync` implementations merely to satisfy compilation: any unsafe boundary
-must be justified by ownership, synchronization, and the documented plugin
-contract. Preserve call-scoped ownership of output buffers and batch callbacks.
+The export helper and inline adapter borrow the runtime through shared
+references. The inline handle points into the adapter itself, so its owner must
+keep the adapter alive and at the same address while the handle is in use.
+The core `Runtime` wrapper does this by owning the adapter in a `Box`.
 
-The host-side single-consumer rule covers ordered execution and result
-publication, not just exclusion between two retrieval calls. Runtime changes
-must support this future integration without claiming that user-program
-multithreading is enabled by this step.
+## Loading C plugins
 
-## Compatibility
+New plugins export a v2 descriptor for API 0.4.x. Its `RuntimeInstanceV2` handle
+is a const pointer because callers share access. The plugin still synchronizes
+its mutable state. Output pointers remain writable, including the pointer used
+to return a newly initialized instance.
 
-Bump the runtime API minor version because existing plugins have not promised
-this concurrency contract, even if the pointer change preserves binary layout.
-Keep packed and decomposed version constants consistent and ensure old runtime
-API versions are rejected. Regenerate the runtime C header using the repository's
-existing process and update affected fixtures and documentation.
+The loaded-plugin wrapper uses locks to prevent lifecycle and metric calls
+from overlapping other calls. It also allows only one batch retrieval at a time.
+Those locks protect individual calls into C. The host still needs to keep a
+whole metric collection idle and execute collected batches in order.
 
-## Implementation entry points
+Older v1 plugins, built for API 0.3.x, keep their original mutable-pointer handle
+and function signatures. Selene gives each legacy instance a dedicated thread
+for initialization, calls, and cleanup. The adapter sends requests to that
+thread and waits for replies. It copies inputs and returns owned batches and
+values, keeping borrowed plugin memory and callbacks on the plugin's thread.
+Cleanup runs at most once, either on explicit exit or when the adapter is dropped.
+Calls after explicit exit return errors.
 
-- `selene-core/rust/runtime/plugin.rs`: instance type, descriptor, loader, wrapper.
-- `selene-core/rust/runtime/interface.rs`: Rust traits and behavioral contract.
-- `selene-core/rust/runtime/helper.rs`: exported plugin entry points.
-- `selene-core/rust/runtime/inline.rs`: inline handle, function table, adapter.
-- `selene-core/rust/runtime.rs`: core runtime wrapper.
-- `selene-core/rust/runtime/version.rs`: API version and compatibility checks.
-- `selene-core/c/include/selene/runtime.h` and
-  `selene-core/cbindgen/runtime.toml`: C API generation.
-- `selene-ext/runtimes/simple/rust/lib.rs` and
-  `selene-ext/runtimes/soft_rz/rust/lib.rs`: bundled implementations.
-- `selene-core/examples/runtime`: example implementation.
-- `selene-sim/rust/emulator.rs`: existing forcing/draining integration to preserve;
-  broader concurrent host execution is outside this step.
+A legacy result getter must return "not ready" if the value is unavailable.
+Waiting inside that getter would block the thread that must also accept result
+publication. The adapter cannot run those two calls concurrently to break the
+deadlock.
 
-## Acceptance criteria
+The loader prefers v2. It only tries v1 when neither v2 export is present, and
+reports a broken v2 interface as an error. V2 accepts API 0.4.x and v1 accepts
+API 0.3.x, including patch releases within each minor version. Older Rust source
+still needs updating when it adopts the current trait.
 
-1. Rust interfaces, exported entry points, inline adapters, and generated C
-   declarations agree on const instance pointers and mutable output pointers.
-2. Every runtime method has an unambiguous concurrency classification, including
-   lifecycle and quiescent metric collection.
-3. Bundled and example runtimes compile against the new interface, and existing
-   sequential runtime behavior remains covered by passing relevant tests.
-4. Focused concurrency tests exercise submission and forcing while a single
-   consumer drains and publishes results. Multiple forced results resolve,
-   including when their operations were already dispatched.
-5. Tests exercise concurrent result access/publication and reference-count
-   operations under valid lifetimes, checking for lost updates and duplicate or
-   missing work. Use controlled synchronization rather than timing-only sleeps
-   to exercise important interleavings.
-6. Tests cover the export-helper and inline-adapter paths sufficiently to verify
-   that synchronization is applied at those boundaries, not just in direct calls
-   to a runtime implementation.
-7. Version checks reject the previous runtime API version, and generated headers
-   and version constants are consistent.
+## Where to look in the code
 
-## Out of scope
+- [Runtime traits](selene-core/rust/runtime/interface.rs) describe what plugin
+  authors implement and what callers can expect.
+- [Plugin loading](selene-core/rust/runtime/plugin.rs) checks descriptors and
+  protects calls into concurrent C plugins.
+- [The legacy adapter](selene-core/rust/runtime/plugin/legacy.rs) keeps each old
+  plugin instance on its own thread.
+- [The export helper](selene-core/rust/runtime/helper.rs) and
+  [inline adapter](selene-core/rust/runtime/inline.rs) connect Rust runtimes to
+  the C interface.
+- [The emulator](selene-sim/rust/emulator.rs) sends work to its consumer and
+  reads back measurement results.
 
-- Enabling user-program threads or implementing their scheduling and waiting in
-  the emulator.
-- Multiple simultaneous batch consumers for one runtime instance.
-- Concurrent lifecycle operations or metric collection during runtime activity.
-- General thread-safety changes to simulator and error-model plugin interfaces.
-- A new deterministic ordering policy for independent user threads, or a broad
-  runtime performance redesign.
-
-## Implementation handoff
-
-Runtime API version is now 0.4.0. Every Rust receiver is shared, and runtime
-interfaces and factories require `Send + Sync`. Implementations synchronize
-lifecycle and metric access internally as well as operational access. FFI adapters
-use shared references for every call; no `UnsafeCell` or mutable-access helper is
-needed.
-
-The simple, soft-RZ, and example runtimes use a scheduling mutex and a separate
-result read/write lock. Calls needing both acquire scheduling before results.
-Result publication and readers do not acquire the scheduling lock. The loaded
-plugin wrapper takes a shared access lock for operational calls and an exclusive
-access lock for lifecycle/metric calls, and separately serializes retrieval. This
-upholds per-call C ABI exclusion even when safe Rust callers race. The host
-remains responsible for ordered execution/publication, lifecycle sequencing, and
-keeping the instance idle throughout a complete metric enumeration.
-
-Native tests cover concurrent submission/forcing/draining, already-dispatched
-results, leakage forcing, sequential gate behavior, independent result access,
-and parallel FFI entry with reference-count updates. The example also has a
-regression test for its corrected local-barrier indices. Version rejection,
-Clippy, Rust documentation, generated-header consistency, and C/C++ header checks
-were validated. The emulator compiles against the new API. The Python integration
-suite has not been run; the current Python environment lacks `selene_sim`.
+The runtime tests exercise concurrent submission, forcing, result access, and
+reference counting. Separate FFI tests exercise the export helper and inline
+adapter. The legacy compatibility tests compile a fixture against a frozen old
+header, so changes to today's header cannot hide a break in the old ABI.
