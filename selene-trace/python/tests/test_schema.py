@@ -11,6 +11,7 @@ from selene_api_models.trace import (
     OpaquePayload,
     TraceDocument,
     parse_trace,
+    parse_trace_json,
 )
 
 
@@ -41,6 +42,34 @@ def test_packaged_rust_fixtures_match_shared_examples():
     examples = protocol_dir / "examples" / "trace"
     for fixture in fixtures.glob("*.json"):
         assert fixture.read_bytes() == (examples / fixture.name).read_bytes()
+
+
+@pytest.mark.parametrize("result", [True, False, 0, 1, 0.0, 1.0, "true", "false", None])
+def test_predicate_result_requires_a_json_boolean(result):
+    document = {
+        "schema_version": "0.1.0",
+        "events": [
+            {
+                "source": {"kind": "UserProgram", "index": 0},
+                "event": {
+                    "kind": "Gate",
+                    "gate_name": "H",
+                    "predicates": [{"predicate": "condition", "result": result}],
+                },
+            }
+        ],
+    }
+    valid = isinstance(result, bool)
+    assert Draft202012Validator(get_trace_schema()).is_valid(document) == valid
+    for parser, value in (
+        (parse_trace, document),
+        (parse_trace_json, json.dumps(document)),
+    ):
+        if valid:
+            assert parser(value).events[0].event.predicates[0].result is result
+        else:
+            with pytest.raises(ValueError):
+                parser(value)
 
 
 def test_uint64_pattern_enforces_range_without_a_format_checker():

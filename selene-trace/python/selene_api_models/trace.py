@@ -146,7 +146,7 @@ __all__ = [
 
 class PredicateResult(BaseModel):
     predicate: str
-    result: bool
+    result: StrictBool
 
 
 class UserProgramSource(BaseModel):
