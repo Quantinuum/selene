@@ -11,8 +11,10 @@ use std::{ffi, marker::PhantomData};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-/// Borrowed raw interface. Calls follow RuntimePluginDescriptorV2's concurrency
-/// and buffer-lifetime contract. The owner must outlive every use of this handle.
+/// A borrowed instance pointer and the functions you can call with it.
+///
+/// Keep its owner alive for every call, and follow the concurrency and buffer
+/// rules in [`super::plugin::RuntimePluginDescriptorV2`].
 pub struct RuntimeHandle<'a> {
     pub instance: RuntimeInstance,
     pub interface: RuntimeOperationInterface<'a>,
@@ -29,8 +31,15 @@ impl RuntimeFFIAdapter {
         Self { runtime }
     }
 
-    /// Returns a raw handle; the adapter must remain at its current address and
-    /// alive until all uses finish. Calls obey the runtime concurrency contract.
+    /// Borrow a raw handle for calling this runtime through the C interface.
+    ///
+    /// The handle points to a field inside this adapter. Keep the adapter alive
+    /// and at the same address until all uses of the handle have finished.
+    /// Moving the adapter would leave the handle pointing at its old address.
+    /// The returned type says `'static`, so it won't enforce this lifetime for you.
+    ///
+    /// Calls must follow the concurrency and buffer rules in
+    /// [`super::plugin::RuntimePluginDescriptorV2`].
     pub fn ffi_interface(&self) -> RuntimeHandle<'static> {
         RuntimeHandle {
             instance: (&raw const self.runtime).cast(),
@@ -70,8 +79,10 @@ impl RuntimeFFIAdapter {
         go: impl FnOnce(&dyn RuntimeInterface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        // SAFETY: the adapter owns this box for the handle's entire use. All
-        // calls borrow it through shared references; RuntimeInterface is Sync.
+        // SAFETY: the caller must keep the adapter alive and at the address
+        // used to create this handle. That keeps its Box field valid here.
+        // We only borrow the runtime through shared references, and the trait
+        // requires Sync so those borrows can overlap.
         let runtime = unsafe { &*instance.cast::<Box<dyn RuntimeInterface>>() };
         go(runtime.as_ref())
     }

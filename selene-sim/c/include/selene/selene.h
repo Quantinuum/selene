@@ -9,13 +9,17 @@
 
 
 /**
- * Opaque instance shared by user-program QIS calls.
+ * The instance handle passed to quantum instruction set (QIS) calls.
  *
- * QIS calls may run concurrently on this instance. The host must exclude them
- * during `selene_on_shot_start`, `selene_on_shot_end`, metric collection, and
- * `selene_exit`, and keep the instance alive until all user threads have joined.
- * Simulator and error-model calls run on one consumer thread. Output records and
- * PRNG operations are serialized; the output time cursor remains instance-wide.
+ * User threads can share this handle and make QIS calls at the same time.
+ * The host must pause those calls during `selene_on_shot_start`,
+ * `selene_on_shot_end`, metric collection, and `selene_exit`. Keep the instance
+ * alive until all user threads have joined.
+ *
+ * One consumer thread runs the simulator and error model. Output records and
+ * random-number operations each run one at a time. All user threads share the
+ * output time cursor, so setting it and then printing are two separate actions
+ * that another thread can interrupt.
  */
 typedef struct SeleneInstance SeleneInstance;
 

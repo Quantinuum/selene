@@ -1,5 +1,6 @@
-/* Deliberately compiled against runtime.h from 34d2ecf^ (API 0.3.0).
- * Keep runtime_v1.h frozen: regenerating it would weaken the binary ABI test. */
+/* Build this plugin against the frozen API 0.3.0 header from 34d2ecf^.
+ * Keep runtime_v1.h unchanged so the test checks whether today's loader can
+ * still use an old plugin binary, even if today's header has changed. */
 #include "runtime_v1.h"
 #include <stdlib.h>
 #include <string.h>
@@ -135,7 +136,8 @@ const SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descriptor_v1(v
 }
 #endif
 
-/* A v2 advertisement must be validated, never silently bypassed for v1. */
+/* Export a broken v2 interface alongside the valid v1 interface. Loading must
+ * fail so plugin authors see the v2 error instead of silently running v1. */
 #ifdef BAD_V2
 const void *selene_runtime_get_plugin_descriptor_v2(void) {
 #if BAD_V2 == 1

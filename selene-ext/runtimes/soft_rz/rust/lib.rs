@@ -147,9 +147,11 @@ impl SoftRZRuntimeState {
     }
 }
 
-// Scheduling and allocation share one lock so queue/flush updates are atomic.
-// Result access is independent: publication and concurrent readers do not need
-// the scheduling lock. Calls needing both always lock state before results.
+// Keep scheduling and allocation under one lock so another thread can't see
+// a queue update before its flush state has been updated too. Results have their
+// own lock: the consumer can publish a value, and users can read it, without
+// waiting for scheduling. When a call needs both locks, take state first and
+// results second so two callers can't deadlock by taking them in opposite orders.
 struct SoftRZRuntime {
     state: Mutex<SoftRZRuntimeState>,
     results: RwLock<Vec<FutureResult>>,
@@ -207,11 +209,9 @@ impl RuntimeInterface for SoftRZRuntime {
     }
     fn local_barrier(&self, qubits: &[u64], _sleep_ns: u64) -> Result<()> {
         let state = &mut *self.state.lock();
-        // search backwards through the operation queue for the last operation that uses any of the barrier's qubits.
-        // All operations up to and including that operation can be flushed.
-        //
-        // then set state.flush_size to the number of operations that can be flushed.
-        // flush_size is kept monotonic to avoid reducing a previously larger flush window.
+        // Let the consumer collect every batch up to the last one touching
+        // these qubits. A previous force request may cover more work, so keep
+        // that larger range if one has already been requested.
         let qubits: std::collections::HashSet<u64> = qubits.iter().cloned().collect();
         let found = state
             .operation_queue
@@ -362,7 +362,9 @@ impl RuntimeInterface for SoftRZRuntime {
                 }
             }
         }
-        Ok(()) // If the measurement isn't in the queue, it has already been forced.
+        // The consumer has already taken this measurement, so there is no work
+        // left here to make available. Its value may still be pending.
+        Ok(())
     }
     fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
         let results = self.results.read();

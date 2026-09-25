@@ -1,15 +1,19 @@
-//! C entry points for user-program QIS calls and host lifecycle control.
+//! The C interface used by quantum programs and the host running them.
 //!
-//! User-program calls may overlap on the same live instance. Runtime calls run on
-//! the calling thread; one consumer retrieves batches, executes them, and publishes
-//! results. Output messages and PRNG operations are serialized. The PRNG and output
-//! time cursor remain shared across the instance; ordering between threads is not
-//! deterministic, and setting the cursor then printing is not an atomic operation.
+//! Several user threads can make quantum instruction set (QIS) calls on the
+//! same instance. They call the runtime to submit work. One consumer thread
+//! collects that work in batches, executes it, and writes back the results.
 //!
-//! The host must exclude all user-program calls during shot start/end, metric
-//! collection, and destruction, and join its user threads before `selene_exit`.
-//! Input buffers must remain valid and unmodified until their call returns. Result
-//! handles must retain a live reference throughout use, including concurrent reads.
+//! Output messages and random-number operations each run one at a time. All
+//! threads share the random-number generator and the output time cursor, so
+//! their ordering can vary between runs. If you set the cursor and then print,
+//! another thread can change the cursor between those two calls.
+//!
+//! The host must pause user calls while starting or ending a shot, collecting
+//! metrics, or destroying the instance. Join all user threads before calling
+//! `selene_exit`. Keep input buffers valid and unchanged until their call
+//! returns, and keep a live reference to each result handle throughout its use,
+//! including when several threads read it.
 
 use super::selene_instance::SeleneInstance;
 use crate::selene_instance::configuration::Configuration;

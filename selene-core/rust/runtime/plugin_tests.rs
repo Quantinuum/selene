@@ -1,4 +1,5 @@
-//! Probe guards inside foreign callbacks without relying on thread scheduling.
+// Each fake C function checks which lock the wrapper holds when calling it.
+// This tests shared and exclusive access without depending on thread timing.
 use super::RuntimeInstanceV2 as RuntimeInstance;
 use super::*;
 use parking_lot::{Mutex, RwLock};

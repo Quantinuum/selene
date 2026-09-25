@@ -1,4 +1,5 @@
-//! Exercise both FFI entry paths with a runtime that permits concurrent entry.
+// Check that the export helper and inline adapter both let two calls enter
+// the runtime at once. The barrier inside custom_call requires that overlap.
 use anyhow::Result;
 use selene_core::runtime::{
     BatchOperation, Runtime, RuntimeInterface, RuntimeInterfaceFactory,
@@ -87,8 +88,9 @@ impl RuntimeInterface for ConcurrentRuntime {
         Ok(())
     }
     fn custom_call(&self, _: u64, _: &[u8]) -> Result<u64> {
-        // Both calls must enter the Rust runtime concurrently. An adapter-wide
-        // lock would deadlock here and defeat the shared-receiver contract.
+        // Both calls must reach this barrier before either can return.
+        // If the adapter holds one lock across every call, the first caller
+        // waits here forever because the second cannot enter.
         self.overlap.wait();
         Ok(0)
     }
@@ -143,8 +145,9 @@ struct Exported {
     instance: RuntimeInstance,
     descriptor: &'static RuntimePluginDescriptorV2,
 }
-// SAFETY: this test owns a live helper-created instance implementing Send + Sync.
-// Scoped workers only invoke shared methods. Lifecycle calls run after joining.
+// SAFETY: the test keeps the helper-created instance alive until its scoped
+// workers have joined. Its runtime implements Send + Sync, and workers only
+// call shared operational methods. Cleanup happens after the workers finish.
 unsafe impl Sync for Exported {}
 
 impl Exported {
@@ -219,8 +222,9 @@ fn export_helper_permits_parallel_entry() {
         assert_eq!((descriptor.get_u64_result_fn)(instance, 0, &mut refs), 0);
         assert_eq!(refs, 1);
         assert_eq!(descriptor.exit_fn.unwrap()(instance), 0);
-        // The current exit API intentionally retains its allocation. This test
-        // knows the concrete helper layout and reclaims it after all calls finish.
+        // The helper leaves its allocation alive after exit so later calls can
+        // report errors. Here we know it is a Box<ConcurrentRuntime> and all
+        // workers have finished, so we can free it ourselves.
         drop(Box::from_raw(
             instance.cast_mut().cast::<ConcurrentRuntime>(),
         ));

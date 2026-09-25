@@ -1,6 +1,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    // Integration fixtures use cc outside a build script, where TARGET is absent.
+    // The tests compile C plugins with cc, but Cargo only sets TARGET for build
+    // scripts. Save it here so those tests can choose the same compiler target.
     println!(
         "cargo:rustc-env=SELENE_CORE_TARGET={}",
         std::env::var("TARGET").unwrap()

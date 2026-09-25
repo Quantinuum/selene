@@ -48,8 +48,8 @@ fn plugin(#[default(&[])] defines: &[&str]) -> PluginFixture {
             .map_or((*define, None), |(name, value)| (name, Some(value)));
         build.define(name, value);
     }
-    // cc compiles the objects; use its selected compiler driver to link the
-    // shared plugin because cc's compile() produces static archives only.
+    // cc's compile() produces a static archive, but the loader needs a shared
+    // library. Compile the objects first, then link them with cc's chosen driver.
     let objects = build
         .try_compile_intermediates()
         .expect("compile plugin fixture");

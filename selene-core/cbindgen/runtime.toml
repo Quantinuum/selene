@@ -8,8 +8,9 @@ no_includes = false
 cpp_compat = true
 after_includes = """
 /**
- * A runtime plugin must export either this descriptor symbol or the accessor below.
- * The accessor form is recommended for portable C and C++ plugins.
+ * New runtime plugins export the v2 descriptor or its getter function below.
+ * The getter is recommended for portable C and C++ plugins. The v1 declarations
+ * are kept for plugins built against API 0.3.x.
  */
 struct SeleneRuntimePluginDescriptorV1;
 struct SeleneRuntimePluginDescriptorV2;

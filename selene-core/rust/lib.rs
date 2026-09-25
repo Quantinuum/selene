@@ -1,4 +1,5 @@
-// Exported plugin macros must resolve this dependency through selene-core.
+// Plugin crates expand our macros without necessarily depending on parking_lot.
+// Re-export it so the macros can find it through $crate.
 #[doc(hidden)]
 pub use parking_lot as __parking_lot;
 

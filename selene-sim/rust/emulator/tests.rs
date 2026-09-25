@@ -91,7 +91,8 @@ impl RuntimeInterface for TestRuntime {
         Ok(())
     }
     fn force_result(&self, _: u64) -> Result<()> {
-        // Measurements are already queued; the next explicit drain resolves them.
+        // Measurements are ready to collect as soon as they are queued.
+        // The consumer will execute them when the caller asks it to process work.
         Ok(())
     }
     fn get_bool_result(&self, id: u64) -> Result<Option<bool>> {
@@ -144,7 +145,7 @@ impl RuntimeInterface for TestRuntime {
                 self.fail.store(true, Ordering::Relaxed);
                 Ok(0)
             }
-            // Submit work and return before the caller requests draining.
+            // Queue the measurement before the caller asks the consumer to run it.
             _ => self.measure(0),
         }
     }
@@ -326,8 +327,8 @@ fn concurrent_qis_and_output_use_one_consumer() {
         }
     });
     instance.shot_end().unwrap();
-    // Every message is complete: compare the stream with the multiset of expected
-    // encoded frames, independent of producer scheduling.
+    // Thread scheduling can change the order of the values. Check the record
+    // count and each record's framing without assuming an order for the payloads.
     let mut encoder = instance.out_encoder.lock();
     let actual = encoder.try_read(usize::MAX).unwrap().to_vec();
     drop(encoder);

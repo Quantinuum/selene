@@ -4,8 +4,9 @@ use anyhow::{Result, anyhow};
 #[repr(C)]
 /// A decomposed runtime API version.
 ///
-/// Plugin descriptors use the packed `SELENE_RUNTIME_CURRENT_API_VERSION`
-/// integer rather than this structure.
+/// Use this to inspect the version's individual fields. Plugin descriptors
+/// store a packed integer: `SELENE_RUNTIME_CURRENT_API_VERSION` for v2, or
+/// `SELENE_RUNTIME_V1_API_VERSION` for v1.
 pub struct RuntimeAPIVersion {
     /// Reserved for future use, must be 0.
     reserved: u8,
@@ -50,7 +51,7 @@ pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0400;
 pub const RUNTIME_V1_API_VERSION: u64 = 0x0000_0300;
 
 // CHANGELOG:
-// 0.4.0: Shared instance pointers and same-instance operational thread safety.
+// 0.4.0: V2 plugins allow concurrent operational calls on a shared instance.
 // 0.0.1: Initial version
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result
 
@@ -86,8 +87,8 @@ impl RuntimeAPIVersion {
                 self.major
             ));
         }
-        // If the minor version is different, the plugin is likely incompatible. This function
-        // should be updated to reflect the actual changes in the API. For now we reject.
+        // Each descriptor has its own contract: v1 uses 0.3.x and v2 uses 0.4.x.
+        // Reject other minor versions rather than assuming those contracts match.
         if self.minor != expected_minor {
             return Err(anyhow!(
                 "Runtime API minor version must match the descriptor contract ({}), got {}",

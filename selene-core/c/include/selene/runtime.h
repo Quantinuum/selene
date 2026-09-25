@@ -10,8 +10,9 @@
 #include <stdlib.h>
 #include "selene/core_types.h"
 /**
- * A runtime plugin must export either this descriptor symbol or the accessor below.
- * The accessor form is recommended for portable C and C++ plugins.
+ * New runtime plugins export the v2 descriptor or its getter function below.
+ * The getter is recommended for portable C and C++ plugins. The v1 declarations
+ * are kept for plugins built against API 0.3.x.
  */
 struct SeleneRuntimePluginDescriptorV1;
 struct SeleneRuntimePluginDescriptorV2;
@@ -40,8 +41,9 @@ const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descript
 /**
  * A decomposed runtime API version.
  *
- * Plugin descriptors use the packed `SELENE_RUNTIME_CURRENT_API_VERSION`
- * integer rather than this structure.
+ * Use this to inspect the version's individual fields. Plugin descriptors
+ * store a packed integer: `SELENE_RUNTIME_CURRENT_API_VERSION` for v2, or
+ * `SELENE_RUNTIME_V1_API_VERSION` for v1.
  */
 typedef struct SeleneRuntimeAPIVersion {
   /**
@@ -126,8 +128,10 @@ typedef struct RuntimeExtractOperationHandle {
 typedef void *RuntimeInstance;
 
 /**
- * Legacy runtime descriptor for API 0.3.x. Calls on an instance must be serialized.
- * The host initializes, calls, and destroys each instance on one owning thread.
+ * The function table used by older runtime plugins, built for API 0.3.x.
+ *
+ * The host gives each instance its own thread. Initialization, every call, and
+ * cleanup happen on that thread, so calls on an instance never overlap.
  *
  * Function pointer fields documented as optional may be null. All other
  * function pointer fields must be populated.
@@ -232,40 +236,52 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
 } SeleneRuntimePluginDescriptorV1;
 
 /**
- * Shared opaque instance handle. Constness does not imply immutable state;
- * the plugin synchronizes mutation according to the descriptor contract.
+ * A handle that lets several threads call the same runtime instance.
+ *
+ * The pointer is const because access is shared. The runtime can still change
+ * its state, but the plugin must synchronize those changes itself.
  */
 typedef const void *RuntimeInstanceV2;
 
 /**
- * Concurrent runtime descriptor for API 0.4.x.
+ * The function table a runtime plugin exports for API 0.4.x.
  *
- * Function pointer fields documented as optional may be null. All other
- * function pointer fields must be populated.
+ * Fill in every function pointer unless its documentation marks it optional.
+ * Optional function pointers may be null.
  *
  * # Concurrency and safety
  *
- * All operational functions must be safe to call concurrently on the same
- * instance and across instances. This includes allocation, gates, measurements,
- * barriers, delays, custom calls, forcing, result access/publication, and reference
- * counts. The plugin is responsible for synchronizing its mutable state.
+ * Several threads can submit operations to the same instance at once. The
+ * plugin must synchronize allocation, gates, measurements, barriers, delays,
+ * custom calls, result forcing, result reads and writes, and reference counts.
+ * Calls on separate instances must also be safe to run concurrently.
  *
- * One consumer retrieves and executes batches in order and publishes results;
- * retrieval may overlap user calls. After force_result_fn succeeds, draining must
- * expose the work needed for that result unless already dispatched or resolved.
- * Concurrent submissions must not indefinitely postpone it. Executing the work
- * and publishing its results makes the result getter report availability; an
- * empty batch alone does not prove a dispatched result has been published.
+ * The host collects batches, executes them in order, and writes back results.
+ * One thread does this work, which we call the consumer. User threads can keep
+ * calling the runtime while it does this. After `force_result_fn` succeeds,
+ * collecting batches must let the consumer reach the work needed for that
+ * result. New submissions must not
+ * postpone that work indefinitely. The work may already be with the consumer,
+ * or its result may already be ready.
  *
- * Initialization completes before sharing the instance. The caller excludes all
- * other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
- * entire get_metrics_fn enumeration. Only these calls may access state exclusively.
- * No runtime lock may block the consumer while a user waits for a result.
+ * Once the consumer has executed the work and written back its result, the
+ * result getter must report that value as available. An empty batch only means
+ * there is no more work to collect right now. The consumer may still be working
+ * on an earlier batch. Never wait for a result while holding a runtime lock
+ * that the consumer needs to produce it.
  *
- * Handles must remain live throughout calls. Output buffers must be writable and
- * exclusively accessible for the call; inputs must remain readable and unmodified.
- * The operation callback handle and its buffers are borrowed only for retrieval
- * and must not be retained or invoked concurrently by the plugin.
+ * Finish initialization before sharing the instance. The host must pause all
+ * other calls during `shot_start_fn`, `shot_end_fn`, and `exit_fn`. It must also
+ * keep the instance idle throughout a whole `get_metrics_fn` enumeration,
+ * including between calls for individual metrics. Only these calls can assume
+ * they have exclusive access to the instance.
+ *
+ * Keep the instance alive until every call has finished. Input buffers must
+ * stay readable and unchanged for the duration of their call. Output buffers
+ * must be writable, and no other call may access them at the same time.
+ * The plugin may use the operation callback handle and its buffers only while
+ * retrieving a batch. It must not keep them afterwards or invoke callbacks
+ * concurrently.
  */
 typedef struct SeleneRuntimePluginDescriptorV2 {
   /**
