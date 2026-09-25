@@ -1,0 +1,29 @@
+# Selene Trace
+
+`selene-trace` contains the schemas, documentation, examples, and language
+models for Selene's public serialized traces. It has no dependency on the
+emulator.
+
+## APIs
+
+| API | Version | Schema | Semantics |
+| --- | --- | --- | --- |
+| Trace documents (`Trace` and `Traces`) | 0.1.0 | [`schemas/trace/0.1.0.schema.json`](schemas/trace/0.1.0.schema.json) | [`docs/trace/0.1.0.md`](docs/trace/0.1.0.md) |
+| Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [`docs/trace/legacy.md`](docs/trace/legacy.md) |
+
+Schemas are also published at their canonical `$id` URLs:
+
+* [Trace documents 0.1.0](https://quantinuum.github.io/selene/schemas/trace/0.1.0.schema.json)
+* [Trace (legacy input)](https://quantinuum.github.io/selene/schemas/trace/legacy.schema.json)
+
+Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.md).
+
+## Bindings
+
+* Python: [`python/`](python) publishes the `selene-api-models` distribution and is
+  imported as `selene_api_models`.
+* Rust: [`rust/`](rust) publishes the `selene-api-models` crate.
+* TypeScript: [`typescript/`](typescript) publishes the `@quantinuum/selene-api-models`
+  package.
+
+The binding release process is described in [`docs/publishing.md`](docs/publishing.md).

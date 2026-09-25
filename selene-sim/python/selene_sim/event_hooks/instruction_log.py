@@ -17,6 +17,7 @@ from typing import Any
 import math
 
 from selene_core.trace import (
+    SCHEMA_VERSION,
     Trace,
     GateEvent,
     MeasurementEvent,
@@ -541,7 +542,7 @@ class ShotInstructions:
         This trace may be consumed, analysed, and communicated easily, allowing
         decoupling of simulation itself from analysis and visualization.
         """
-        trace = Trace()
+        trace = Trace(schema_version=SCHEMA_VERSION)
         user_program_event_index = 0
         error_model_event_index = 0
         simulator_event_index = 0

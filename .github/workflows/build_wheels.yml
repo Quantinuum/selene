@@ -10,7 +10,8 @@ on:
       - main
       - 0.3-series
     tags:
-      - "*"
+      - "selene-core-v*"
+      - "selene-sim-v*"
   workflow_dispatch:
 
 permissions:

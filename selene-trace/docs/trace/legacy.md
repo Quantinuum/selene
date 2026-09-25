@@ -1,0 +1,22 @@
+# Legacy trace format
+
+Schema: [`../../schemas/trace/legacy.schema.json`](../../schemas/trace/legacy.schema.json)
+
+Before trace protocol versioning, Selene emitted trace documents without a
+`schema_version`. These documents use JSON integers for indices, qubit IDs,
+timestamps, durations, and `OpaquePayload.tag`.
+
+A missing `schema_version` identifies this format. New producers
+must emit a versioned format. The Python, Rust, and TypeScript model packages
+provide adapters that validate a legacy document and upgrade it to the current
+in-memory model.
+
+The supported legacy schema applies the current JavaScript-safe bounds to
+integer-valued gate parameters and key-value payload values, including arrays:
+`-9007199254740991` through `9007199254740991`. Fractional numbers remain
+supported. Historical traces with values outside those bounds cannot be
+upgraded by these adapters.
+
+Legacy opaque tags may exceed JavaScript's safe integer range. TypeScript
+consumers must pass the original JSON text to `parseTraceJson` to preserve such
+tags; parsing them first with `JSON.parse` loses information irreversibly.
