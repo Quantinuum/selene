@@ -2,8 +2,8 @@ import os
 import platform
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
-import yaml
 
+import yaml
 
 from .exceptions import SeleneRuntimeError
 
@@ -118,12 +118,13 @@ class SeleneProcess:
             "--configuration",
             str(self.run_directory / "configuration.yaml"),
         ]
-        self.process = Popen(
-            argv,
-            stdout=open(self.stdout, "w"),
-            stderr=open(self.stderr, "w"),
-            env=self.get_environment(),
-        )
+        with self.stdout.open("w") as stdout, self.stderr.open("w") as stderr:
+            self.process = Popen(
+                argv,
+                stdout=stdout,
+                stderr=stderr,
+                env=self.get_environment(),
+            )
         return self.process
 
     def wait(self, check_return_code: bool = True):
