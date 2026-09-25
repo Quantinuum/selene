@@ -12,11 +12,14 @@ after_includes = """
  * The accessor form is recommended for portable C and C++ plugins.
  */
 struct SeleneRuntimePluginDescriptorV1;
+struct SeleneRuntimePluginDescriptorV2;
 #ifdef __cplusplus
 extern "C" {
 #endif
 extern const struct SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descriptor_v1;
 const struct SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descriptor_v1(void);
+extern const struct SeleneRuntimePluginDescriptorV2 selene_runtime_plugin_descriptor_v2;
+const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descriptor_v2(void);
 #ifdef __cplusplus
 }
 #endif
@@ -43,6 +46,8 @@ include = [
   "RuntimeExtractOperationInterface",
   "RuntimeExtractOperationInstance",
   "RuntimePluginDescriptorV1",
+  "RuntimePluginDescriptorV2",
+  "RUNTIME_V1_API_VERSION",
 ]
 exclude = [
   "CURRENT_API_VERSION",
@@ -61,6 +66,8 @@ renaming_overrides_prefixing = false
 "RuntimeExtractOperationInterface" = "SeleneRuntimeExtractOperationInterface"
 "RuntimeExtractOperationInstance" = "SeleneRuntimeExtractOperationInstance"
 "RuntimePluginDescriptorV1" = "SeleneRuntimePluginDescriptorV1"
+"RuntimePluginDescriptorV2" = "SeleneRuntimePluginDescriptorV2"
+"RUNTIME_V1_API_VERSION" = "SELENE_RUNTIME_V1_API_VERSION"
 "Errno" = "SeleneErrno"
 "RUNTIME_CURRENT_API_VERSION" = "SELENE_RUNTIME_CURRENT_API_VERSION"
 

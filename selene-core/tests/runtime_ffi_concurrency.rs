@@ -2,7 +2,7 @@
 use anyhow::Result;
 use selene_core::runtime::{
     BatchOperation, Runtime, RuntimeInterface, RuntimeInterfaceFactory,
-    plugin::{RuntimeInstance, RuntimePluginDescriptorV1},
+    plugin::{RuntimeInstanceV2 as RuntimeInstance, RuntimePluginDescriptorV2},
 };
 use selene_core::utils::MetricValue;
 use std::sync::{
@@ -141,7 +141,7 @@ fn inline_adapter_permits_parallel_entry() {
 
 struct Exported {
     instance: RuntimeInstance,
-    descriptor: &'static RuntimePluginDescriptorV1,
+    descriptor: &'static RuntimePluginDescriptorV2,
 }
 // SAFETY: this test owns a live helper-created instance implementing Send + Sync.
 // Scoped workers only invoke shared methods. Lifecycle calls run after joining.
@@ -170,7 +170,7 @@ impl Exported {
 
 #[test]
 fn export_helper_permits_parallel_entry() {
-    let descriptor = unsafe { &*_plugin::selene_runtime_get_plugin_descriptor_v1() };
+    let descriptor = unsafe { &*_plugin::selene_runtime_get_plugin_descriptor_v2() };
     let mut instance = std::ptr::null();
     let args = [];
     unsafe {

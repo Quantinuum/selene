@@ -16,13 +16,13 @@ use std::{ffi, sync::Arc};
 
 /// Shared opaque instance handle. Constness does not imply immutable state;
 /// the plugin synchronizes mutation according to the descriptor contract.
-pub type RuntimeInstance = *const ffi::c_void;
+pub type RuntimeInstanceV2 = *const ffi::c_void;
 
 pub type Errno = i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-/// The C ABI descriptor exported by a runtime plugin.
+/// Concurrent runtime descriptor for API 0.4.x.
 ///
 /// Function pointer fields documented as optional may be null. All other
 /// function pointer fields must be populated.
@@ -50,10 +50,108 @@ pub type Errno = i32;
 /// exclusively accessible for the call; inputs must remain readable and unmodified.
 /// The operation callback handle and its buffers are borrowed only for retrieval
 /// and must not be retained or invoked concurrently by the plugin.
+pub struct RuntimePluginDescriptorV2 {
+    /// Must be `sizeof(SeleneRuntimePluginDescriptorV2)`.
+    pub struct_size: u64,
+    /// Must be `SELENE_RUNTIME_CURRENT_API_VERSION`.
+    pub api_version: u64,
+    pub init_fn: unsafe extern "C" fn(
+        handle: *mut RuntimeInstanceV2,
+        n_qubits: u64,
+        start: u64,
+        argc: u32,
+        argv: *const *const ffi::c_char,
+    ) -> Errno,
+    /// Optional. If null, no plugin-specific cleanup is performed.
+    pub exit_fn: Option<unsafe extern "C" fn(handle: RuntimeInstanceV2) -> Errno>,
+    pub get_next_operations_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, ops: RuntimeGetOperationHandle) -> Errno,
+    pub shot_start_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, shot_id: u64, seed: u64) -> Errno,
+    pub shot_end_fn: unsafe extern "C" fn(handle: RuntimeInstanceV2) -> Errno,
+    /// Optional. A null pointer means the plugin exposes no metrics.
+    pub get_metrics_fn: Option<
+        unsafe extern "C" fn(
+            handle: RuntimeInstanceV2,
+            nth_metric: u8,
+            tag_out: *mut ffi::c_char,
+            datatype_out: *mut u8,
+            value_out: *mut u64,
+        ) -> i32,
+    >,
+    pub qalloc_fn: unsafe extern "C" fn(handle: RuntimeInstanceV2, qaddress_out: *mut u64) -> Errno,
+    pub qfree_fn: unsafe extern "C" fn(handle: RuntimeInstanceV2, qaddress: u64) -> Errno,
+    pub local_barrier_fn: unsafe extern "C" fn(
+        handle: RuntimeInstanceV2,
+        qubits: *const u64,
+        qubits_len: u64,
+        sleep_ns: u64,
+    ) -> Errno,
+    pub global_barrier_fn: unsafe extern "C" fn(handle: RuntimeInstanceV2, sleep_ns: u64) -> Errno,
+    pub rxy_gate_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, qubit: u64, theta: f64, phi: f64) -> Errno,
+    pub rzz_gate_fn: unsafe extern "C" fn(
+        handle: RuntimeInstanceV2,
+        qubit0: u64,
+        qubit1: u64,
+        theta: f64,
+    ) -> Errno,
+    pub rz_gate_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, qubit: u64, theta: f64) -> Errno,
+    pub rpp_gate_fn: unsafe extern "C" fn(
+        handle: RuntimeInstanceV2,
+        qubit0: u64,
+        qubit1: u64,
+        theta: f64,
+        phi: f64,
+    ) -> Errno,
+    pub measure_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, qubit: u64, result_id: *mut u64) -> Errno,
+    pub measure_leaked_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, qubit: u64, result_id: *mut u64) -> Errno,
+    pub reset_fn: unsafe extern "C" fn(handle: RuntimeInstanceV2, qubit: u64) -> Errno,
+    pub force_result_fn: unsafe extern "C" fn(handle: RuntimeInstanceV2, result_id: u64) -> Errno,
+    pub get_bool_result_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, id: u64, result: *mut i8) -> Errno,
+    pub get_u64_result_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, id: u64, result: *mut u64) -> Errno,
+    pub set_bool_result_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, result_id: u64, result: bool) -> Errno,
+    pub set_u64_result_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, result_id: u64, result: u64) -> Errno,
+    pub increment_future_refcount_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, result_id: u64) -> Errno,
+    pub decrement_future_refcount_fn:
+        unsafe extern "C" fn(handle: RuntimeInstanceV2, result_id: u64) -> Errno,
+    /// Optional. A null pointer means custom calls are unsupported.
+    pub custom_call_fn: Option<
+        unsafe extern "C" fn(
+            handle: RuntimeInstanceV2,
+            tag: u64,
+            data: *const ffi::c_void,
+            data_len: usize,
+            result: *mut u64,
+        ) -> Errno,
+    >,
+    /// Optional. A null pointer means simulated delays are unsupported.
+    pub simulate_delay_fn:
+        Option<unsafe extern "C" fn(handle: RuntimeInstanceV2, delay_ns: u64) -> Errno>,
+}
+
+/// Legacy opaque runtime instance (API 0.3.x).
+pub type RuntimeInstance = *mut ffi::c_void;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+/// Legacy runtime descriptor for API 0.3.x. Calls on an instance must be serialized.
+/// The host initializes, calls, and destroys each instance on one owning thread.
+///
+/// Function pointer fields documented as optional may be null. All other
+/// function pointer fields must be populated.
 pub struct RuntimePluginDescriptorV1 {
     /// Must be `sizeof(SeleneRuntimePluginDescriptorV1)`.
     pub struct_size: u64,
-    /// Must be `SELENE_RUNTIME_CURRENT_API_VERSION`.
+    /// Must be `SELENE_RUNTIME_V1_API_VERSION`.
     pub api_version: u64,
     pub init_fn: unsafe extern "C" fn(
         handle: *mut RuntimeInstance,
@@ -137,147 +235,55 @@ pub struct RuntimePluginDescriptorV1 {
         Option<unsafe extern "C" fn(handle: RuntimeInstance, delay_ns: u64) -> Errno>,
 }
 
-/// Provides a runtime engine backend that controls a plugin, in the form of a shared object.
-/// The plugin must expose a struct of type [RuntimePluginDescriptorV1], either as a symbol named
-/// `selene_runtime_plugin_descriptor_v1` or as a pointer returned by a function named
-/// `selene_runtime_get_plugin_descriptor_v1`.
-///
-/// Users should be cautious about the plugins they use, as it is possible that mistakes
-/// or malicious code could be present in the plugin, and as with all external libraries, due
-/// dilligence must be done to verify the source and the trustworthiness of the provider.
+mod legacy;
+
+#[derive(Clone, Copy)]
+enum Descriptor {
+    V1(RuntimePluginDescriptorV1),
+    V2(RuntimePluginDescriptorV2),
+}
+
+/// Loads a runtime shared library. V2 / API 0.4.x plugins are called directly;
+/// V1 / API 0.3.x plugins run on an owning thread through a compatibility adapter.
+/// A descriptor may be exported as data or through its corresponding getter.
+/// V2 is preferred; an invalid advertised v2 interface is an error, not a reason
+/// to fall back to v1. Both variants retain the library for the instance lifetime.
+/// Plugins execute native code and must be trusted by the caller.
 pub struct RuntimePluginInterface {
     _lib: libloading::Library,
-    init_fn: unsafe extern "C" fn(
-        handle: *mut RuntimeInstance,
-        n_qubits: u64,
-        start: u64,
-        argc: u32,
-        argv: *const *const ffi::c_char,
-    ) -> Errno,
-    exit_fn: Option<unsafe extern "C" fn(handle: RuntimeInstance) -> Errno>,
-    get_next_operations_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, ops: RuntimeGetOperationHandle) -> Errno,
-    shot_start_fn: unsafe extern "C" fn(handle: RuntimeInstance, shot_id: u64, seed: u64) -> Errno,
-    shot_end_fn: unsafe extern "C" fn(handle: RuntimeInstance) -> Errno,
-    get_metrics_fn: Option<
-        unsafe extern "C" fn(
-            handle: RuntimeInstance,
-            nth_metric: u8,
-            tag_out: *mut ffi::c_char,
-            datatype_out: *mut u8,
-            value_out: *mut u64,
-        ) -> i32,
-    >,
-    qalloc_fn: unsafe extern "C" fn(handle: RuntimeInstance, qaddress_out: *mut u64) -> Errno,
-    qfree_fn: unsafe extern "C" fn(handle: RuntimeInstance, qaddress: u64) -> Errno,
-    local_barrier_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        qubits: *const u64,
-        qubits_len: u64,
-        sleep_ns: u64,
-    ) -> Errno,
-    global_barrier_fn: unsafe extern "C" fn(handle: RuntimeInstance, sleep_ns: u64) -> Errno,
-    rxy_gate_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, theta: f64, phi: f64) -> Errno,
-    rzz_gate_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        theta: f64,
-    ) -> Errno,
-    rz_gate_fn: unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, theta: f64) -> Errno,
-    rpp_gate_fn: unsafe extern "C" fn(
-        handle: RuntimeInstance,
-        qubit0: u64,
-        qubit1: u64,
-        theta: f64,
-        phi: f64,
-    ) -> Errno,
-    measure_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, result_id: *mut u64) -> Errno,
-    measure_leaked_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64, result_id: *mut u64) -> Errno,
-    reset_fn: unsafe extern "C" fn(handle: RuntimeInstance, qubit: u64) -> Errno,
-    force_result_fn: unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64) -> Errno,
-    get_bool_result_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, id: u64, result: *mut i8) -> Errno,
-    get_u64_result_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, id: u64, result: *mut u64) -> Errno,
-    set_bool_result_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64, result: bool) -> Errno,
-    set_u64_result_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64, result: u64) -> Errno,
-    increment_future_refcount_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64) -> Errno,
-    decrement_future_refcount_fn:
-        unsafe extern "C" fn(handle: RuntimeInstance, result_id: u64) -> Errno,
-    custom_call_fn: Option<
-        unsafe extern "C" fn(
-            handle: RuntimeInstance,
-            tag: u64,
-            data: *const ffi::c_void,
-            data_len: usize,
-            result: *mut u64,
-        ) -> Errno,
-    >,
-    simulate_delay_fn:
-        Option<unsafe extern "C" fn(handle: RuntimeInstance, delay_ns: u64) -> Errno>,
+    descriptor: Descriptor,
 }
 
 impl RuntimePluginInterface {
-    /// Loads a runtime plugin from a file.
     pub fn new_from_file(plugin_file: impl AsRef<OsStr>) -> Result<Arc<Self>> {
-        let lib = unsafe { libloading::Library::new(plugin_file.as_ref()) }.map_err(|e| {
-            anyhow!(
-                "Failed to load runtime plugin: {}. Error: {}",
-                plugin_file.as_ref().to_string_lossy(),
-                e
-            )
-        })?;
+        let lib = unsafe { libloading::Library::new(plugin_file.as_ref()) }?;
         let descriptor = unsafe {
-            load_plugin_descriptor::<RuntimePluginDescriptorV1>(
+            if let Some(descriptor) = load_plugin_descriptor::<RuntimePluginDescriptorV2>(
+                &lib,
+                b"selene_runtime_plugin_descriptor_v2",
+                b"selene_runtime_get_plugin_descriptor_v2",
+                "Runtime v2",
+            )? {
+                RuntimeAPIVersion::from(descriptor.api_version).validate()?;
+                Descriptor::V2(descriptor)
+            } else if let Some(descriptor) = load_plugin_descriptor::<RuntimePluginDescriptorV1>(
                 &lib,
                 b"selene_runtime_plugin_descriptor_v1",
                 b"selene_runtime_get_plugin_descriptor_v1",
-                "Runtime",
-            )?
+                "Runtime v1",
+            )? {
+                RuntimeAPIVersion::from(descriptor.api_version).validate_v1()?;
+                Descriptor::V1(descriptor)
+            } else {
+                return Err(anyhow!(
+                    "Runtime plugin '{}' exports neither a v2 nor a v1 descriptor or getter",
+                    plugin_file.as_ref().to_string_lossy()
+                ));
+            }
         };
-        let descriptor = descriptor.ok_or_else(|| {
-            anyhow!(
-                "Runtime plugin '{}' does not expose either selene_runtime_plugin_descriptor_v1 or selene_runtime_get_plugin_descriptor_v1",
-                plugin_file.as_ref().to_string_lossy()
-            )
-        })?;
-        let version: RuntimeAPIVersion = descriptor.api_version.into();
-        version.validate()?;
         Ok(Arc::new(Self {
             _lib: lib,
-            init_fn: descriptor.init_fn,
-            exit_fn: descriptor.exit_fn,
-            get_next_operations_fn: descriptor.get_next_operations_fn,
-            shot_start_fn: descriptor.shot_start_fn,
-            shot_end_fn: descriptor.shot_end_fn,
-            get_metrics_fn: descriptor.get_metrics_fn,
-            qalloc_fn: descriptor.qalloc_fn,
-            qfree_fn: descriptor.qfree_fn,
-            local_barrier_fn: descriptor.local_barrier_fn,
-            global_barrier_fn: descriptor.global_barrier_fn,
-            rxy_gate_fn: descriptor.rxy_gate_fn,
-            rzz_gate_fn: descriptor.rzz_gate_fn,
-            rz_gate_fn: descriptor.rz_gate_fn,
-            rpp_gate_fn: descriptor.rpp_gate_fn,
-            measure_fn: descriptor.measure_fn,
-            measure_leaked_fn: descriptor.measure_leaked_fn,
-            reset_fn: descriptor.reset_fn,
-            force_result_fn: descriptor.force_result_fn,
-            get_bool_result_fn: descriptor.get_bool_result_fn,
-            get_u64_result_fn: descriptor.get_u64_result_fn,
-            set_bool_result_fn: descriptor.set_bool_result_fn,
-            set_u64_result_fn: descriptor.set_u64_result_fn,
-            increment_future_refcount_fn: descriptor.increment_future_refcount_fn,
-            decrement_future_refcount_fn: descriptor.decrement_future_refcount_fn,
-            custom_call_fn: descriptor.custom_call_fn,
-            simulate_delay_fn: descriptor.simulate_delay_fn,
+            descriptor,
         }))
     }
 }
@@ -291,41 +297,93 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
         start: crate::time::Instant,
         args: &[impl AsRef<str>],
     ) -> Result<Box<Self::Interface>> {
-        let mut instance = std::ptr::null();
-        with_strings_to_cargs(args, |argc, argv| {
-            check_errno(
-                unsafe { (self.init_fn)(&mut instance, n_qubits, start.into(), argc, argv) },
-                || anyhow!("RuntimePluginInterface: init failed"),
-            )
-        })?;
-        Ok(Box::new(RuntimePlugin {
-            interface: self.clone(),
-            instance,
-            retrieval: parking_lot::Mutex::new(()),
-            access: parking_lot::RwLock::new(()),
-        }))
+        let inner: Box<dyn RuntimeInterface> = match self.descriptor {
+            Descriptor::V1(descriptor) => Box::new(legacy::LegacyRuntime::new(
+                self, descriptor, n_qubits, start, args,
+            )?),
+            Descriptor::V2(descriptor) => {
+                let mut instance = std::ptr::null();
+                with_strings_to_cargs(args, |argc, argv| {
+                    check_errno(
+                        unsafe {
+                            (descriptor.init_fn)(&mut instance, n_qubits, start.into(), argc, argv)
+                        },
+                        || anyhow!("RuntimePluginInterface: init failed"),
+                    )
+                })?;
+                Box::new(ConcurrentRuntimePlugin {
+                    _interface: self,
+                    descriptor,
+                    instance,
+                    retrieval: parking_lot::Mutex::new(()),
+                    access: parking_lot::RwLock::new(()),
+                })
+            }
+        };
+        Ok(Box::new(RuntimePlugin { inner }))
     }
 }
 
+/// A loaded runtime instance implementing the current trait for either ABI.
+///
+/// Calls to legacy instances block for a reply from their owning thread. Slice
+/// inputs are copied; returned batches own their operations and buffers.
+/// Legacy cleanup runs at most once, on explicit exit or when this wrapper is
+/// dropped; subsequent calls after explicit exit return an error.
 pub struct RuntimePlugin {
-    interface: Arc<RuntimePluginInterface>,
-    instance: RuntimeInstance,
+    inner: Box<dyn RuntimeInterface>,
+}
+
+impl RuntimeInterface for RuntimePlugin {
+    delegate::delegate! {
+        to self.inner {
+            fn exit(&self) -> Result<()>;
+            fn get_next_operations(&self) -> Result<Option<BatchOperation>>;
+            fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()>;
+            fn shot_end(&self) -> Result<()>;
+            fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>>;
+            fn qalloc(&self) -> Result<u64>;
+            fn qfree(&self, qubit_id: u64) -> Result<()>;
+            fn global_barrier(&self, sleep_ns: u64) -> Result<()>;
+            fn local_barrier(&self, qubit_ids: &[u64], sleep_ns: u64) -> Result<()>;
+            fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()>;
+            fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()>;
+            fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()>;
+            fn rpp_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()>;
+            fn measure(&self, qubit_id: u64) -> Result<u64>;
+            fn measure_leaked(&self, qubit_id: u64) -> Result<u64>;
+            fn reset(&self, qubit_id: u64) -> Result<()>;
+            fn force_result(&self, result_id: u64) -> Result<()>;
+            fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>>;
+            fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>>;
+            fn set_bool_result(&self, result_id: u64, result: bool) -> Result<()>;
+            fn set_u64_result(&self, result_id: u64, result: u64) -> Result<()>;
+            fn increment_future_refcount(&self, future_ref: u64) -> Result<()>;
+            fn decrement_future_refcount(&self, future_ref: u64) -> Result<()>;
+            fn custom_call(&self, custom_tag: u64, data: &[u8]) -> Result<u64>;
+            fn simulate_delay(&self, delay_ns: u64) -> Result<()>;
+        }
+    }
+}
+
+struct ConcurrentRuntimePlugin {
+    _interface: Arc<RuntimePluginInterface>,
+    descriptor: RuntimePluginDescriptorV2,
+    instance: RuntimeInstanceV2,
     retrieval: parking_lot::Mutex<()>,
-    // Readers are operational calls; lifecycle/metrics take exclusive access.
     access: parking_lot::RwLock<()>,
 }
 
-// SAFETY: the loader accepts only the API version requiring same-instance thread
-// safety. The Arc keeps the library loaded. The access lock enforces per-call
-// lifecycle/metrics exclusion; retrieval is serialized separately. Other
-// operational calls rely on the plugin contract.
-unsafe impl Send for RuntimePlugin {}
-unsafe impl Sync for RuntimePlugin {}
+// SAFETY: only v2 descriptors with the concurrent API contract reach this type.
+// The Arc keeps the library loaded; locks exclude lifecycle/metric calls and
+// serialize retrieval. Other operational calls rely on the plugin contract.
+unsafe impl Send for ConcurrentRuntimePlugin {}
+unsafe impl Sync for ConcurrentRuntimePlugin {}
 
-impl RuntimeInterface for RuntimePlugin {
+impl RuntimeInterface for ConcurrentRuntimePlugin {
     fn exit(&self) -> Result<()> {
         let _access = self.access.write();
-        let Some(exit_fn) = self.interface.exit_fn else {
+        let Some(exit_fn) = self.descriptor.exit_fn else {
             return Ok(());
         };
         check_errno(unsafe { exit_fn(self.instance) }, || {
@@ -342,7 +400,7 @@ impl RuntimeInterface for RuntimePlugin {
         let mut batch_builder = BatchBuilder::default();
         let ops = batch_builder.runtime_get_operation();
         check_errno(
-            unsafe { (self.interface.get_next_operations_fn)(self.instance, ops) },
+            unsafe { (self.descriptor.get_next_operations_fn)(self.instance, ops) },
             || anyhow!("RuntimePlugin: get_next_operations failed"),
         )?;
         Ok(Some(batch_builder.finish()).filter(|b| !b.is_empty()))
@@ -351,7 +409,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()> {
         let _access = self.access.write();
         check_errno(
-            unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
+            unsafe { (self.descriptor.shot_start_fn)(self.instance, shot_id, seed) },
             || anyhow!("RuntimePlugin: shot_start failed"),
         )
     }
@@ -359,14 +417,14 @@ impl RuntimeInterface for RuntimePlugin {
     fn shot_end(&self) -> Result<()> {
         let _access = self.access.write();
         check_errno(
-            unsafe { (self.interface.shot_end_fn)(self.instance) },
+            unsafe { (self.descriptor.shot_end_fn)(self.instance) },
             || anyhow!("RuntimePlugin: shot_end failed"),
         )
     }
 
     fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         let _access = self.access.write();
-        let Some(get_metrics_fn) = self.interface.get_metrics_fn else {
+        let Some(get_metrics_fn) = self.descriptor.get_metrics_fn else {
             return Ok(None);
         };
         read_raw_metric(|tag, data_type, data| unsafe {
@@ -379,7 +437,7 @@ impl RuntimeInterface for RuntimePlugin {
         let mut result = 0;
         let result_ref = &mut result;
         check_errno(
-            unsafe { (self.interface.qalloc_fn)(self.instance, result_ref as *mut _) },
+            unsafe { (self.descriptor.qalloc_fn)(self.instance, result_ref as *mut _) },
             || anyhow!("RuntimePlugin: qalloc failed"),
         )?;
         Ok(result)
@@ -388,7 +446,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn qfree(&self, qubit_id: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.qfree_fn)(self.instance, qubit_id) },
+            unsafe { (self.descriptor.qfree_fn)(self.instance, qubit_id) },
             || anyhow!("RuntimePlugin: qfree failed"),
         )
     }
@@ -396,7 +454,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn global_barrier(&self, sleep_ns: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.global_barrier_fn)(self.instance, sleep_ns) },
+            unsafe { (self.descriptor.global_barrier_fn)(self.instance, sleep_ns) },
             || anyhow!("RuntimePlugin: global barrier failed"),
         )
     }
@@ -407,7 +465,7 @@ impl RuntimeInterface for RuntimePlugin {
         let qubit_ids_ptr = qubit_ids.as_ptr();
         check_errno(
             unsafe {
-                (self.interface.local_barrier_fn)(
+                (self.descriptor.local_barrier_fn)(
                     self.instance,
                     qubit_ids_ptr,
                     qubit_ids_len,
@@ -421,7 +479,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.rxy_gate_fn)(self.instance, qubit_id, theta, phi) },
+            unsafe { (self.descriptor.rxy_gate_fn)(self.instance, qubit_id, theta, phi) },
             || anyhow!("RuntimePlugin: rxy_gate failed"),
         )
     }
@@ -429,7 +487,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.rzz_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta) },
+            unsafe { (self.descriptor.rzz_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta) },
             || anyhow!("RuntimePlugin: rzz_gate failed"),
         )
     }
@@ -437,7 +495,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.rz_gate_fn)(self.instance, qubit_id, theta) },
+            unsafe { (self.descriptor.rz_gate_fn)(self.instance, qubit_id, theta) },
             || anyhow!("RuntimePlugin: rz_gate failed"),
         )
     }
@@ -446,7 +504,7 @@ impl RuntimeInterface for RuntimePlugin {
         let _access = self.access.read();
         check_errno(
             unsafe {
-                (self.interface.rpp_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta, phi)
+                (self.descriptor.rpp_gate_fn)(self.instance, qubit_id_1, qubit_id_2, theta, phi)
             },
             || anyhow!("RuntimePlugin: rpp_gate failed"),
         )
@@ -457,7 +515,7 @@ impl RuntimeInterface for RuntimePlugin {
         let mut result = 0;
         let result_ref = &mut result;
         check_errno(
-            unsafe { (self.interface.measure_fn)(self.instance, qubit_id, result_ref as *mut _) },
+            unsafe { (self.descriptor.measure_fn)(self.instance, qubit_id, result_ref as *mut _) },
             || anyhow!("RuntimePlugin: measure failed"),
         )?;
         Ok(result)
@@ -469,7 +527,7 @@ impl RuntimeInterface for RuntimePlugin {
         let result_ref = &mut result;
         check_errno(
             unsafe {
-                (self.interface.measure_leaked_fn)(self.instance, qubit_id, result_ref as *mut _)
+                (self.descriptor.measure_leaked_fn)(self.instance, qubit_id, result_ref as *mut _)
             },
             || anyhow!("RuntimePlugin: measure failed"),
         )?;
@@ -479,7 +537,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn reset(&self, qubit_id: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.reset_fn)(self.instance, qubit_id) },
+            unsafe { (self.descriptor.reset_fn)(self.instance, qubit_id) },
             || anyhow!("RuntimePlugin: reset failed"),
         )
     }
@@ -487,7 +545,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn force_result(&self, result_id: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.force_result_fn)(self.instance, result_id) },
+            unsafe { (self.descriptor.force_result_fn)(self.instance, result_id) },
             || anyhow!("RuntimePlugin: force_result failed"),
         )
     }
@@ -498,7 +556,7 @@ impl RuntimeInterface for RuntimePlugin {
         let result_ref = &mut result;
         check_errno(
             unsafe {
-                (self.interface.get_bool_result_fn)(self.instance, result_id, result_ref as *mut _)
+                (self.descriptor.get_bool_result_fn)(self.instance, result_id, result_ref as *mut _)
             },
             || anyhow!("RuntimePlugin: get_bool_result failed"),
         )?;
@@ -516,7 +574,11 @@ impl RuntimeInterface for RuntimePlugin {
         let result_ref = &mut result;
         check_errno(
             unsafe {
-                (self.interface.get_u64_result_fn)(self.instance, result_id, result_ref as *mut u64)
+                (self.descriptor.get_u64_result_fn)(
+                    self.instance,
+                    result_id,
+                    result_ref as *mut u64,
+                )
             },
             || anyhow!("RuntimePlugin: get_u64_result failed"),
         )?;
@@ -530,7 +592,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn set_bool_result(&self, result_id: u64, result: bool) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.set_bool_result_fn)(self.instance, result_id, result) },
+            unsafe { (self.descriptor.set_bool_result_fn)(self.instance, result_id, result) },
             || anyhow!("RuntimePlugin: set_bool_result failed"),
         )
     }
@@ -538,7 +600,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn set_u64_result(&self, result_id: u64, result: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.set_u64_result_fn)(self.instance, result_id, result) },
+            unsafe { (self.descriptor.set_u64_result_fn)(self.instance, result_id, result) },
             || anyhow!("RuntimePlugin: set_u64_result failed"),
         )
     }
@@ -546,7 +608,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn increment_future_refcount(&self, future_ref: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.increment_future_refcount_fn)(self.instance, future_ref) },
+            unsafe { (self.descriptor.increment_future_refcount_fn)(self.instance, future_ref) },
             || anyhow!("RuntimePlugin: increment_future_refcount failed"),
         )
     }
@@ -554,7 +616,7 @@ impl RuntimeInterface for RuntimePlugin {
     fn decrement_future_refcount(&self, future_ref: u64) -> Result<()> {
         let _access = self.access.read();
         check_errno(
-            unsafe { (self.interface.decrement_future_refcount_fn)(self.instance, future_ref) },
+            unsafe { (self.descriptor.decrement_future_refcount_fn)(self.instance, future_ref) },
             || anyhow!("RuntimePlugin: decrement_future_refcount failed"),
         )
     }
@@ -563,7 +625,7 @@ impl RuntimeInterface for RuntimePlugin {
         let _access = self.access.read();
         let mut result = 0;
         let result_ref = &mut result;
-        if let Some(custom_call_fn) = self.interface.custom_call_fn {
+        if let Some(custom_call_fn) = self.descriptor.custom_call_fn {
             check_errno(
                 unsafe {
                     custom_call_fn(
@@ -586,7 +648,7 @@ impl RuntimeInterface for RuntimePlugin {
 
     fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
         let _access = self.access.read();
-        if let Some(simulate_delay_fn) = self.interface.simulate_delay_fn {
+        if let Some(simulate_delay_fn) = self.descriptor.simulate_delay_fn {
             check_errno(
                 unsafe { simulate_delay_fn(self.instance, delay_ns) },
                 || anyhow!("RuntimePlugin: simulate_delay failed"),

@@ -1,6 +1,6 @@
 use super::{
     RuntimeInterface,
-    plugin::{Errno, RuntimeInstance},
+    plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance},
 };
 use crate::{
     operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface},
@@ -11,7 +11,7 @@ use std::{ffi, marker::PhantomData};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-/// Borrowed raw interface. Calls follow RuntimePluginDescriptorV1's concurrency
+/// Borrowed raw interface. Calls follow RuntimePluginDescriptorV2's concurrency
 /// and buffer-lifetime contract. The owner must outlive every use of this handle.
 pub struct RuntimeHandle<'a> {
     pub instance: RuntimeInstance,

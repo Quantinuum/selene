@@ -61,12 +61,14 @@ way that prevents the consumer from retrieving work or publishing that result.
 
 ## Interface changes
 
-- Change the opaque `RuntimeInstance` from `*mut c_void` to `*const c_void`, with
-  the corresponding const pointee in the generated C header.
-- Preserve mutable output pointers, including `init`'s `*mut RuntimeInstance`
+- Preserve the v1 / API 0.3.x descriptor and its `RuntimeInstance` (`*mut c_void`).
+  Add a v2 / API 0.4.x descriptor using `RuntimeInstanceV2` (`*const c_void`).
+  Prefer v2 at load time; adapt v1 through a thread that owns the instance from
+  initialization through cleanup, serializing calls without moving its state.
+- Preserve mutable output pointers, including v2 `init`'s `*mut RuntimeInstanceV2`
   and result/metric output buffers. This is not a blanket conversion of all
   pointers to const.
-- Apply the instance-pointer change consistently to the plugin descriptor,
+- Apply the v2 instance-pointer type consistently to the concurrent descriptor,
   loaded plugin wrapper, inline operation interface, adapter, and export helper.
 - Use shared Rust receivers for every method, including lifecycle and metrics,
   and require `Send + Sync`. Implementors synchronize mutable state internally.

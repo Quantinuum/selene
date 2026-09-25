@@ -43,8 +43,11 @@ pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     patch: 0,
 };
 
-/// The current runtime plugin API version, packed for the C descriptor ABI.
+/// API version for concurrent v2 runtime descriptors, packed for the C ABI.
 pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0400;
+
+/// API version for legacy v1 runtime descriptors.
+pub const RUNTIME_V1_API_VERSION: u64 = 0x0000_0300;
 
 // CHANGELOG:
 // 0.4.0: Shared instance pointers and same-instance operational thread safety.
@@ -60,12 +63,14 @@ impl RuntimeAPIVersion {
     }
 
     pub fn validate(&self) -> Result<()> {
-        // Note: this is a naive check at the moment, as we have not introduced a breaking
-        // change since versioning was introduced. This logic should evolve as and when
-        // changes occur.
-        //
-        // As such, this is mostly a sketch of what the logic may look like.
-        //
+        self.validate_minor(CURRENT_API_VERSION.minor)
+    }
+
+    pub(crate) fn validate_v1(&self) -> Result<()> {
+        self.validate_minor(3)
+    }
+
+    fn validate_minor(&self, expected_minor: u8) -> Result<()> {
         // Reserved must be 0. We may want to attribute meaning to this one day.
         if self.reserved != 0 {
             return Err(anyhow!(
@@ -83,10 +88,10 @@ impl RuntimeAPIVersion {
         }
         // If the minor version is different, the plugin is likely incompatible. This function
         // should be updated to reflect the actual changes in the API. For now we reject.
-        if self.minor != CURRENT_API_VERSION.minor {
+        if self.minor != expected_minor {
             return Err(anyhow!(
-                "Runtime API minor version must be the same as Selene's Runtime API minor version ({}), got {}",
-                CURRENT_API_VERSION.minor,
+                "Runtime API minor version must match the descriptor contract ({}), got {}",
+                expected_minor,
                 self.minor
             ));
         }
@@ -108,6 +113,12 @@ mod tests {
     fn rejects_runtime_without_thread_safety_contract() {
         assert!(RuntimeAPIVersion::from(0x0000_0300).validate().is_err());
         assert!(CURRENT_API_VERSION.validate().is_ok());
+        assert!(
+            RuntimeAPIVersion::from(RUNTIME_V1_API_VERSION)
+                .validate_v1()
+                .is_ok()
+        );
+        assert!(CURRENT_API_VERSION.validate_v1().is_err());
     }
 
     #[test]

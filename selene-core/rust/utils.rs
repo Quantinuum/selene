@@ -31,9 +31,12 @@ pub(crate) unsafe fn load_plugin_descriptor<T: Copy>(
                 .map(|accessor| unsafe { accessor() })
         };
 
-    let Some(descriptor_ptr) = descriptor_ptr.filter(|ptr| !ptr.is_null()) else {
+    let Some(descriptor_ptr) = descriptor_ptr else {
         return Ok(None);
     };
+    if descriptor_ptr.is_null() {
+        bail!("{plugin_kind} plugin descriptor getter returned null");
+    }
 
     unsafe { copy_plugin_descriptor(descriptor_ptr, plugin_kind) }.map(Some)
 }
@@ -49,7 +52,7 @@ unsafe fn copy_plugin_descriptor<T: Copy>(
     let expected_size = core::mem::size_of::<T>() as u64;
     if struct_size < expected_size {
         bail!(
-            "{plugin_kind} plugin descriptor is too small for v1 ABI: expected at least {expected_size} bytes, got {struct_size}"
+            "{plugin_kind} plugin descriptor is too small for requested ABI: expected at least {expected_size} bytes, got {struct_size}"
         );
     }
 
