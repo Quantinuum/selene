@@ -1,11 +1,12 @@
-import subprocess
-import shutil
-import sys
-import os
-from packaging.tags import sys_tags
-from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-from pathlib import Path
 import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+from packaging.tags import sys_tags
 
 
 class CargoWorkspaceBuild:
@@ -253,8 +254,9 @@ class UtilitiesBuild:
 
 
 class HugrenvTools:
-    def __init__(self, hook: "BundleBuildHook") -> None:
+    def __init__(self, hook: "BundleBuildHook", editable: bool = False) -> None:
         self.hook = hook
+        self.editable = editable
         assert "HUGRENV_PATH" in os.environ, (
             "HUGRENV_PATH environment variable is not set. This is required for bundling Hugrenv tools into selene's _dist directory."
         )
@@ -289,10 +291,14 @@ class HugrenvTools:
             Path(self.hook.root) / f"selene-sim/python/selene_sim/_dist/{directory}"
         )
         dist_dir.mkdir(parents=True, exist_ok=True)
-        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
-        shutil.copy(artifact_path, dist_dir)
+        self.hook.app.display_info(f"Installing {artifact_path} in {dist_dir}")
         dist_path = dist_dir / name
-        dist_path.chmod(0o755)
+        dist_path.unlink(missing_ok=True)
+        if self.editable and sys.platform == "darwin":
+            dist_path.symlink_to(artifact_path)
+        else:
+            shutil.copy(artifact_path, dist_path)
+            dist_path.chmod(0o755)
 
     def extract_binary(self, name):
         if sys.platform == "win32":
@@ -346,7 +352,7 @@ class BundleBuildHook(BuildHookInterface):
         utilities_builder = UtilitiesBuild(self)
         utilities_builder.build_all()
         utilities_builder.extract_libs()
-        hugrenv_tools = HugrenvTools(self)
+        hugrenv_tools = HugrenvTools(self, editable=version == "editable")
         hugrenv_tools.extract()
 
         packages = [Path("selene-sim/python/selene_sim")]
