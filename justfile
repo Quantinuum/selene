@@ -1,42 +1,23 @@
 develop:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source scripts/hugrenv-env.sh
-    if [[ "$(uname -s)" == "Darwin" && -f selene-sim/python/selene_sim/_dist/bin/llvm-symbolizer && ! -L selene-sim/python/selene_sim/_dist/bin/llvm-symbolizer ]]; then
-        uv sync --reinstall-package selene-sim
-    else
-        uv sync
-    fi
+    # Refresh editable LLVM links when the local installation changes.
+    uv sync --reinstall-package selene-sim
 
 clean-artifacts:
     rm -rf **/_dist
     find . -wholename "*/c/build" -type d -exec rm -rf {} \;
 
 build-wheels:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source scripts/hugrenv-env.sh
-    if [[ "${SELENE_HUGRENV_FROM_HOMEBREW:-}" == 1 ]]; then
-        echo "Local Homebrew LLVM tools depend on Homebrew libraries; use a portable HUGRENV_PATH for distributable wheels." >&2
-    fi
     uv build --all-packages
 
 test-py *TEST_ARGS: develop
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source scripts/hugrenv-env.sh
     uv run pytest {{TEST_ARGS}}
 
 test-rs *TEST_ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source scripts/hugrenv-env.sh
     uv run cargo test {{TEST_ARGS}}
 
 nitpicks:
     #!/usr/bin/env bash
     set -euo pipefail
-    source scripts/hugrenv-env.sh
     cargo fmt --all -- --check
     cargo clippy --all --all-features -- -D warnings
     RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps --all-features
@@ -100,7 +81,6 @@ generate-bindings: generate-selene-core-headers generate-selene-sim-bindings
 build-ci:
     #!/usr/bin/env bash
     set -euo pipefail
-    source scripts/hugrenv-env.sh
     mkdir -p /tmp/ci-cache
     export CACHE_CARGO=true
     uv build --package selene-core --out-dir wheelhouse

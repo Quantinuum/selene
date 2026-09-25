@@ -67,7 +67,7 @@ required:
 
 The build bundles LLVM tools for stack traces. Outside the devenv shell, set
 `HUGRENV_PATH` to an LLVM installation containing `bin/llvm-symbolizer` (and
-`bin/dsymutil` on macOS). On macOS, the `just` recipes use Homebrew's `llvm`
+`bin/dsymutil` on macOS). On macOS, the build hook uses Homebrew's `llvm`
 installation automatically when `HUGRENV_PATH` is unset. Homebrew's binaries
 depend on libraries outside the generated wheel, so set `HUGRENV_PATH` to a
 portable Hugrenv installation when building wheels for distribution.

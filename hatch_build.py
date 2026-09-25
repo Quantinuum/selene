@@ -257,10 +257,35 @@ class HugrenvTools:
     def __init__(self, hook: "BundleBuildHook", editable: bool = False) -> None:
         self.hook = hook
         self.editable = editable
-        assert "HUGRENV_PATH" in os.environ, (
-            "HUGRENV_PATH environment variable is not set. This is required for bundling Hugrenv tools into selene's _dist directory."
+        hugrenv_path = os.environ.get("HUGRENV_PATH")
+        if not hugrenv_path and sys.platform == "darwin":
+            brew = shutil.which("brew")
+            if brew:
+                result = subprocess.run(
+                    [brew, "--prefix", "llvm"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    candidate = Path(result.stdout.strip())
+                    if all(
+                        (candidate / "bin" / name).is_file()
+                        for name in ("llvm-symbolizer", "dsymutil")
+                    ):
+                        hugrenv_path = str(candidate)
+                        if not editable:
+                            self.hook.app.display_info(
+                                "Using Homebrew LLVM tools for a local build; "
+                                "set HUGRENV_PATH to portable tools for distribution."
+                            )
+        assert hugrenv_path, (
+            "HUGRENV_PATH is not set and no Homebrew LLVM installation was found. "
+            "This is required for bundling LLVM tools into selene's _dist directory."
         )
-        self.hugrenv_path = Path(os.environ["HUGRENV_PATH"])
+        self.hugrenv_path = Path(hugrenv_path)
+        if not self.hugrenv_path.is_absolute():
+            self.hugrenv_path = Path(self.hook.root) / self.hugrenv_path
         self.is_cibw_host_path = str(self.hugrenv_path).startswith("/host/")
         assert self.hugrenv_path.is_dir(), (
             f"HUGRENV_PATH ('{self.hugrenv_path}') does not exist or is not a directory as required."
