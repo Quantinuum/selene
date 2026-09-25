@@ -10,30 +10,40 @@
 #include <stdlib.h>
 #include "selene/core_types.h"
 /**
- * A runtime plugin must export either this descriptor symbol or the accessor below.
- * The accessor form is recommended for portable C and C++ plugins.
+ * New runtime plugins export the v2 descriptor or its getter function below.
+ * The getter is recommended for portable C and C++ plugins. The v1 declarations
+ * are kept for plugins built against API 0.3.x.
  */
 struct SeleneRuntimePluginDescriptorV1;
+struct SeleneRuntimePluginDescriptorV2;
 #ifdef __cplusplus
 extern "C" {
 #endif
 extern const struct SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descriptor_v1;
 const struct SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descriptor_v1(void);
+extern const struct SeleneRuntimePluginDescriptorV2 selene_runtime_plugin_descriptor_v2;
+const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descriptor_v2(void);
 #ifdef __cplusplus
 }
 #endif
 
 
 /**
- * The current runtime plugin API version, packed for the C descriptor ABI.
+ * API version for concurrent v2 runtime descriptors, packed for the C ABI.
  */
 #define SELENE_RUNTIME_CURRENT_API_VERSION 1024
 
 /**
+ * API version for legacy v1 runtime descriptors.
+ */
+#define SELENE_RUNTIME_V1_API_VERSION 768
+
+/**
  * A decomposed runtime API version.
  *
- * Plugin descriptors use the packed `SELENE_RUNTIME_CURRENT_API_VERSION`
- * integer rather than this structure.
+ * Use this to inspect the version's individual fields. Plugin descriptors
+ * store a packed integer: `SELENE_RUNTIME_CURRENT_API_VERSION` for v2, or
+ * `SELENE_RUNTIME_V1_API_VERSION` for v1.
  */
 typedef struct SeleneRuntimeAPIVersion {
   /**
@@ -113,40 +123,18 @@ typedef struct RuntimeExtractOperationHandle {
 } RuntimeExtractOperationHandle;
 
 /**
- * Shared opaque instance handle. Constness does not imply immutable state;
- * the plugin synchronizes mutation according to the descriptor contract.
+ * Legacy opaque runtime instance (API 0.3.x).
  */
-typedef const void *RuntimeInstance;
+typedef void *RuntimeInstance;
 
 /**
- * The C ABI descriptor exported by a runtime plugin.
+ * The function table used by older runtime plugins, built for API 0.3.x.
+ *
+ * The host gives each instance its own thread. Initialization, every call, and
+ * cleanup happen on that thread, so calls on an instance never overlap.
  *
  * Function pointer fields documented as optional may be null. All other
  * function pointer fields must be populated.
- *
- * # Concurrency and safety
- *
- * All operational functions must be safe to call concurrently on the same
- * instance and across instances. This includes allocation, gates, measurements,
- * barriers, delays, custom calls, forcing, result access/publication, and reference
- * counts. The plugin is responsible for synchronizing its mutable state.
- *
- * One consumer retrieves and executes batches in order and publishes results;
- * retrieval may overlap user calls. After force_result_fn succeeds, draining must
- * expose the work needed for that result unless already dispatched or resolved.
- * Concurrent submissions must not indefinitely postpone it. Executing the work
- * and publishing its results makes the result getter report availability; an
- * empty batch alone does not prove a dispatched result has been published.
- *
- * Initialization completes before sharing the instance. The caller excludes all
- * other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
- * entire get_metrics_fn enumeration. Only these calls may access state exclusively.
- * No runtime lock may block the consumer while a user waits for a result.
- *
- * Handles must remain live throughout calls. Output buffers must be writable and
- * exclusively accessible for the call; inputs must remain readable and unmodified.
- * The operation callback handle and its buffers are borrowed only for retrieval
- * and must not be retained or invoked concurrently by the plugin.
  */
 typedef struct SeleneRuntimePluginDescriptorV1 {
   /**
@@ -154,7 +142,7 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
    */
   uint64_t struct_size;
   /**
-   * Must be `SELENE_RUNTIME_CURRENT_API_VERSION`.
+   * Must be `SELENE_RUNTIME_V1_API_VERSION`.
    */
   uint64_t api_version;
   SeleneErrno (*init_fn)(RuntimeInstance *handle,
@@ -246,5 +234,152 @@ typedef struct SeleneRuntimePluginDescriptorV1 {
   SeleneErrno (*simulate_delay_fn)(RuntimeInstance handle,
                                    uint64_t delay_ns);
 } SeleneRuntimePluginDescriptorV1;
+
+/**
+ * A handle that lets several threads call the same runtime instance.
+ *
+ * The pointer is const because access is shared. The runtime can still change
+ * its state, but the plugin must synchronize those changes itself.
+ */
+typedef const void *RuntimeInstanceV2;
+
+/**
+ * The function table a runtime plugin exports for API 0.4.x.
+ *
+ * Fill in every function pointer unless its documentation marks it optional.
+ * Optional function pointers may be null.
+ *
+ * # Concurrency and safety
+ *
+ * Several threads can submit operations to the same instance at once. The
+ * plugin must synchronize allocation, gates, measurements, barriers, delays,
+ * custom calls, result forcing, result reads and writes, and reference counts.
+ * Calls on separate instances must also be safe to run concurrently.
+ *
+ * The host collects batches, executes them in order, and writes back results.
+ * One thread does this work, which we call the consumer. User threads can keep
+ * calling the runtime while it does this. After `force_result_fn` succeeds,
+ * collecting batches must let the consumer reach the work needed for that
+ * result. New submissions must not
+ * postpone that work indefinitely. The work may already be with the consumer,
+ * or its result may already be ready.
+ *
+ * Once the consumer has executed the work and written back its result, the
+ * result getter must report that value as available. An empty batch only means
+ * there is no more work to collect right now. The consumer may still be working
+ * on an earlier batch. Never wait for a result while holding a runtime lock
+ * that the consumer needs to produce it.
+ *
+ * Finish initialization before sharing the instance. The host must pause all
+ * other calls during `shot_start_fn`, `shot_end_fn`, and `exit_fn`. It must also
+ * keep the instance idle throughout a whole `get_metrics_fn` enumeration,
+ * including between calls for individual metrics. Only these calls can assume
+ * they have exclusive access to the instance.
+ *
+ * Keep the instance alive until every call has finished. Input buffers must
+ * stay readable and unchanged for the duration of their call. Output buffers
+ * must be writable, and no other call may access them at the same time.
+ * The plugin may use the operation callback handle and its buffers only while
+ * retrieving a batch. It must not keep them afterwards or invoke callbacks
+ * concurrently.
+ */
+typedef struct SeleneRuntimePluginDescriptorV2 {
+  /**
+   * Must be `sizeof(SeleneRuntimePluginDescriptorV2)`.
+   */
+  uint64_t struct_size;
+  /**
+   * Must be `SELENE_RUNTIME_CURRENT_API_VERSION`.
+   */
+  uint64_t api_version;
+  SeleneErrno (*init_fn)(RuntimeInstanceV2 *handle,
+                         uint64_t n_qubits,
+                         uint64_t start,
+                         uint32_t argc,
+                         const char *const *argv);
+  /**
+   * Optional. If null, no plugin-specific cleanup is performed.
+   */
+  SeleneErrno (*exit_fn)(RuntimeInstanceV2 handle);
+  SeleneErrno (*get_next_operations_fn)(RuntimeInstanceV2 handle,
+                                        struct RuntimeGetOperationHandle ops);
+  SeleneErrno (*shot_start_fn)(RuntimeInstanceV2 handle,
+                               uint64_t shot_id,
+                               uint64_t seed);
+  SeleneErrno (*shot_end_fn)(RuntimeInstanceV2 handle);
+  /**
+   * Optional. A null pointer means the plugin exposes no metrics.
+   */
+  int32_t (*get_metrics_fn)(RuntimeInstanceV2 handle,
+                            uint8_t nth_metric,
+                            char *tag_out,
+                            uint8_t *datatype_out,
+                            uint64_t *value_out);
+  SeleneErrno (*qalloc_fn)(RuntimeInstanceV2 handle,
+                           uint64_t *qaddress_out);
+  SeleneErrno (*qfree_fn)(RuntimeInstanceV2 handle,
+                          uint64_t qaddress);
+  SeleneErrno (*local_barrier_fn)(RuntimeInstanceV2 handle,
+                                  const uint64_t *qubits,
+                                  uint64_t qubits_len,
+                                  uint64_t sleep_ns);
+  SeleneErrno (*global_barrier_fn)(RuntimeInstanceV2 handle,
+                                   uint64_t sleep_ns);
+  SeleneErrno (*rxy_gate_fn)(RuntimeInstanceV2 handle,
+                             uint64_t qubit,
+                             double theta,
+                             double phi);
+  SeleneErrno (*rzz_gate_fn)(RuntimeInstanceV2 handle,
+                             uint64_t qubit0,
+                             uint64_t qubit1,
+                             double theta);
+  SeleneErrno (*rz_gate_fn)(RuntimeInstanceV2 handle,
+                            uint64_t qubit,
+                            double theta);
+  SeleneErrno (*rpp_gate_fn)(RuntimeInstanceV2 handle,
+                             uint64_t qubit0,
+                             uint64_t qubit1,
+                             double theta,
+                             double phi);
+  SeleneErrno (*measure_fn)(RuntimeInstanceV2 handle,
+                            uint64_t qubit,
+                            uint64_t *result_id);
+  SeleneErrno (*measure_leaked_fn)(RuntimeInstanceV2 handle,
+                                   uint64_t qubit,
+                                   uint64_t *result_id);
+  SeleneErrno (*reset_fn)(RuntimeInstanceV2 handle,
+                          uint64_t qubit);
+  SeleneErrno (*force_result_fn)(RuntimeInstanceV2 handle,
+                                 uint64_t result_id);
+  SeleneErrno (*get_bool_result_fn)(RuntimeInstanceV2 handle,
+                                    uint64_t id,
+                                    int8_t *result);
+  SeleneErrno (*get_u64_result_fn)(RuntimeInstanceV2 handle,
+                                   uint64_t id,
+                                   uint64_t *result);
+  SeleneErrno (*set_bool_result_fn)(RuntimeInstanceV2 handle,
+                                    uint64_t result_id,
+                                    bool result);
+  SeleneErrno (*set_u64_result_fn)(RuntimeInstanceV2 handle,
+                                   uint64_t result_id,
+                                   uint64_t result);
+  SeleneErrno (*increment_future_refcount_fn)(RuntimeInstanceV2 handle,
+                                              uint64_t result_id);
+  SeleneErrno (*decrement_future_refcount_fn)(RuntimeInstanceV2 handle,
+                                              uint64_t result_id);
+  /**
+   * Optional. A null pointer means custom calls are unsupported.
+   */
+  SeleneErrno (*custom_call_fn)(RuntimeInstanceV2 handle,
+                                uint64_t tag,
+                                const void *data,
+                                size_t data_len,
+                                uint64_t *result);
+  /**
+   * Optional. A null pointer means simulated delays are unsupported.
+   */
+  SeleneErrno (*simulate_delay_fn)(RuntimeInstanceV2 handle,
+                                   uint64_t delay_ns);
+} SeleneRuntimePluginDescriptorV2;
 
 #endif  /* SELENE_RUNTIME_H */

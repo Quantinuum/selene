@@ -1,10 +1,13 @@
-//! Probe guards inside foreign callbacks without relying on thread scheduling.
+// Each fake C function checks which lock the wrapper holds when calling it.
+// This tests shared and exclusive access without depending on thread timing.
+use super::RuntimeInstanceV2 as RuntimeInstance;
 use super::*;
 use parking_lot::{Mutex, RwLock};
 
 unsafe fn check_access(handle: RuntimeInstance, exclusive: bool) -> Errno {
-    // SAFETY: the test pins the RuntimePlugin in a Box and uses its access
-    // lock as the opaque handle for these test-only foreign functions.
+    // SAFETY: the test passes a pointer to the boxed ConcurrentRuntimePlugin's
+    // access lock. It keeps that box alive and never moves its contents while
+    // these functions use the pointer.
     let access = unsafe { &*handle.cast::<RwLock<()>>() };
     let writer_blocked = access.try_write().is_none();
     let reader_blocked = access.try_read().is_none();
@@ -169,36 +172,44 @@ unsafe extern "C" fn simulate_delay_fn(handle: RuntimeInstance, _delay_ns: u64) 
 #[test]
 fn foreign_calls_use_shared_or_exclusive_access() {
     let interface = Arc::new(RuntimePluginInterface {
+        descriptor: Descriptor::V2(RuntimePluginDescriptorV2 {
+            struct_size: std::mem::size_of::<RuntimePluginDescriptorV2>() as u64,
+            api_version: super::super::version::RUNTIME_CURRENT_API_VERSION,
+            init_fn,
+            exit_fn: Some(exit_fn),
+            get_next_operations_fn,
+            shot_start_fn,
+            shot_end_fn,
+            get_metrics_fn: Some(get_metrics_fn),
+            qalloc_fn,
+            qfree_fn,
+            local_barrier_fn,
+            global_barrier_fn,
+            rxy_gate_fn,
+            rzz_gate_fn,
+            rz_gate_fn,
+            rpp_gate_fn,
+            measure_fn,
+            measure_leaked_fn,
+            reset_fn,
+            force_result_fn,
+            get_bool_result_fn,
+            get_u64_result_fn,
+            set_bool_result_fn,
+            set_u64_result_fn,
+            increment_future_refcount_fn,
+            decrement_future_refcount_fn,
+            custom_call_fn: Some(custom_call_fn),
+            simulate_delay_fn: Some(simulate_delay_fn),
+        }),
         _lib: libloading::os::unix::Library::this().into(),
-        init_fn,
-        exit_fn: Some(exit_fn),
-        get_next_operations_fn,
-        shot_start_fn,
-        shot_end_fn,
-        get_metrics_fn: Some(get_metrics_fn),
-        qalloc_fn,
-        qfree_fn,
-        local_barrier_fn,
-        global_barrier_fn,
-        rxy_gate_fn,
-        rzz_gate_fn,
-        rz_gate_fn,
-        rpp_gate_fn,
-        measure_fn,
-        measure_leaked_fn,
-        reset_fn,
-        force_result_fn,
-        get_bool_result_fn,
-        get_u64_result_fn,
-        set_bool_result_fn,
-        set_u64_result_fn,
-        increment_future_refcount_fn,
-        decrement_future_refcount_fn,
-        custom_call_fn: Some(custom_call_fn),
-        simulate_delay_fn: Some(simulate_delay_fn),
     });
-    let mut runtime = Box::new(RuntimePlugin {
-        interface,
+    let mut runtime = Box::new(ConcurrentRuntimePlugin {
+        descriptor: match interface.descriptor {
+            Descriptor::V2(d) => d,
+            _ => unreachable!(),
+        },
+        _interface: interface,
         instance: std::ptr::null(),
         retrieval: Mutex::new(()),
         access: RwLock::new(()),

@@ -4,8 +4,9 @@ use anyhow::{Result, anyhow};
 #[repr(C)]
 /// A decomposed runtime API version.
 ///
-/// Plugin descriptors use the packed `SELENE_RUNTIME_CURRENT_API_VERSION`
-/// integer rather than this structure.
+/// Use this to inspect the version's individual fields. Plugin descriptors
+/// store a packed integer: `SELENE_RUNTIME_CURRENT_API_VERSION` for v2, or
+/// `SELENE_RUNTIME_V1_API_VERSION` for v1.
 pub struct RuntimeAPIVersion {
     /// Reserved for future use, must be 0.
     reserved: u8,
@@ -43,11 +44,14 @@ pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     patch: 0,
 };
 
-/// The current runtime plugin API version, packed for the C descriptor ABI.
+/// API version for concurrent v2 runtime descriptors, packed for the C ABI.
 pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0400;
 
+/// API version for legacy v1 runtime descriptors.
+pub const RUNTIME_V1_API_VERSION: u64 = 0x0000_0300;
+
 // CHANGELOG:
-// 0.4.0: Shared instance pointers and same-instance operational thread safety.
+// 0.4.0: V2 plugins allow concurrent operational calls on a shared instance.
 // 0.0.1: Initial version
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result
 
@@ -60,12 +64,14 @@ impl RuntimeAPIVersion {
     }
 
     pub fn validate(&self) -> Result<()> {
-        // Note: this is a naive check at the moment, as we have not introduced a breaking
-        // change since versioning was introduced. This logic should evolve as and when
-        // changes occur.
-        //
-        // As such, this is mostly a sketch of what the logic may look like.
-        //
+        self.validate_minor(CURRENT_API_VERSION.minor)
+    }
+
+    pub(crate) fn validate_v1(&self) -> Result<()> {
+        self.validate_minor(3)
+    }
+
+    fn validate_minor(&self, expected_minor: u8) -> Result<()> {
         // Reserved must be 0. We may want to attribute meaning to this one day.
         if self.reserved != 0 {
             return Err(anyhow!(
@@ -81,12 +87,12 @@ impl RuntimeAPIVersion {
                 self.major
             ));
         }
-        // If the minor version is different, the plugin is likely incompatible. This function
-        // should be updated to reflect the actual changes in the API. For now we reject.
-        if self.minor != CURRENT_API_VERSION.minor {
+        // Each descriptor has its own contract: v1 uses 0.3.x and v2 uses 0.4.x.
+        // Reject other minor versions rather than assuming those contracts match.
+        if self.minor != expected_minor {
             return Err(anyhow!(
-                "Runtime API minor version must be the same as Selene's Runtime API minor version ({}), got {}",
-                CURRENT_API_VERSION.minor,
+                "Runtime API minor version must match the descriptor contract ({}), got {}",
+                expected_minor,
                 self.minor
             ));
         }
@@ -108,6 +114,12 @@ mod tests {
     fn rejects_runtime_without_thread_safety_contract() {
         assert!(RuntimeAPIVersion::from(0x0000_0300).validate().is_err());
         assert!(CURRENT_API_VERSION.validate().is_ok());
+        assert!(
+            RuntimeAPIVersion::from(RUNTIME_V1_API_VERSION)
+                .validate_v1()
+                .is_ok()
+        );
+        assert!(CURRENT_API_VERSION.validate_v1().is_err());
     }
 
     #[test]

@@ -42,6 +42,7 @@ include = [
 exclude = [
   "CURRENT_API_VERSION",
   "RUNTIME_CURRENT_API_VERSION",
+  "RUNTIME_V1_API_VERSION",
   "ERROR_MODEL_CURRENT_API_VERSION",
   "Errno",
   "ErrorModelAPIVersion",

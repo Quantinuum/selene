@@ -5,8 +5,9 @@ use std::{
     thread,
 };
 
-/// Multiple producers force both kinds of measurement while one consumer drains.
-/// Channels/barriers establish progress without relying on sleeps or polling.
+// Several threads submit and force ordinary and leakage measurements while
+// this thread collects batches and writes back values. The barrier starts the
+// producers together, and the channel tells us which results they have forced.
 pub fn exercise(runtime: &dyn RuntimeInterface) {
     const PRODUCERS: usize = 4;
     const ROUNDS: usize = 16;
@@ -32,7 +33,7 @@ pub fn exercise(runtime: &dyn RuntimeInterface) {
                     runtime.increment_future_refcount(id).unwrap();
                     runtime.force_result(id).unwrap();
                     tx.send(id).unwrap();
-                    // Readers may observe either pending or published values.
+                    // The consumer may have written the value already, but need not have.
                     if let Some(value) = runtime.get_u64_result(id).unwrap() {
                         assert_eq!(value, id + 10);
                     }
@@ -51,8 +52,9 @@ pub fn exercise(runtime: &dyn RuntimeInterface) {
                     | Operation::MeasureLeaked { result_id, .. } = op
                     {
                         assert!(seen.insert(*result_id), "measurement dispatched twice");
-                        // Reforcing after dispatch must succeed without needing the
-                        // measurement to remain in the queue.
+                        // We have taken this measurement out of the queue, but
+                        // haven't supplied its value yet. Forcing it again must
+                        // still succeed.
                         runtime.force_result(*result_id).unwrap();
                         runtime.set_u64_result(*result_id, *result_id + 10).unwrap();
                     }

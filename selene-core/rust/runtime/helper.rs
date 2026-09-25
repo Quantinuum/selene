@@ -10,7 +10,7 @@ use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to
 use super::{
     Operation, RuntimeInterface,
     interface::RuntimeInterfaceFactory,
-    plugin::{Errno, RuntimeInstance},
+    plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance},
 };
 
 #[derive(Default)]
@@ -20,10 +20,12 @@ use super::{
 ///
 /// # Safety
 ///
-/// Entry points require a live handle returned by this helper's `init`, valid
-/// call-scoped buffers, and the concurrency/exclusion rules documented on
-/// [super::plugin::RuntimePluginDescriptorV1]. In particular, lifecycle and
-/// metric calls must not overlap any other calls on the instance.
+/// For calls on an instance, use a live handle created by this helper's `init`.
+/// For `init` itself, provide writable space for the new handle.
+/// Keep input buffers readable and unchanged until the call returns, and give
+/// the call exclusive access to its output buffers.
+/// Follow the rules in [`super::plugin::RuntimePluginDescriptorV2`]: pause other
+/// calls while starting or ending a shot, exiting, or collecting metrics.
 pub struct Helper<F>(Arc<F>);
 
 impl<F: RuntimeInterfaceFactory> Helper<F> {
@@ -36,8 +38,9 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         go: impl FnOnce(&F::Interface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        // SAFETY: entry points require a live instance from init. Every call
-        // borrows it through a shared reference; RuntimeInterface is Sync.
+        // SAFETY: callers must supply a live instance created by init, so this
+        // pointer refers to an F::Interface. We only create shared references.
+        // RuntimeInterface requires Sync, which allows these borrows to overlap.
         go(unsafe { &*instance.cast::<F::Interface>() })
     }
 
@@ -75,8 +78,9 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     }
 
     pub unsafe fn exit(instance: RuntimeInstance) -> Errno {
-        // Keep the allocation alive: the existing exit contract permits later
-        // calls to report errors. Destruction needs a separate API contract.
+        // A caller can still use the handle after exit to receive an error.
+        // Keep the allocation alive so those calls don't dereference freed memory.
+        // This API has no separate operation for releasing the handle.
         result_to_errno(
             "Failed to exit the runtime plugin",
             Self::with_runtime_instance(instance, |runtime| runtime.exit()),
@@ -442,7 +446,7 @@ macro_rules! export_runtime_plugin {
         mod _plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
-                plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
+                plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance, RuntimePluginDescriptorV2},
                 version::CURRENT_API_VERSION,
             };
             use selene_core::operation::plugin::{
@@ -810,8 +814,8 @@ macro_rules! export_runtime_plugin {
             }
 
             selene_core::export_plugin_descriptor_v1!(
-                selene_runtime_plugin_descriptor_v1,
-                RuntimePluginDescriptorV1,
+                selene_runtime_plugin_descriptor_v2,
+                RuntimePluginDescriptorV2,
                 CURRENT_API_VERSION.as_u64(),
                 {
                     init_fn: selene_runtime_init,
@@ -844,9 +848,9 @@ macro_rules! export_runtime_plugin {
             );
 
             #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v1(
-            ) -> *const RuntimePluginDescriptorV1 {
-                &raw const selene_runtime_plugin_descriptor_v1
+            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v2(
+            ) -> *const RuntimePluginDescriptorV2 {
+                &raw const selene_runtime_plugin_descriptor_v2
             }
         }
     };
