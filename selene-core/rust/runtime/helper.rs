@@ -10,7 +10,7 @@ use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to
 use super::{
     Operation, RuntimeInterface,
     interface::RuntimeInterfaceFactory,
-    plugin::{Errno, RuntimeInstance},
+    plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance},
 };
 
 #[derive(Default)]
@@ -22,7 +22,7 @@ use super::{
 ///
 /// Entry points require a live handle returned by this helper's `init`, valid
 /// call-scoped buffers, and the concurrency/exclusion rules documented on
-/// [super::plugin::RuntimePluginDescriptorV1]. In particular, lifecycle and
+/// [super::plugin::RuntimePluginDescriptorV2]. In particular, lifecycle and
 /// metric calls must not overlap any other calls on the instance.
 pub struct Helper<F>(Arc<F>);
 
@@ -442,7 +442,7 @@ macro_rules! export_runtime_plugin {
         mod _plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
-                plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
+                plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance, RuntimePluginDescriptorV2},
                 version::CURRENT_API_VERSION,
             };
             use selene_core::operation::plugin::{
@@ -810,8 +810,8 @@ macro_rules! export_runtime_plugin {
             }
 
             selene_core::export_plugin_descriptor_v1!(
-                selene_runtime_plugin_descriptor_v1,
-                RuntimePluginDescriptorV1,
+                selene_runtime_plugin_descriptor_v2,
+                RuntimePluginDescriptorV2,
                 CURRENT_API_VERSION.as_u64(),
                 {
                     init_fn: selene_runtime_init,
@@ -844,9 +844,9 @@ macro_rules! export_runtime_plugin {
             );
 
             #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v1(
-            ) -> *const RuntimePluginDescriptorV1 {
-                &raw const selene_runtime_plugin_descriptor_v1
+            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v2(
+            ) -> *const RuntimePluginDescriptorV2 {
+                &raw const selene_runtime_plugin_descriptor_v2
             }
         }
     };
