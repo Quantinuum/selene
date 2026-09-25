@@ -65,6 +65,13 @@ required:
 - cmake
 - just
 
+The build bundles LLVM tools for stack traces. Outside the devenv shell, set
+`HUGRENV_PATH` to an LLVM installation containing `bin/llvm-symbolizer` (and
+`bin/dsymutil` on macOS). On macOS, the build hook uses Homebrew's `llvm`
+installation automatically when `HUGRENV_PATH` is unset. Homebrew's binaries
+depend on libraries outside the generated wheel, so set `HUGRENV_PATH` to a
+portable Hugrenv installation when building wheels for distribution.
+
 Note: Cbindgen is used to generate C headers for selene and its extension plugins
 based on rust implementations. These headers are shipped with selene and selene-core
 wheels (in their `_dist/include` directory) respectively, allowing for downstream

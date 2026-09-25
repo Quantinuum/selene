@@ -1,5 +1,6 @@
 develop:
-    uv sync
+    # Refresh editable LLVM links when the local installation changes.
+    uv sync --reinstall-package selene-sim
 
 clean-artifacts:
     rm -rf **/_dist
