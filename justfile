@@ -1,5 +1,3 @@
-export HUGRENV_PATH := env_var_or_default("HUGRENV_PATH", justfile_directory() + "/.hugrenv")
-
 develop:
     uv sync
 
@@ -12,7 +10,7 @@ clean-artifacts:
     find . -wholename "*/c/build" -type d -exec rm -rf {} \;
 
 build-wheels:
-    uv build --all-packages
+    uv run --no-project python scripts/build_wheels.py
 
 test-py *TEST_ARGS: develop
     uv run pytest {{TEST_ARGS}}
