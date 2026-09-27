@@ -116,9 +116,14 @@ def main() -> None:
         safe_extract(archive, extract_dir)
         (extract_dir / ".version").write_text(marker)
 
-        if DESTINATION.is_dir() and not DESTINATION.is_symlink():
+        if DESTINATION.is_symlink():
+            if DESTINATION.is_dir():
+                DESTINATION.rmdir()
+            else:
+                DESTINATION.unlink()
+        elif DESTINATION.is_dir():
             shutil.rmtree(DESTINATION)
-        elif DESTINATION.exists() or DESTINATION.is_symlink():
+        elif DESTINATION.exists():
             DESTINATION.unlink()
         shutil.move(str(extract_dir), DESTINATION)
 
