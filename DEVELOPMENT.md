@@ -65,12 +65,19 @@ required:
 - cmake
 - just
 
-The build bundles LLVM tools for stack traces. Outside the devenv shell, set
-`HUGRENV_PATH` to an LLVM installation containing `bin/llvm-symbolizer` (and
-`bin/dsymutil` on macOS). On macOS, the build hook uses Homebrew's `llvm`
-installation automatically when `HUGRENV_PATH` is unset. Homebrew's binaries
-depend on libraries outside the generated wheel, so set `HUGRENV_PATH` to a
-portable Hugrenv installation when building wheels for distribution.
+The build bundles LLVM tools from [Hugrenv](https://github.com/Quantinuum/hugrverse-env)
+for stack traces, at the version pinned in `hugrenv.lock`. The devenv shell provides
+them via `HUGRENV_PATH`. Outside the devenv shell, download the same release that CI
+uses into `.hugrenv/` with
+
+```bash
+just hugrenv
+just develop
+```
+
+When `HUGRENV_PATH` is unset, the build uses `.hugrenv/` automatically. Rerun
+`just hugrenv` after `hugrenv.lock` changes, followed by
+`uv sync --reinstall-package selene-sim` to refresh the bundled tools.
 
 Note: Cbindgen is used to generate C headers for selene and its extension plugins
 based on rust implementations. These headers are shipped with selene and selene-core

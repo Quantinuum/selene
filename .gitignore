@@ -25,6 +25,7 @@ venv/
 .vscode/
 .direnv/
 .devenv/
+.hugrenv/
 .devenv.flake.nix
 .pre-commit-config.yaml
 result

@@ -1,6 +1,29 @@
 develop:
-    # Refresh editable LLVM links when the local installation changes.
-    uv sync --reinstall-package selene-sim
+    uv sync
+
+# Download the Hugrenv LLVM tools pinned in hugrenv.lock into .hugrenv/.
+hugrenv:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' hugrenv.lock)"
+    case "$(uname -s)-$(uname -m)" in
+        Linux-x86_64) target=manylinux_2_28_x86_64 ;;
+        Linux-aarch64) target=manylinux_2_28_aarch64 ;;
+        Darwin-x86_64) target=macosx_11_0_x86_64 ;;
+        Darwin-arm64) target=macosx_11_0_aarch64 ;;
+        MINGW*-x86_64|MSYS*-x86_64|CYGWIN*-x86_64) target=win_amd64 ;;
+        *) echo "Unsupported platform: $(uname -s) $(uname -m)" >&2; exit 1 ;;
+    esac
+    if [[ "$(cat .hugrenv/.version 2>/dev/null)" == "$version-$target" ]]; then
+        echo "Hugrenv $version ($target) is already installed in .hugrenv"
+        exit 0
+    fi
+    url="https://github.com/Quantinuum/hugrverse-env/releases/download/v$version/hugrenv-llvm-$target.tar.gz"
+    echo "Downloading $url"
+    rm -rf .hugrenv
+    mkdir -p .hugrenv
+    curl -fsSL "$url" | tar -xzf - -C .hugrenv --strip-components=1
+    echo "$version-$target" > .hugrenv/.version
 
 clean-artifacts:
     rm -rf **/_dist
