@@ -261,6 +261,7 @@ class HugrenvTools:
             resolved_hugrenv_path = Path(hugrenv_path).expanduser()
             if not resolved_hugrenv_path.is_absolute():
                 resolved_hugrenv_path = Path(self.hook.root) / resolved_hugrenv_path
+            resolved_hugrenv_path = resolved_hugrenv_path.resolve()
             hugrenv_path = str(resolved_hugrenv_path)
         elif local_hugrenv.is_dir():
             hugrenv_path = str(local_hugrenv)

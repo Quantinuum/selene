@@ -42,7 +42,13 @@ def detect_target() -> tuple[str, str, str]:
 
 
 def expected_hash(lock_data: dict, target_platform: str, target_arch: str) -> str:
-    return lock_data["archive_hashes"][target_platform][target_arch]["llvm"]
+    try:
+        return lock_data["archive_hashes"][target_platform][target_arch]["llvm"]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"No pinned Hugrenv archive hash found in {LOCKFILE.name} for "
+            f"{target_platform}_{target_arch}"
+        ) from exc
 
 
 def compute_file_hash(path: Path) -> str:
@@ -82,6 +88,31 @@ def safe_extract(archive: Path, destination: Path) -> None:
             os.chmod(member_path, member.mode & 0o777)
 
 
+def remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def replace_destination(source: Path, destination: Path) -> None:
+    backup = destination.parent / f"{destination.name}.backup"
+    remove_path(backup)
+
+    had_destination = destination.exists() or destination.is_symlink()
+    if had_destination:
+        destination.rename(backup)
+
+    try:
+        source.rename(destination)
+    except Exception:
+        if had_destination and (backup.exists() or backup.is_symlink()):
+            backup.rename(destination)
+        raise
+    else:
+        remove_path(backup)
+
+
 def main() -> None:
     lock_data = json.loads(LOCKFILE.read_text())
     version = lock_data["version"]
@@ -116,13 +147,7 @@ def main() -> None:
         safe_extract(archive, extract_dir)
         (extract_dir / ".version").write_text(marker)
 
-        if DESTINATION.is_symlink():
-            DESTINATION.unlink()
-        elif DESTINATION.is_dir():
-            shutil.rmtree(DESTINATION)
-        elif DESTINATION.exists():
-            DESTINATION.unlink()
-        shutil.move(str(extract_dir), DESTINATION)
+        replace_destination(extract_dir, DESTINATION)
 
     print(f"Installed Hugrenv {version} ({asset_target}) into .hugrenv")
 
