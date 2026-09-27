@@ -117,10 +117,7 @@ def main() -> None:
         (extract_dir / ".version").write_text(marker)
 
         if DESTINATION.is_symlink():
-            if DESTINATION.is_dir():
-                DESTINATION.rmdir()
-            else:
-                DESTINATION.unlink()
+            DESTINATION.unlink()
         elif DESTINATION.is_dir():
             shutil.rmtree(DESTINATION)
         elif DESTINATION.exists():
