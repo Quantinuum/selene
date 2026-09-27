@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import platform
 import shutil
 import tarfile
@@ -64,7 +65,21 @@ def safe_extract(archive: Path, destination: Path) -> None:
             member_path = (destination / member.name).resolve()
             if member_path != destination and destination not in member_path.parents:
                 raise RuntimeError(f"Archive member escapes destination: {member.name}")
-            tar.extract(member, destination)
+            if member.isdir():
+                member_path.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isreg():
+                raise RuntimeError(
+                    f"Unsupported archive member type for {member.name}: only regular files "
+                    "and directories are allowed"
+                )
+            member_path.parent.mkdir(parents=True, exist_ok=True)
+            source = tar.extractfile(member)
+            if source is None:
+                raise RuntimeError(f"Failed to read archive member: {member.name}")
+            with source, member_path.open("wb") as fileobj:
+                shutil.copyfileobj(source, fileobj)
+            os.chmod(member_path, member.mode & 0o777)
 
 
 def main() -> None:
@@ -101,8 +116,10 @@ def main() -> None:
         safe_extract(archive, extract_dir)
         (extract_dir / ".version").write_text(marker)
 
-        if DESTINATION.exists():
+        if DESTINATION.is_dir() and not DESTINATION.is_symlink():
             shutil.rmtree(DESTINATION)
+        elif DESTINATION.exists() or DESTINATION.is_symlink():
+            DESTINATION.unlink()
         shutil.move(str(extract_dir), DESTINATION)
 
     print(f"Installed Hugrenv {version} ({asset_target}) into .hugrenv")
