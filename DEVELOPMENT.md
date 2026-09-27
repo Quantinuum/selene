@@ -75,9 +75,16 @@ just hugrenv
 just develop
 ```
 
-When `HUGRENV_PATH` is unset, the build uses `.hugrenv/` automatically. Rerun
-`just hugrenv` after `hugrenv.lock` changes, followed by
-`uv sync --reinstall-package selene-sim` to refresh the bundled tools.
+`just hugrenv` verifies the downloaded archive against the pinned LLVM archive hash in
+`hugrenv.lock`. When `HUGRENV_PATH` is unset, the build uses `.hugrenv/`
+automatically. If you set `HUGRENV_PATH` yourself, relative paths are resolved
+from the repository root. Rerun `just hugrenv` after `hugrenv.lock` changes,
+followed by `uv sync --reinstall-package selene-sim` to refresh the bundled
+tools.
+
+For distributable wheels, use `.hugrenv/` from `just hugrenv` or another
+portable Hugrenv installation via `HUGRENV_PATH`, so the bundled tools match CI
+and the supported release environments.
 
 Note: Cbindgen is used to generate C headers for selene and its extension plugins
 based on rust implementations. These headers are shipped with selene and selene-core

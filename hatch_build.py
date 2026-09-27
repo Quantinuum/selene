@@ -257,7 +257,12 @@ class HugrenvTools:
         self.hook = hook
         local_hugrenv = Path(self.hook.root) / ".hugrenv"
         hugrenv_path = os.environ.get("HUGRENV_PATH")
-        if not hugrenv_path and local_hugrenv.is_dir():
+        if hugrenv_path:
+            resolved_hugrenv_path = Path(hugrenv_path).expanduser()
+            if not resolved_hugrenv_path.is_absolute():
+                resolved_hugrenv_path = Path(self.hook.root) / resolved_hugrenv_path
+            hugrenv_path = str(resolved_hugrenv_path)
+        elif local_hugrenv.is_dir():
             hugrenv_path = str(local_hugrenv)
         assert hugrenv_path, (
             "HUGRENV_PATH environment variable is not set and no local .hugrenv "
