@@ -1,12 +1,16 @@
 develop:
     uv sync
 
+# Download the pinned Hugrenv LLVM tools into .hugrenv/.
+hugrenv:
+    uv run --no-project python scripts/bootstrap_hugrenv.py
+
 clean-artifacts:
     rm -rf **/_dist
     find . -wholename "*/c/build" -type d -exec rm -rf {} \;
 
 build-wheels:
-    uv build --all-packages
+    uv run --no-project python scripts/build_wheels.py
 
 test-py *TEST_ARGS: develop
     uv run pytest {{TEST_ARGS}}
