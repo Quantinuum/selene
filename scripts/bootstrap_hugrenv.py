@@ -19,7 +19,9 @@ def detect_target() -> tuple[str, str, str]:
     machine = platform.machine().lower()
 
     if system == "Linux":
-        arch = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64"}.get(machine)
+        arch = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64"}.get(
+            machine
+        )
         if arch is None:
             raise RuntimeError(f"Unsupported platform: {system} {platform.machine()}")
         return "manylinux_2_28", arch, f"manylinux_2_28_{arch}"
@@ -67,13 +69,16 @@ def download(url: str, destination: Path) -> None:
 def safe_extract(archive: Path, destination: Path) -> None:
     destination = destination.resolve()
     with tarfile.open(archive, "r:gz") as tar:
-        members = [member for member in tar.getmembers() if member.name not in ("", ".")]
+        members = [
+            member for member in tar.getmembers() if member.name not in ("", ".")
+        ]
         top_level_names = {Path(member.name).parts[0] for member in members}
         if len(top_level_names) != 1:
             raise RuntimeError(
                 "Unexpected Hugrenv archive layout: expected a single top-level directory"
             )
         top_level_name = top_level_names.pop()
+        pending_links: list[tuple[Path, Path]] = []
 
         for member in members:
             member_parts = Path(member.name).parts
@@ -90,6 +95,22 @@ def safe_extract(archive: Path, destination: Path) -> None:
             if member.isdir():
                 member_path.mkdir(parents=True, exist_ok=True)
                 continue
+            if member.issym():
+                link_target = Path(member.linkname)
+                resolved_target = (member_path.parent / link_target).resolve()
+                if link_target.is_absolute() or (
+                    resolved_target != destination
+                    and destination not in resolved_target.parents
+                ):
+                    raise RuntimeError(
+                        f"Archive link escapes destination: {member.name}"
+                    )
+                member_path.parent.mkdir(parents=True, exist_ok=True)
+                if os.name == "nt":
+                    pending_links.append((member_path, resolved_target))
+                else:
+                    member_path.symlink_to(link_target)
+                continue
             if not member.isreg():
                 raise RuntimeError(
                     f"Unsupported archive member type for {member.name}: only regular files "
@@ -102,6 +123,11 @@ def safe_extract(archive: Path, destination: Path) -> None:
             with source, member_path.open("wb") as fileobj:
                 shutil.copyfileobj(source, fileobj)
             os.chmod(member_path, member.mode & 0o777)
+
+        for link_path, target_path in pending_links:
+            if not target_path.is_file():
+                raise RuntimeError(f"Archive link target is missing: {target_path}")
+            shutil.copy2(target_path, link_path)
 
 
 def remove_path(path: Path) -> None:
@@ -139,7 +165,9 @@ def main() -> None:
     if DESTINATION.is_dir() and version_file.is_file():
         installed_version = version_file.read_text().strip()
         if installed_version == marker:
-            print(f"Hugrenv {version} ({asset_target}) is already installed in .hugrenv")
+            print(
+                f"Hugrenv {version} ({asset_target}) is already installed in .hugrenv"
+            )
             return
 
     url = (

@@ -1,9 +1,11 @@
+export HUGRENV_PATH := env_var_or_default("HUGRENV_PATH", justfile_directory() + "/.hugrenv")
+
 develop:
     uv sync
 
 # Download the pinned Hugrenv LLVM tools into .hugrenv/.
 hugrenv:
-    python scripts/bootstrap_hugrenv.py
+    uv run --no-project python scripts/bootstrap_hugrenv.py
 
 clean-artifacts:
     rm -rf **/_dist

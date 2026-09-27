@@ -82,6 +82,11 @@ from the repository root. Rerun `just hugrenv` after `hugrenv.lock` changes,
 followed by `uv sync --reinstall-package selene-sim` to refresh the bundled
 tools.
 
+`just build-wheels` passes the repository's `.hugrenv/` path to the isolated
+wheel build. If you run `uv build --all-packages` directly, set `HUGRENV_PATH`
+to an absolute path first, because the wheel is rebuilt from a source
+distribution that does not contain `.hugrenv/`.
+
 For distributable wheels, use `.hugrenv/` from `just hugrenv` or another
 portable Hugrenv installation via `HUGRENV_PATH`, so the bundled tools match CI
 and the supported release environments.

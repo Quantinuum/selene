@@ -301,9 +301,11 @@ class HugrenvTools:
             Path(self.hook.root) / f"selene-sim/python/selene_sim/_dist/{directory}"
         )
         dist_dir.mkdir(parents=True, exist_ok=True)
-        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
-        shutil.copy(artifact_path, dist_dir)
         dist_path = dist_dir / name
+        if dist_path.is_symlink():
+            dist_path.unlink()
+        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
+        shutil.copy(artifact_path, dist_path)
         dist_path.chmod(0o755)
 
     def extract_binary(self, name):
