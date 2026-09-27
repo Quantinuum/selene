@@ -67,8 +67,24 @@ def download(url: str, destination: Path) -> None:
 def safe_extract(archive: Path, destination: Path) -> None:
     destination = destination.resolve()
     with tarfile.open(archive, "r:gz") as tar:
-        for member in tar.getmembers():
-            member_path = (destination / member.name).resolve()
+        members = [member for member in tar.getmembers() if member.name not in ("", ".")]
+        top_level_names = {Path(member.name).parts[0] for member in members}
+        if len(top_level_names) != 1:
+            raise RuntimeError(
+                "Unexpected Hugrenv archive layout: expected a single top-level directory"
+            )
+        top_level_name = top_level_names.pop()
+
+        for member in members:
+            member_parts = Path(member.name).parts
+            if member_parts[0] != top_level_name:
+                raise RuntimeError(
+                    f"Unexpected Hugrenv archive member outside {top_level_name}: {member.name}"
+                )
+            stripped_parts = member_parts[1:]
+            if not stripped_parts:
+                continue
+            member_path = (destination / Path(*stripped_parts)).resolve()
             if member_path != destination and destination not in member_path.parents:
                 raise RuntimeError(f"Archive member escapes destination: {member.name}")
             if member.isdir():
