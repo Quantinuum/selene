@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantinuum.github.io/selene/schemas/trace/legacy.schema.json",
+  "$defs": {
+    "SafeUnsignedInteger": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "CustomEvent": {
+      "properties": {
+        "kind": { "const": "Custom", "default": "Custom", "type": "string" },
+        "payload": {
+          "oneOf": [
+            { "$ref": "#/$defs/OpaquePayload" },
+            { "$ref": "#/$defs/KeyValuePairPayload" }
+          ]
+        }
+      },
+      "required": ["kind", "payload"],
+      "type": "object"
+    },
+    "ErrorModelSource": {
+      "properties": {
+        "kind": { "const": "ErrorModel", "default": "ErrorModel", "type": "string" },
+        "index": { "$ref": "#/$defs/SafeUnsignedInteger" }
+      },
+      "required": ["kind", "index"],
+      "type": "object"
+    },
+    "EventRecord": {
+      "properties": {
+        "source": {
+          "oneOf": [
+            { "$ref": "#/$defs/UserProgramSource" },
+            { "$ref": "#/$defs/RuntimeSource" },
+            { "$ref": "#/$defs/ErrorModelSource" },
+            { "$ref": "#/$defs/SimulatorSource" }
+          ]
+        },
+        "event": {
+          "oneOf": [
+            { "$ref": "#/$defs/GateEvent" },
+            { "$ref": "#/$defs/MeasurementEvent" },
+            { "$ref": "#/$defs/ResetEvent" },
+            { "$ref": "#/$defs/CustomEvent" }
+          ]
+        }
+      },
+      "required": ["source", "event"],
+      "type": "object"
+    },
+    "GateEvent": {
+      "properties": {
+        "kind": { "const": "Gate", "default": "Gate", "type": "string" },
+        "qubits": {
+          "items": { "$ref": "#/$defs/SafeUnsignedInteger" },
+          "type": "array"
+        },
+        "gate_name": { "type": "string" },
+        "params": {
+          "items": {
+            "anyOf": [
+              { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] },
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "boolean" }
+            ]
+          },
+          "type": "array"
+        },
+        "predicates": {
+          "items": { "$ref": "#/$defs/PredicateResult" },
+          "type": "array"
+        }
+      },
+      "required": ["kind", "gate_name"],
+      "type": "object"
+    },
+    "KeyValuePairPayload": {
+      "properties": {
+        "kind": { "const": "KeyValuePairPayload", "default": "KeyValuePairPayload", "type": "string" },
+        "data": {
+          "additionalProperties": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] },
+              { "type": "boolean" },
+              { "items": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }, "type": "array" },
+              { "items": { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] }, "type": "array" },
+              { "items": { "type": "string" }, "type": "array" },
+              { "items": { "type": "boolean" }, "type": "array" }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": ["kind", "data"],
+      "type": "object"
+    },
+    "MeasurementEvent": {
+      "properties": {
+        "kind": { "const": "Measurement", "default": "Measurement", "type": "string" },
+        "qubit": { "$ref": "#/$defs/SafeUnsignedInteger" }
+      },
+      "required": ["kind", "qubit"],
+      "type": "object"
+    },
+    "OpaquePayload": {
+      "properties": {
+        "kind": { "const": "OpaquePayload", "default": "OpaquePayload", "type": "string" },
+        "tag": {
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "data": {
+          "description": "Base64-encoded bytes using the standard or URL-safe alphabet.",
+          "pattern": "^(?:[A-Za-z0-9_+/-]{4})*(?:[A-Za-z0-9_+/-]{2}(?:==)?|[A-Za-z0-9_+/-]{3}=?)?(?![\\s\\S])",
+          "type": "string"
+        }
+      },
+      "required": ["kind", "tag", "data"],
+      "type": "object"
+    },
+    "PredicateResult": {
+      "properties": {
+        "predicate": { "type": "string" },
+        "result": { "type": "boolean" }
+      },
+      "required": ["predicate", "result"],
+      "type": "object"
+    },
+    "ResetEvent": {
+      "properties": {
+        "kind": { "const": "Reset", "default": "Reset", "type": "string" },
+        "qubit": { "$ref": "#/$defs/SafeUnsignedInteger" }
+      },
+      "required": ["kind", "qubit"],
+      "type": "object"
+    },
+    "RuntimeSource": {
+      "properties": {
+        "kind": { "const": "Runtime", "default": "Runtime", "type": "string" },
+        "start_time": { "$ref": "#/$defs/SafeUnsignedInteger" },
+        "end_time": { "$ref": "#/$defs/SafeUnsignedInteger" }
+      },
+      "required": ["kind", "start_time", "end_time"],
+      "type": "object"
+    },
+    "SimulatorSource": {
+      "properties": {
+        "kind": { "const": "Simulator", "default": "Simulator", "type": "string" },
+        "index": { "$ref": "#/$defs/SafeUnsignedInteger" },
+        "duration_ns": { "$ref": "#/$defs/SafeUnsignedInteger" }
+      },
+      "required": ["kind", "index", "duration_ns"],
+      "type": "object"
+    },
+    "UserProgramSource": {
+      "properties": {
+        "kind": { "const": "UserProgram", "default": "UserProgram", "type": "string" },
+        "index": { "$ref": "#/$defs/SafeUnsignedInteger" }
+      },
+      "required": ["kind", "index"],
+      "type": "object"
+    }
+  },
+  "description": "The versionless Selene trace format emitted before protocol versioning.",
+  "not": {
+    "anyOf": [
+      { "required": ["schema_version"] },
+      { "required": ["traces"] }
+    ]
+  },
+  "properties": {
+    "events": {
+      "items": { "$ref": "#/$defs/EventRecord" },
+      "type": "array"
+    }
+  },
+  "title": "LegacyTrace",
+  "type": "object"
+}

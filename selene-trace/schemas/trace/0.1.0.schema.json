@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantinuum.github.io/selene/schemas/trace/0.1.0.schema.json",
+  "$defs": {
+    "CustomEvent": {
+      "properties": {
+        "kind": { "const": "Custom", "default": "Custom", "title": "Kind", "type": "string" },
+        "payload": {
+          "discriminator": {
+            "mapping": {
+              "KeyValuePairPayload": "#/$defs/KeyValuePairPayload",
+              "OpaquePayload": "#/$defs/OpaquePayload"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            { "$ref": "#/$defs/OpaquePayload" },
+            { "$ref": "#/$defs/KeyValuePairPayload" }
+          ],
+          "title": "Payload"
+        }
+      },
+      "required": ["kind", "payload"],
+      "title": "CustomEvent",
+      "type": "object"
+    },
+    "ErrorModelSource": {
+      "properties": {
+        "kind": { "const": "ErrorModel", "default": "ErrorModel", "title": "Kind", "type": "string" },
+        "index": { "maximum": 9007199254740991, "minimum": 0, "title": "Index", "type": "integer" }
+      },
+      "required": ["kind", "index"],
+      "title": "ErrorModelSource",
+      "type": "object"
+    },
+    "EventRecord": {
+      "properties": {
+        "source": {
+          "discriminator": {
+            "mapping": {
+              "ErrorModel": "#/$defs/ErrorModelSource",
+              "Runtime": "#/$defs/RuntimeSource",
+              "Simulator": "#/$defs/SimulatorSource",
+              "UserProgram": "#/$defs/UserProgramSource"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            { "$ref": "#/$defs/UserProgramSource" },
+            { "$ref": "#/$defs/RuntimeSource" },
+            { "$ref": "#/$defs/ErrorModelSource" },
+            { "$ref": "#/$defs/SimulatorSource" }
+          ],
+          "title": "Source"
+        },
+        "event": {
+          "discriminator": {
+            "mapping": {
+              "Custom": "#/$defs/CustomEvent",
+              "Gate": "#/$defs/GateEvent",
+              "Measurement": "#/$defs/MeasurementEvent",
+              "Reset": "#/$defs/ResetEvent"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            { "$ref": "#/$defs/GateEvent" },
+            { "$ref": "#/$defs/MeasurementEvent" },
+            { "$ref": "#/$defs/ResetEvent" },
+            { "$ref": "#/$defs/CustomEvent" }
+          ],
+          "title": "Event"
+        }
+      },
+      "required": ["source", "event"],
+      "title": "EventRecord",
+      "type": "object"
+    },
+    "GateEvent": {
+      "properties": {
+        "kind": { "const": "Gate", "default": "Gate", "title": "Kind", "type": "string" },
+        "qubits": { "items": { "maximum": 9007199254740991, "minimum": 0, "type": "integer" }, "title": "Qubits", "type": "array" },
+        "gate_name": { "title": "Gate Name", "type": "string" },
+        "params": {
+          "items": {
+            "anyOf": [
+              { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] },
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "boolean" }
+            ]
+          },
+          "title": "Params",
+          "type": "array"
+        },
+        "predicates": {
+          "items": { "$ref": "#/$defs/PredicateResult" },
+          "title": "Predicates",
+          "type": "array"
+        }
+      },
+      "required": ["kind", "gate_name"],
+      "title": "GateEvent",
+      "type": "object"
+    },
+    "KeyValuePairPayload": {
+      "properties": {
+        "kind": { "const": "KeyValuePairPayload", "default": "KeyValuePairPayload", "title": "Kind", "type": "string" },
+        "data": {
+          "additionalProperties": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] },
+              { "type": "boolean" },
+              { "items": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }, "type": "array" },
+              { "items": { "type": "number", "anyOf": [{ "not": { "type": "integer" } }, { "minimum": -9007199254740991, "maximum": 9007199254740991 }] }, "type": "array" },
+              { "items": { "type": "string" }, "type": "array" },
+              { "items": { "type": "boolean" }, "type": "array" }
+            ]
+          },
+          "title": "Data",
+          "type": "object"
+        }
+      },
+      "required": ["kind", "data"],
+      "title": "KeyValuePairPayload",
+      "type": "object"
+    },
+    "MeasurementEvent": {
+      "properties": {
+        "kind": { "const": "Measurement", "default": "Measurement", "title": "Kind", "type": "string" },
+        "qubit": { "maximum": 9007199254740991, "minimum": 0, "title": "Qubit", "type": "integer" }
+      },
+      "required": ["kind", "qubit"],
+      "title": "MeasurementEvent",
+      "type": "object"
+    },
+    "OpaquePayload": {
+      "properties": {
+        "kind": { "const": "OpaquePayload", "default": "OpaquePayload", "title": "Kind", "type": "string" },
+        "tag": { "format": "uint64", "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-5])(?![\\s\\S])", "title": "Tag", "type": "string" },
+        "data": { "format": "base64url", "pattern": "^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-9_-]{3}=?)?(?![\\s\\S])", "title": "Data", "type": "string" }
+      },
+      "required": ["kind", "tag", "data"],
+      "title": "OpaquePayload",
+      "type": "object"
+    },
+    "PredicateResult": {
+      "properties": {
+        "predicate": { "title": "Predicate", "type": "string" },
+        "result": { "title": "Result", "type": "boolean" }
+      },
+      "required": ["predicate", "result"],
+      "title": "PredicateResult",
+      "type": "object"
+    },
+    "ResetEvent": {
+      "properties": {
+        "kind": { "const": "Reset", "default": "Reset", "title": "Kind", "type": "string" },
+        "qubit": { "maximum": 9007199254740991, "minimum": 0, "title": "Qubit", "type": "integer" }
+      },
+      "required": ["kind", "qubit"],
+      "title": "ResetEvent",
+      "type": "object"
+    },
+    "RuntimeSource": {
+      "properties": {
+        "kind": { "const": "Runtime", "default": "Runtime", "title": "Kind", "type": "string" },
+        "start_time": { "maximum": 9007199254740991, "minimum": 0, "title": "Start Time", "type": "integer" },
+        "end_time": { "maximum": 9007199254740991, "minimum": 0, "title": "End Time", "type": "integer" }
+      },
+      "required": ["kind", "start_time", "end_time"],
+      "title": "RuntimeSource",
+      "type": "object"
+    },
+    "SimulatorSource": {
+      "properties": {
+        "kind": { "const": "Simulator", "default": "Simulator", "title": "Kind", "type": "string" },
+        "index": { "maximum": 9007199254740991, "minimum": 0, "title": "Index", "type": "integer" },
+        "duration_ns": { "maximum": 9007199254740991, "minimum": 0, "title": "Duration Ns", "type": "integer" }
+      },
+      "required": ["kind", "index", "duration_ns"],
+      "title": "SimulatorSource",
+      "type": "object"
+    },
+    "Trace": {
+      "additionalProperties": false,
+      "description": "A serializable Selene trace conforming to protocol version 0.1.0.",
+      "properties": {
+        "schema_version": { "const": "0.1.0", "title": "Schema Version", "type": "string" },
+        "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
+      },
+      "required": ["schema_version"],
+      "title": "Trace",
+      "type": "object"
+    },
+    "TraceData": {
+      "additionalProperties": false,
+      "description": "The unversioned contents of one emulation trace.",
+      "properties": {
+        "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
+      },
+      "title": "TraceData",
+      "type": "object"
+    },
+    "Traces": {
+      "additionalProperties": false,
+      "description": "A versioned collection of trace data.",
+      "properties": {
+        "schema_version": { "const": "0.1.0", "title": "Schema Version", "type": "string" },
+        "traces": { "items": { "$ref": "#/$defs/TraceData" }, "title": "Traces", "type": "array" }
+      },
+      "required": ["schema_version", "traces"],
+      "title": "Traces",
+      "type": "object"
+    },
+    "UserProgramSource": {
+      "properties": {
+        "kind": { "const": "UserProgram", "default": "UserProgram", "title": "Kind", "type": "string" },
+        "index": { "maximum": 9007199254740991, "minimum": 0, "title": "Index", "type": "integer" }
+      },
+      "required": ["kind", "index"],
+      "title": "UserProgramSource",
+      "type": "object"
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/Trace" },
+    { "$ref": "#/$defs/Traces" }
+  ]
+}

@@ -1,0 +1,21 @@
+[package]
+name = "selene-api-models"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Selene API models for Rust"
+readme = "README.md"
+repository.workspace = true
+license.workspace = true
+keywords = ["quantum", "trace", "serialization"]
+categories = ["encoding", "science"]
+
+[lib]
+name = "selene_api_models"
+path = "src/lib.rs"
+
+[dependencies]
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
