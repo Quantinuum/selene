@@ -1,9 +1,10 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.18)
 
 project(BaseQISSeleneInterface LANGUAGES C)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(cmake/Mimalloc.cmake)
 
 find_package(Selene REQUIRED)
 get_target_property(selene_include_dirs Selene::Selene INTERFACE_INCLUDE_DIRECTORIES)
@@ -45,6 +46,7 @@ function(build_base_qis_interface log_level suffix)
     target_link_libraries(${runtime_target} PUBLIC
         base_qis_selene_interface
     )
+    target_link_libraries(${runtime_target} PRIVATE mimalloc-static)
     if(MSVC)
         target_compile_options(${runtime_target} PRIVATE /TC /Zl)
     endif()
@@ -62,6 +64,12 @@ endfunction()
 build_base_qis_interface(0 "off")
 build_base_qis_interface(1 "debug")
 build_base_qis_interface(2 "diagnostic")
+
+option(BASE_QIS_BUILD_TESTS "Build the base QIS lifecycle tests" OFF)
+if(BASE_QIS_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
 install(DIRECTORY include/base_qis
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
