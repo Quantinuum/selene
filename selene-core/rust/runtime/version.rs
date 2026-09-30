@@ -39,14 +39,15 @@ impl From<RuntimeAPIVersion> for u64 {
 pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     reserved: 0,
     major: 0,
-    minor: 3,
+    minor: 4,
     patch: 0,
 };
 
 /// The current runtime plugin API version, packed for the C descriptor ABI.
-pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0300;
+pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0400;
 
 // CHANGELOG:
+// 0.4.0: Shared instance pointers and same-instance operational thread safety.
 // 0.0.1: Initial version
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result
 
@@ -102,6 +103,12 @@ impl RuntimeAPIVersion {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_runtime_without_thread_safety_contract() {
+        assert!(RuntimeAPIVersion::from(0x0000_0300).validate().is_err());
+        assert!(CURRENT_API_VERSION.validate().is_ok());
+    }
 
     #[test]
     fn c_api_version_matches_rust_version() {

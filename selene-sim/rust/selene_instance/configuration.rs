@@ -16,7 +16,7 @@ fn random_by_default() -> u64 {
 }
 
 /// Configuration for plugins, e.g. the simulator, error model, and runtime.
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct PluginConfig {
     pub name: String,
     #[serde(default = "random_by_default")]

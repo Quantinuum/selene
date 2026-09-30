@@ -1,5 +1,5 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 use selene_core::encoder::{OutputStream, OutputStreamError};
 use selene_core::error_model::BatchResult;
@@ -107,7 +107,7 @@ impl Operation {
     }
 }
 
-pub trait EventHook {
+pub trait EventHook: Send {
     fn on_user_call(&mut self, _: &Operation) {}
     fn on_runtime_batch(&mut self, _: &BatchOperation) {}
     fn on_error_model_output(&mut self, _: &Operation) {}
@@ -184,12 +184,12 @@ impl EventHook for MultiEventHook {
 
 #[derive(Clone, Default)]
 pub struct SharedEventHook {
-    hooks: Rc<RefCell<MultiEventHook>>,
+    hooks: Arc<Mutex<MultiEventHook>>,
 }
 
 impl SharedEventHook {
     fn with_hooks<T>(&self, callback: impl FnOnce(&mut MultiEventHook) -> T) -> T {
-        let mut hooks = self.hooks.borrow_mut();
+        let mut hooks = self.hooks.lock();
         callback(&mut hooks)
     }
 

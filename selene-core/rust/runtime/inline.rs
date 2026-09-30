@@ -11,6 +11,8 @@ use std::{ffi, marker::PhantomData};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+/// Borrowed raw interface. Calls follow RuntimePluginDescriptorV1's concurrency
+/// and buffer-lifetime contract. The owner must outlive every use of this handle.
 pub struct RuntimeHandle<'a> {
     pub instance: RuntimeInstance,
     pub interface: RuntimeOperationInterface<'a>,
@@ -27,9 +29,11 @@ impl RuntimeFFIAdapter {
         Self { runtime }
     }
 
-    pub fn ffi_interface(&mut self) -> RuntimeHandle<'static> {
+    /// Returns a raw handle; the adapter must remain at its current address and
+    /// alive until all uses finish. Calls obey the runtime concurrency contract.
+    pub fn ffi_interface(&self) -> RuntimeHandle<'static> {
         RuntimeHandle {
-            instance: &raw mut self.runtime as RuntimeInstance,
+            instance: (&raw const self.runtime).cast(),
             interface: RuntimeOperationInterface {
                 exit_fn: Self::exit,
                 get_next_operations_fn: Self::get_next_operations,
@@ -63,11 +67,13 @@ impl RuntimeFFIAdapter {
 
     unsafe fn with_runtime<T>(
         instance: RuntimeInstance,
-        mut go: impl FnMut(&mut dyn RuntimeInterface) -> T,
+        go: impl FnOnce(&dyn RuntimeInterface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        let runtime = unsafe { &mut *(instance as *mut Box<dyn RuntimeInterface>) };
-        go(runtime.as_mut())
+        // SAFETY: the adapter owns this box for the handle's entire use. All
+        // calls borrow it through shared references; RuntimeInterface is Sync.
+        let runtime = unsafe { &*instance.cast::<Box<dyn RuntimeInterface>>() };
+        go(runtime.as_ref())
     }
 
     unsafe extern "C" fn exit(instance: RuntimeInstance) -> Errno {

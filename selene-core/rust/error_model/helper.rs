@@ -215,11 +215,10 @@ macro_rules! export_error_model_plugin {
                 error_model_argv: *const *const c_char,
             ) -> Errno {
                 use std::cell::OnceCell;
-                use std::sync::Mutex;
+                use $crate::__parking_lot::Mutex;
                 static FACTORY: Mutex<OnceCell<Helper>> = Mutex::new(OnceCell::new());
                 FACTORY
                     .lock()
-                    .unwrap()
                     .get_or_init(|| Helper::default())
                     .init(
                         instance,

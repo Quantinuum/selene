@@ -11,5 +11,6 @@ path = "rust/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
+parking_lot = "0.12"
 anyhow = "1.0"
 selene-core = { path = "../../" }

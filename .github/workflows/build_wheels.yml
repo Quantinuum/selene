@@ -89,11 +89,14 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Read Rust toolchain
+      - name: Prepare macOS Rust toolchain
         if: ${{ startsWith(matrix.os, 'macos-') }}
         id: rust_toolchain
         shell: bash
         run: |
+          # Avoid component-file conflicts in the runner's preinstalled toolchains.
+          rustup_dir="$(mktemp -d "$RUNNER_TEMP/selene-rustup.XXXXXX")"
+          echo "RUSTUP_HOME=$rustup_dir" >> "$GITHUB_ENV"
           channel="$(awk -F'"' '/^channel = / { print $2 }' rust-toolchain.toml)"
           test -n "$channel"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"

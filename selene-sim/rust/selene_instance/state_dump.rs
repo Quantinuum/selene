@@ -8,7 +8,8 @@ impl SeleneInstance {
     /// write to it. Then write the chosen filename the out_encoder so that the
     /// result handler can know where to find the file corresponding to that part
     /// of the stream.
-    pub fn dump_state(&mut self, message: &str, _qubits: &[u64]) -> Result<()> {
+    pub fn dump_state(&self, message: &str, _qubits: &[u64]) -> Result<()> {
+        let _dump = self.state_dump_lock.lock();
         // Create a new file in the artifact directory
         let filename_slug = message
             .chars()
@@ -25,10 +26,11 @@ impl SeleneInstance {
             .find(|f| !f.exists())
             .unwrap();
         self.emulator.dump_quantum_state(&path, _qubits)?;
-        self.out_encoder.begin_message(self.time_cursor)?;
-        self.out_encoder.write(message)?;
-        self.out_encoder.write(path.to_str().unwrap())?;
-        self.out_encoder.end_message()?;
+        let mut out_encoder = self.out_encoder.lock();
+        out_encoder.begin_message(self.time_cursor())?;
+        out_encoder.write(message)?;
+        out_encoder.write(path.to_str().unwrap())?;
+        out_encoder.end_message()?;
         Ok(())
     }
 }

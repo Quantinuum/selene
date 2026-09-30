@@ -1,4 +1,6 @@
 use anyhow::Result;
+use parking_lot::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub mod configuration;
 pub mod metadata;
@@ -12,16 +14,32 @@ use crate::emulator::Emulator;
 use rand_pcg::Pcg32;
 use selene_core::encoder::OutputStream;
 
+/// Opaque instance shared by user-program QIS calls.
+///
+/// QIS calls may run concurrently on this instance. The host must exclude them
+/// during `selene_on_shot_start`, `selene_on_shot_end`, metric collection, and
+/// `selene_exit`, and keep the instance alive until all user threads have joined.
+/// Simulator and error-model calls run on one consumer thread. Output records and
+/// PRNG operations are serialized; the output time cursor remains instance-wide.
 pub struct SeleneInstance {
     pub config: Configuration,
     pub emulator: Emulator,
-    pub out_encoder: OutputStream,
-    pub time_cursor: u64,
+    pub out_encoder: Mutex<OutputStream>,
+    pub time_cursor: AtomicU64,
     pub shot_number: u64,
-    pub prng: Option<Pcg32>,
+    pub prng: Mutex<Option<Pcg32>>,
+    pub(crate) state_dump_lock: Mutex<()>,
 }
 
 impl SeleneInstance {
+    pub fn time_cursor(&self) -> u64 {
+        self.time_cursor.load(Ordering::Relaxed)
+    }
+
+    pub fn set_time_cursor(&self, value: u64) {
+        self.time_cursor.store(value, Ordering::Relaxed);
+    }
+
     /// Create a new Selene simulator instance from the provided configuration,
     /// e.g. loaded from a config file.
     pub fn new(config: Configuration) -> Result<Self> {
@@ -52,17 +70,18 @@ impl SeleneInstance {
         Ok(Self {
             config,
             emulator,
-            out_encoder,
-            time_cursor: 0,
+            out_encoder: Mutex::new(out_encoder),
+            time_cursor: AtomicU64::new(0),
             shot_number: shot_offset,
-            prng: None,
+            prng: Mutex::new(None),
+            state_dump_lock: Mutex::new(()),
         })
     }
 
     /// Upon termination of the simulator instance, we signal to the output stream
     /// that we are closing out gracefully, and flush all remaining data.
     pub fn exit(&mut self) -> Result<()> {
-        self.out_encoder.end_of_stream()?;
+        self.out_encoder.get_mut().end_of_stream()?;
         self.flush_output()?;
         Ok(())
     }
