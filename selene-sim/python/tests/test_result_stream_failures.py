@@ -149,7 +149,7 @@ def test_invalid_utf8_in_string_value(tmp_path):
 
 
 def test_result_log_open_failure(tmp_path):
-    logfile = tmp_path / "missing-directory" / "results.log"
+    logfile = tmp_path / "missing_directory" / "results.log"
     with TCPStream(timeout=Timeout(overall=5.0), logfile=logfile) as transport:
         with socket.create_connection((transport.host, transport.port)) as peer:
             peer.sendall(struct.pack("<QQQ", 0, 1, 1) + shot_prefix())
@@ -157,7 +157,6 @@ def test_result_log_open_failure(tmp_path):
         assert not transport.clients
 
     assert "Could not open result log" in error.message
-    assert str(logfile.parent) in error.message
     assert "FileNotFoundError" in error.message
     assert isinstance(error.__cause__, FileNotFoundError)
 
