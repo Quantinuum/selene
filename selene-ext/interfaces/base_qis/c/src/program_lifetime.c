@@ -1,17 +1,6 @@
-#include <setjmp.h>
 #include <base_qis/program_lifetime.h>
 
-#ifdef USER_PROGRAM_THREADING
-#include <threads.h>
-#define context_attrs thread_local
-#else
-#define context_attrs
-#endif
-
-typedef struct RunContext{
-    jmp_buf program_end;
-    uint64_t error_code;
-} RunContext;
+#include "program_context.h"
 
 context_attrs RunContext program_context = {0};
 
@@ -19,6 +8,7 @@ struct user_program_result_t user_program_wrapper(
     user_program_t user_program,
     uint64_t arg
 ){
+    program_context.heap = mi_heap_new();
     int jump_code = setjmp(program_context.program_end);
     user_program_result_t result = {0};
     if(jump_code == 0){
@@ -28,6 +18,11 @@ struct user_program_result_t user_program_wrapper(
     }else{
         result.exited_early = true;
         result.result_or_error_code = program_context.error_code;
+    }
+    // Free anything the user program left allocated on their heap
+    if (program_context.heap != NULL) {
+        mi_heap_destroy(program_context.heap);
+        program_context.heap = NULL;
     }
     return result;
 }
