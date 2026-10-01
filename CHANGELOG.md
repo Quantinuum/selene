@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.3](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.2...selene-sim-v0.3.3) (2026-10-01)
+
+
+### Features
+
+* clean up any remaining user heap space after each shot ([#229](https://github.com/Quantinuum/selene/issues/229)) ([03c7be7](https://github.com/Quantinuum/selene/commit/03c7be79ae0005db226f1b0c923693a692a48a77))
+* improved result stream writing and error handling ([#230](https://github.com/Quantinuum/selene/issues/230)) ([e50b2da](https://github.com/Quantinuum/selene/commit/e50b2dab539ce6c6257660427a264112a5be56e7))
+* Make selene-sim depend on selene-core at 0.3.2 or above ([dfdcb7c](https://github.com/Quantinuum/selene/commit/dfdcb7cf7cd7a6693680d708a314cda20669319b))
+
+
+### Bug Fixes
+
+* bootstrap pinned Hugrenv tools for local builds ([#224](https://github.com/Quantinuum/selene/issues/224)) ([4fa53e0](https://github.com/Quantinuum/selene/commit/4fa53e025ded6fe959e3fb2a096cdf28d8528f8a))
+* close parent handles in `SeleneProcess.spawn()` ([#225](https://github.com/Quantinuum/selene/issues/225)) ([5e7e159](https://github.com/Quantinuum/selene/commit/5e7e159ea484513aaca9aeec479b11f867d89021))
+
 ## [0.3.2](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.1...selene-sim-v0.3.2) (2026-09-09)
 
 

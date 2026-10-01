@@ -18,4 +18,4 @@ __all__ = (
     ["BuildMethod", "BitcodeString", "build", "SeleneInstance"] + backends + event_hooks
 )
 
-__version__ = "0.3.2"  # x-release-please-version
+__version__ = "0.3.3"  # x-release-please-version
