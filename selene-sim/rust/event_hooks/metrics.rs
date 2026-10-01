@@ -1,5 +1,5 @@
 use crate::event_hooks::{EventHook, Operation};
-use selene_core::encoder::{OutputStream, OutputStreamError};
+use selene_core::encoder::{OutputStream, OutputStreamError, Record};
 use selene_core::runtime::{self, BatchOperation};
 
 #[derive(Default, Debug)]
@@ -48,58 +48,64 @@ impl UserProgramMetrics {
         time_cursor: u64,
         encoder: &mut OutputStream,
     ) -> Result<(), OutputStreamError> {
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:qalloc_count")?;
-        encoder.write(self.qalloc_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:qfree_count")?;
-        encoder.write(self.qfree_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:reset_count")?;
-        encoder.write(self.reset_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:measure_request_count")?;
-        encoder.write(self.measure_request_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:measure_leaked_request_count")?;
-        encoder.write(self.measure_leaked_request_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:measure_read_count")?;
-        encoder.write(self.future_read_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:rxy_count")?;
-        encoder.write(self.rxy_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:rzz_count")?;
-        encoder.write(self.rzz_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:rz_count")?;
-        encoder.write(self.rz_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:global_barrier_count")?;
-        encoder.write(self.global_barrier_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:local_barrier_count")?;
-        encoder.write(self.local_barrier_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:max_allocated")?;
-        encoder.write(self.max_allocated)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:user_program:currently_allocated")?;
-        encoder.write(self.currently_allocated)?;
-        encoder.end_message()
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:qalloc_count")?
+                .add_entry(self.qalloc_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:qfree_count")?
+                .add_entry(self.qfree_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:reset_count")?
+                .add_entry(self.reset_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:user_program:measure_request_count",
+            )?
+            .add_entry(self.measure_request_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:user_program:measure_leaked_request_count",
+            )?
+            .add_entry(self.measure_leaked_request_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:measure_read_count")?
+                .add_entry(self.future_read_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:rxy_count")?
+                .add_entry(self.rxy_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:rzz_count")?
+                .add_entry(self.rzz_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:rz_count")?
+                .add_entry(self.rz_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:global_barrier_count")?
+                .add_entry(self.global_barrier_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:local_barrier_count")?
+                .add_entry(self.local_barrier_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:max_allocated")?
+                .add_entry(self.max_allocated)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:user_program:currently_allocated")?
+                .add_entry(self.currently_allocated)?,
+        )
     }
 }
 
@@ -207,66 +213,84 @@ impl PostRuntimeMetrics {
         time_cursor: u64,
         encoder: &mut OutputStream,
     ) -> Result<(), OutputStreamError> {
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:custom_op_batch_count")?;
-        encoder.write(self.custom_op_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:custom_op_individual_count")?;
-        encoder.write(self.custom_op_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:measure_batch_count")?;
-        encoder.write(self.measure_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:measure_individual_count")?;
-        encoder.write(self.measure_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:measure_leaked_batch_count")?;
-        encoder.write(self.measure_leaked_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:measure_leaked_individual_count")?;
-        encoder.write(self.measure_leaked_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:reset_batch_count")?;
-        encoder.write(self.reset_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:reset_individual_count")?;
-        encoder.write(self.reset_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:rxy_batch_count")?;
-        encoder.write(self.rxy_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:rxy_individual_count")?;
-        encoder.write(self.rxy_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:rz_batch_count")?;
-        encoder.write(self.rz_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:rz_individual_count")?;
-        encoder.write(self.rz_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:rzz_batch_count")?;
-        encoder.write(self.rzz_batch_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:rzz_individual_count")?;
-        encoder.write(self.rzz_individual_count)?;
-        encoder.end_message()?;
-        encoder.begin_message(time_cursor)?;
-        encoder.write("METRICS:INT:post_runtime:total_duration_ns")?;
-        encoder.write(self.total_duration_ns)?;
-        encoder.end_message()
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:post_runtime:custom_op_batch_count",
+            )?
+            .add_entry(self.custom_op_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:post_runtime:custom_op_individual_count",
+            )?
+            .add_entry(self.custom_op_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:measure_batch_count")?
+                .add_entry(self.measure_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:post_runtime:measure_individual_count",
+            )?
+            .add_entry(self.measure_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:post_runtime:measure_leaked_batch_count",
+            )?
+            .add_entry(self.measure_leaked_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:post_runtime:measure_leaked_individual_count",
+            )?
+            .add_entry(self.measure_leaked_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:reset_batch_count")?
+                .add_entry(self.reset_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(
+                time_cursor,
+                "METRICS:INT:post_runtime:reset_individual_count",
+            )?
+            .add_entry(self.reset_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:rxy_batch_count")?
+                .add_entry(self.rxy_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:rxy_individual_count")?
+                .add_entry(self.rxy_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:rz_batch_count")?
+                .add_entry(self.rz_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:rz_individual_count")?
+                .add_entry(self.rz_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:rzz_batch_count")?
+                .add_entry(self.rzz_batch_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:rzz_individual_count")?
+                .add_entry(self.rzz_individual_count)?,
+        )?;
+        encoder.add_record(
+            Record::new(time_cursor, "METRICS:INT:post_runtime:total_duration_ns")?
+                .add_entry(self.total_duration_ns)?,
+        )
     }
 }
 

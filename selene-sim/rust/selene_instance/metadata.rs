@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use selene_core::encoder::OutputStreamError;
+use selene_core::encoder::{OutputStreamError, Record};
 use selene_core::error_model::ErrorModelInterface;
 use selene_core::runtime::RuntimeInterface;
 use selene_core::simulator::SimulatorInterface;
@@ -22,15 +22,14 @@ impl SeleneInstance {
             MetricValue::F64(_) => "FLOAT",
         };
         let full_tag = format!("METRICS:{}:{}:{}", type_str, metric_category, metric_tag);
-        self.out_encoder.begin_message(self.time_cursor)?;
-        self.out_encoder.write(full_tag.as_str())?;
+        let mut record = Record::new(self.time_cursor, full_tag.as_str())?;
         match metric_value {
-            MetricValue::Bool(v) => self.out_encoder.write(v)?,
-            MetricValue::I64(v) => self.out_encoder.write(v)?,
-            MetricValue::U64(v) => self.out_encoder.write(v)?,
-            MetricValue::F64(v) => self.out_encoder.write(v)?,
+            MetricValue::Bool(v) => record.push(v)?,
+            MetricValue::I64(v) => record.push(v)?,
+            MetricValue::U64(v) => record.push(v)?,
+            MetricValue::F64(v) => record.push(v)?,
         };
-        self.out_encoder.end_message()?;
+        self.out_encoder.add_record(record)?;
         Ok(())
     }
     pub fn write_metrics(&mut self) -> Result<()> {
