@@ -1,5 +1,5 @@
 use crate::event_hooks::{BatchOperation, BatchResult, EventHook};
-use selene_core::encoder::{OutputStream, OutputStreamError};
+use selene_core::encoder::{OutputStream, OutputStreamError, Record};
 use selene_core::runtime::Operation;
 use std::collections::{BTreeMap, VecDeque};
 
@@ -19,14 +19,14 @@ struct MeasLogEnt {
 }
 
 impl MeasLogEnt {
-    pub fn write(&self, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
+    pub fn write(&self, record: &mut Record) -> Result<(), OutputStreamError> {
         let is_meas_leaked: u64 = match self.meas_type {
             MeasType::Measure => 0,
             MeasType::MeasureLeaked => 1,
         };
-        encoder.write(is_meas_leaked)?;
-        encoder.write(self.qubit_id)?;
-        encoder.write(self.value)
+        record.push(is_meas_leaked)?;
+        record.push(self.qubit_id)?;
+        record.push(self.value)
     }
 
     /// Constructor which checks the result value is valid
@@ -124,12 +124,11 @@ impl EventHook for MeasurementLog {
         time_cursor: u64,
         encoder: &mut OutputStream,
     ) -> Result<(), OutputStreamError> {
-        encoder.begin_message(time_cursor)?;
-        encoder.write("MEASUREMENTLOG")?;
+        let mut record = Record::new(time_cursor, "MEASUREMENTLOG")?;
         for entry in self.entries.iter() {
-            entry.write(encoder)?;
+            entry.write(&mut record)?;
         }
-        encoder.end_message()?;
+        encoder.add_record(record)?;
         self.entries.clear();
         Ok(())
     }

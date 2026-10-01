@@ -1,6 +1,6 @@
 use super::SeleneInstance;
 use anyhow::Result;
-//use selene_core::encoder::StreamWritable;
+use selene_core::encoder::Record;
 
 impl SeleneInstance {
     /// Create a new file in the artifact directory, with a name based on the
@@ -25,10 +25,9 @@ impl SeleneInstance {
             .find(|f| !f.exists())
             .unwrap();
         self.emulator.dump_quantum_state(&path, _qubits)?;
-        self.out_encoder.begin_message(self.time_cursor)?;
-        self.out_encoder.write(message)?;
-        self.out_encoder.write(path.to_str().unwrap())?;
-        self.out_encoder.end_message()?;
+        self.out_encoder.add_record(
+            Record::new(self.time_cursor, message)?.add_entry(path.to_str().unwrap())?,
+        )?;
         Ok(())
     }
 }

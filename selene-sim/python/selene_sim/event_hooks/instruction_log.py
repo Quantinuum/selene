@@ -87,7 +87,8 @@ class CustomOperation(Operation):
     @staticmethod
     def from_iterator(it: Iterator):
         tag = next(it)
-        data = bytes(next(it))
+        has_data = next(it)
+        data = bytes(next(it)) if has_data else b""
         return CustomOperation(tag=tag, data=data)
 
 
