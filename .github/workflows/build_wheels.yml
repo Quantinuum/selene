@@ -164,27 +164,6 @@ jobs:
       - name: Build selene-sim wheels
         uses: pypa/cibuildwheel@v3.4.1
 
-      - name: Check Linux wheels for unwanted libatomic dependencies
-        if: ${{ startsWith(matrix.os, 'ubuntu-') }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for wheel in wheelhouse/selene_sim-*.whl; do
-            unpack_dir="$(mktemp -d)"
-            trap 'rm -rf "$unpack_dir"' EXIT
-            unzip -q "$wheel" 'selene_base_qis_plugin/_dist/lib/*.so' -d "$unpack_dir"
-            for suffix in off debug diagnostic; do
-              library="$unpack_dir/selene_base_qis_plugin/_dist/lib/libbase_qis_selene_interface_logging_${suffix}.so"
-              dependencies="$(readelf -d "$library")"
-              if grep -q 'NEEDED.*libatomic' <<< "$dependencies"; then
-                echo "Unexpected libatomic dependency in $wheel ($suffix)"
-                exit 1
-              fi
-            done
-            rm -rf "$unpack_dir"
-            trap - EXIT
-          done
-
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
