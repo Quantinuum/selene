@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.3...selene-sim-v0.3.4) (2026-10-02)
+
+
+### Bug Fixes
+
+* drop unused `libatomic` dependency from Linux wheels ([#232](https://github.com/Quantinuum/selene/issues/232)) ([9c567b8](https://github.com/Quantinuum/selene/commit/9c567b8cd802240f8014c54110b1b2de1e02a8ce))
+
 ## [0.3.3](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.2...selene-sim-v0.3.3) (2026-10-01)
 
 
