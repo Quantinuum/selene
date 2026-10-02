@@ -47,6 +47,10 @@ function(build_base_qis_interface log_level suffix)
         base_qis_selene_interface
     )
     target_link_libraries(${runtime_target} PRIVATE mimalloc-static)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # Drop optional mimalloc dependencies when no symbols need them.
+        target_link_options(${runtime_target} PRIVATE "LINKER:--as-needed")
+    endif()
     if(MSVC)
         target_compile_options(${runtime_target} PRIVATE /TC /Zl)
     endif()
