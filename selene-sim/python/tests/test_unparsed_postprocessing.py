@@ -96,7 +96,7 @@ def test_instruction_log_errors_name_the_file_without_adding_partial_data(
     extractor = CircuitExtractor()
     with pytest.raises(SeleneRuntimeError) as error:
         postprocess_unparsed_stream([[("INSTRUCTIONLOG", [str(path)])]], extractor)
-    assert str(path) in str(error.value)
+    assert repr(str(path)) in str(error.value)
     assert extractor.shots[0].instructions == []
 
 
