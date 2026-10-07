@@ -26,6 +26,69 @@ And we offer two example quantum runtimes, including:
 - Simple, which executes the program as-is, without any modifications
 - SoftRZ, which elides Z rotations through RXY gates, providing the same observable behaviour with fewer quantum operations
 
+## Traces
+
+Pass a `TraceStore` event hook to `runner.run` or `runner.run_shots` to collect
+versioned traces directly from the backend:
+
+```python
+from selene_sim.event_hooks import TraceStore
+
+with TraceStore() as traces:
+    results = [
+        list(shot)
+        for shot in runner.run_shots(Stim(), n_qubits=10, n_shots=3, event_hook=traces)
+    ]
+    for event in traces.shots[0].iter_events():
+        print(event)
+    # Only request this if we need all events in memory at once.
+    trace = traces.shots[0].get_trace()
+```
+
+The backend writes gzipped JSON Lines files in the run's artifact directory and sends
+`TRACE` records containing their filenames through the result stream. The files
+must be accessible to the frontend, just like state-result files. `TraceStore`
+copies the compressed artifacts into its own temporary directory as the results
+are processed, but doesn't decode them. Each shot provides a repeatable event
+iterator over its files, including any intermediate metadata flushes. Reading
+doesn't cache events. File-format, event-validation, and gzip-integrity errors
+are raised during iteration, with filename and line context. Exhaust the iterator
+to validate the complete file.
+
+The owned copies allow lazy access after the run directory has been removed.
+Use the store as a context manager or call `close()` to remove its copies when
+finished. Closing invalidates subsequent file-backed reads; an already
+materialised `Trace` is independent of the store. Otherwise the copies are
+removed when the store and its shot views are garbage-collected.
+For `parse_results=False`, pass the hook to `postprocess_unparsed_stream` as
+well, and keep the artifact files until postprocessing has finished.
+
+`CircuitExtractor` uses a `TraceStore` internally and still provides its circuit
+and instruction views by iterating events. `extractor.shots[0].get_trace()`
+delegates to the shot's materialiser, which returns a complete `Trace` without
+caching it. If you want both interfaces, use `extractor.trace_store` rather than
+registering the same store as a second event hook.
+
+### Trace artifact format
+
+The `.jsonl.gz` format and its readers/writers belong to
+[selene-api-models](../../../selene-trace/README.md#streaming-trace-files).
+Selene handles when to drain events, where to keep artifacts, and when their
+filenames can be published. The Python API also accepts older uncompressed
+whole-document JSON files, although those require whole-file parsing.
+
+Event callbacks only append to a pending buffer. Checked emulator checkpoints
+drain that buffer after each runtime batch and after the runtime loop, without
+finishing the gzip stream. A metadata flush drains any remaining events, finishes
+and closes the file, then publishes its filename. Later events go into a new
+file. Failed files are not published or retried, and unfinished files are removed
+when their backend writer is dropped.
+
+Runtime batch boundaries and measurement instruction distinctions are kept as
+file-level metadata for circuit extraction. They are not gates or additional
+trace events. `get_trace()` preserves the existing trace representation,
+including measurement events for future reads, without adding that metadata.
+
 ## Usage example
 
 Although examples are provided in our [tests](https://github.com/quantinuum/selene/tree/main/selene-sim/python/tests) folder, here is a quick walkthrough to get you started with Selene, HUGR and Guppy.

@@ -1,0 +1,4 @@
+{"format":"selene.trace.jsonl","format_version":1,"schema_version":"0.1.0"}
+{"source":{"kind":"UserProgram","index":0},"event":{"kind":"Custom","payload":{"kind":"OpaquePayload","tag":"18446744073709551615","data":"AP8="}}}
+{"source":{"kind":"Runtime","start_time":0,"end_time":10},"event":{"kind":"Reset","qubit":3}}
+{"source":{"kind":"Simulator","index":0,"duration_ns":1},"event":{"kind":"Gate","gate_name":"Rz","qubits":[3],"params":[0.5],"predicates":[]}}

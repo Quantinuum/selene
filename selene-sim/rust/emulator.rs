@@ -118,10 +118,10 @@ impl Emulator {
                 crate::event_hooks::metrics::HighLevelMetrics::default(),
             ));
         }
-        if config.event_hooks.provide_instruction_log {
-            event_hooks.add_hook(Box::new(
-                crate::event_hooks::instruction_log::InstructionLog::default(),
-            ));
+        if config.event_hooks.provide_trace || config.event_hooks.provide_instruction_log {
+            event_hooks.add_hook(Box::new(crate::event_hooks::trace_log::TraceLog::new(
+                config.artifact_dir.clone(),
+            )));
         }
         if config.event_hooks.provide_measurement_log {
             event_hooks.add_hook(Box::new(
@@ -332,7 +332,12 @@ impl Emulator {
                 self.runtime
                     .set_u64_result(u64_result.result_id, u64_result.value)?;
             }
+            // The callbacks only collect events. Write them at a checked
+            // boundary so a long runtime drain doesn't keep every batch alive.
+            self.event_hooks.drain_pending()?;
         }
+        // User calls can produce trace events even if the runtime has no batch.
+        self.event_hooks.drain_pending()?;
         Ok(())
     }
 }

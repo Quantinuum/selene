@@ -12,6 +12,7 @@ dependencies = [
   "numpy~=2.0",
   "pyyaml>=6.0.2",
   "selene-core~=0.3.2",
+  "selene-api-models~=0.1.0",
   "tqdm>=4.67.1",
   # TODO: decide if we want this as a formal dependency or not
   #"selene-hugr-qis-compiler~=0.3.0", 
@@ -102,6 +103,8 @@ cache-keys = [
   { file = "selene-sim/c/**/*.h" },
   { file = "selene-sim/c/**/CMakeLists.txt" },
   { file = "selene-sim/rust/**/*.rs" },
+  { file = "selene-trace/rust/src/**/*.rs" },
+  { file = "selene-trace/rust/Cargo.toml" },
   { file = "selene-sim/rust/**/Cargo.toml" },
   { file = "selene-ext/*/*/c/**/*.c" },
   { file = "selene-ext/*/*/c/**/*.h" },

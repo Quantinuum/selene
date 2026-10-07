@@ -1820,6 +1820,7 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pyyaml" },
+    { name = "selene-api-models" },
     { name = "selene-core" },
     { name = "tqdm" },
 ]
@@ -1846,6 +1847,7 @@ test = [
 requires-dist = [
     { name = "numpy", specifier = "~=2.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "selene-api-models", editable = "selene-trace" },
     { name = "selene-core", editable = "selene-core" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]

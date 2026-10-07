@@ -131,6 +131,11 @@ class InstructionLogEntry:
 
 
 @dataclass
+class TraceFile:
+    path: str
+
+
+@dataclass
 class ShotMeasurements:
     """
     Unparsed measurement results from the output stream. Each set of three StreamEntryParts
@@ -148,6 +153,7 @@ ShotEntry = (
     | FullPanicMessage
     | MetricValue
     | InstructionLogEntry
+    | TraceFile
     | ShotMeasurements
     | DebugTraceMessage
 )
@@ -209,6 +215,10 @@ def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
             f"Expected metric value to be an integer, boolean or float, got {type(value)}"
         )
         return MetricValue(name=entry.tag, value=value)
+    elif entry.tag == "TRACE":
+        if len(entry.values) != 1 or not isinstance(entry.values[0], str):
+            raise SeleneRuntimeError("Expected TRACE to contain one filename")
+        return TraceFile(path=entry.values[0])
     elif entry.tag == "INSTRUCTIONLOG":
         return InstructionLogEntry(tag=entry.tag, values=entry.values)
     elif entry.tag == "MEASUREMENTLOG":

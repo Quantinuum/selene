@@ -1,6 +1,7 @@
 """Transported raw records can be processed independently of a running Selene."""
 
 from unittest.mock import Mock
+from selene_api_models.trace import SCHEMA_VERSION, Trace, ResetEvent
 
 import pytest
 
@@ -43,7 +44,16 @@ def test_raw_payloads_survive_extraction():
     process.terminate.assert_not_called()
 
 
-def test_postprocessing_initializes_and_dispatches_hooks_per_shot():
+def trace_file(tmp_path):
+    trace = Trace(schema_version=SCHEMA_VERSION, events=[])
+    trace.add_user_program_event(ResetEvent(qubit=0), index=0)
+    path = tmp_path / "trace.json"
+    path.write_text(trace.model_dump_json())
+    return path, trace
+
+
+def test_postprocessing_initializes_and_dispatches_hooks_per_shot(tmp_path):
+    path, trace = trace_file(tmp_path)
     circuits, measurements, metrics = (
         CircuitExtractor(),
         MeasurementExtractor(),
@@ -52,17 +62,17 @@ def test_postprocessing_initializes_and_dispatches_hooks_per_shot():
     hook = MultiEventHook([circuits, measurements, metrics])
     shots = [
         [
-            ("INSTRUCTIONLOG", ["source", b"data"]),
+            ("TRACE", [str(path)]),
             ("MEASUREMENTLOG", [0, 3, 1]),
             ("METRICS:INT:count", [7]),
             ("USER:INTARR:values", [[2, 3]]),
         ],
-        [("INSTRUCTIONLOG", []), ("USER:BOOL:result", [True])],
+        [("USER:BOOL:result", [True])],
     ]
     results, error = postprocess_unparsed_stream(shots, hook)
     assert error is None
     assert results == [[("USER:INTARR:values", [2, 3])], [("USER:BOOL:result", True)]]
-    assert [shot.instructions for shot in circuits.shots] == [["source", b"data"], []]
+    assert [shot.get_trace().events for shot in circuits.shots] == [trace.events, []]
     assert len(measurements.log_entries) == 2
     assert measurements[0][0].qbid == 3
     assert measurements[0][0].result_value == 1
@@ -90,7 +100,8 @@ def test_postprocessing_preserves_logs_before_panic(tmp_path):
     stdout, stderr = tmp_path / "stdout", tmp_path / "stderr"
     stdout.write_text("")
     stderr.write_text("")
-    entries = [("INSTRUCTIONLOG", ["source", b"data"])]
+    path, trace = trace_file(tmp_path)
+    entries = [("TRACE", [str(path)])]
     entries.extend(
         (tag, [value])
         for tag, value in encode_exception(
@@ -101,7 +112,7 @@ def test_postprocessing_preserves_logs_before_panic(tmp_path):
     results, error = postprocess_unparsed_stream([entries], circuits)
     assert isinstance(error, SelenePanicError)
     assert results == [[("EXIT:INT:failed", 1001)]]
-    assert circuits.shots[0].instructions == ["source", b"data"]
+    assert circuits.shots[0].get_trace() == trace
 
 
 @pytest.mark.parametrize(

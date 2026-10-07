@@ -30,6 +30,8 @@ pub struct EventHookConfig {
     #[serde(default = "disable_by_default")]
     pub provide_instruction_log: bool,
     #[serde(default = "disable_by_default")]
+    pub provide_trace: bool,
+    #[serde(default = "disable_by_default")]
     pub provide_metrics: bool,
     #[serde(default = "disable_by_default")]
     pub provide_measurement_log: bool,

@@ -25,6 +25,7 @@ from .extract_shot import (
     DebugTraceMessage,
     MetricValue,
     InstructionLogEntry,
+    TraceFile,
     ShotMeasurements,
 )
 
@@ -133,6 +134,8 @@ def parsed_interface(
                     event_hook.try_invoke(name, [value])
                 case InstructionLogEntry(tag=tag, values=values):
                     event_hook.try_invoke(tag, values)
+                case TraceFile(path=path):
+                    event_hook.try_invoke("TRACE", [path])
                 case ShotMeasurements(tag=tag, values=values):
                     event_hook.try_invoke(tag, values)
         if pending_panic is not None:
@@ -215,6 +218,8 @@ def unparsed_interface(
                     stack_trace.add_entry(module=module, address=address)
                 case InstructionLogEntry():
                     yield ((entry.tag, entry.values))
+                case TraceFile(path=path):
+                    yield ("TRACE", [path])
                 case ShotMeasurements():
                     yield ((entry.tag, entry.values))
         if pending_panic is not None:

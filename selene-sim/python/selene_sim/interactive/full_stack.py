@@ -440,6 +440,7 @@ class InteractiveFullStack:
             self._event_hook.on_new_shot()
         elif entry.tag.startswith("METRICS:") or entry.tag in {
             "INSTRUCTIONLOG",
+            "TRACE",
             "MEASUREMENTLOG",
         }:
             self._event_hook.try_invoke(entry.tag, entry.values)
