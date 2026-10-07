@@ -1,7 +1,7 @@
 use super::super::backtrace::Module;
 use super::SeleneInstance;
 use anyhow::Result;
-use selene_core::encoder::{OutputStream, StreamWritable};
+use selene_core::encoder::{OutputStream, Record, StreamWritable};
 
 pub fn print_directly_to_stream<T: StreamWritable>(
     out_encoder: &mut OutputStream,
@@ -12,10 +12,7 @@ pub fn print_directly_to_stream<T: StreamWritable>(
     // In some cases, e.g. the compiled user program, the exit namespace is already
     // encoded in the provided message. In others, e.g. runtime panics from components,
     // we need to prepend it.
-    out_encoder.begin_message(time_cursor)?;
-    out_encoder.write(tag)?;
-    out_encoder.write(value)?;
-    out_encoder.end_message()?;
+    out_encoder.add_record(Record::new(time_cursor, tag)?.add_entry(value)?)?;
     Ok(())
 }
 

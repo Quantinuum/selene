@@ -1,5 +1,28 @@
 {
   "version": "0.5.0",
+  "archive_hashes": {
+    "macosx_11_0": {
+      "aarch64": {
+        "llvm": "sha256:8b4feaebff585e3ec809f3bfb774664b9f5043d8cb9a7cbdc3ed480bbd971572"
+      },
+      "x86_64": {
+        "llvm": "sha256:98d8dc9e50db42ad469c8155a23051ce08363f22686dd0554a40981935eb328c"
+      }
+    },
+    "manylinux_2_28": {
+      "aarch64": {
+        "llvm": "sha256:a624d6477f796554e1c5ba050cab5d5a624e034172c0dff267282e166730ddf1"
+      },
+      "x86_64": {
+        "llvm": "sha256:07f18471229cf8aa3d2b253a9a6510a51d72f56e82c755cdd5c5861aa3852c69"
+      }
+    },
+    "win": {
+      "amd64": {
+        "llvm": "sha256:eeb7e7090d92ddbca0f149217dcdae9454c12e058e6182075e10d51de6cd1174"
+      }
+    }
+  },
   "hashes": {
     "macosx_11_0": {
       "aarch64": {

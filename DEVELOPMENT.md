@@ -65,6 +65,32 @@ required:
 - cmake
 - just
 
+The build bundles LLVM tools from [Hugrenv](https://github.com/Quantinuum/hugrverse-env)
+for stack traces, at the version pinned in `hugrenv.lock`. The devenv shell provides
+them via `HUGRENV_PATH`. Outside the devenv shell, download the same release that CI
+uses into `.hugrenv/` with
+
+```bash
+just hugrenv
+just develop
+```
+
+`just hugrenv` verifies the downloaded archive against the pinned LLVM archive hash in
+`hugrenv.lock`. When `HUGRENV_PATH` is unset, the build uses `.hugrenv/`
+automatically. If you set `HUGRENV_PATH` yourself, relative paths are resolved
+from the repository root. Rerun `just hugrenv` after `hugrenv.lock` changes,
+followed by `uv sync --reinstall-package selene-sim` to refresh the bundled
+tools.
+
+`just build-wheels` passes the repository's `.hugrenv/` path to the isolated
+wheel build. If you run `uv build --all-packages` directly, set `HUGRENV_PATH`
+to an absolute path first, because the wheel is rebuilt from a source
+distribution that does not contain `.hugrenv/`.
+
+For distributable wheels, use `.hugrenv/` from `just hugrenv` or another
+portable Hugrenv installation via `HUGRENV_PATH`, so the bundled tools match CI
+and the supported release environments.
+
 Note: Cbindgen is used to generate C headers for selene and its extension plugins
 based on rust implementations. These headers are shipped with selene and selene-core
 wheels (in their `_dist/include` directory) respectively, allowing for downstream

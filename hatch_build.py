@@ -255,10 +255,22 @@ class UtilitiesBuild:
 class HugrenvTools:
     def __init__(self, hook: "BundleBuildHook") -> None:
         self.hook = hook
-        assert "HUGRENV_PATH" in os.environ, (
-            "HUGRENV_PATH environment variable is not set. This is required for bundling Hugrenv tools into selene's _dist directory."
+        local_hugrenv = Path(self.hook.root) / ".hugrenv"
+        hugrenv_path = os.environ.get("HUGRENV_PATH")
+        if hugrenv_path:
+            resolved_hugrenv_path = Path(hugrenv_path).expanduser()
+            if not resolved_hugrenv_path.is_absolute():
+                resolved_hugrenv_path = Path(self.hook.root) / resolved_hugrenv_path
+            resolved_hugrenv_path = Path(os.path.abspath(resolved_hugrenv_path))
+            hugrenv_path = str(resolved_hugrenv_path)
+        elif local_hugrenv.is_dir():
+            hugrenv_path = str(local_hugrenv)
+        assert hugrenv_path, (
+            "HUGRENV_PATH environment variable is not set and no local .hugrenv "
+            "directory was found. Run `just hugrenv` or set HUGRENV_PATH. This is "
+            "required for bundling Hugrenv tools into selene's _dist directory."
         )
-        self.hugrenv_path = Path(os.environ["HUGRENV_PATH"])
+        self.hugrenv_path = Path(hugrenv_path)
         self.is_cibw_host_path = str(self.hugrenv_path).startswith("/host/")
         assert self.hugrenv_path.is_dir(), (
             f"HUGRENV_PATH ('{self.hugrenv_path}') does not exist or is not a directory as required."
@@ -289,9 +301,11 @@ class HugrenvTools:
             Path(self.hook.root) / f"selene-sim/python/selene_sim/_dist/{directory}"
         )
         dist_dir.mkdir(parents=True, exist_ok=True)
-        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
-        shutil.copy(artifact_path, dist_dir)
         dist_path = dist_dir / name
+        if dist_path.is_symlink():
+            dist_path.unlink()
+        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
+        shutil.copy(artifact_path, dist_path)
         dist_path.chmod(0o755)
 
     def extract_binary(self, name):

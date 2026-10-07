@@ -1,5 +1,5 @@
 use crate::event_hooks::{EventHook, Operation};
-use selene_core::encoder::{OutputStream, OutputStreamError};
+use selene_core::encoder::{OutputStream, OutputStreamError, Record};
 use selene_core::runtime::BatchOperation;
 
 pub struct Instruction {
@@ -17,91 +17,94 @@ pub enum Source {
 }
 
 impl Instruction {
-    pub fn write(&self, encoder: &mut OutputStream) -> Result<(), OutputStreamError> {
+    pub fn write(&self, record: &mut Record) -> Result<(), OutputStreamError> {
         let source_id: u64 = self.source.clone() as u64;
-        encoder.write(source_id)?;
+        record.push(source_id)?;
         if let Some(duration_ns) = self.duration_ns {
-            encoder.write(duration_ns)?;
+            record.push(duration_ns)?;
         }
         match &self.operation {
             Operation::BatchStart(start_time, duration) => {
-                encoder.write(0u64)?;
-                encoder.write(*start_time)?;
-                encoder.write(*duration)?;
+                record.push(0u64)?;
+                record.push(*start_time)?;
+                record.push(*duration)?;
             }
             Operation::QAlloc(address) => {
-                encoder.write(1u64)?;
-                encoder.write(*address)?;
+                record.push(1u64)?;
+                record.push(*address)?;
             }
             Operation::QFree(address) => {
-                encoder.write(2u64)?;
-                encoder.write(*address)?;
+                record.push(2u64)?;
+                record.push(*address)?;
             }
             Operation::Reset(qubit1) => {
-                encoder.write(3u64)?;
-                encoder.write(*qubit1)?;
+                record.push(3u64)?;
+                record.push(*qubit1)?;
             }
             Operation::MeasureRequest(qubit1) => {
-                encoder.write(4u64)?;
-                encoder.write(*qubit1)?;
+                record.push(4u64)?;
+                record.push(*qubit1)?;
             }
             Operation::FutureRead(qubit1) => {
-                encoder.write(5u64)?;
-                encoder.write(*qubit1)?;
+                record.push(5u64)?;
+                record.push(*qubit1)?;
             }
             Operation::RXY(qubit1, angle1, angle2) => {
-                encoder.write(6u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*angle1)?;
-                encoder.write(*angle2)?;
+                record.push(6u64)?;
+                record.push(*qubit1)?;
+                record.push(*angle1)?;
+                record.push(*angle2)?;
             }
             Operation::RZ(qubit1, angle) => {
-                encoder.write(7u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*angle)?;
+                record.push(7u64)?;
+                record.push(*qubit1)?;
+                record.push(*angle)?;
             }
             Operation::RZZ(qubit1, qubit2, angle) => {
-                encoder.write(8u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*qubit2)?;
-                encoder.write(*angle)?;
+                record.push(8u64)?;
+                record.push(*qubit1)?;
+                record.push(*qubit2)?;
+                record.push(*angle)?;
             }
             Operation::Custom(tag, data) => {
-                encoder.write(9u64)?;
-                encoder.write(*tag)?;
-                encoder.write(&**data)?;
+                record.push(9u64)?;
+                record.push(*tag)?;
+                record.push(!data.is_empty())?;
+                if !data.is_empty() {
+                    record.push(&**data)?;
+                }
             }
             Operation::LocalBarrier(qubits, sleep_time) => {
-                encoder.write(10u64)?;
-                encoder.write(qubits.len() as u64)?;
+                record.push(10u64)?;
+                record.push(qubits.len() as u64)?;
                 for qubit in qubits.iter() {
-                    encoder.write(*qubit)?;
+                    record.push(*qubit)?;
                 }
-                encoder.write(*sleep_time)?;
+                record.push(*sleep_time)?;
             }
             Operation::GlobalBarrier(sleep_time) => {
-                encoder.write(11u64)?;
-                encoder.write(*sleep_time)?;
+                record.push(11u64)?;
+                record.push(*sleep_time)?;
             }
             Operation::MeasureLeakedRequest(qubit1) => {
-                encoder.write(12u64)?;
-                encoder.write(*qubit1)?;
+                record.push(12u64)?;
+                record.push(*qubit1)?;
             }
             Operation::ClassicalDelay(duration) => {
-                encoder.write(13u64)?;
-                encoder.write(*duration)?;
+                record.push(13u64)?;
+                record.push(*duration)?;
             }
             Operation::RPP(qubit1, qubit2, theta, phi) => {
-                encoder.write(14u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*qubit2)?;
-                encoder.write(*theta)?;
-                encoder.write(*phi)?;
+                record.push(14u64)?;
+                record.push(*qubit1)?;
+                record.push(*qubit2)?;
+                record.push(*theta)?;
+                record.push(*phi)?;
             }
             Operation::Postselect(qubit1, target_value) => {
-                encoder.write(16u64)?;
-                encoder.write(*qubit1)?;
-                encoder.write(*target_value)?;
+                record.push(16u64)?;
+                record.push(*qubit1)?;
+                record.push(*target_value)?;
             }
         }
         Ok(())
@@ -158,17 +161,93 @@ impl EventHook for InstructionLog {
         time_cursor: u64,
         encoder: &mut OutputStream,
     ) -> Result<(), OutputStreamError> {
-        encoder.begin_message(time_cursor)?;
-        encoder.write("INSTRUCTIONLOG")?;
+        let mut record = Record::new(time_cursor, "INSTRUCTIONLOG")?;
         for instruction in self.entries.iter() {
-            instruction.write(encoder)?;
+            instruction.write(&mut record)?;
         }
+        encoder.add_record(record)?;
         self.entries.clear();
-        encoder.end_message()?;
         Ok(())
     }
     fn on_shot_start(&mut self, _shot_id: u64) {
         self.entries.clear();
     }
     fn on_shot_end(&mut self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use selene_core::encoder::{InternalBuffer, OutputWriter};
+
+    #[test]
+    fn oversized_custom_data_leaves_room_for_a_panic_record() {
+        let mut encoder = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        let mut log = InstructionLog::default();
+        log.on_user_call(&Operation::Custom(42, vec![0; u16::MAX as usize + 1]));
+        assert!(matches!(
+            log.write(0, &mut encoder),
+            Err(OutputStreamError::OversizeArrayError(_))
+        ));
+        assert!(encoder.try_read(usize::MAX).unwrap().is_empty());
+
+        // This is the same writer the FFI error handler uses. It should still
+        // be able to emit the panic because none of the failed log was sent.
+        crate::selene_instance::print::print_directly_to_stream(
+            &mut encoder,
+            0,
+            "EXIT:INT:Array size 65536 exceeds maximum size",
+            100001u64,
+        )
+        .unwrap();
+        let output = encoder.try_read(usize::MAX).unwrap();
+        assert_eq!(&output[..8], &0u64.to_le_bytes());
+        let tag = b"EXIT:INT:Array size 65536 exceeds maximum size";
+        let value_start = 12 + tag.len();
+        assert_eq!(&output[8..12], &[3, 0, tag.len() as u8, 0]);
+        assert_eq!(&output[12..value_start], tag);
+        assert_eq!(&output[value_start..value_start + 4], &[1, 0, 0, 0]);
+        assert_eq!(
+            &output[value_start + 4..value_start + 12],
+            &100001u64.to_le_bytes()
+        );
+        assert_eq!(&output[value_start + 12..], &[0; 4]);
+    }
+
+    #[test]
+    fn custom_data_is_optional() {
+        for data in [vec![], vec![0xff], vec![1, 2, 3]] {
+            let mut encoder = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+            let mut log = InstructionLog::default();
+            log.on_user_call(&Operation::Custom(42, data.clone()));
+            log.on_user_call(&Operation::QAlloc(7));
+            log.write(0, &mut encoder).unwrap();
+
+            let mut expected = Record::new(0, "INSTRUCTIONLOG")
+                .unwrap()
+                .add_entry(0u64)
+                .unwrap()
+                .add_entry(9u64)
+                .unwrap()
+                .add_entry(42u64)
+                .unwrap()
+                .add_entry(!data.is_empty())
+                .unwrap();
+            if !data.is_empty() {
+                expected.push(data.as_slice()).unwrap();
+            }
+            // The following allocation must start immediately after the flag
+            // when there's no data, or after the byte array when there is.
+            expected.push(0u64).unwrap();
+            expected.push(1u64).unwrap();
+            expected.push(7u64).unwrap();
+            let mut reference =
+                OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+            reference.add_record(expected).unwrap();
+            assert_eq!(
+                encoder.try_read(usize::MAX).unwrap(),
+                reference.try_read(usize::MAX).unwrap()
+            );
+        }
+    }
 }

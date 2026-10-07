@@ -35,6 +35,10 @@
                 {
                     "type": "generic",
                     "path": "/pyproject.toml"
+                },
+                {
+                    "type": "generic",
+                    "path": "/selene-core/python/selene_core/__init__.py"
                 }
             ]
         },
@@ -60,7 +64,11 @@
                 {
                     "type": "toml",
                     "path": "Cargo.lock",
-                    "jsonpath": "$.package[?((@.name.value.match(/^selene-/)) && (@.name.value != 'selene-core') && (@.name.value != 'selene-api-models'))].version"
+                    "jsonpath": "$.package[?((@.name.value.match(/^selene-/)) && (@.name.value != 'selene-core'))].version"
+                },
+                {
+                    "type": "generic",
+                    "path": "/selene-sim/python/selene_sim/__init__.py"
                 }
             ]
         },
