@@ -14,6 +14,7 @@ from enum import Enum
 from dataclasses import dataclass
 from collections.abc import Iterator
 from typing import Any
+from pathlib import Path
 import math
 
 from selene_core.trace import (
@@ -26,6 +27,9 @@ from selene_core.trace import (
 )
 
 from .event_hook import EventHook
+from ..exceptions import SeleneRuntimeError
+from ..result_handling.data_stream import FileStream
+from ..result_handling.result_stream import ResultStream
 
 PYTKET_AVAILABLE = False
 try:
@@ -916,14 +920,21 @@ class ShotInstructions:
 
 
 class CircuitExtractor(EventHook):
+    """Reconstruct circuits from the binary files named by INSTRUCTIONLOG records.
+
+    Files are loaded when the hook receives each record. When postprocessing
+    unparsed results, keep the run's artifacts until that step has completed.
+    The resulting ShotInstructions can be used without the original files.
+    """
+
     shots: list[ShotInstructions]
 
     def get_selene_flags(self) -> list[str]:
         """
         When given --provide-instruction-log, Selene will emit
-        an INSTRUCTIONLOG tag to the results stream, followed
-        by a dump of all instructions that were logged from
-        e.g. the user program, runtime, error model, or simulator.
+        an INSTRUCTIONLOG tag to the results stream, followed by the path
+        to a binary instruction log. We read that file using the same
+        record decoder as the result stream.
         """
         return ["provide_instruction_log"]
 
@@ -933,7 +944,34 @@ class CircuitExtractor(EventHook):
     def try_invoke(self, tag: str, data: list) -> bool:
         if tag != "INSTRUCTIONLOG":
             return False
-        self.shots[-1].extend(data)
+        if len(data) != 1 or not isinstance(data[0], str):
+            raise SeleneRuntimeError("INSTRUCTIONLOG expects a single filename")
+        if not self.shots:
+            raise SeleneRuntimeError("Received INSTRUCTIONLOG before a shot started")
+        path = Path(data[0])
+        instructions = []
+        try:
+            transport = FileStream(path)
+            try:
+                for entry in ResultStream(transport):
+                    if entry.tag != "INSTRUCTIONLOG":
+                        raise SeleneRuntimeError(
+                            f"Expected INSTRUCTIONLOG record, got {entry.tag!r}"
+                        )
+                    instructions.extend(entry.values)
+                if transport.handle.read(1):
+                    raise SeleneRuntimeError(
+                        "Unexpected data after instruction log end marker"
+                    )
+            finally:
+                transport.handle.close()
+        except (OSError, SeleneRuntimeError) as error:
+            raise SeleneRuntimeError(
+                f"Could not read instruction log {str(path)!r}: {error}"
+            ) from error
+        # Don't add half a file if decoding failed. Once loaded, the shot no
+        # longer depends on the artifact remaining on disk.
+        self.shots[-1].extend(instructions)
         return True
 
     def on_new_shot(self):

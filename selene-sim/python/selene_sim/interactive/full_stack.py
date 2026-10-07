@@ -277,18 +277,22 @@ class SeleneSimLib(ctypes.CDLL):
 class InternalOutputStream(DataStream):
     def __init__(self, full_stack: "InteractiveFullStack"):
         self._buffer = bytearray()
-        self._full_stack = full_stack
+        # Keeping the owner here creates a cycle. Then garbage collection can
+        # remove its temporary directory before __del__ finishes the backend's
+        # shot, which still needs to write instruction logs into that directory.
+        self._lib = full_stack._lib
+        self._instance = full_stack._instance
 
     def read_chunk(self, length: int) -> bytes:
-        assert self._full_stack._lib is not None, (
+        assert self._lib is not None, (
             "Selene library must be loaded to read from output stream"
         )
         if len(self._buffer) < length:
             # make a new buffer to read into
             chunk_size = max(length - len(self._buffer), 4096)
             chunk_buffer = (ctypes.c_uint8 * chunk_size)()
-            bytes_read = self._full_stack._lib.selene_fetch_output(
-                self._full_stack._instance, chunk_buffer, chunk_size
+            bytes_read = self._lib.selene_fetch_output(
+                self._instance, chunk_buffer, chunk_size
             ).unwrap()
             if bytes_read == 0:
                 raise BlockingIOError

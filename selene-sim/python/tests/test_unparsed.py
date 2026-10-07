@@ -13,6 +13,8 @@ from selene_sim.exceptions import (
     SeleneTimeoutError,
 )
 from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
+from selene_sim.result_handling.data_stream import FileStream
+from selene_sim.result_handling.result_stream import ResultStream
 
 
 def test_flip_some_unparsed(compiled_guppy):
@@ -593,8 +595,17 @@ def test_ghz_trace_unparsed(compiled_guppy, snapshot, seed_mode):
     assert results == stripped
     assert len(extractor.shots) == len(raw_shots)
     for raw, extracted in zip(raw_shots, extractor.shots):
-        assert extracted.instructions == [
-            value for tag, values in raw if tag == "INSTRUCTIONLOG" for value in values
-        ]
+        instructions = []
+        for tag, values in raw:
+            if tag == "INSTRUCTIONLOG":
+                assert len(values) == 1 and isinstance(values[0], str)
+                transport = FileStream(Path(values[0]))
+                try:
+                    for entry in ResultStream(transport):
+                        assert entry.tag == "INSTRUCTIONLOG"
+                        instructions.extend(entry.values)
+                finally:
+                    transport.handle.close()
+        assert extracted.instructions == instructions
     trace = extractor.shots[0].get_trace().clear_simulator_perf_timing()
     snapshot.assert_match(trace.model_dump_json(indent=2), "trace.json")

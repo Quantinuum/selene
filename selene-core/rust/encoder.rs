@@ -224,6 +224,17 @@ impl Record {
         }
         Ok(())
     }
+
+    /// Finish the record so it can be written to a stream or an artifact file.
+    pub fn into_bytes(mut self) -> Result<Vec<u8>, OutputStreamError> {
+        if self.failed {
+            return Err(OutputStreamError::OtherError(
+                "Cannot submit a record whose construction failed".into(),
+            ));
+        }
+        self.buffer.extend_from_slice(&[0; 4]);
+        Ok(self.buffer)
+    }
 }
 
 pub struct OutputStream {
@@ -273,14 +284,8 @@ impl OutputStream {
         }
     }
 
-    pub fn add_record(&mut self, mut record: Record) -> Result<(), OutputStreamError> {
-        if record.failed {
-            return Err(OutputStreamError::OtherError(
-                "Cannot submit a record whose construction failed".into(),
-            ));
-        }
-        record.buffer.extend_from_slice(&[0; 4]);
-        self.write_impl(&record.buffer)
+    pub fn add_record(&mut self, record: Record) -> Result<(), OutputStreamError> {
+        self.write_impl(&record.into_bytes()?)
     }
     pub fn end_of_stream(&mut self) -> Result<(), OutputStreamError> {
         self.write_impl(&u64::MAX.to_le_bytes())
