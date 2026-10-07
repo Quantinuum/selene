@@ -4,6 +4,7 @@ import pytest
 
 # pytest.skip(allow_module_level=True)
 import tempfile
+import weakref
 
 import numpy as np
 
@@ -19,6 +20,27 @@ from selene_sim.interactive import (
     InteractiveSimulator,
     InteractiveRuntime,
 )
+
+
+def test_instruction_log_survives_interactive_teardown():
+    from selene_sim.event_hooks import CircuitExtractor
+
+    extractor = CircuitExtractor()
+    stack = InteractiveFullStack(simulator=Quest(), n_qubits=1, event_hook=extractor)
+    qubit = stack.qalloc()
+    stack.reset(qubit)
+    stack.qfree(qubit)
+    artifact_dir = stack.artifact_dir
+    assert list(artifact_dir.glob("instruction-log-*.bin"))
+    owner = weakref.ref(stack)
+    del stack
+
+    # The stream mustn't keep its owner alive in a cycle. The backend needs to
+    # finish the shot before the temporary directory disappears, and the loaded
+    # instructions should still be usable after that directory is removed.
+    assert owner() is None
+    assert not artifact_dir.exists()
+    assert list(extractor.shots[0])
 
 
 def test_interactive_full_stack_event_hooks():

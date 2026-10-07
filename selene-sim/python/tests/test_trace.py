@@ -6,7 +6,6 @@ from selene_sim import Stim, DepolarizingErrorModel, SoftRZRuntime
 from selene_sim.build import build
 from selene_sim.event_hooks import CircuitExtractor
 from selene_sim.event_hooks.instruction_log import CustomOperation, QAlloc, Source
-from selene_sim.result_handling.data_stream import FileStream
 from selene_sim.result_handling.result_stream import ResultStream
 
 
@@ -31,14 +30,10 @@ def test_custom_trace_with_optional_data(tmp_path, data, source):
     record += struct.pack("<HHQ", 0, 0, ResultStream.EOS)
     recording = tmp_path / "custom-trace.bin"
     recording.write_bytes(record)
-    transport = FileStream(recording)
     extractor = CircuitExtractor()
     extractor.on_new_shot()
-    try:
-        for entry in ResultStream(transport):
-            assert extractor.try_invoke(entry.tag, entry.values)
-    finally:
-        transport.handle.close()
+    assert extractor.try_invoke("INSTRUCTIONLOG", [str(recording)])
+    recording.unlink()
 
     custom, allocation = list(extractor.shots[0])
     assert custom.source == allocation.source == source

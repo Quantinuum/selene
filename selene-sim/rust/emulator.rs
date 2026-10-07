@@ -120,7 +120,9 @@ impl Emulator {
         }
         if config.event_hooks.provide_instruction_log {
             event_hooks.add_hook(Box::new(
-                crate::event_hooks::instruction_log::InstructionLog::default(),
+                crate::event_hooks::instruction_log::InstructionLog::new(
+                    config.artifact_dir.clone(),
+                ),
             ));
         }
         if config.event_hooks.provide_measurement_log {
@@ -333,6 +335,7 @@ impl Emulator {
                     .set_u64_result(u64_result.result_id, u64_result.value)?;
             }
         }
+        self.event_hooks.drain_pending()?;
         Ok(())
     }
 }
