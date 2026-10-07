@@ -11,6 +11,9 @@ must emit a versioned format. The Python, Rust, and TypeScript model packages
 provide adapters that validate a legacy document and upgrade it to the current
 in-memory model.
 
+`OpaquePayload.data` accepts the standard or URL-safe Base64 alphabet, with
+optional padding. Unused bits in the final Base64 character must be zero.
+
 The supported legacy schema applies the current JavaScript-safe bounds to
 integer-valued gate parameters and key-value payload values, including arrays:
 `-9007199254740991` through `9007199254740991`. Fractional numbers remain

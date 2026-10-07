@@ -4,6 +4,76 @@ import test from "node:test";
 
 import { trace } from "../dist/index.js";
 
+function opaqueRecord(tag, data = "Zg==") {
+  return {
+    source: { kind: "UserProgram", index: 0 },
+    event: { kind: "Custom", payload: { kind: "OpaquePayload", tag, data } },
+  };
+}
+
+test("constructors compose wire inputs and normalized opaque events", () => {
+  for (const tag of [0n, 0x11A12517n, trace.UINT64_MAX]) {
+    const wire = opaqueRecord(`0x${tag.toString(16).toUpperCase()}`);
+    const data = trace.createTraceData([wire]);
+    assert.equal(data.events[0].event.payload.tag, tag);
+    assert.deepEqual(trace.createTraceData(data.events), data);
+    assert.deepEqual(trace.createTrace(data.events).events, data.events);
+    const collection = trace.createTraces([data, { events: [wire] }, {}]);
+    assert.deepEqual(collection.traces, [data, data, { events: [] }]);
+    assert.deepEqual(trace.parseTraceDocument(trace.serializeTraces(collection)), collection);
+    assert.equal(trace.safeParseTrace(trace.createTrace(data.events)).success, false);
+    assert.equal(trace.safeParseTraceDocument(collection).success, false);
+  }
+  const mixed = [opaqueRecord("0x1"), opaqueRecord(2n)];
+  assert.deepEqual(trace.createTrace(mixed).events, trace.createTraceData(mixed).events);
+  assert.deepEqual(trace.createTraces([{ events: mixed }]).traces[0], trace.createTraceData(mixed));
+});
+
+test("constructors validate normalized tags and other event fields", () => {
+  for (const record of [
+    opaqueRecord(-1n), opaqueRecord(trace.UINT64_MAX + 1n),
+    opaqueRecord(1n, "Zh=="),
+    { ...opaqueRecord(1n), source: { kind: "UserProgram", index: -1 } },
+  ]) {
+    assert.throws(() => trace.createTrace([record]));
+    assert.throws(() => trace.createTraceData([record]));
+    assert.throws(() => trace.createTraces([{ events: [record] }]));
+  }
+  assert.throws(() => trace.createTraces([{ events: [], schema_version: "0.1.0" }]));
+  assert.throws(() => trace.createTraces([{ events: null }]));
+});
+
+test("invalid tag strings return safe parse failures without throwing", () => {
+  for (const tag of ["abc", "0x", "0xG", "0x10000000000000000"]) {
+    const document = { schema_version: trace.SCHEMA_VERSION, events: [opaqueRecord(tag)] };
+    assert.equal(trace.UInt64Schema.safeParse(tag).success, false);
+    assert.equal(trace.safeParseTrace(document).success, false);
+    assert.equal(trace.safeParseTraceDocument(document).success, false);
+  }
+});
+
+test("Base64 schemas and parsers require zero pad bits with optional padding", () => {
+  for (const legacy of [false, true]) {
+    const schema = JSON.parse(readFileSync(
+      new URL(`../../schemas/trace/${legacy ? "legacy" : "0.1.0"}.schema.json`, import.meta.url), "utf8",
+    ));
+    const pattern = new RegExp(schema.$defs.OpaquePayload.properties.data.pattern);
+    for (const [data, valid] of [
+      ["", true], ["YWJj", true], ["Zg", true], ["Zg==", true],
+      ["Zm8", true], ["Zm8=", true], ["-_8", true], ["-_8=", true],
+      ["Zh", false], ["Zh==", false], ["Zm9", false], ["Zm9=", false],
+      ["-_9", false], ["-_9=", false], ["Zg=", false], ["Zg===", false],
+      ["Zm8==", false], ["Zg==\n", false],
+      ["+/8=", legacy], ["+/9", false], ["+/9=", false],
+    ]) {
+      const document = { events: [opaqueRecord(legacy ? 1 : "0x1", data)] };
+      if (!legacy) document.schema_version = trace.SCHEMA_VERSION;
+      assert.equal(pattern.test(data), valid, data);
+      assert.equal(trace.safeParseTrace(document).success, valid, data);
+    }
+  }
+});
+
 test("gate parameters and key-value numbers enforce signed safe integer bounds", () => {
   for (const [value, valid] of [
     [Number.MAX_SAFE_INTEGER, true], [-Number.MAX_SAFE_INTEGER, true],

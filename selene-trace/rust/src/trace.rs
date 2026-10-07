@@ -609,6 +609,31 @@ mod tests {
     }
 
     #[test]
+    fn opaque_payload_rejects_nonzero_pad_bits_in_current_and_legacy_traces() {
+        for encoded in ["Zh", "Zh==", "Zm9", "Zm9=", "-_9", "-_9=", "+/9", "+/9="] {
+            for legacy in [false, true] {
+                let mut document = serde_json::json!({
+                    "events": [{
+                        "source": {"kind": "UserProgram", "index": 0},
+                        "event": {
+                            "kind": "Custom",
+                            "payload": {"kind": "OpaquePayload", "tag": 1, "data": encoded}
+                        }
+                    }]
+                });
+                if !legacy {
+                    document["schema_version"] = Value::String("0.1.0".into());
+                    document["events"][0]["event"]["payload"]["tag"] = Value::String("0x1".into());
+                }
+                assert!(
+                    parse_trace_value(document).is_err(),
+                    "{encoded}, legacy={legacy}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn opaque_payload_tag_requires_a_canonical_uint64_hexadecimal_string() {
         for tag in [
             "0x0",

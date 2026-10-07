@@ -41,6 +41,7 @@ _dist/
 
 wheelhouse/
 node_modules/
+.pnpm-store/
 selene-trace/typescript/dist/
 !.cargo
 scratch/

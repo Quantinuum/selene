@@ -116,7 +116,7 @@
         },
         "data": {
           "description": "Base64-encoded bytes using the standard or URL-safe alphabet.",
-          "pattern": "^(?:[A-Za-z0-9_+/-]{4})*(?:[A-Za-z0-9_+/-]{2}(?:==)?|[A-Za-z0-9_+/-]{3}=?)?(?![\\s\\S])",
+          "pattern": "^(?:[A-Za-z0-9_+/-]{4})*(?:[A-Za-z0-9_+/-][AQgw](?:==)?|[A-Za-z0-9_+/-]{2}[AEIMQUYcgkosw048]=?)?(?![\\s\\S])",
           "type": "string"
         }
       },

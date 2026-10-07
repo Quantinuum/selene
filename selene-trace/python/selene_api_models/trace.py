@@ -21,8 +21,10 @@ from pydantic_core import core_schema
 SCHEMA_VERSION = "0.1.0"
 MAX_UINT64 = 2**64 - 1
 MAX_SAFE_INTEGER = 2**53 - 1
+# Final-character sets enforce zero unused bits for one- and two-byte tails.
 BASE64URL_PATTERN = (
-    r"^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-9_-]{3}=?)?"
+    r"^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-][AQgw](?:==)?|"
+    r"[A-Za-z0-9_-]{2}[AEIMQUYcgkosw048]=?)?"
     r"(?![\s\S])"
 )
 

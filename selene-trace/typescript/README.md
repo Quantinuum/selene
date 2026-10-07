@@ -25,6 +25,10 @@ uppercase hexadecimal strings in JSON and are decoded to `bigint`;
 use `serializeTrace` or `serializeTraceDocument` before passing a document to
 `JSON.stringify`.
 
+The `createTrace`, `createTraceData`, and `createTraces` constructors accept
+both wire inputs and normalized values. Wire parsers require hexadecimal
+strings for opaque tags.
+
 Pass legacy JSON text directly to `parseTraceJson` when it may contain an
 opaque tag larger than `Number.MAX_SAFE_INTEGER`. Calling `JSON.parse` first
 would lose precision before validation can occur.

@@ -23,7 +23,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "pnpm run build && node --test test/protocol.test.mjs",
+    "test": "pnpm run build && tsc -p tsconfig.test.json && node --test test/protocol.test.mjs",
     "prepack": "npm run build"
   },
   "dependencies": {

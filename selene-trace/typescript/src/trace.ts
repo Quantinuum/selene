@@ -110,19 +110,12 @@ export const ResetEventSchema = z.object({
 export type ResetEvent = z.infer<typeof ResetEventSchema>;
 export type ResetEventInput = z.input<typeof ResetEventSchema>;
 
-function isBase64Url(value: string): boolean {
-  if (!/^[A-Za-z0-9_-]*={0,2}$/.test(value) || value.length % 4 === 1) {
-    return false;
-  }
-
-  const paddingIndex = value.indexOf("=");
-  return paddingIndex === -1 || value.length % 4 === 0;
-}
-
 /** A base64url-encoded byte sequence. */
-export const Base64UrlSchema = z.string().refine(isBase64Url, {
-  message: "Expected a base64url-encoded string",
-});
+export const Base64UrlSchema = z.string().regex(
+  // Final-character sets restrict unused bits to zero for one- and two-byte tails.
+  /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-][AQgw](?:==)?|[A-Za-z0-9_-]{2}[AEIMQUYcgkosw048]=?)?(?![\s\S])/,
+  "Expected base64url data with zero unused pad bits",
+);
 
 export const OpaquePayloadSchema = z.object({
   kind: z.literal("OpaquePayload"),
@@ -204,6 +197,8 @@ export const TraceDocumentSchema = z.union([TraceSchema, TracesSchema]);
 export type TraceDocument = z.infer<typeof TraceDocumentSchema>;
 export type TraceDocumentInput = z.input<typeof TraceDocumentSchema>;
 
+const UInt64BigIntSchema = z.bigint().min(0n).max(UINT64_MAX);
+
 const LegacyOpaquePayloadSchema = OpaquePayloadSchema.extend({
   // Normalize either legacy alphabet before validating as base64url.
   data: z.string()
@@ -211,7 +206,7 @@ const LegacyOpaquePayloadSchema = OpaquePayloadSchema.extend({
     .pipe(Base64UrlSchema),
   tag: z.union([
     z.number().int().nonnegative().safe().transform((value) => BigInt(value)),
-    z.bigint().min(0n).max(UINT64_MAX),
+    UInt64BigIntSchema,
   ]),
 });
 
@@ -245,19 +240,43 @@ export const LegacyTraceSchema = z.object({
 });
 export type LegacyTrace = z.infer<typeof LegacyTraceSchema>;
 
-/** Create a trace document with the protocol version set correctly. */
-export function createTrace(events: EventRecordInput[] = []): Trace {
-  return TraceSchema.parse({ schema_version: SCHEMA_VERSION, events });
+function constructorEvents(events: (EventRecordInput | EventRecord)[] = []) {
+  return events.map((record) => {
+    if (record.event.kind !== "Custom") return record;
+    const payload = record.event.payload;
+    if (payload.kind !== "OpaquePayload" || typeof payload.tag !== "bigint") return record;
+    return {
+      ...record,
+      event: {
+        ...record.event,
+        payload: serializeCustomPayload({
+          ...payload,
+          tag: UInt64BigIntSchema.parse(payload.tag),
+        }),
+      },
+    };
+  });
 }
 
-/** Create the unversioned contents of one emulation trace. */
-export function createTraceData(events: EventRecordInput[] = []): TraceData {
-  return TraceDataSchema.parse({ events });
+/** Create a versioned trace from wire inputs or normalized events. */
+export function createTrace(events: (EventRecordInput | EventRecord)[] = []): Trace {
+  return TraceSchema.parse({
+    schema_version: SCHEMA_VERSION,
+    events: constructorEvents(events),
+  });
 }
 
-/** Create a trace collection with the protocol version set correctly. */
-export function createTraces(traces: TraceDataInput[]): Traces {
-  return TracesSchema.parse({ schema_version: SCHEMA_VERSION, traces });
+/** Create unversioned trace data from wire inputs or normalized events. */
+export function createTraceData(events: (EventRecordInput | EventRecord)[] = []): TraceData {
+  return TraceDataSchema.parse({ events: constructorEvents(events) });
+}
+
+/** Create a versioned collection from wire inputs or normalized trace data. */
+export function createTraces(traces: (TraceDataInput | TraceData)[]): Traces {
+  return TracesSchema.parse({
+    schema_version: SCHEMA_VERSION,
+    traces: traces.map((data) => ({ ...data, events: constructorEvents(data.events) })),
+  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
