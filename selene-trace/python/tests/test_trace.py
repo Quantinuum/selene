@@ -116,7 +116,7 @@ def test_unsigned_trace_values_require_integers(value):
 
 def test_opaque_payload_round_trips_base64url():
     payload = OpaquePayload.model_validate_json(
-        json.dumps({"kind": "OpaquePayload", "tag": "1", "data": "-_8="})
+        json.dumps({"kind": "OpaquePayload", "tag": "0x1", "data": "-_8="})
     )
 
     assert payload.data == b"\xfb\xff"
@@ -128,7 +128,7 @@ def test_opaque_payload_round_trips_base64url():
 
 @pytest.mark.parametrize("encoded", ["+w==", "/w==", "+/8="])
 def test_current_payload_rejects_standard_base64(encoded):
-    payload = {"kind": "OpaquePayload", "tag": "1", "data": encoded}
+    payload = {"kind": "OpaquePayload", "tag": "0x1", "data": encoded}
     with pytest.raises(ValidationError):
         OpaquePayload.model_validate(payload)
     with pytest.raises(ValidationError):
@@ -172,27 +172,32 @@ def test_legacy_base64_is_normalized_only_during_upgrade(encoded):
         )
 
 
-def test_opaque_payload_serializes_its_uint64_tag_as_a_decimal_string():
-    tag = 11616494188317837126
+@pytest.mark.parametrize("tag", [0, 1, 0x11A12517, 11616494188317837126, 2**64 - 1])
+def test_opaque_payload_serializes_its_uint64_tag_as_a_hexadecimal_string(tag):
     payload = OpaquePayload(tag=tag, data=b"trace")
 
     assert payload.tag == tag
-    assert json.loads(payload.model_dump_json())["tag"] == str(tag)
+    assert json.loads(payload.model_dump_json())["tag"] == f"0x{tag:X}"
     assert (
         OpaquePayload.model_validate_json(
-            '{"kind":"OpaquePayload","tag":"11616494188317837126","data":"dHJhY2U="}'
+            json.dumps(
+                {"kind": "OpaquePayload", "tag": f"0x{tag:X}", "data": "dHJhY2U="}
+            )
         ).tag
         == tag
     )
     assert (
         OpaquePayload.model_validate(
-            {"kind": "OpaquePayload", "tag": str(tag), "data": "dHJhY2U="}
+            {"kind": "OpaquePayload", "tag": f"0x{tag:X}", "data": "dHJhY2U="}
         ).tag
         == tag
     )
 
 
-@pytest.mark.parametrize("tag", [0, "-1", "01", "18446744073709551616"])
+@pytest.mark.parametrize(
+    "tag",
+    [0, "-1", "1", "0x01", "0xabcdef", "0X1", "0x", "0x1\n", "0x10000000000000000"],
+)
 def test_opaque_payload_rejects_noncanonical_uint64_json_tags(tag):
     with pytest.raises(ValidationError):
         OpaquePayload.model_validate_json(
@@ -256,7 +261,7 @@ def test_legacy_json_preserves_a_numeric_uint64_opaque_payload_tag():
     assert trace.events[1].event.payload.tag == 11616494188317837126
     assert (
         json.loads(trace.model_dump_json())["events"][1]["event"]["payload"]["tag"]
-        == "11616494188317837126"
+        == "0xA13613EADE130746"
     )
 
 

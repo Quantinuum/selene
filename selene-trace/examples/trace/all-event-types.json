@@ -23,7 +23,7 @@
       "source": { "kind": "Simulator", "index": 0, "duration_ns": 123 },
       "event": {
         "kind": "Custom",
-        "payload": { "kind": "OpaquePayload", "tag": "7", "data": "c2VsZW5l" }
+        "payload": { "kind": "OpaquePayload", "tag": "0x7", "data": "c2VsZW5l" }
       }
     },
     {

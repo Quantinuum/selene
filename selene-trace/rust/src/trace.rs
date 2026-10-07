@@ -135,7 +135,7 @@ pub enum GateParameter {
 #[serde(tag = "kind")]
 pub enum CustomPayload {
     OpaquePayload {
-        #[serde(with = "u64_decimal_string")]
+        #[serde(with = "u64_hex_string")]
         tag: u64,
         #[serde(with = "base64_bytes")]
         data: Vec<u8>,
@@ -235,14 +235,14 @@ mod base64_bytes {
     }
 }
 
-mod u64_decimal_string {
+mod u64_hex_string {
     use super::*;
 
     pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_str(&value.to_string())
+        serializer.serialize_str(&format!("0x{value:X}"))
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -254,15 +254,19 @@ mod u64_decimal_string {
     }
 
     pub(super) fn parse(value: &str) -> Result<u64, &'static str> {
-        (!value.is_empty()
-            && (value == "0" || !value.starts_with('0'))
-            && value.bytes().all(|byte| byte.is_ascii_digit()))
+        let digits = value
+            .strip_prefix("0x")
+            .ok_or("expected a canonical unsigned hexadecimal string")?;
+        (!digits.is_empty()
+            && digits.len() <= 16
+            && (digits == "0" || !digits.starts_with('0'))
+            && digits
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'A'..=b'F').contains(&byte)))
         .then_some(())
-        .ok_or("expected a canonical unsigned decimal string")?;
+        .ok_or("expected a canonical unsigned hexadecimal string")?;
 
-        value
-            .parse()
-            .map_err(|_| "expected an unsigned 64-bit integer")
+        u64::from_str_radix(digits, 16).map_err(|_| "expected an unsigned 64-bit integer")
     }
 }
 
@@ -386,7 +390,7 @@ fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
                     "legacy OpaquePayload.tag must be an unsigned JSON integer",
                 )
             })?;
-            payload.insert("tag".to_owned(), Value::String(tag.to_string()));
+            payload.insert("tag".to_owned(), Value::String(format!("0x{tag:X}")));
             // Accept either legacy alphabet; the normal decoder still validates
             // padding and contents, and serialization always uses base64url.
             if let Some(Value::String(data)) = payload.get_mut("data") {
@@ -557,7 +561,7 @@ mod tests {
 
         assert_eq!(
             serde_json::to_string(&payload).expect("payload must serialize"),
-            r#"{"kind":"OpaquePayload","tag":"1","data":"dHJhY2U="}"#,
+            r#"{"kind":"OpaquePayload","tag":"0x1","data":"dHJhY2U="}"#,
         );
     }
 
@@ -571,7 +575,7 @@ mod tests {
             ("-_8", &[0xfb, 0xff][..], "-_8="),
         ] {
             let input = serde_json::json!({
-                "kind": "OpaquePayload", "tag": "1", "data": encoded
+                "kind": "OpaquePayload", "tag": "0x1", "data": encoded
             });
             let payload: CustomPayload = serde_json::from_value(input).unwrap();
             assert_eq!(
@@ -595,7 +599,7 @@ mod tests {
     fn opaque_payload_rejects_invalid_base64url() {
         for encoded in ["Z", "Zg=", "Zg===", "Zm8==", "+/8=", "+/8", "Zg==\n"] {
             let input = serde_json::json!({
-                "kind": "OpaquePayload", "tag": "1", "data": encoded
+                "kind": "OpaquePayload", "tag": "0x1", "data": encoded
             });
             assert!(
                 serde_json::from_value::<CustomPayload>(input).is_err(),
@@ -605,22 +609,33 @@ mod tests {
     }
 
     #[test]
-    fn opaque_payload_tag_requires_a_canonical_uint64_decimal_string() {
+    fn opaque_payload_tag_requires_a_canonical_uint64_hexadecimal_string() {
         for tag in [
-            "1",
-            "0",
-            "18446744073709551615",
-            "18446744073709551616",
+            "0x0",
+            "0x1",
+            "0x11A12517",
+            "0xFFFFFFFFFFFFFFFF",
+            "0x10000000000000000",
             "-1",
             "01",
+            "1",
+            "0x01",
+            "0xabcdef",
+            "0X1",
+            "0x",
+            "0x1\n",
+            " 0x1",
+            "0xG",
         ] {
             let document = format!(r#"{{"kind":"OpaquePayload","tag":{tag:?},"data":"dHJhY2U="}}"#);
             let result = serde_json::from_str::<CustomPayload>(&document);
-
             assert_eq!(
                 result.is_ok(),
-                matches!(tag, "0" | "1" | "18446744073709551615")
+                matches!(tag, "0x0" | "0x1" | "0x11A12517" | "0xFFFFFFFFFFFFFFFF")
             );
+            if let Ok(payload) = result {
+                assert_eq!(serde_json::to_value(payload).unwrap()["tag"], tag);
+            }
         }
 
         let numeric_tag = serde_json::from_str::<CustomPayload>(
@@ -653,7 +668,7 @@ mod tests {
 
             let mut output = serde_json::to_value(&trace).expect("trace serializes");
             assert_eq!(output["events"][0]["event"]["payload"]["data"], "-_8=");
-            assert_eq!(output["events"][0]["event"]["payload"]["tag"], "1");
+            assert_eq!(output["events"][0]["event"]["payload"]["tag"], "0x1");
             assert_eq!(parse_trace_value(output.clone()).unwrap(), trace);
 
             output["events"][0]["event"]["payload"]["data"] = Value::String("+/8=".into());

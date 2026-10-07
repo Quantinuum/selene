@@ -19,17 +19,17 @@ export const SafeUIntSchema = z
   .max(MAX_SAFE_INTEGER);
 export type SafeUInt = z.infer<typeof SafeUIntSchema>;
 
-/** A canonical unsigned 64-bit integer encoded as a decimal string. */
-export const UInt64DecimalStringSchema = z
+/** A canonical unsigned 64-bit integer encoded as a hexadecimal string. */
+export const UInt64HexStringSchema = z
   .string()
-  .regex(/^(0|[1-9][0-9]*)(?![\s\S])/, "Expected a canonical unsigned decimal string")
-  .refine((value) => BigInt(value) <= UINT64_MAX, {
-    message: "Expected an unsigned 64-bit integer",
-  });
-export type UInt64DecimalString = z.infer<typeof UInt64DecimalStringSchema>;
+  .regex(
+    /^0x(0|[1-9A-F][0-9A-F]{0,15})(?![\s\S])/,
+    "Expected a canonical unsigned hexadecimal string",
+  );
+export type UInt64HexString = z.infer<typeof UInt64HexStringSchema>;
 
-/** A decimal-string uint64 decoded to a bigint for in-memory use. */
-export const UInt64Schema = UInt64DecimalStringSchema.transform((value) => BigInt(value));
+/** A hexadecimal-string uint64 decoded to a bigint for in-memory use. */
+export const UInt64Schema = UInt64HexStringSchema.transform((value) => BigInt(value));
 export type UInt64 = z.infer<typeof UInt64Schema>;
 
 export const PredicateResultSchema = z.object({
@@ -372,7 +372,7 @@ export function safeParseTraceDocument(
 
 function serializeCustomPayload(payload: CustomPayload): CustomPayloadInput {
   if (payload.kind === "OpaquePayload") {
-    return { ...payload, tag: payload.tag.toString() };
+    return { ...payload, tag: `0x${payload.tag.toString(16).toUpperCase()}` };
   }
 
   return payload;

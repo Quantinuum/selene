@@ -20,7 +20,8 @@ const eitherShape = trace.parseTraceDocument(value);
 Each `*Schema` has a normalized inferred type, such as `trace.Trace`, and an
 `*Input` type for values which rely on protocol defaults, such as
 `trace.TraceInput`. Indices, times, durations, and qubit IDs are safe
-non-negative JavaScript numbers. Opaque-payload tags are decoded to `bigint`;
+non-negative JavaScript numbers. Opaque-payload tags use canonical `0x`-prefixed
+uppercase hexadecimal strings in JSON and are decoded to `bigint`;
 use `serializeTrace` or `serializeTraceDocument` before passing a document to
 `JSON.stringify`.
 

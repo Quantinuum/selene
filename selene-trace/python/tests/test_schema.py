@@ -75,13 +75,13 @@ def test_predicate_result_requires_a_json_boolean(result):
 def test_uint64_pattern_enforces_range_without_a_format_checker():
     schema = get_trace_schema()["$defs"]["OpaquePayload"]
     validator = Draft202012Validator(schema)
-    # Exercise both sides of each decimal-prefix boundary in the upper limit.
+    # Exercise hexadecimal digit-length boundaries and the uint64 limit.
     candidates = {0, 1, MAX_UINT64 - 1, MAX_UINT64, MAX_UINT64 + 1, 10**100}
-    for digits in range(21):
-        boundary = (MAX_UINT64 // 10**digits) * 10**digits
-        candidates.update([boundary - 1, boundary, boundary + 1, 10**digits - 1])
+    for digits in range(17):
+        boundary = (MAX_UINT64 // 16**digits) * 16**digits
+        candidates.update([boundary - 1, boundary, boundary + 1, 16**digits - 1])
     for value in candidates:
-        payload = {"kind": "OpaquePayload", "tag": str(value), "data": ""}
+        payload = {"kind": "OpaquePayload", "tag": f"0x{value:X}", "data": ""}
         valid = 0 <= value <= MAX_UINT64
         assert validator.is_valid(payload) == valid, value
         if valid:
@@ -119,7 +119,7 @@ def test_base64url_schema_validation_without_a_format_checker(data, valid):
                     "kind": "Custom",
                     "payload": {
                         "kind": "OpaquePayload",
-                        "tag": "1",
+                        "tag": "0x1",
                         "data": data,
                     },
                 },
@@ -178,7 +178,10 @@ def test_legacy_base64_schema_validation_without_a_format_checker(data, valid):
             parse_trace(document)
 
 
-@pytest.mark.parametrize("tag", ["", "00", "01", "+1", "1.0", "1e2", " 1", "1\n", 1])
+@pytest.mark.parametrize(
+    "tag",
+    ["", "1", "0x", "0x00", "0x01", "0X1", "0xabcdef", "0xG", "0x1\n", " 0x1", 1],
+)
 def test_uint64_schema_rejects_noncanonical_strings(tag):
     validator = Draft202012Validator(get_trace_schema()["$defs"]["OpaquePayload"])
     assert not validator.is_valid({"kind": "OpaquePayload", "tag": tag, "data": ""})

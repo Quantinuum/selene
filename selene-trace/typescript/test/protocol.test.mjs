@@ -95,7 +95,7 @@ test("validation rejects malformed base64url data", () => {
         source: { kind: "UserProgram", index: 0 },
         event: {
           kind: "Custom",
-          payload: { kind: "OpaquePayload", tag: "1", data: "not+base64url" },
+          payload: { kind: "OpaquePayload", tag: "0x1", data: "not+base64url" },
         },
       },
     ],
@@ -163,7 +163,7 @@ test("opaque payload tags preserve the full uint64 range", () => {
           kind: "Custom",
           payload: {
             kind: "OpaquePayload",
-            tag: "11616494188317837126",
+            tag: "0xA13613EADE130746",
             data: "dHJhY2U=",
           },
         },
@@ -254,7 +254,7 @@ test("legacy JSON preserves an unsafe numeric opaque-payload tag", () => {
   assert.equal(parsed.events[1].event.payload.tag, 11616494188317837126n);
   assert.equal(
     trace.serializeTrace(parsed).events[1].event.payload.tag,
-    "11616494188317837126",
+    "0xA13613EADE130746",
   );
 });
 
@@ -264,17 +264,18 @@ test("the JSON Schema uint64 pattern enforces the bound in JavaScript", () => {
   ));
   const pattern = new RegExp(schema.$defs.OpaquePayload.properties.tag.pattern);
   for (const [tag, valid] of [
-    ["0", true], ["9999999999999999999", true], ["18446744073709551615", true],
-    ["18446744073709551616", false], ["99999999999999999999", false],
-    ["01", false], ["-1", false], ["1\n", false],
+    ["0x0", true], ["0x1", true], ["0x11A12517", true], ["0xFFFFFFFFFFFFFFFF", true],
+    ["0x10000000000000000", false], ["1", false], ["0x01", false],
+    ["0xabcdef", false], ["0X1", false], ["0x", false], ["0xG", false],
+    ["-1", false], ["0x1\n", false], [" 0x1", false],
   ]) {
     assert.equal(pattern.test(tag), valid, tag);
-    assert.equal(trace.UInt64DecimalStringSchema.safeParse(tag).success, valid, tag);
+    assert.equal(trace.UInt64HexStringSchema.safeParse(tag).success, valid, tag);
   }
 });
 
-test("opaque payload tags require canonical uint64 decimal strings", () => {
-  for (const tag of [0, "-1", "01", "18446744073709551616"]) {
+test("opaque payload tags require canonical uint64 hexadecimal strings", () => {
+  for (const tag of [0, "-1", "1", "0x01", "0xabcdef", "0X1", "0x", "0x1\n", "0x10000000000000000"]) {
     const parsed = trace.OpaquePayloadSchema.safeParse({
       kind: "OpaquePayload",
       tag,

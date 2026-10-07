@@ -27,33 +27,33 @@ BASE64URL_PATTERN = (
 )
 
 
-class _UInt64DecimalString:
+class _UInt64HexString:
     @classmethod
     def __get_pydantic_core_schema__(
         cls, _source_type: Any, _handler: Any
     ) -> core_schema.CoreSchema:
-        decimal_string_schema = core_schema.no_info_after_validator_function(
-            cls._parse_decimal_string,
-            core_schema.str_schema(pattern=r"^(0|[1-9][0-9]*)$"),
+        hex_string_schema = core_schema.no_info_after_validator_function(
+            cls._parse_hex_string,
+            core_schema.str_schema(pattern=r"^0x(0|[1-9A-F][0-9A-F]{0,15})$"),
         )
         return core_schema.json_or_python_schema(
-            json_schema=decimal_string_schema,
+            json_schema=hex_string_schema,
             python_schema=core_schema.union_schema(
                 [
                     core_schema.int_schema(strict=True, ge=0, le=MAX_UINT64),
-                    decimal_string_schema,
+                    hex_string_schema,
                 ]
             ),
             serialization=core_schema.plain_serializer_function_ser_schema(
-                str,
+                lambda value: f"0x{value:X}",
                 return_schema=core_schema.str_schema(),
                 when_used="json",
             ),
         )
 
     @staticmethod
-    def _parse_decimal_string(value: str) -> int:
-        parsed = int(value)
+    def _parse_hex_string(value: str) -> int:
+        parsed = int(value, 16)
         if parsed > MAX_UINT64:
             raise ValueError(
                 "value must not exceed the maximum unsigned 64-bit integer"
@@ -63,25 +63,12 @@ class _UInt64DecimalString:
     @classmethod
     def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict[str, Any]:
         json_schema = handler(schema)
-        json_schema["format"] = "uint64"
-        # Enforce the bound without relying on a custom JSON Schema format.
-        # Each 20-digit alternative is a prefix below (or equal to) MAX_UINT64.
-        # The final lookahead asserts absolute end, including after newlines.
-        json_schema["pattern"] = (
-            r"^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}"
-            r"|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}"
-            r"|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}"
-            r"|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}"
-            r"|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}"
-            r"|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}"
-            r"|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}"
-            r"|1844674407370955160[0-9]|1844674407370955161[0-5])"
-            r"(?![\s\S])"
-        )
+        json_schema["format"] = "uint64-hex"
+        json_schema["pattern"] = r"^0x(0|[1-9A-F][0-9A-F]{0,15})(?![\s\S])"
         return json_schema
 
 
-UInt64DecimalString = Annotated[int, _UInt64DecimalString]
+UInt64HexString = Annotated[int, _UInt64HexString]
 JsonSafeUInt = Annotated[int, Field(strict=True, ge=0, le=MAX_SAFE_INTEGER)]
 JsonSafeInt = Annotated[
     int, Field(strict=True, ge=-MAX_SAFE_INTEGER, le=MAX_SAFE_INTEGER)
@@ -201,7 +188,7 @@ class ResetEvent(AbstractEvent):
 
 class OpaquePayload(AbstractEvent):
     kind: Literal["OpaquePayload"] = "OpaquePayload"
-    tag: UInt64DecimalString
+    tag: UInt64HexString
     data: bytes = Field(json_schema_extra={"pattern": BASE64URL_PATTERN})
 
     @field_validator("data", mode="before")
@@ -389,7 +376,7 @@ def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "legacy OpaquePayload.tag must be an unsigned 64-bit integer"
             )
-        payload["tag"] = str(tag)
+        payload["tag"] = f"0x{tag:X}"
         data = payload.get("data")
         if isinstance(data, str):
             payload["data"] = data.replace("+", "-").replace("/", "_")
