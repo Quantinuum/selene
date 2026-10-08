@@ -95,6 +95,15 @@ in {
         files = "^(selene-trace/schemas/.*\\.schema\\.json|selene-trace/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
         pass_filenames = false;
       };
+      api-models-package-versions = {
+        enable = true;
+        name = "API models package versions";
+        description = "Check that all API model packages share the same version.";
+        package = pkgs.python3;
+        entry = "${pkgs.python3}/bin/python3 selene-trace/scripts/check_package_versions.py";
+        always_run = true;
+        pass_filenames = false;
+      };
       api-models-python-test = {
         enable = true;
         name = "API models Python tests";

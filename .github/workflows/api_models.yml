@@ -96,25 +96,11 @@ jobs:
       - name: Check package versions match the tag
         run: |
           expected_version="${GITHUB_REF_NAME#selene-api-models-v}"
-          python3 - "$expected_version" <<'PY'
-          import json
-          import sys
-          import tomllib
-          from pathlib import Path
-
-          expected = sys.argv[1]
-          versions = {
-              "Python": tomllib.loads(Path("selene-trace/pyproject.toml").read_text())["project"]["version"],
-              "Rust": tomllib.loads(Path("selene-trace/rust/Cargo.toml").read_text())["package"]["version"],
-              "TypeScript": json.loads(Path("selene-trace/typescript/package.json").read_text())["version"],
-          }
-          mismatches = [f"{name}={version}" for name, version in versions.items() if version != expected]
-          if mismatches:
-              raise SystemExit(
-                  f"Release tag requires version {expected} in every API-model package; "
-                  + ", ".join(mismatches)
-              )
-          PY
+          package_version="$(python3 selene-trace/scripts/check_package_versions.py)"
+          if [ "$package_version" != "$expected_version" ]; then
+            echo "Release tag requires version $expected_version in every API-model package; found $package_version" >&2
+            exit 1
+          fi
 
   publish-python:
     name: Publish Python package
