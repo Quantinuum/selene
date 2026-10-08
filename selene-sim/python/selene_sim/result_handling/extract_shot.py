@@ -111,23 +111,10 @@ class MetricValue:
 
 
 @dataclass
-class InstructionLogEntry:
-    """
-    When a user has passed a CircuitExtractor event hook to the simulator, instruction
-    log entries are generated during the shot that describe the instructions executed
-    directly from the user's program, as well as those provided by the chosen Runtime
-    plugin. This is particularly useful when debugging user programs, as it allows
-    users to see exactly what instructions were executed, and in what order, from
-    their program as well as from the runtime (which may reorder things).
+class TraceStreamReference:
+    """A result record pointing to a trace stream stored on disk."""
 
-    `values` is a list of generic StreamEntryPart, as instruction log entries may have
-    arbitrary values depending on the instruction being logged. They are not confined
-    to a single data value, for example: they can be very large lists of encoded
-    information for the CircuitExtractor to interpret.
-    """
-
-    tag: str
-    values: list[StreamEntryPart]
+    path: str
 
 
 @dataclass
@@ -147,7 +134,7 @@ ShotEntry = (
     | ShotExitMessage
     | FullPanicMessage
     | MetricValue
-    | InstructionLogEntry
+    | TraceStreamReference
     | ShotMeasurements
     | DebugTraceMessage
 )
@@ -209,8 +196,10 @@ def extract_single_entry(entry: StreamEntry) -> ExtractedStreamEntry:
             f"Expected metric value to be an integer, boolean or float, got {type(value)}"
         )
         return MetricValue(name=entry.tag, value=value)
-    elif entry.tag == "INSTRUCTIONLOG":
-        return InstructionLogEntry(tag=entry.tag, values=entry.values)
+    elif entry.tag == "TRACE":
+        if len(entry.values) != 1 or not isinstance(entry.values[0], str):
+            raise SeleneRuntimeError("Expected TRACE to contain one filename")
+        return TraceStreamReference(path=entry.values[0])
     elif entry.tag == "MEASUREMENTLOG":
         return ShotMeasurements(tag=entry.tag, values=entry.values)
     else:

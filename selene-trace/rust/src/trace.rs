@@ -217,7 +217,11 @@ mod base64_bytes {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&URL_SAFE.encode(value))
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&URL_SAFE.encode(value))
+        } else {
+            serializer.serialize_bytes(value)
+        }
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
@@ -242,7 +246,11 @@ mod u64_hex_string {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&format!("0x{value:X}"))
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&format!("0x{value:X}"))
+        } else {
+            serializer.serialize_u64(*value)
+        }
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>

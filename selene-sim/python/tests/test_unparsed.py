@@ -566,7 +566,7 @@ def test_ghz_trace_unparsed(compiled_guppy, snapshot, seed_mode):
     ]
     assert extractor.shots == []
     assert all(
-        any(tag == "INSTRUCTIONLOG" and values for tag, values in shot)
+        any(tag == "TRACE" and len(values) == 1 for tag, values in shot)
         for shot in raw_shots
     )
 
@@ -583,18 +583,22 @@ def test_ghz_trace_unparsed(compiled_guppy, snapshot, seed_mode):
     assert stripped == expected
     assert all(expected)
 
-    # But that's a silly illustration - we passed the extractor to run_shots so
-    # that the instruction log would be included in the results, and that adds
-    # performance costs. So let's now pass the event hook into postprocess_unparsed_stream,
-    # and verify that those entries reconstruct the trace (while also stripping the instruction
-    # logs from the final results).
+    # We passed the extractor to run_shots so that the backend would write trace
+    # files and include their paths in the results. Now postprocessing should
+    # load those files through the extractor and remove the paths from results.
     results, error = postprocess_unparsed_stream(raw_shots, event_hook=extractor)
     assert error is None
     assert results == stripped
     assert len(extractor.shots) == len(raw_shots)
     for raw, extracted in zip(raw_shots, extractor.shots):
-        assert extracted.instructions == [
-            value for tag, values in raw if tag == "INSTRUCTIONLOG" for value in values
+        from selene_api_models.trace_stream import iter_trace_stream
+
+        events = [
+            event
+            for tag, values in raw
+            if tag == "TRACE"
+            for event in iter_trace_stream(Path(values[0]))
         ]
+        assert extracted.get_trace().events == events
     trace = extractor.shots[0].get_trace().clear_simulator_perf_timing()
     snapshot.assert_match(trace.model_dump_json(indent=2), "trace.json")

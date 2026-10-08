@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 selene-core = { path = "../selene-core" }
+selene-api-models = { path = "../selene-trace/rust" }
 anyhow = { workspace = true }
 rand = { workspace = true }
 

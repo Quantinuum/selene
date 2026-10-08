@@ -330,7 +330,7 @@ mod tests {
         let before = output.try_read(usize::MAX).unwrap().to_vec();
         assert!(!before.is_empty());
 
-        let mut record = Record::new(1, "INSTRUCTIONLOG").unwrap();
+        let mut record = Record::new(1, "test_record").unwrap();
         record.push(9u64).unwrap();
         record.push(42u64).unwrap();
         assert!(record.push(value).is_err());
