@@ -12,11 +12,20 @@ clean-artifacts:
 build-wheels:
     uv run --no-project python scripts/build_wheels.py
 
-test-py *TEST_ARGS: develop
-    uv run pytest {{TEST_ARGS}}
+test-py *TEST_ARGS:
+    uv run --locked --all-packages --all-groups pytest {{TEST_ARGS}}
 
 test-rs *TEST_ARGS:
     uv run cargo test {{TEST_ARGS}}
+
+test-ts:
+    pnpm install --frozen-lockfile
+    pnpm --filter @quantinuum/selene-api-models test
+
+test-api-models:
+    uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests
+    cargo test --package selene-api-models
+    just test-ts
 
 nitpicks:
     #!/usr/bin/env bash

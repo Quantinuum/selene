@@ -41,5 +41,10 @@ __pycache__/
 _dist/
 
 wheelhouse/
+node_modules/
+.pnpm-store/
+selene-trace/typescript/dist/
 !.cargo
 scratch/
+
+.idea
