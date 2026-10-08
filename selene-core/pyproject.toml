@@ -18,7 +18,7 @@ dependencies = [
   "selene-api-models~=0.1.0",
   "pyyaml>=5.0",
   "typing_extensions>=4",
-  "ziglang~=0.16",
+  "ziglang~=0.16.0",
 ]
 
 [project.urls]
