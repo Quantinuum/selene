@@ -27,7 +27,7 @@ from selene_api_models.trace import (
 
 from .event_hook import EventHook
 from .trace_store import ShotTrace, TraceStore
-from selene_api_models.trace_stream import BatchStartRecord
+from selene_api_models.trace_stream import BatchStartRecord, UIntInstructionRecord
 
 PYTKET_AVAILABLE = False
 try:
@@ -512,8 +512,17 @@ class ShotInstructions:
             duration = (
                 record.source.duration_ns if record.source.kind == "Simulator" else None
             )
-            event = record.event
             operation: Operation
+            if isinstance(record, UIntInstructionRecord):
+                if record.uint_instruction == "LocalBarrier":
+                    operation = LocalBarrier(record.qubits, record.value)
+                elif record.uint_instruction == "GlobalBarrier":
+                    operation = GlobalBarrier(record.value)
+                else:
+                    operation = ClassicalDelay(record.value)
+                yield Instruction(source, operation, duration)
+                continue
+            event = record.event
             match event:
                 case GateEvent(gate_name="LocalBarrier", qubits=qubits, params=params):
                     operation = LocalBarrier(qubits, int(params[0]))

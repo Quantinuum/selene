@@ -3,9 +3,10 @@
 from collections.abc import Iterator
 from pathlib import Path
 
-from selene_api_models.trace import EventRecord, Trace
+from selene_api_models.trace import SCHEMA_VERSION, EventRecord, Trace
 from selene_api_models.trace_stream import (
     TraceStreamEvent,
+    UIntInstructionRecord,
     TraceStreamRecord,
     iter_trace_stream_records,
 )
@@ -25,12 +26,12 @@ class ShotTrace:
 
     def iter_events(self) -> Iterator[EventRecord]:
         for record in self.iter_records():
-            if isinstance(record, TraceStreamEvent):
+            if isinstance(record, (TraceStreamEvent, UIntInstructionRecord)):
                 yield record.as_event()
 
     def get_trace(self) -> Trace:
         """Materialise a trace without keeping an implicit in-memory cache."""
-        return Trace(schema_version="0.1.0", events=list(self.iter_events()))
+        return Trace(schema_version=SCHEMA_VERSION, events=list(self.iter_events()))
 
 
 class TraceStore(EventHook):

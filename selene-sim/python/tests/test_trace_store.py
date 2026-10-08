@@ -17,17 +17,62 @@ from selene_api_models.trace import (
 from selene_sim.event_hooks import TraceStore, CircuitExtractor
 from selene_sim.event_hooks.instruction_log import CustomOperation, QAlloc, BatchStart
 from selene_api_models.trace_stream import (
+    UIntInstructionRecord,
     TraceStreamEvent,
     iter_trace_stream,
     write_trace_stream,
 )
 
 
+@pytest.mark.parametrize(
+    "value", [0, 2**53 - 1, 2**53, 2**53 + 1, 2**63 - 1, 2**64 - 1]
+)
+@pytest.mark.parametrize("name", ["GlobalBarrier", "LocalBarrier", "ClassicalDelay"])
+def test_full_uint64_instruction_operands(tmp_path, value, name):
+    path = tmp_path / "trace.msgpack.gz"
+    record = UIntInstructionRecord(
+        source=UserProgramSource(index=0),
+        uint_instruction=name,
+        value=value,
+        qubits=[0, 1] if name == "LocalBarrier" else [],
+    )
+    write_trace_stream(path, [record])
+    extractor = CircuitExtractor()
+    extractor.on_new_shot()
+    extractor.try_invoke("TRACE", [str(path)])
+    shot = extractor.shots[0]
+    (instruction,) = list(shot)
+    expected = {"op": name}
+    expected["duration_ns" if name == "ClassicalDelay" else "sleep_time"] = value
+    if name == "LocalBarrier":
+        expected["qubits"] = [0, 1]
+    assert instruction.operation.to_dict() == expected
+    assert list(shot.trace.iter_records()) == [record]
+
+    # The instruction view is lossless, but the unchanged JSON schema only
+    # accepts safe integers. Asking for that view should explain the limitation.
+    if value > 2**53 - 1:
+        with pytest.raises(
+            ValueError, match=f"{name} operand {value} cannot be represented"
+        ):
+            shot.get_trace()
+    else:
+        trace = shot.get_trace()
+        assert trace.schema_version == SCHEMA_VERSION
+        assert trace.events[0].event.params == [value]
+
+
 def write_trace(path, trace):
     write_trace_stream(path, trace.events)
 
 
-@pytest.mark.parametrize("data", [b"", b"\xff", b"\x00\x03\xff", b"x" * 70000])
+# Pytest puts the test ID in an environment variable, so we can't include the
+# large payload itself in the ID on Windows.
+@pytest.mark.parametrize(
+    "data",
+    [b"", b"\xff", b"\x00\x03\xff", b"x" * 70000],
+    ids=["empty", "one-byte", "binary", "70kb"],
+)
 @pytest.mark.parametrize(
     "source",
     [

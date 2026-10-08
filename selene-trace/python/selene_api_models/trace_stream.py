@@ -7,13 +7,13 @@ nil. Exhaust the reader to validate the end marker and gzip checksum.
 from collections.abc import Iterable, Iterator
 import gzip
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 import zlib
 
 import msgpack
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from .trace import SCHEMA_VERSION, EventRecord
+from .trace import SCHEMA_VERSION, MAX_SAFE_INTEGER, EventRecord, GateEvent, Source
 
 FORMAT = "selene.trace.msgpack"
 FORMAT_VERSION = 1
@@ -39,7 +39,32 @@ class BatchStartRecord(BaseModel):
     batch_start: BatchTiming
 
 
-TraceStreamRecord = TraceStreamEvent | BatchStartRecord
+class UIntInstructionRecord(BaseModel):
+    """Instruction operands that need the full uint64 range, unlike JSON gates."""
+
+    model_config = ConfigDict(extra="forbid")
+    source: Source
+    uint_instruction: Literal["GlobalBarrier", "LocalBarrier", "ClassicalDelay"]
+    value: int = Field(strict=True, ge=0, le=2**64 - 1)
+    qubits: list[Annotated[int, Field(strict=True, ge=0, le=2**64 - 1)]] = Field(
+        default_factory=list
+    )
+
+    def as_event(self) -> EventRecord:
+        if self.value > MAX_SAFE_INTEGER:
+            raise ValueError(
+                f"{self.uint_instruction} operand {self.value} cannot be represented "
+                f"in trace schema {SCHEMA_VERSION}; use the instruction records instead"
+            )
+        return EventRecord(
+            source=self.source,
+            event=GateEvent(
+                gate_name=self.uint_instruction, qubits=self.qubits, params=[self.value]
+            ),
+        )
+
+
+TraceStreamRecord = TraceStreamEvent | BatchStartRecord | UIntInstructionRecord
 _record_adapter: TypeAdapter[TraceStreamRecord] = TypeAdapter(TraceStreamRecord)
 
 
@@ -108,12 +133,13 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
 
 def iter_trace_stream(path: str | Path) -> Iterator[EventRecord]:
     for record in iter_trace_stream_records(path):
-        if isinstance(record, TraceStreamEvent):
+        if isinstance(record, (TraceStreamEvent, UIntInstructionRecord)):
             yield record.as_event()
 
 
 def write_trace_stream(
-    path: str | Path, events: Iterable[EventRecord | BatchStartRecord]
+    path: str | Path,
+    events: Iterable[EventRecord | BatchStartRecord | UIntInstructionRecord],
 ) -> None:
     """Write incrementally to a new file; publish it only after this succeeds.
 

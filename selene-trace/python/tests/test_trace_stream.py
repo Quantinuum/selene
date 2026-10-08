@@ -40,7 +40,9 @@ def event(data=b"\x00\xff", tag=2**64 - 1):
     )
 
 
-@pytest.mark.parametrize("data", [b"", b"\x00\xff", b"x" * 70000])
+@pytest.mark.parametrize(
+    "data", [b"", b"\x00\xff", b"x" * 70000], ids=["empty", "binary", "70kb"]
+)
 def test_native_payloads_and_repeatable_round_trip(tmp_path, data):
     path = tmp_path / "trace.msgpack.gz"
     original = event(data)

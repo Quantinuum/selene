@@ -2,6 +2,7 @@ use super::{EventHook, Operation};
 use selene_api_models::trace::{CustomPayload, Event, EventRecord, GateParameter, Source};
 use selene_api_models::trace_stream::{
     BatchTiming, MeasurementOperation, TraceStreamEvent, TraceStreamRecord, TraceStreamWriter,
+    UIntInstruction, UIntInstructionRecord,
 };
 use selene_core::encoder::{OutputStream, OutputStreamError, Record};
 use selene_core::runtime::BatchOperation;
@@ -43,10 +44,6 @@ impl TraceLog {
             predicates: Vec::new(),
         };
         let number = GateParameter::Float;
-        let integer = |value: u64| match i64::try_from(value) {
-            Ok(value) => GateParameter::Integer(value),
-            Err(_) => GateParameter::Float(value as f64),
-        };
         Some(match operation {
             Operation::QAlloc(q) => gate("QAlloc", vec![*q], vec![]),
             Operation::QFree(q) => gate("QFree", vec![*q], vec![]),
@@ -68,13 +65,9 @@ impl TraceLog {
                     data: data.clone(),
                 },
             },
-            Operation::LocalBarrier(qubits, sleep) => {
-                gate("LocalBarrier", qubits.clone(), vec![integer(*sleep)])
-            }
-            Operation::GlobalBarrier(sleep) => gate("GlobalBarrier", vec![], vec![integer(*sleep)]),
-            Operation::ClassicalDelay(duration) => {
-                gate("ClassicalDelay", vec![], vec![integer(*duration)])
-            }
+            Operation::LocalBarrier(..)
+            | Operation::GlobalBarrier(_)
+            | Operation::ClassicalDelay(_) => return None,
             Operation::Postselect(q, target) => gate(
                 "Postselect",
                 vec![*q],
@@ -84,6 +77,28 @@ impl TraceLog {
     }
 
     fn push_event(&mut self, operation: &Operation, source: Source) {
+        let uint_operand = match operation {
+            Operation::LocalBarrier(qubits, value) => {
+                Some((UIntInstruction::LocalBarrier, *value, qubits.clone()))
+            }
+            Operation::GlobalBarrier(value) => {
+                Some((UIntInstruction::GlobalBarrier, *value, vec![]))
+            }
+            Operation::ClassicalDelay(value) => {
+                Some((UIntInstruction::ClassicalDelay, *value, vec![]))
+            }
+            _ => None,
+        };
+        if let Some((uint_instruction, value, qubits)) = uint_operand {
+            self.pending
+                .push(TraceStreamRecord::UIntInstruction(UIntInstructionRecord {
+                    source,
+                    uint_instruction,
+                    value,
+                    qubits,
+                }));
+            return;
+        }
         if let Some(event) = Self::event(operation) {
             let instruction = match operation {
                 Operation::FutureRead(_) if matches!(source, Source::UserProgram { .. }) => {
@@ -283,6 +298,58 @@ mod tests {
     impl Drop for TestDirectory {
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    #[test]
+    fn uint64_operands_survive_writing_and_reading() {
+        use selene_api_models::trace_stream::TraceStreamRecordReader;
+        let directory = TestDirectory::new();
+        let mut log = TraceLog::new(directory.0.clone());
+        let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        let values = [
+            0,
+            (1 << 53) - 1,
+            1 << 53,
+            (1 << 53) + 1,
+            i64::MAX as u64,
+            u64::MAX,
+        ];
+        for value in values {
+            log.on_user_call(&Operation::GlobalBarrier(value));
+            log.on_user_call(&Operation::LocalBarrier(vec![0, 1], value));
+            log.on_user_call(&Operation::ClassicalDelay(value));
+        }
+        // These are valid instruction operands even when the public JSON
+        // model can't represent them. Enabling tracing mustn't fail the shot.
+        log.write(0, &mut output).unwrap();
+        let file = File::open(directory.0.join("trace-0-0.msgpack.gz")).unwrap();
+        let records = TraceStreamRecordReader::new(file)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(records.len(), values.len() * 3);
+        for (records, value) in records.chunks_exact(3).zip(values) {
+            for (record, kind) in records.iter().zip([
+                UIntInstruction::GlobalBarrier,
+                UIntInstruction::LocalBarrier,
+                UIntInstruction::ClassicalDelay,
+            ]) {
+                let TraceStreamRecord::UIntInstruction(record) = record else {
+                    panic!("expected an integer operand")
+                };
+                assert_eq!(record.value, value);
+                assert_eq!(record.uint_instruction, kind);
+                assert_eq!(
+                    record.qubits,
+                    if kind == UIntInstruction::LocalBarrier {
+                        vec![0, 1]
+                    } else {
+                        vec![]
+                    }
+                );
+                assert_eq!(record.as_event().is_ok(), value < (1 << 53));
+            }
         }
     }
 

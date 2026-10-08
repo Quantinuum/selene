@@ -4,7 +4,9 @@
 //! A final nil marks successful completion. Call finish() before publishing the
 //! destination, and exhaust readers to check that marker and the gzip checksum.
 
-use crate::trace::{EventRecord, SCHEMA_VERSION};
+use crate::trace::{
+    CustomPayload, Event, EventRecord, GateParameter, MAX_SAFE_INTEGER, SCHEMA_VERSION, Source,
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use flate2::{Compression, read::MultiGzDecoder, write::GzEncoder};
 use serde::{Deserialize, Serialize};
@@ -40,6 +42,109 @@ pub struct BatchTiming {
 pub enum TraceStreamRecord {
     Event(TraceStreamEvent),
     BatchStart { batch_start: BatchTiming },
+    UIntInstruction(UIntInstructionRecord),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum UIntInstruction {
+    GlobalBarrier,
+    LocalBarrier,
+    ClassicalDelay,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UIntInstructionRecord {
+    pub source: Source,
+    pub uint_instruction: UIntInstruction,
+    pub value: u64,
+    pub qubits: Vec<u64>,
+}
+
+impl UIntInstructionRecord {
+    pub fn as_event(&self) -> io::Result<EventRecord> {
+        if self.value > MAX_SAFE_INTEGER {
+            return Err(invalid(format!(
+                "{:?} operand {} cannot be represented in trace schema {SCHEMA_VERSION}; use the instruction records instead",
+                self.uint_instruction, self.value
+            )));
+        }
+        Ok(EventRecord {
+            source: self.source.clone(),
+            event: Event::Gate {
+                gate_name: format!("{:?}", self.uint_instruction),
+                qubits: self.qubits.clone(),
+                params: vec![GateParameter::Integer(self.value as i64)],
+                predicates: vec![],
+            },
+        })
+    }
+}
+
+// The public models keep their normal serde representation. These wrappers
+// change only the stream's opaque payloads, so other binary users can still
+// round-trip EventRecord through its derived Deserialize implementation.
+struct StreamEvent<'a>(&'a Event);
+impl Serialize for StreamEvent<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        if let Event::Custom {
+            payload: CustomPayload::OpaquePayload { tag, data },
+        } = self.0
+        {
+            struct Bytes<'a>(&'a [u8]);
+            impl Serialize for Bytes<'_> {
+                fn serialize<S: serde::Serializer>(
+                    &self,
+                    serializer: S,
+                ) -> Result<S::Ok, S::Error> {
+                    serializer.serialize_bytes(self.0)
+                }
+            }
+            #[derive(Serialize)]
+            struct Payload<'a> {
+                kind: &'static str,
+                tag: u64,
+                data: Bytes<'a>,
+            }
+            let mut event = serializer.serialize_struct("Event", 2)?;
+            event.serialize_field("kind", "Custom")?;
+            event.serialize_field(
+                "payload",
+                &Payload {
+                    kind: "OpaquePayload",
+                    tag: *tag,
+                    data: Bytes(data),
+                },
+            )?;
+            event.end()
+        } else {
+            self.0.serialize(serializer)
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct StreamEventRecord<'a> {
+    source: &'a Source,
+    event: StreamEvent<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    instruction: Option<&'a MeasurementOperation>,
+}
+
+struct StreamRecord<'a>(&'a TraceStreamRecord);
+impl Serialize for StreamRecord<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0 {
+            TraceStreamRecord::Event(event) => StreamEventRecord {
+                source: &event.record.source,
+                event: StreamEvent(&event.record.event),
+                instruction: event.instruction.as_ref(),
+            }
+            .serialize(serializer),
+            record => record.serialize(serializer),
+        }
+    }
 }
 
 fn header() -> serde_json::Value {
@@ -66,14 +171,21 @@ impl<W: Write> TraceStreamWriter<W> {
     }
 
     pub fn write_events(&mut self, events: &[EventRecord]) -> io::Result<()> {
-        self.write_items(events)
+        self.write_items(events.iter().map(|record| StreamEventRecord {
+            source: &record.source,
+            event: StreamEvent(&record.event),
+            instruction: None,
+        }))
     }
 
     pub fn write_records(&mut self, records: &[TraceStreamRecord]) -> io::Result<()> {
-        self.write_items(records)
+        self.write_items(records.iter().map(StreamRecord))
     }
 
-    fn write_items<T: Serialize>(&mut self, records: &[T]) -> io::Result<()> {
+    fn write_items<T: Serialize>(
+        &mut self,
+        records: impl IntoIterator<Item = T>,
+    ) -> io::Result<()> {
         if self.failed {
             return Err(invalid("Trace stream writer previously failed"));
         }
@@ -85,7 +197,7 @@ impl<W: Write> TraceStreamWriter<W> {
             self.header_written = true;
         }
         for record in records {
-            rmp_serde::encode::write_named(&mut self.writer, record).map_err(invalid)?;
+            rmp_serde::encode::write_named(&mut self.writer, &record).map_err(invalid)?;
         }
         self.failed = false;
         Ok(())
@@ -245,6 +357,7 @@ impl<R: Read> Iterator for TraceStreamReader<R> {
             match self.0.next()? {
                 Ok(TraceStreamRecord::Event(event)) => return Some(Ok(event.record)),
                 Ok(TraceStreamRecord::BatchStart { .. }) => continue,
+                Ok(TraceStreamRecord::UIntInstruction(record)) => return Some(record.as_event()),
                 Err(error) => return Some(Err(error)),
             }
         }
@@ -255,6 +368,23 @@ impl<R: Read> Iterator for TraceStreamReader<R> {
 mod tests {
     use super::*;
     use crate::trace::{CustomPayload, Event, GateParameter, Source};
+
+    #[test]
+    fn public_events_round_trip_without_the_stream_codec() {
+        // The stream has its own encoding, but serialising the public model
+        // directly must still produce something its Deserialize can read.
+        let record = event();
+        for bytes in [
+            rmp_serde::to_vec(&record).unwrap(),
+            rmp_serde::to_vec_named(&record).unwrap(),
+        ] {
+            let decoded: EventRecord = rmp_serde::from_slice(&bytes).unwrap();
+            assert_eq!(decoded, record);
+        }
+        let json = serde_json::to_value(&record).unwrap();
+        assert_eq!(json["event"]["payload"]["tag"], "0xFFFFFFFFFFFFFFFF");
+        assert_eq!(json["event"]["payload"]["data"], "AP8=");
+    }
 
     fn fixture() -> Vec<u8> {
         include_str!("../tests/fixtures/trace-stream.msgpack.hex")

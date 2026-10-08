@@ -56,6 +56,17 @@ form `{"batch_start": {"start_time": 0, "end_time": 0}}`. These are instruction
 metadata, not additional trace events. Event-only readers omit boundaries and
 annotations, so materialising a trace doesn't add gates or change snapshots.
 
+Barriers and classical delays use records with `source`, `uint_instruction`,
+`value` and `qubits` fields. `uint_instruction` is `GlobalBarrier`, `LocalBarrier`
+or `ClassicalDelay`, and `value` is a native uint64. Instruction readers preserve
+the full range. Public-event readers and `get_trace()` reject operands above
+`2^53 - 1` with an explicit error because the JSON schema cannot represent them.
+Smaller operands convert to the same gate events as before.
+
+Native opaque payload encoding belongs to the stream writer's wrappers. Using
+serde directly on the public Rust models keeps their ordinary representation,
+including hexadecimal tag strings and base64 data, even with a binary serializer.
+
 Rust's `TraceStreamWriter` buffers records between caller-selected checkpoints.
 Call `finish()` and check its result before publishing the destination. A failed
 append poisons the writer; it cannot subsequently produce a completed stream.
