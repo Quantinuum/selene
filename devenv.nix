@@ -14,9 +14,6 @@ in {
       graph-easy
       libffi
       cargo-expand
-      nodejs_22
-      pnpm
-      typescript
     ];
 
     enterShell = ''
@@ -29,6 +26,12 @@ in {
       "HUGRENV_PATH" = "${hugrenv}";
     };
 
+
+    languages.javascript = {
+      enable = true;
+      package = pkgs.nodejs_22;
+      pnpm.enable = true;
+    };
 
     languages.python = {
       enable = true;
@@ -135,10 +138,10 @@ in {
         enable = true;
         name = "API models TypeScript tests";
         description = "Install locked dependencies and run the TypeScript API model test suite.";
-        package = pkgs.pnpm;
+        package = config.languages.javascript.pnpm.package;
         entry = "${pkgs.writeShellScript "api-models-typescript-test" ''
-          ${pkgs.pnpm}/bin/pnpm install --frozen-lockfile
-          ${pkgs.pnpm}/bin/pnpm --filter @quantinuum/selene-api-models test
+          ${config.languages.javascript.pnpm.package}/bin/pnpm install --frozen-lockfile
+          ${config.languages.javascript.pnpm.package}/bin/pnpm --filter @quantinuum/selene-api-models test
         ''}";
         files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
