@@ -5,12 +5,14 @@ on:
     paths:
       - ".github/workflows/publish_schemas.yml"
       - "selene-trace/schemas/**"
+      - "selene-trace/scripts/validate_schemas.py"
   push:
     branches:
       - 0.3-series
     paths:
       - ".github/workflows/publish_schemas.yml"
       - "selene-trace/schemas/**"
+      - "selene-trace/scripts/validate_schemas.py"
   workflow_dispatch:
 
 permissions:
@@ -38,35 +40,7 @@ jobs:
           --base "$BASE_SHA"
           --head "$HEAD_SHA"
       - name: Validate and stage schemas
-        run: |
-          python3 - <<'PY'
-          import json
-          import shutil
-          from pathlib import Path
-
-          source = Path("selene-trace/schemas")
-          destination = Path("_site/schemas")
-          base_url = "https://quantinuum.github.io/selene/schemas/"
-          schemas = sorted(source.rglob("*.schema.json"))
-
-          if not schemas:
-              raise SystemExit(f"No JSON Schemas found under {source}")
-
-          for schema in schemas:
-              relative_path = schema.relative_to(source)
-              expected_id = base_url + relative_path.as_posix()
-              document = json.loads(schema.read_text())
-
-              if document.get("$id") != expected_id:
-                  raise SystemExit(
-                      f"{schema}: expected $id {expected_id!r}, "
-                      f"found {document.get('$id')!r}"
-                  )
-
-              output = destination / relative_path
-              output.parent.mkdir(parents=True, exist_ok=True)
-              shutil.copyfile(schema, output)
-          PY
+        run: python3 selene-trace/scripts/validate_schemas.py --destination _site/schemas
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/0.3-series'
         uses: actions/upload-pages-artifact@v5

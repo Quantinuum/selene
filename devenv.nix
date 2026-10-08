@@ -95,6 +95,15 @@ in {
         files = "^(selene-trace/schemas/.*\\.schema\\.json|selene-trace/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
         pass_filenames = false;
       };
+      schema-validation = {
+        enable = true;
+        name = "Schema ID validation";
+        description = "Check that JSON Schema IDs match their publishing URLs.";
+        package = pkgs.python3;
+        entry = "${pkgs.python3}/bin/python3 selene-trace/scripts/validate_schemas.py";
+        always_run = true;
+        pass_filenames = false;
+      };
       api-models-package-versions = {
         enable = true;
         name = "API models package versions";
