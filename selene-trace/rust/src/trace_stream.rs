@@ -29,11 +29,46 @@ pub struct TraceStreamEvent {
     pub instruction: Option<MeasurementOperation>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(try_from = "BatchTimingFields")]
 pub struct BatchTiming {
     pub start_time: u64,
     pub end_time: u64,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct BatchTimingFields {
+    start_time: u64,
+    end_time: u64,
+}
+
+impl TryFrom<BatchTimingFields> for BatchTiming {
+    type Error = &'static str;
+    fn try_from(value: BatchTimingFields) -> Result<Self, Self::Error> {
+        if value.end_time < value.start_time {
+            return Err("Batch end_time must be greater than or equal to start_time");
+        }
+        Ok(Self {
+            start_time: value.start_time,
+            end_time: value.end_time,
+        })
+    }
+}
+
+impl Serialize for BatchTiming {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.end_time < self.start_time {
+            return Err(serde::ser::Error::custom(
+                "Batch end_time must be greater than or equal to start_time",
+            ));
+        }
+        BatchTimingFields {
+            start_time: self.start_time,
+            end_time: self.end_time,
+        }
+        .serialize(serializer)
+    }
 }
 
 /// Boundaries are stream metadata, not extra events in the public trace.
@@ -368,6 +403,36 @@ impl<R: Read> Iterator for TraceStreamReader<R> {
 mod tests {
     use super::*;
     use crate::trace::{CustomPayload, Event, GateParameter, Source};
+
+    #[test]
+    fn batch_timings_require_ordered_boundaries() {
+        for (start, end) in [(0, 0), (1, 1), (0, u64::MAX)] {
+            let value = serde_json::json!({"start_time": start, "end_time": end});
+            assert!(serde_json::from_value::<BatchTiming>(value).is_ok());
+        }
+        let value = serde_json::json!({"start_time": 2, "end_time": 1});
+        assert!(serde_json::from_value::<BatchTiming>(value.clone()).is_err());
+        let mut bytes = rmp_serde::to_vec_named(&header()).unwrap();
+        bytes.extend(rmp_serde::to_vec_named(&serde_json::json!({"batch_start": value})).unwrap());
+        bytes.push(0xc0);
+        let data = compress(&bytes);
+        assert!(
+            TraceStreamRecordReader::new(data.as_slice())
+                .unwrap()
+                .next()
+                .unwrap()
+                .is_err()
+        );
+        let record = TraceStreamRecord::BatchStart {
+            batch_start: BatchTiming {
+                start_time: 2,
+                end_time: 1,
+            },
+        };
+        let mut writer = TraceStreamWriter::new(Vec::new());
+        assert!(writer.write_records(&[record]).is_err());
+        assert!(writer.finish().is_err());
+    }
 
     #[test]
     fn public_events_round_trip_without_the_stream_codec() {

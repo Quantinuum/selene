@@ -533,10 +533,12 @@ class ShotInstructions:
                         )
                     operation = gates[name](*qubits, *params)
                 case MeasurementEvent(qubit=qubit):
-                    if record.instruction == "FutureRead" or source == Source.OPTIMISER:
+                    if record.instruction == "FutureRead":
                         operation = FutureRead(qubit)
                     elif record.instruction == "MeasureLeakedRequest":
                         operation = MeasureLeakedRequest(qubit)
+                    elif source == Source.OPTIMISER:
+                        operation = FutureRead(qubit)
                     else:
                         operation = MeasureRequest(qubit)
                 case ResetEvent(qubit=qubit):

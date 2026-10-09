@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 import zlib
 
 import msgpack
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from .trace import SCHEMA_VERSION, MAX_SAFE_INTEGER, EventRecord, GateEvent, Source
 
@@ -32,6 +32,14 @@ class BatchTiming(BaseModel):
     model_config = ConfigDict(extra="forbid")
     start_time: int = Field(strict=True, ge=0, le=2**64 - 1)
     end_time: int = Field(strict=True, ge=0, le=2**64 - 1)
+
+    @model_validator(mode="after")
+    def check_boundaries(self):
+        if self.end_time < self.start_time:
+            raise ValueError(
+                "Batch end_time must be greater than or equal to start_time"
+            )
+        return self
 
 
 class BatchStartRecord(BaseModel):
@@ -76,13 +84,26 @@ def _header() -> dict:
     }
 
 
+def _unique_map(pairs: list[tuple]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if not isinstance(key, str):
+            raise ValueError("Expected a string map key")
+        if key in result:
+            raise ValueError(f"Duplicate map key: {key!r}")
+        result[key] = value
+    return result
+
+
 def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
     """Read lazily without caching records or accepting JSON document formats."""
     path = Path(path)
     record_number = 0
     try:
         with gzip.open(path, "rb") as source:
-            unpacker = msgpack.Unpacker(source, raw=False)
+            unpacker = msgpack.Unpacker(
+                source, raw=False, object_pairs_hook=_unique_map
+            )
             missing = object()
             header = next(unpacker, missing)
             if (
@@ -118,6 +139,12 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
                             "OpaquePayload requires a native integer tag and binary data"
                         )
                 yield _record_adapter.validate_python(item)
+    except FileNotFoundError as error:
+        raise ValueError(
+            f"Trace stream {str(path)!r} is no longer available. Its run directory "
+            "may have been deleted or cleaned up by the operating system. "
+            "Keep the run directory until you have finished reading its traces."
+        ) from error
     except (
         OSError,
         EOFError,

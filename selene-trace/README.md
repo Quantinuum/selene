@@ -79,4 +79,9 @@ Python's `write_trace_stream` accepts an iterable and creates a new file without
 overwriting one. `iter_trace_stream_records` and `iter_trace_stream` read lazily
 without caching. Writers use gzip's fast compression setting. Callers own file
 lifetime and removal of failed output; readers never copy or delete artifacts.
+Interactive stacks also leave their run directories in place when closed or
+garbage-collected. Once you're finished reading traces and state dumps, call
+`stack.delete_run_directory()` to close the stack and remove its files. If the
+stack has already been collected, remove the directory yourself using the path
+you saved from `stack.configuration_path.parent`.
 The conventional suffix is `.msgpack.gz`.

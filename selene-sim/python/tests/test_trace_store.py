@@ -197,6 +197,56 @@ def test_interactive_trace_store():
     assert len(store.shots) == 2
     assert list(store.shots[1].iter_events()) == []
     assert store.shots[0] is first_trace
+    stack.delete_run_directory()
+
+
+def test_interactive_trace_survives_garbage_collection():
+    import gc
+    import shutil
+    import weakref
+    from selene_sim import Quest
+    from selene_sim.interactive import InteractiveFullStack
+
+    store = TraceStore()
+    stack = InteractiveFullStack(simulator=Quest(), n_qubits=1, event_hook=store)
+    run_dir = stack.configuration_path.parent
+    try:
+        q = stack.qalloc()
+        stack.qfree(q)
+        reference = weakref.ref(stack)
+        del stack
+        gc.collect()
+        assert reference() is None
+        # The backend has gone away, but the caller still owns its artifacts.
+        assert run_dir.exists()
+        assert store.shots[0].get_trace().events
+    finally:
+        shutil.rmtree(run_dir)
+    with pytest.raises(ValueError, match="no longer available.*run directory"):
+        store.shots[0].get_trace()
+
+
+def test_interactive_directory_deletion_is_explicit():
+    from selene_sim import Quest
+    from selene_sim.interactive import InteractiveFullStack
+
+    store = TraceStore()
+    stack = InteractiveFullStack(simulator=Quest(), n_qubits=1, event_hook=store)
+    q = stack.qalloc()
+    stack.qfree(q)
+    run_dir = stack.configuration_path.parent
+    stack.close()
+    stack.close()
+    assert store.shots[0].get_trace().events
+    stack.delete_run_directory()
+    stack.delete_run_directory()
+    assert not run_dir.exists()
+    with pytest.raises(ValueError, match="no longer available"):
+        store.shots[0].get_trace()
+    with pytest.raises(RuntimeError, match="closed"):
+        stack.qalloc()
+    with pytest.raises(RuntimeError, match="closed"):
+        stack.drain_results()
 
 
 @pytest.mark.parametrize("data", [[], [42], ["a.json", "b.json"]])
@@ -207,19 +257,22 @@ def test_trace_record_requires_one_filename(data):
         store.try_invoke("TRACE", data)
 
 
-def test_instruction_metadata_is_not_a_gate(tmp_path):
+@pytest.mark.parametrize(
+    "source", [UserProgramSource(index=0), RuntimeSource(start_time=0, end_time=1)]
+)
+def test_instruction_metadata_is_not_a_gate(tmp_path, source):
     from selene_api_models.trace import MeasurementEvent
     from selene_api_models.trace_stream import BatchStartRecord, BatchTiming
     from selene_sim.event_hooks.instruction_log import FutureRead, MeasureLeakedRequest
 
     boundary = BatchStartRecord(batch_start=BatchTiming(start_time=0, end_time=0))
     read = TraceStreamEvent(
-        source=UserProgramSource(index=0),
+        source=source,
         event=MeasurementEvent(qubit=3),
         instruction="FutureRead",
     )
     leaked = TraceStreamEvent(
-        source=UserProgramSource(index=1),
+        source=source,
         event=MeasurementEvent(qubit=4),
         instruction="MeasureLeakedRequest",
     )

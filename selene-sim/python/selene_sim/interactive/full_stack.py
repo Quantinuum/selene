@@ -5,6 +5,7 @@ import os
 import platform
 import sys
 import tempfile
+import shutil
 from pathlib import Path
 from typing import ClassVar
 
@@ -277,18 +278,19 @@ class SeleneSimLib(ctypes.CDLL):
 class InternalOutputStream(DataStream):
     def __init__(self, full_stack: "InteractiveFullStack"):
         self._buffer = bytearray()
-        self._full_stack = full_stack
+        self._lib = full_stack._lib
+        self._instance = full_stack._instance
 
     def read_chunk(self, length: int) -> bytes:
-        assert self._full_stack._lib is not None, (
+        assert self._lib is not None, (
             "Selene library must be loaded to read from output stream"
         )
         if len(self._buffer) < length:
             # make a new buffer to read into
             chunk_size = max(length - len(self._buffer), 4096)
             chunk_buffer = (ctypes.c_uint8 * chunk_size)()
-            bytes_read = self._full_stack._lib.selene_fetch_output(
-                self._full_stack._instance, chunk_buffer, chunk_size
+            bytes_read = self._lib.selene_fetch_output(
+                self._instance, chunk_buffer, chunk_size
             ).unwrap()
             if bytes_read == 0:
                 raise BlockingIOError
@@ -333,8 +335,7 @@ class InteractiveFullStack:
         self._pending_state_dumps: list[StreamEntry] = []
         self._pending_entries: list[StreamEntry] = []
 
-        self._tempdir = tempfile.TemporaryDirectory(prefix="selene-sim-interactive-")
-        self._run_dir = Path(self._tempdir.name)
+        self._run_dir = Path(tempfile.mkdtemp(prefix="selene-sim-interactive-"))
         self._artifact_dir = self._run_dir / "artifacts"
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
         self._config_path = self._run_dir / "configuration.yaml"
@@ -405,9 +406,6 @@ class InteractiveFullStack:
             for _, search in self._component_libraries:
                 search.close()
             self._component_libraries.clear()
-        if hasattr(self, "_tempdir") and self._tempdir is not None:
-            self._tempdir.cleanup()
-            self._tempdir = None
 
     def next_shot(self):
         self._on_shot_end()
@@ -429,6 +427,8 @@ class InteractiveFullStack:
         return entries
 
     def _poll_results(self):
+        if not self._instance:
+            raise RuntimeError("The interactive stack is closed")
         while True:
             entry = self._result_stream.try_next_entry()
             if entry is None:
@@ -464,17 +464,39 @@ class InteractiveFullStack:
     def event_hook(self) -> EventHook:
         return self._event_hook
 
-    def __del__(self):
+    def delete_run_directory(self):
+        """Close the stack and delete its files, invalidating lazy trace access.
+
+        Neither closing nor garbage-collecting the stack deletes these files.
+        Call this only once you've finished reading traces and state dumps.
+        """
+        self.close()
+        if self._run_dir.exists():
+            shutil.rmtree(self._run_dir)
+
+    def close(self):
+        """Release backend resources without deleting traces or state dumps."""
         try:
             if hasattr(self, "_instance") and bool(self._instance):
-                self._on_shot_end()
-                # Invoke selene_exit directly: the call helpers request metadata,
-                # which is not valid after the instance has been destroyed.
-                self._lib.selene_exit(self._instance).unwrap()
+                try:
+                    self._on_shot_end()
+                finally:
+                    # Even if flushing the last metadata fails, we still need
+                    # to release the backend. Don't use the call helpers here,
+                    # because they request metadata after invoking the function.
+                    try:
+                        self._lib.selene_exit(self._instance).unwrap()
+                    finally:
+                        self._instance = SeleneInstancePtr()
         finally:
             self._teardown_environment()
 
+    def __del__(self):
+        self.close()
+
     def _invoke(self, func_name: str, *args):
+        if not self._instance:
+            raise RuntimeError("The interactive stack is closed")
         result = getattr(self._lib, func_name)(self._instance, *args)
         if self._auto_poll_metadata:
             assert self._lib is not None

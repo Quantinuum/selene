@@ -33,6 +33,62 @@ def header():
     }
 
 
+@pytest.mark.parametrize("start,end", [(0, 0), (1, 1), (0, 2**64 - 1)])
+def test_batch_timing_accepts_ordered_boundaries(start, end):
+    assert BatchTiming(start_time=start, end_time=end).end_time == end
+
+
+def test_reversed_batch_timing_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="end_time"):
+        BatchTiming(start_time=2, end_time=1)
+    path = tmp_path / "reversed.msgpack.gz"
+    with gzip.open(path, "wb") as output:
+        for item in [header(), {"batch_start": {"start_time": 2, "end_time": 1}}, None]:
+            output.write(msgpack.packb(item))
+    with pytest.raises(ValueError, match="(?s)record 1.*end_time"):
+        list(iter_trace_stream_records(path))
+
+
+@pytest.mark.parametrize("location", ["header", "record", "nested"])
+def test_duplicate_map_keys_are_rejected(tmp_path, location):
+    pack = msgpack.packb
+
+    def map_pairs(pairs):
+        return msgpack.Packer().pack_map_header(len(pairs)) + b"".join(
+            pack(k) + v for k, v in pairs
+        )
+
+    head = pack(header())
+    record = pack({"batch_start": {"start_time": 0, "end_time": 1}})
+    if location == "header":
+        head = map_pairs(
+            [(k, pack(v)) for k, v in header().items()] + [("format", pack(FORMAT))]
+        )
+    elif location == "record":
+        record = map_pairs(
+            [("batch_start", pack({"start_time": 0, "end_time": 1}))] * 2
+        )
+    else:
+        record = map_pairs(
+            [
+                (
+                    "batch_start",
+                    map_pairs(
+                        [
+                            ("start_time", pack(0)),
+                            ("end_time", pack(0)),
+                            ("end_time", pack(1)),
+                        ]
+                    ),
+                )
+            ]
+        )
+    path = tmp_path / "duplicate.msgpack.gz"
+    path.write_bytes(gzip.compress(head + record + pack(None)))
+    with pytest.raises(ValueError, match="Duplicate map key"):
+        list(iter_trace_stream_records(path))
+
+
 def event(data=b"\x00\xff", tag=2**64 - 1):
     return EventRecord(
         source=UserProgramSource(index=0),
