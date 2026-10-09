@@ -19,10 +19,29 @@ from selene_api_models.trace_stream import (
     FORMAT,
     FORMAT_VERSION,
     TraceStreamEvent,
+    UIntInstructionRecord,
     iter_trace_stream,
     iter_trace_stream_records,
     write_trace_stream,
 )
+
+
+@pytest.mark.parametrize("qubit", [2**53 - 1, 2**53, 2**64 - 1])
+def test_event_reader_rejects_unsafe_instruction_qubits(tmp_path, qubit):
+    record = UIntInstructionRecord(
+        source=UserProgramSource(index=0),
+        uint_instruction="LocalBarrier",
+        value=0,
+        qubits=[0, qubit],
+    )
+    path = tmp_path / "qubits.msgpack.gz"
+    write_trace_stream(path, [record])
+    assert list(iter_trace_stream_records(path)) == [record]
+    if qubit < 2**53:
+        assert list(iter_trace_stream(path))[0].event.qubits == [0, qubit]
+    else:
+        with pytest.raises(ValueError, match="qubits"):
+            list(iter_trace_stream(path))
 
 
 def header():

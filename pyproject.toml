@@ -12,6 +12,7 @@ dependencies = [
   "numpy~=2.0",
   "pyyaml>=6.0.2",
   "selene-core~=0.3.2",
+  "selene-api-models~=0.1.0",
   "tqdm>=4.67.1",
   # TODO: decide if we want this as a formal dependency or not
   #"selene-hugr-qis-compiler~=0.3.0", 

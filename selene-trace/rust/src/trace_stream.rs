@@ -104,6 +104,12 @@ impl UIntInstructionRecord {
                 self.uint_instruction, self.value
             )));
         }
+        if let Some(qubit) = self.qubits.iter().find(|&&qubit| qubit > MAX_SAFE_INTEGER) {
+            return Err(invalid(format!(
+                "{:?} qubit ID {qubit} cannot be represented in trace schema {SCHEMA_VERSION}; use the instruction records instead",
+                self.uint_instruction
+            )));
+        }
         Ok(EventRecord {
             source: self.source.clone(),
             event: Event::Gate {
@@ -403,6 +409,45 @@ impl<R: Read> Iterator for TraceStreamReader<R> {
 mod tests {
     use super::*;
     use crate::trace::{CustomPayload, Event, GateParameter, Source};
+
+    #[test]
+    fn event_reader_rejects_unsafe_instruction_qubits() {
+        for qubit in [MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, u64::MAX] {
+            let record = UIntInstructionRecord {
+                source: Source::UserProgram { index: 0 },
+                uint_instruction: UIntInstruction::LocalBarrier,
+                value: 0,
+                qubits: vec![0, qubit],
+            };
+            let mut writer = TraceStreamWriter::new(Vec::new());
+            writer
+                .write_records(&[TraceStreamRecord::UIntInstruction(record.clone())])
+                .unwrap();
+            let bytes = writer.finish().unwrap();
+            // The instruction stream supports uint64 qubit IDs, but its public
+            // event view must reject IDs outside the JSON schema's safe range.
+            let decoded = TraceStreamRecordReader::new(bytes.as_slice())
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap();
+            assert_eq!(decoded, TraceStreamRecord::UIntInstruction(record));
+            let event = TraceStreamReader::new(bytes.as_slice())
+                .unwrap()
+                .next()
+                .unwrap();
+            if qubit <= MAX_SAFE_INTEGER {
+                assert!(event.is_ok());
+            } else {
+                assert!(
+                    event
+                        .unwrap_err()
+                        .to_string()
+                        .contains(&format!("qubit ID {qubit}"))
+                );
+            }
+        }
+    }
 
     #[test]
     fn batch_timings_require_ordered_boundaries() {
