@@ -131,7 +131,7 @@ def test_invalid_utf8_in_string_value(tmp_path):
     # cases above. Its length and record boundaries are otherwise correct.
     recording = tmp_path / "results.bin"
     recording.write_bytes(
-        record_header("INSTRUCTIONLOG")
+        record_header("TRACE")
         + struct.pack("<HH", ResultStream.STR_TAG, 1)
         + b"\xff"
         + struct.pack("<HH", 0, 0)
@@ -141,9 +141,7 @@ def test_invalid_utf8_in_string_value(tmp_path):
         error = capture_unparsed_failure(ResultStream(transport), tmp_path)
     finally:
         transport.handle.close()
-    assert (
-        "Invalid UTF-8 in value 1 of record 'INSTRUCTIONLOG' (1 bytes)" in error.message
-    )
+    assert "Invalid UTF-8 in value 1 of record 'TRACE' (1 bytes)" in error.message
     assert "UnicodeDecodeError" in error.message
     assert isinstance(error.__cause__, UnicodeDecodeError)
 
