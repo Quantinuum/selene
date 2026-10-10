@@ -85,7 +85,7 @@ jobs:
 
       - name: Set up UV
         if: ${{ matrix.os != 'ubuntu-latest' }}
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
 
