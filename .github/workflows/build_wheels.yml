@@ -25,7 +25,7 @@ jobs:
     outputs:
       wheel-ready: ${{ steps.upload_selene_core.outputs.artifact-id }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Cache selene-core wheel
         id: selene_core_wheel_cache
@@ -81,7 +81,7 @@ jobs:
     name: "Selene wheels (${{matrix.os}})"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up UV
         if: ${{ matrix.os != 'ubuntu-latest' }}
