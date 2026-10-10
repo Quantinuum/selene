@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.2...selene-core-v0.3.3) (2026-10-10)
+
+
+### Features
+
+* improved result stream writing and error handling ([#230](https://github.com/Quantinuum/selene/issues/230)) ([e50b2da](https://github.com/Quantinuum/selene/commit/e50b2dab539ce6c6257660427a264112a5be56e7))
+
 ## [0.3.2](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.1...selene-core-v0.3.2) (2026-09-09)
 
 
