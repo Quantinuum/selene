@@ -198,6 +198,12 @@ jobs:
           # TODO: enable when https://github.com/yaml/pyyaml/issues/951 is closed
           # and a python3.15-compatible pyyaml release is available on pypi.
           # - '3.15'
+        exclude:
+          # llvmlite doesn't support x86-64 macos after 0.45.1.
+          # For that version, only wheels up to and including
+          # python 3.13 are available.
+          - os: macos-15-intel
+            python-version: '3.14'
     name: "Install Selene (Python ${{ matrix.python-version }}, ${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     permissions:
