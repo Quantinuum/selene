@@ -143,12 +143,25 @@ impl State {
     }
 
     pub(super) fn shot_end(&mut self) -> Result<()> {
-        self.runtime.shot_end()?;
-        self.process_runtime()?;
-        self.error_model.shot_end()?;
-        self.simulator.shot_end()?;
+        let already_failed = self.failure.is_some();
+        let runtime = self.runtime.shot_end();
+        let drained = if already_failed {
+            Ok(())
+        } else {
+            self.process_runtime()
+        };
+        let error_model = self.error_model.shot_end();
+        let simulator = self.simulator.shot_end();
         self.hooks.on_shot_end();
-        Ok(())
+        // The operational call already returned the primary consumer failure.
+        // Complete cleanup without replacing it with a second shutdown report.
+        if already_failed {
+            return Ok(());
+        }
+        runtime?;
+        drained?;
+        error_model?;
+        simulator
     }
 
     pub(super) fn process_runtime(&mut self) -> Result<()> {
@@ -182,7 +195,10 @@ impl State {
     }
 
     pub(super) fn metrics(&mut self) -> Result<Vec<(&'static str, String, MetricValue)>> {
-        self.process_runtime()?;
+        // Preserve metrics from a failed shot without repeating its drain error.
+        if self.failure.is_none() {
+            self.process_runtime()?;
+        }
         let mut metrics = Vec::new();
         for nth in 0..255 {
             let Some((tag, value)) = self.runtime.get_metric(nth)? else {

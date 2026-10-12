@@ -389,7 +389,8 @@ fn consumer_failure_is_reported_and_shutdown_still_joins() {
     let error = instance.custom_runtime_call(3, &[]).unwrap_err();
     assert!(format!("{error:#}").contains("get_next_operations"));
     assert!(instance.emulator.poke().is_err());
-    assert!(instance.shot_end().is_err());
+    // Shutdown finishes after the primary operational failure was reported.
+    instance.shot_end().unwrap();
     drop(instance);
     assert!(dropped.load(Ordering::Relaxed));
 }

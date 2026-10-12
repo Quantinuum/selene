@@ -1,6 +1,6 @@
 use crate::event_hooks::{Operation, SharedEventHook};
 use crate::selene_instance::configuration::Configuration;
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use selene_core::error_model::BatchResult;
 use selene_core::runtime::{
     BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInterface,
@@ -95,12 +95,15 @@ pub struct Emulator {
 impl Emulator {
     pub fn from_configuration(config: &Configuration) -> Result<Self> {
         let n_qubits = config.n_qubits;
-        let runtime = Arc::new(Runtime::load_from_file(
-            &config.runtime.file,
-            n_qubits,
-            selene_core::time::Instant::default(),
-            config.runtime.args.as_ref(),
-        )?);
+        let runtime = Arc::new(
+            Runtime::load_from_file(
+                &config.runtime.file,
+                n_qubits,
+                selene_core::time::Instant::default(),
+                config.runtime.args.as_ref(),
+            )
+            .context("Failed to load runtime plugin")?,
+        );
 
         // Set up the event hooks
         let event_hooks = SharedEventHook::default();
