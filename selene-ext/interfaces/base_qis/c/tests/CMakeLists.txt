@@ -13,6 +13,13 @@ endforeach()
 if(UNIX)
     find_package(Threads REQUIRED)
     foreach(suffix off debug diagnostic)
+        add_executable(test_fallible_${suffix} test_fallible.c)
+        target_link_libraries(test_fallible_${suffix} PRIVATE
+            base_qis_selene_interface_logging_${suffix} Threads::Threads
+        )
+        set_target_properties(test_fallible_${suffix} PROPERTIES ENABLE_EXPORTS ON)
+        add_test(NAME fallible_${suffix} COMMAND test_fallible_${suffix})
+        set_tests_properties(fallible_${suffix} PROPERTIES TIMEOUT 20)
         add_executable(test_worker_heap_${suffix} test_worker_heap.c)
         target_link_libraries(test_worker_heap_${suffix} PRIVATE
             base_qis_selene_interface_logging_${suffix} Threads::Threads
