@@ -138,9 +138,13 @@ typedef const void *RuntimeInstance;
  * and publishing its results makes the result getter report availability; an
  * empty batch alone does not prove a dispatched result has been published.
  *
- * Initialization completes before sharing the instance. The caller excludes all
- * other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
- * entire get_metrics_fn enumeration. Only these calls may access state exclusively.
+ * Initialization completes before sharing the instance. The caller serializes
+ * shot_start_fn, shot_end_fn, exit_fn, and metric collection. It excludes other
+ * calls during start, exit, and an entire get_metrics_fn enumeration. During end,
+ * existing workers may finish operational calls, and the consumer may retrieve
+ * work and publish results needed for their completion. End must wake or cancel
+ * pending work and join owned workers before returning. The caller stops unrelated
+ * submissions before end and retains the instance and library through all joins.
  * No runtime lock may block the consumer while a user waits for a result.
  *
  * Handles must remain live throughout calls. Output buffers must be writable and
