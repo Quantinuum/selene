@@ -212,10 +212,7 @@ where
     }
     let instance = unsafe { &*instance };
     if let Err(e) = f(instance) {
-        let code = match instance.emulator.cancellation() {
-            0 => 100001,
-            code => code,
-        };
+        let code = 100001;
         instance.fallible_print_panic(format!("{e:#}").as_str(), code);
         VoidResult::err(code)
     } else {
@@ -233,10 +230,7 @@ where
     match f(instance) {
         Ok(value) => BoolResult::ok(value),
         Err(e) => {
-            let code = match instance.emulator.cancellation() {
-                0 => 100001,
-                code => code,
-            };
+            let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             BoolResult::err(code)
         }
@@ -254,10 +248,7 @@ where
     match f(instance) {
         Ok(value) => U64Result::ok(value),
         Err(e) => {
-            let code = match instance.emulator.cancellation() {
-                0 => 100001,
-                code => code,
-            };
+            let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             U64Result::err(code)
         }
@@ -274,10 +265,7 @@ where
     match f(instance) {
         Ok(value) => F64Result::ok(value),
         Err(e) => {
-            let code = match instance.emulator.cancellation() {
-                0 => 100001,
-                code => code,
-            };
+            let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             F64Result::err(code)
         }
@@ -295,10 +283,7 @@ where
     match f(instance) {
         Ok(value) => U32Result::ok(value),
         Err(e) => {
-            let code = match instance.emulator.cancellation() {
-                0 => 100001,
-                code => code,
-            };
+            let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             U32Result::err(code)
         }
@@ -316,10 +301,7 @@ where
     match f(instance) {
         Ok(value) => FutureResult::ok(value),
         Err(e) => {
-            let code = match instance.emulator.cancellation() {
-                0 => 100001,
-                code => code,
-            };
+            let code = 100001;
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             FutureResult::err(code)
         }

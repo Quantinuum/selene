@@ -549,3 +549,28 @@ fn consumer_error_wakes_completion_and_retires_entered_workers() {
     });
     assert_eq!(instance.emulator.cancellation(), 100001);
 }
+
+#[test]
+fn panic_reporting_failure_keeps_legacy_errno_and_primary_cancellation() {
+    let (mut instance, _) = instance();
+    instance.shot_start(0).unwrap();
+    // A read-only descriptor fails output writes without changing any file.
+    let file = std::fs::File::open(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml")).unwrap();
+    *instance.out_encoder.lock() = OutputStream::new(OutputWriter::File(file));
+    let message = b"primary panic";
+    let result = unsafe {
+        crate::ffi_interface::selene_print_panic(
+            pointer(&instance),
+            crate::ffi_interface::WrappedString {
+                data: message.as_ptr().cast(),
+                length: message.len() as u64,
+                owned: false,
+            },
+            1001,
+        )
+    };
+    assert_eq!(result.error_code, 100001);
+    assert_eq!(instance.emulator.cancellation(), 1001);
+    // Cleanup must still execute despite the failed output writer.
+    assert!(instance.shot_end().is_err());
+}
