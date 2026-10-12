@@ -60,13 +60,6 @@ pub trait RuntimeInterface: Send + Sync {
     /// prevents those calls from completing.
     fn shot_end(&self) -> Result<()>;
 
-    /// Compatibility notification for older callers. New callers use
-    /// [`Self::shot_end`] for graceful managed completion and cleanup.
-    /// The default is a no-op; retain it for already published v2 consumers.
-    fn program_complete(&self) -> Result<()> {
-        Ok(())
-    }
-
     /// Wake blocked shot operations after cancellation without joining workers.
     /// This may overlap shot_end and must not acquire its lifecycle lock. Runtimes
     /// with no pending asynchronous work need no additional wake action.

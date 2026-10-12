@@ -273,7 +273,6 @@ enum Descriptor {
 pub struct RuntimePluginInterface {
     _lib: libloading::Library,
     descriptor: Descriptor,
-    program_complete: Option<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>,
     cancel: Option<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>,
 }
 
@@ -304,17 +303,6 @@ impl RuntimePluginInterface {
                 ));
             }
         };
-        let program_complete = if matches!(descriptor, Descriptor::V2(_)) {
-            unsafe {
-                lib.get::<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>(
-                    b"selene_runtime_program_complete_v2",
-                )
-                .ok()
-                .map(|symbol| *symbol)
-            }
-        } else {
-            None
-        };
         let cancel = if matches!(descriptor, Descriptor::V2(_)) {
             unsafe {
                 lib.get::<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>(
@@ -328,7 +316,6 @@ impl RuntimePluginInterface {
         };
         Ok(Arc::new(Self {
             cancel,
-            program_complete,
             _lib: lib,
             descriptor,
         }))
@@ -392,7 +379,6 @@ impl RuntimeInterface for RuntimePlugin {
             fn get_next_operations(&self) -> Result<Option<BatchOperation>>;
             fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()>;
             fn shot_end(&self) -> Result<()>;
-            fn program_complete(&self) -> Result<()>;
             fn cancel(&self) -> Result<()>;
             fn supports_worker_cancellation(&self) -> bool;
             fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>>;
@@ -455,16 +441,6 @@ impl RuntimeInterface for ConcurrentRuntimePlugin {
         }
     }
 
-    fn program_complete(&self) -> Result<()> {
-        let _lifecycle = self.lifecycle.lock();
-        let _access = self.access.read();
-        match self._interface.program_complete {
-            Some(complete) => check_errno(unsafe { complete(self.instance) }, || {
-                anyhow!("RuntimePlugin: program_complete failed")
-            }),
-            None => Ok(()),
-        }
-    }
     fn exit(&self) -> Result<()> {
         let _lifecycle = self.lifecycle.lock();
         let _access = self.access.write();

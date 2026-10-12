@@ -226,11 +226,8 @@ fn concurrent_descriptor_is_preferred_when_both_are_exported(
 // that calls back through the same wrapper. The timeout returns from foreign end
 // before asserting, so the old exclusive lock fails without stranding a worker.
 #[rstest]
-#[case::shutdown(false)]
-#[case::successful_completion(true)]
 fn concurrent_shutdown_allows_worker_callbacks(
-    #[case] successful_completion: bool,
-    #[with(&["WITH_V2", "SHUTDOWN_CALLBACK", "COMPLETE_CALLBACK"])] plugin: PluginFixture,
+    #[with(&["WITH_V2", "SHUTDOWN_CALLBACK"])] plugin: PluginFixture,
 ) {
     use std::sync::{Arc, Mutex, mpsc};
     struct Context {
@@ -262,11 +259,7 @@ fn concurrent_shutdown_allows_worker_callbacks(
     let runtime = Arc::new(plugin.runtime(&[&args[0], &args[1]]).unwrap());
     *context.runtime.lock().unwrap() = Some(runtime.clone());
     runtime.shot_start(0, 0).unwrap();
-    let ended = if successful_completion {
-        runtime.program_complete()
-    } else {
-        runtime.shot_end()
-    };
+    let ended = runtime.shot_end();
     context
         .worker
         .lock()
@@ -284,11 +277,13 @@ fn concurrent_shutdown_allows_worker_callbacks(
 }
 
 #[rstest]
-fn older_concurrent_plugin_needs_no_completion_symbol(
+fn older_concurrent_plugin_needs_no_cancellation_symbol(
     #[with(&["WITH_V2", "OLD_V2"])] plugin: PluginFixture,
 ) {
     let runtime = plugin.runtime(&[]).unwrap();
-    runtime.program_complete().unwrap();
+    assert!(!runtime.supports_worker_cancellation());
+    runtime.cancel().unwrap();
+    runtime.shot_end().unwrap();
     assert_eq!(runtime.qalloc().unwrap(), 999);
     runtime.exit().unwrap();
 }

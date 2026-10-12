@@ -195,7 +195,6 @@ unsafe extern "C" fn simulate_delay_fn(handle: RuntimeInstance, _delay_ns: u64) 
 
 fn runtime() -> Box<ConcurrentRuntimePlugin> {
     let interface = Arc::new(RuntimePluginInterface {
-        program_complete: None,
         cancel: None,
         descriptor: Descriptor::V2(RuntimePluginDescriptorV2 {
             struct_size: std::mem::size_of::<RuntimePluginDescriptorV2>() as u64,

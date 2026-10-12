@@ -9,8 +9,9 @@
 //! their ordering can vary between runs. If you set the cursor and then print,
 //! another thread can change the cursor between those two calls.
 //!
-//! The host must pause user calls while starting or ending a shot, collecting
-//! metrics, or destroying the instance. Join all user threads before calling
+//! The host must pause user calls while starting a shot, collecting metrics,
+//! or destroying the instance. Shot end drains workers while operational calls
+//! and consumer result delivery remain live. Join all user threads before calling
 //! `selene_exit`. Keep input buffers valid and unchanged until their call
 //! returns, and keep a live reference to each result handle throughout its use,
 //! including when several threads read it.
@@ -349,12 +350,6 @@ pub unsafe extern "C" fn selene_on_shot_start(
             VoidResult::err(100001)
         }
     }
-}
-
-/// Notify successful compiled-root return while worker result delivery stays live.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn selene_on_program_complete(instance: *mut SeleneInstance) -> VoidResult {
-    with_instance_void(instance, |_instance| Ok(()))
 }
 
 /// Whether the selected runtime supplies the managed worker drain contract.
