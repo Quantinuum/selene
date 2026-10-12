@@ -1,11 +1,12 @@
-//! Probe guards inside foreign callbacks without relying on thread scheduling.
+// Probe guards inside foreign callbacks without relying on thread scheduling.
 use super::*;
 use parking_lot::{Mutex, RwLock};
 
 unsafe fn check_access(handle: RuntimeInstance, exclusive: bool) -> Errno {
     // SAFETY: the test pins the RuntimePlugin in a Box and uses its access
-    // lock as the opaque handle for these test-only foreign functions.
-    let access = unsafe { &*handle.cast::<RwLock<()>>() };
+    // wrapper as the opaque handle for these test-only foreign functions.
+    let runtime = unsafe { &*handle.cast::<RuntimePlugin>() };
+    let access = &runtime.access;
     let writer_blocked = access.try_write().is_none();
     let reader_blocked = access.try_read().is_none();
     if writer_blocked && reader_blocked == exclusive {
@@ -24,6 +25,12 @@ unsafe extern "C" fn init_fn(
     0
 }
 unsafe extern "C" fn exit_fn(handle: RuntimeInstance) -> Errno {
+    assert!(
+        unsafe { &*handle.cast::<RuntimePlugin>() }
+            .lifecycle
+            .try_lock()
+            .is_none()
+    );
     unsafe { check_access(handle, true) }
 }
 unsafe extern "C" fn get_next_operations_fn(
@@ -33,10 +40,22 @@ unsafe extern "C" fn get_next_operations_fn(
     unsafe { check_access(handle, false) }
 }
 unsafe extern "C" fn shot_start_fn(handle: RuntimeInstance, _shot_id: u64, _seed: u64) -> Errno {
+    assert!(
+        unsafe { &*handle.cast::<RuntimePlugin>() }
+            .lifecycle
+            .try_lock()
+            .is_none()
+    );
     unsafe { check_access(handle, true) }
 }
 unsafe extern "C" fn shot_end_fn(handle: RuntimeInstance) -> Errno {
-    unsafe { check_access(handle, true) }
+    assert!(
+        unsafe { &*handle.cast::<RuntimePlugin>() }
+            .lifecycle
+            .try_lock()
+            .is_none()
+    );
+    unsafe { check_access(handle, false) }
 }
 unsafe extern "C" fn get_metrics_fn(
     handle: RuntimeInstance,
@@ -45,6 +64,12 @@ unsafe extern "C" fn get_metrics_fn(
     _datatype_out: *mut u8,
     _value_out: *mut u64,
 ) -> i32 {
+    assert!(
+        unsafe { &*handle.cast::<RuntimePlugin>() }
+            .lifecycle
+            .try_lock()
+            .is_none()
+    );
     let status = unsafe { check_access(handle, true) };
     if status == 0 { 1 } else { status }
 }
@@ -200,10 +225,11 @@ fn foreign_calls_use_shared_or_exclusive_access() {
     let mut runtime = Box::new(RuntimePlugin {
         interface,
         instance: std::ptr::null(),
+        lifecycle: Mutex::new(()),
         retrieval: Mutex::new(()),
         access: RwLock::new(()),
     });
-    runtime.instance = (&raw const runtime.access).cast();
+    runtime.instance = (&raw const *runtime).cast();
     let runtime = &*runtime;
     runtime.shot_start(0, 0).unwrap();
     runtime.qalloc().unwrap();

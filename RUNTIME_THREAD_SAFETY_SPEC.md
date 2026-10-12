@@ -23,7 +23,8 @@ must not introduce races between them.
 | Allocation/free, gates, measurement/reset, barriers, custom calls, simulated delays | May overlap other operational calls on the same instance. |
 | Forcing results, reading/publishing results, future reference-count updates | May overlap user calls and operation retrieval. |
 | `get_next_operations` | One consumer per instance; may overlap user calls. The consumer retrieves and executes batches in order and publishes results. |
-| `shot_start`, `shot_end`, `exit` | Caller ensures no other calls overlap on that instance. |
+| `shot_start`, `exit` | Caller excludes other calls on that instance. |
+| `shot_end` | Serialized with start, exit, and metrics; existing worker operations and required retrieval/publication may overlap until workers join. |
 | Metric collection | Caller ensures the instance is quiescent throughout collection: no calls are in progress and no new calls begin until collection finishes. Between shots is an appropriate collection point. |
 | Initialization | Completes before the new instance is shared. |
 
@@ -165,9 +166,12 @@ needed.
 The simple, soft-RZ, and example runtimes use a scheduling mutex and a separate
 result read/write lock. Calls needing both acquire scheduling before results.
 Result publication and readers do not acquire the scheduling lock. The loaded
-plugin wrapper takes a shared access lock for operational calls and an exclusive
-access lock for lifecycle/metric calls, and separately serializes retrieval. This
-upholds per-call C ABI exclusion even when safe Rust callers race. The host
+plugin wrapper serializes start, end, exit, and metrics with a separate lifecycle
+mutex. Operations and end share an access lock; start, exit, and metrics take it
+exclusively. Acquiring the lifecycle mutex first prevents a queued start, exit,
+or metric writer from blocking worker callbacks while end joins them. Retrieval
+is serialized separately. The host stops unrelated submissions before end and
+retains the instance and library until workers have joined. The host
 remains responsible for ordered execution/publication, lifecycle sequencing, and
 keeping the instance idle throughout a complete metric enumeration.
 

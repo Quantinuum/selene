@@ -24,12 +24,16 @@ use crate::operation::BatchOperation;
 ///
 /// One consumer retrieves and executes batches in order and publishes results.
 /// The caller must serialize that consumer, including execution outside this API.
-/// For correct shot semantics, the host excludes other calls during lifecycle
-/// methods (`shot_start`, `shot_end`, `exit`) and throughout metric enumeration.
+/// The host serializes `shot_start`, `shot_end`, `exit`, and metric collection.
+/// It excludes operational calls during start, exit, and metric enumeration.
+/// During `shot_end`, existing workers may finish operational calls, and the
+/// consumer may retrieve work and publish results needed for their completion.
+/// The host must stop unrelated submissions before ending the shot and retain
+/// the instance and its library until all worker calls have returned.
 /// Rust's type system does not enforce this protocol; implementations must not
-/// rely on it for memory safety. The loaded-plugin wrapper enforces per-call
-/// lifecycle/metric exclusion and serializes retrieval at the C ABI boundary.
-/// The host remains responsible for keeping a complete metric enumeration idle.
+/// rely on it for memory safety. The loaded-plugin wrapper serializes lifecycle
+/// and metric calls, allows operations during end, and serializes retrieval at
+/// the C ABI boundary. The host keeps a complete metric enumeration idle.
 pub trait RuntimeInterface: Send + Sync {
     /// Signals that the instance of the runtime plugin should cleanup. Plugins
     /// should `Err`` from any functions called on an instance after `exit`.
@@ -46,6 +50,11 @@ pub trait RuntimeInterface: Send + Sync {
 
     /// Called to signal that the current shot has ended. This is an
     /// ideal place to perform validation (if applicable) and cleanup.
+    ///
+    /// Implementations that own workers must wake or cancel pending work and
+    /// join those workers before returning. Existing workers and the consumer
+    /// may call operational methods during this join. Do not hold a lock that
+    /// prevents those calls from completing.
     fn shot_end(&self) -> Result<()>;
 
     // If a runtime has special behaviour that a user may wish to invoke

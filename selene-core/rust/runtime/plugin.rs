@@ -41,9 +41,13 @@ pub type Errno = i32;
 /// and publishing its results makes the result getter report availability; an
 /// empty batch alone does not prove a dispatched result has been published.
 ///
-/// Initialization completes before sharing the instance. The caller excludes all
-/// other calls during shot_start_fn, shot_end_fn, and exit_fn, and throughout an
-/// entire get_metrics_fn enumeration. Only these calls may access state exclusively.
+/// Initialization completes before sharing the instance. The caller serializes
+/// shot_start_fn, shot_end_fn, exit_fn, and metric collection. It excludes other
+/// calls during start, exit, and an entire get_metrics_fn enumeration. During end,
+/// existing workers may finish operational calls, and the consumer may retrieve
+/// work and publish results needed for their completion. End must wake or cancel
+/// pending work and join owned workers before returning. The caller stops unrelated
+/// submissions before end and retains the instance and library through all joins.
 /// No runtime lock may block the consumer while a user waits for a result.
 ///
 /// Handles must remain live throughout calls. Output buffers must be writable and
@@ -301,6 +305,7 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
         Ok(Box::new(RuntimePlugin {
             interface: self.clone(),
             instance,
+            lifecycle: parking_lot::Mutex::new(()),
             retrieval: parking_lot::Mutex::new(()),
             access: parking_lot::RwLock::new(()),
         }))
@@ -310,20 +315,25 @@ impl RuntimeInterfaceFactory for RuntimePluginInterface {
 pub struct RuntimePlugin {
     interface: Arc<RuntimePluginInterface>,
     instance: RuntimeInstance,
+    lifecycle: parking_lot::Mutex<()>,
     retrieval: parking_lot::Mutex<()>,
-    // Readers are operational calls; lifecycle/metrics take exclusive access.
+    // Operations and shutdown share access so worker callbacks can finish.
+    // The separate lifecycle lock excludes start/end/exit/metrics from each other.
     access: parking_lot::RwLock<()>,
 }
 
 // SAFETY: the loader accepts only the API version requiring same-instance thread
-// safety. The Arc keeps the library loaded. The access lock enforces per-call
-// lifecycle/metrics exclusion; retrieval is serialized separately. Other
-// operational calls rely on the plugin contract.
+// safety. The Arc keeps the library loaded. The lifecycle lock serializes
+// start/end/exit/metrics before they acquire access, so a queued lifecycle writer
+// cannot block worker operations during end. Start/exit/metrics exclude operations;
+// end shares access with them. Retrieval is serialized separately. Operational
+// calls and shutdown rely on the plugin's same-instance safety contract.
 unsafe impl Send for RuntimePlugin {}
 unsafe impl Sync for RuntimePlugin {}
 
 impl RuntimeInterface for RuntimePlugin {
     fn exit(&self) -> Result<()> {
+        let _lifecycle = self.lifecycle.lock();
         let _access = self.access.write();
         let Some(exit_fn) = self.interface.exit_fn else {
             return Ok(());
@@ -349,6 +359,7 @@ impl RuntimeInterface for RuntimePlugin {
     }
 
     fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()> {
+        let _lifecycle = self.lifecycle.lock();
         let _access = self.access.write();
         check_errno(
             unsafe { (self.interface.shot_start_fn)(self.instance, shot_id, seed) },
@@ -357,7 +368,9 @@ impl RuntimeInterface for RuntimePlugin {
     }
 
     fn shot_end(&self) -> Result<()> {
-        let _access = self.access.write();
+        let _lifecycle = self.lifecycle.lock();
+        // Ending may join workers which still call operational methods.
+        let _access = self.access.read();
         check_errno(
             unsafe { (self.interface.shot_end_fn)(self.instance) },
             || anyhow!("RuntimePlugin: shot_end failed"),
@@ -365,6 +378,7 @@ impl RuntimeInterface for RuntimePlugin {
     }
 
     fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+        let _lifecycle = self.lifecycle.lock();
         let _access = self.access.write();
         let Some(get_metrics_fn) = self.interface.get_metrics_fn else {
             return Ok(None);
