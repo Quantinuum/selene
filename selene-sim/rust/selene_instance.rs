@@ -139,7 +139,10 @@ impl SeleneInstance {
             Ok(())
         };
         let metadata = self.write_metadata();
-        let output = self.print_shot_end();
-        ended.and(metrics).and(metadata).and(output)
+        // A successful end marker lets the host close the result stream. On
+        // failure, return first so the FFI reports the panic while it is live.
+        // Drain and cleanup above still run before any error is returned.
+        ended.and(metrics).and(metadata)?;
+        self.print_shot_end()
     }
 }
