@@ -264,17 +264,18 @@ typedef const void *RuntimeInstanceV2;
  * postpone that work indefinitely. The work may already be with the consumer,
  * or its result may already be ready.
  *
- * Once the consumer has executed the work and written back its result, the
- * result getter must report that value as available. An empty batch only means
- * there is no more work to collect right now. The consumer may still be working
- * on an earlier batch. Never wait for a result while holding a runtime lock
- * that the consumer needs to produce it.
+ * After the consumer executes work and publishes its result, the result getter
+ * must report the value as available. An empty batch does not imply that results
+ * from an earlier dispatched batch have been published.
  *
- * Finish initialization before sharing the instance. The host must pause all
- * other calls during `shot_start_fn`, `shot_end_fn`, and `exit_fn`. It must also
- * keep the instance idle throughout a whole `get_metrics_fn` enumeration,
- * including between calls for individual metrics. Only these calls can assume
- * they have exclusive access to the instance.
+ * Initialization completes before sharing the instance. The caller serializes
+ * shot_start_fn, shot_end_fn, exit_fn, and metric collection. It excludes other
+ * calls during start, exit, and an entire get_metrics_fn enumeration. During end,
+ * existing workers may finish operational calls, and the consumer may retrieve
+ * work and publish results needed for their completion. End must wake or cancel
+ * pending work and join owned workers before returning. The caller stops unrelated
+ * submissions before end and retains the instance and library through all joins.
+ * No runtime lock may block the consumer while a user waits for a result.
  *
  * Keep the instance alive until every call has finished. Input buffers must
  * stay readable and unchanged for the duration of their call. Output buffers

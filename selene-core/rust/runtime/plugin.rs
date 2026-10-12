@@ -44,6 +44,10 @@ pub type Errno = i32;
 /// postpone that work indefinitely. The work may already be with the consumer,
 /// or its result may already be ready.
 ///
+/// After the consumer executes work and publishes its result, the result getter
+/// must report the value as available. An empty batch does not imply that results
+/// from an earlier dispatched batch have been published.
+///
 /// Initialization completes before sharing the instance. The caller serializes
 /// shot_start_fn, shot_end_fn, exit_fn, and metric collection. It excludes other
 /// calls during start, exit, and an entire get_metrics_fn enumeration. During end,
@@ -52,12 +56,6 @@ pub type Errno = i32;
 /// pending work and join owned workers before returning. The caller stops unrelated
 /// submissions before end and retains the instance and library through all joins.
 /// No runtime lock may block the consumer while a user waits for a result.
-///
-/// Finish initialization before sharing the instance. The host must pause all
-/// other calls during `shot_start_fn`, `shot_end_fn`, and `exit_fn`. It must also
-/// keep the instance idle throughout a whole `get_metrics_fn` enumeration,
-/// including between calls for individual metrics. Only these calls can assume
-/// they have exclusive access to the instance.
 ///
 /// Keep the instance alive until every call has finished. Input buffers must
 /// stay readable and unchanged for the duration of their call. Output buffers
@@ -403,8 +401,10 @@ struct ConcurrentRuntimePlugin {
 
 // SAFETY: we only construct this wrapper for a v2 plugin, which promises to
 // support concurrent operational calls. The Arc keeps its library loaded.
-// Our locks keep lifecycle and metric calls from overlapping other calls and
-// allow only one batch retrieval at a time.
+// The lifecycle lock serializes start/end/exit/metrics before they acquire
+// access, preventing a queued writer from blocking worker operations during end.
+// End shares access with operations; start/exit/metrics exclude them. Retrieval
+// is serialized separately. The plugin synchronizes operational calls and joins.
 unsafe impl Send for ConcurrentRuntimePlugin {}
 unsafe impl Sync for ConcurrentRuntimePlugin {}
 

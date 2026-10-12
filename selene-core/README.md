@@ -101,9 +101,13 @@ waiting if that would stop the consumer from producing the value you need.
 ### Starting and stopping shots
 
 Selene finishes initializing an instance before sharing it with user threads.
-It also keeps other calls out while starting or ending a shot, collecting
-metrics, or exiting the runtime. Metric collection needs this pause for the
-whole collection, including the gaps between calls for individual metrics.
+It serializes shot start, shot end, exit, and metric calls. Start, exit, and
+metrics exclude operations. While ending a shot, existing workers may finish
+operational calls, and the consumer may retrieve work and publish results
+needed for their completion. End must wake or cancel pending work and join
+owned workers before returning. Stop unrelated submissions before end and
+retain the instance and library until workers have joined. Keep the instance
+idle throughout metric collection, including between calls for individual metrics.
 
 Rust implementations still need to remain memory-safe if these methods overlap:
 `&self` lets Rust callers make concurrent calls. The host's coordination gives

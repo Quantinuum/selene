@@ -221,3 +221,57 @@ fn concurrent_descriptor_is_preferred_when_both_are_exported(
     assert_eq!(runtime.qalloc().unwrap(), 999);
     runtime.exit().unwrap();
 }
+
+// Exercise the real v2 loader while its foreign end callback joins a worker
+// that calls back through the same wrapper. The timeout returns from foreign end
+// before asserting, so the old exclusive lock fails without stranding a worker.
+#[rstest]
+fn concurrent_shutdown_allows_worker_callbacks(
+    #[with(&["WITH_V2", "SHUTDOWN_CALLBACK"])] plugin: PluginFixture,
+) {
+    use std::sync::{Arc, Mutex, mpsc};
+    struct Context {
+        runtime: Mutex<Option<Arc<Runtime>>>,
+        worker: Mutex<Option<std::thread::JoinHandle<()>>>,
+    }
+    unsafe extern "C" fn end(context: *mut std::ffi::c_void) -> i32 {
+        // SAFETY: the test keeps the boxed context live through end and worker join.
+        let context = unsafe { &*context.cast::<Context>() };
+        let runtime = context.runtime.lock().unwrap().as_ref().unwrap().clone();
+        let (done, completed) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _ = done.send(runtime.qalloc());
+        });
+        *context.worker.lock().unwrap() = Some(worker);
+        match completed.recv_timeout(std::time::Duration::from_secs(1)) {
+            Ok(Ok(999)) => 0,
+            _ => 1,
+        }
+    }
+    let context = Box::new(Context {
+        runtime: Mutex::new(None),
+        worker: Mutex::new(None),
+    });
+    let args = [
+        format!("{:x}", end as *const () as usize),
+        format!("{:x}", std::ptr::from_ref(&*context) as usize),
+    ];
+    let runtime = Arc::new(plugin.runtime(&[&args[0], &args[1]]).unwrap());
+    *context.runtime.lock().unwrap() = Some(runtime.clone());
+    runtime.shot_start(0, 0).unwrap();
+    let ended = runtime.shot_end();
+    context
+        .worker
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap()
+        .join()
+        .unwrap();
+    runtime.exit().unwrap();
+    context.runtime.lock().unwrap().take();
+    assert!(
+        ended.is_ok(),
+        "shutdown blocked its worker callback: {ended:?}"
+    );
+}

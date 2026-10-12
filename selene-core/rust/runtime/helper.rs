@@ -24,8 +24,10 @@ use super::{
 /// For `init` itself, provide writable space for the new handle.
 /// Keep input buffers readable and unchanged until the call returns, and give
 /// the call exclusive access to its output buffers.
-/// Follow the rules in [`super::plugin::RuntimePluginDescriptorV2`]: pause other
-/// calls while starting or ending a shot, exiting, or collecting metrics.
+/// Follow the rules in [`super::plugin::RuntimePluginDescriptorV2`]: serialize
+/// lifecycle and metric calls. Pause operations during start, exit, and metrics.
+/// During end, allow existing workers and the consumer to finish the operational
+/// calls needed for worker joins.
 pub struct Helper<F>(Arc<F>);
 
 impl<F: RuntimeInterfaceFactory> Helper<F> {
