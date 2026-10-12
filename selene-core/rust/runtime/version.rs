@@ -41,16 +41,17 @@ pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
     reserved: 0,
     major: 0,
     minor: 4,
-    patch: 0,
+    patch: 1,
 };
 
 /// API version for concurrent v2 runtime descriptors, packed for the C ABI.
-pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0400;
+pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0401;
 
 /// API version for legacy v1 runtime descriptors.
 pub const RUNTIME_V1_API_VERSION: u64 = 0x0000_0300;
 
 // CHANGELOG:
+// 0.4.1: Optional selene_runtime_program_complete_v2 waits without cancellation.
 // 0.4.0: V2 plugins allow concurrent operational calls on a shared instance.
 // 0.0.1: Initial version
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result

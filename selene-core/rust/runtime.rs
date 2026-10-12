@@ -119,6 +119,13 @@ impl RuntimeInterface for Runtime {
         )
     }
 
+    fn program_complete(&self) -> Result<()> {
+        check_errno(
+            unsafe { (self.handle.interface.program_complete_fn)(self.handle.instance) },
+            || anyhow!("Runtime: program_complete failed"),
+        )
+    }
+
     fn shot_end(&self) -> Result<()> {
         check_errno(
             unsafe { (self.handle.interface.shot_end_fn)(self.handle.instance) },

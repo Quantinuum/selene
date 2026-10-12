@@ -141,8 +141,14 @@ impl Emulator {
             state.shot_start(shot_id, runtime_seed, simulator_seed, error_model_seed)
         })
     }
-    pub fn shot_end(&mut self) -> Result<()> {
-        self.consumer.call(|state| state.shot_end())
+    pub fn program_complete(&self) -> Result<()> {
+        self.runtime.program_complete()
+    }
+    pub fn shot_end(&self) -> Result<()> {
+        // Joining on the consumer would prevent workers from delivering results.
+        let runtime = self.runtime.shot_end();
+        let cleanup = self.consumer.call(|state| state.shot_end());
+        runtime.and(cleanup)
     }
     pub fn poke(&self) -> Result<()> {
         self.process_runtime()

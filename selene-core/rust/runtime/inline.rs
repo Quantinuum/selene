@@ -48,6 +48,7 @@ impl RuntimeFFIAdapter {
                 get_next_operations_fn: Self::get_next_operations,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
+                program_complete_fn: Self::program_complete,
                 get_metrics_fn: Self::get_metric,
                 qalloc_fn: Self::qalloc,
                 qfree_fn: Self::qfree,
@@ -171,6 +172,12 @@ impl RuntimeFFIAdapter {
             format!("RuntimeFFIAdapter: shot_start failed for shot {shot_id}"),
             unsafe { Self::with_runtime(instance, |runtime| runtime.shot_start(shot_id, seed)) },
         )
+    }
+
+    unsafe extern "C" fn program_complete(instance: RuntimeInstance) -> Errno {
+        result_to_errno("RuntimeFFIAdapter: program_complete failed", unsafe {
+            Self::with_runtime(instance, |runtime| runtime.program_complete())
+        })
     }
 
     unsafe extern "C" fn shot_end(instance: RuntimeInstance) -> Errno {
@@ -420,6 +427,7 @@ pub struct RuntimeOperationInterface<'a> {
         unsafe extern "C" fn(RuntimeInstance, RuntimeGetOperationHandle) -> Errno,
     pub shot_start_fn: unsafe extern "C" fn(RuntimeInstance, u64, u64) -> Errno,
     pub shot_end_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
+    pub program_complete_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
     pub get_metrics_fn:
         unsafe extern "C" fn(RuntimeInstance, u8, *mut ffi::c_char, *mut u8, *mut u64) -> Errno,
     pub qalloc_fn: unsafe extern "C" fn(RuntimeInstance, *mut u64) -> Errno,

@@ -45,6 +45,15 @@ impl SeleneInstance {
         status
     }
     pub fn print_panic(&self, message: &str, error_code: u32) -> Result<()> {
+        // Worker failure and lifecycle cleanup can observe the same cause.
+        // Reserve one primary fatal report per shot; benign exits remain visible.
+        if error_code >= 1000
+            && self
+                .primary_failure_reported
+                .swap(true, std::sync::atomic::Ordering::AcqRel)
+        {
+            return Ok(());
+        }
         // In some cases, e.g. the compiled user program, the exit namespace is already
         // encoded in the provided message. In others, e.g. runtime panics from components,
         // we need to prepend it.

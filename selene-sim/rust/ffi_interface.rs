@@ -350,12 +350,18 @@ pub unsafe extern "C" fn selene_on_shot_start(
     }
 }
 
+/// Notify successful compiled-root return while worker result delivery stays live.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_on_program_complete(instance: *mut SeleneInstance) -> VoidResult {
+    with_instance_void(instance, |instance| instance.emulator.program_complete())
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_on_shot_end(instance: *mut SeleneInstance) -> VoidResult {
     if instance.is_null() {
         return VoidResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match instance.shot_end() {
         Ok(()) => VoidResult::ok(),
         Err(error) => {

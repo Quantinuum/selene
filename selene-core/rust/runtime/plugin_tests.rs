@@ -196,6 +196,7 @@ unsafe extern "C" fn simulate_delay_fn(handle: RuntimeInstance, _delay_ns: u64) 
 #[test]
 fn foreign_calls_use_shared_or_exclusive_access() {
     let interface = Arc::new(RuntimePluginInterface {
+        program_complete: None,
         descriptor: Descriptor::V2(RuntimePluginDescriptorV2 {
             struct_size: std::mem::size_of::<RuntimePluginDescriptorV2>() as u64,
             api_version: super::super::version::RUNTIME_CURRENT_API_VERSION,

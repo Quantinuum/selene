@@ -29,6 +29,9 @@ static int init(RuntimeInstanceV2 *out, uint64_t n, uint64_t start,
 static int finish(RuntimeInstanceV2 handle) { return 0; }
 static int end(RuntimeInstanceV2 handle) { return 0; }
 #endif
+#ifdef COMPLETE_CALLBACK
+int selene_runtime_program_complete_v2(RuntimeInstanceV2 handle) { return end(handle); }
+#endif
 static int shot_start(RuntimeInstanceV2 handle, uint64_t shot, uint64_t seed) { return 0; }
 static int nop(RuntimeInstanceV2 handle) { return 0; }
 static int unary(RuntimeInstanceV2 handle, uint64_t id) { return 0; }
@@ -46,6 +49,11 @@ static int get_bool(RuntimeInstanceV2 handle, uint64_t id, int8_t *out) { *out =
 static int get_u64(RuntimeInstanceV2 handle, uint64_t id, uint64_t *out) { *out = UINT64_MAX; return 0; }
 static int set_bool(RuntimeInstanceV2 handle, uint64_t id, bool value) { return 0; }
 static int set_u64(RuntimeInstanceV2 handle, uint64_t id, uint64_t value) { return 0; }
+
+#ifdef OLD_V2
+#undef SELENE_RUNTIME_CURRENT_API_VERSION
+#define SELENE_RUNTIME_CURRENT_API_VERSION 0x00000400
+#endif
 
 #define FIELDS \
     .struct_size = sizeof(SeleneRuntimePluginDescriptorV2), .api_version = SELENE_RUNTIME_CURRENT_API_VERSION, \

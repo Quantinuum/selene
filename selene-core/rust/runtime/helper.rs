@@ -169,6 +169,13 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         )
     }
 
+    pub unsafe fn program_complete(instance: RuntimeInstance) -> Errno {
+        result_to_errno(
+            "Failed to complete program",
+            Self::with_runtime_instance(instance, |runtime| runtime.program_complete()),
+        )
+    }
+
     pub unsafe fn shot_end(instance: RuntimeInstance) -> Errno {
         result_to_errno(
             "Failed to end shot",
@@ -525,6 +532,11 @@ macro_rules! export_runtime_plugin {
             /// this function will usually be followed either by a call to
             /// `selene_runtime_shot_start` to prepare for the following shot, or by
             /// a call to `selene_runtime_exit` to shut down the instance.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_program_complete_v2(instance: RuntimeInstance) -> i32 {
+                Helper::program_complete(instance)
+            }
+
             unsafe extern "C" fn selene_runtime_shot_end(instance: RuntimeInstance) -> i32 {
                 Helper::shot_end(instance)
             }

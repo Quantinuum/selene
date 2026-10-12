@@ -31,7 +31,7 @@ const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descript
 /**
  * API version for concurrent v2 runtime descriptors, packed for the C ABI.
  */
-#define SELENE_RUNTIME_CURRENT_API_VERSION 1024
+#define SELENE_RUNTIME_CURRENT_API_VERSION 1025
 
 /**
  * API version for legacy v1 runtime descriptors.

@@ -59,6 +59,16 @@ pub trait RuntimeInterface: Send + Sync {
     /// prevents those calls from completing.
     fn shot_end(&self) -> Result<()>;
 
+    /// The compiled root returned successfully. Wait for ordinary managed work
+    /// without cancelling it. The consumer remains available throughout this call.
+    /// Hosts call shot_end afterward for cleanup; cancellation skips this hook.
+    /// Legacy runtimes need no separate completion notification. V2 plugins may
+    /// export the optional `selene_runtime_program_complete_v2` symbol (API 0.4.1).
+    /// Its absence leaves existing v1 and v2 behavior unchanged.
+    fn program_complete(&self) -> Result<()> {
+        Ok(())
+    }
+
     // If a runtime has special behaviour that a user may wish to invoke
     // from within a utility, this function serves as a generic interface
     // to that. For example, if the runtime supports some behaviour invokable

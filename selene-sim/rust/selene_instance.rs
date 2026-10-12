@@ -1,6 +1,6 @@
 use anyhow::Result;
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub mod configuration;
 pub mod metadata;
@@ -18,7 +18,8 @@ use selene_core::encoder::OutputStream;
 ///
 /// User threads can share this handle and make QIS calls at the same time.
 /// The host must pause those calls during `selene_on_shot_start`,
-/// `selene_on_shot_end`, metric collection, and `selene_exit`. Keep the instance
+/// metric collection, and `selene_exit`. Ending and successful completion
+/// may overlap existing worker calls and consumer delivery. Keep the instance
 /// alive until all user threads have joined.
 ///
 /// One consumer thread runs the simulator and error model. Output records and
@@ -32,6 +33,7 @@ pub struct SeleneInstance {
     pub time_cursor: AtomicU64,
     pub shot_number: u64,
     pub prng: Mutex<Option<Pcg32>>,
+    pub(crate) primary_failure_reported: AtomicBool,
     pub(crate) state_dump_lock: Mutex<()>,
 }
 
@@ -78,6 +80,7 @@ impl SeleneInstance {
             time_cursor: AtomicU64::new(0),
             shot_number: shot_offset,
             prng: Mutex::new(None),
+            primary_failure_reported: AtomicBool::new(false),
             state_dump_lock: Mutex::new(()),
         })
     }
@@ -98,6 +101,8 @@ impl SeleneInstance {
     /// this is handled inside this function. As such, the shot_index parameter
     /// should start at 0 and increment by 1 for each new shot.
     pub fn shot_start(&mut self, shot_index: u64) -> Result<()> {
+        self.primary_failure_reported
+            .store(false, Ordering::Release);
         // Establish the internal shot ID based on the offset and increment,
         // and use it for seeding the various components.
         let shot_id = self.config.shots.offset + self.config.shots.increment * shot_index;
@@ -124,7 +129,7 @@ impl SeleneInstance {
     /// through the runtime and error model, writing out any
     /// stored metadata, and informing event hooks that the shot
     /// has ended.
-    pub fn shot_end(&mut self) -> Result<()> {
+    pub fn shot_end(&self) -> Result<()> {
         // Emit any metrics before plugins are invoked with shot_end.
         // This ensures that metrics reflect the state of the shot
         // up to this point.

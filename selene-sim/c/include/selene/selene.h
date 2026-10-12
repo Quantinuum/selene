@@ -13,7 +13,8 @@
  *
  * User threads can share this handle and make QIS calls at the same time.
  * The host must pause those calls during `selene_on_shot_start`,
- * `selene_on_shot_end`, metric collection, and `selene_exit`. Keep the instance
+ * metric collection, and `selene_exit`. Ending and successful completion
+ * may overlap existing worker calls and consumer delivery. Keep the instance
  * alive until all user threads have joined.
  *
  * One consumer thread runs the simulator and error model. Output records and
@@ -143,6 +144,11 @@ struct selene_void_result_t selene_log_utility_call(struct SeleneInstance *insta
                                                     uint64_t tag,
                                                     const uint8_t *data,
                                                     uint64_t data_length);
+
+/**
+ * Notify successful compiled-root return while worker result delivery stays live.
+ */
+struct selene_void_result_t selene_on_program_complete(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_on_shot_end(struct SeleneInstance *instance);
 

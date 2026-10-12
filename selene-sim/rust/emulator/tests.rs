@@ -35,6 +35,10 @@ struct TestRuntime {
     ready: Condvar,
     next: AtomicU64,
     fail: AtomicBool,
+    ending: Option<(
+        std::sync::mpsc::Sender<()>,
+        Mutex<std::sync::mpsc::Receiver<()>>,
+    )>,
 }
 
 impl RuntimeInterface for TestRuntime {
@@ -45,6 +49,10 @@ impl RuntimeInterface for TestRuntime {
         Ok(())
     }
     fn shot_end(&self) -> Result<()> {
+        if let Some((started, done)) = &self.ending {
+            started.send(())?;
+            done.lock().recv_timeout(Duration::from_secs(2))?;
+        }
         Ok(())
     }
     fn get_metric(&self, _: u8) -> Result<Option<(String, MetricValue)>> {
@@ -218,7 +226,11 @@ impl ErrorModelInterface for Passthrough {
 }
 
 fn instance() -> (SeleneInstance, Arc<AtomicBool>) {
-    let runtime = Arc::new(Runtime::from_boxed(Box::<TestRuntime>::default()));
+    instance_with_runtime(TestRuntime::default())
+}
+
+fn instance_with_runtime(runtime: TestRuntime) -> (SeleneInstance, Arc<AtomicBool>) {
+    let runtime = Arc::new(Runtime::from_boxed(Box::new(runtime)));
     let hooks = SharedEventHook::default();
     let dropped = Arc::new(AtomicBool::new(false));
     let consumer = {
@@ -267,6 +279,7 @@ seed_mode: default
             time_cursor: AtomicU64::new(0),
             shot_number: 0,
             prng: Mutex::new(None),
+            primary_failure_reported: AtomicBool::new(false),
             state_dump_lock: Mutex::new(()),
         },
         dropped,
@@ -419,4 +432,68 @@ fn consumer_survives_multiple_shots_and_null_qis_handles_fail() {
             100000
         );
     }
+}
+
+#[test]
+fn ending_runtime_keeps_consumer_available_for_worker_calls() {
+    let (started, entered) = std::sync::mpsc::channel();
+    let (finished, done) = std::sync::mpsc::channel();
+    let runtime = TestRuntime {
+        ending: Some((started, Mutex::new(done))),
+        ..Default::default()
+    };
+    let (mut instance, _) = instance_with_runtime(runtime);
+    instance.shot_start(0).unwrap();
+    thread::scope(|scope| {
+        let instance = &instance;
+        let end = scope.spawn(|| instance.emulator.shot_end());
+        entered.recv_timeout(Duration::from_secs(2)).unwrap();
+        // This request must reach the consumer before the runtime join ends.
+        instance.emulator.user_issued_qalloc().unwrap();
+        finished.send(()).unwrap();
+        end.join().unwrap().unwrap();
+    });
+}
+
+#[test]
+fn lifecycle_observations_preserve_one_primary_failure_report() {
+    let (mut instance, _) = instance();
+    instance.shot_start(0).unwrap();
+    instance
+        .print_panic("primary worker failure", 1001)
+        .unwrap();
+    let before = instance
+        .out_encoder
+        .lock()
+        .try_read(usize::MAX)
+        .unwrap()
+        .to_vec();
+    assert!(!before.is_empty());
+    instance
+        .print_panic("secondary completion failure", 100001)
+        .unwrap();
+    instance
+        .print_panic("secondary shutdown failure", 100001)
+        .unwrap();
+    assert!(
+        instance
+            .out_encoder
+            .lock()
+            .try_read(usize::MAX)
+            .unwrap()
+            .is_empty()
+    );
+    instance.shot_end().unwrap();
+    instance.shot_start(1).unwrap();
+    instance.out_encoder.lock().try_read(usize::MAX).unwrap();
+    instance.print_panic("new shot failure", 1002).unwrap();
+    assert!(
+        !instance
+            .out_encoder
+            .lock()
+            .try_read(usize::MAX)
+            .unwrap()
+            .is_empty()
+    );
+    instance.shot_end().unwrap();
 }

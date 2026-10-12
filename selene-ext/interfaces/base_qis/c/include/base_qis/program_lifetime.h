@@ -17,6 +17,12 @@ EXPORT user_program_result_t user_program_wrapper(
     uint64_t input_arg
 );
 
+// Run the compiled root while retaining its heap through managed worker shutdown.
+// After shot_end has joined all workers, release the heap on this same root thread.
+// Only one compiled root may be active in the runner process at a time.
+EXPORT user_program_result_t user_program_root_wrapper(user_program_t program, uint64_t input_arg);
+EXPORT void user_program_release_root_heap(void);
+
 EXPORT void early_exit(uint32_t error_code);
 
 #endif

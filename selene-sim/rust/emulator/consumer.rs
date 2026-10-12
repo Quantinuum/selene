@@ -144,7 +144,6 @@ impl State {
 
     pub(super) fn shot_end(&mut self) -> Result<()> {
         let already_failed = self.failure.is_some();
-        let runtime = self.runtime.shot_end();
         let drained = if already_failed {
             Ok(())
         } else {
@@ -158,7 +157,6 @@ impl State {
         if already_failed {
             return Ok(());
         }
-        runtime?;
         drained?;
         error_model?;
         simulator

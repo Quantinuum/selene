@@ -42,6 +42,7 @@ function(build_base_qis_interface log_level suffix)
     target_compile_definitions(${runtime_target} PRIVATE
         SELENE_LOG_LEVEL=${log_level}
         BUILDING_QIS_INTERFACE=1
+        USER_PROGRAM_THREADING=1
     )
     target_link_libraries(${runtime_target} PUBLIC
         base_qis_selene_interface
