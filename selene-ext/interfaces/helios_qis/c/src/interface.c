@@ -58,9 +58,7 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
             return void_result.error_code;
         }
         bool managed_root = selene_has_worker_boundary(selene_instance);
-        user_program_result_t result = managed_root
-            ? user_program_wrapper(entrypoint, 0)
-            : user_program_root_wrapper(entrypoint, 0);
+        user_program_result_t result = user_program_wrapper(entrypoint, 0);
         if (result.exited_early){
             uint64_t error_code = result.result_or_error_code;
             do_continue = (error_code < 1000);
@@ -69,7 +67,6 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
         // releasing root captures. Legacy runtimes keep their original end path.
         if (!managed_root) {
             void_result = selene_on_shot_end(selene_instance);
-            user_program_release_root_heap();
         } else {
             void_result.error_code = result.exited_early && result.result_or_error_code >= 1000
                 ? (uint32_t)result.result_or_error_code : 0;

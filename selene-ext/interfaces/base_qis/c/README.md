@@ -17,11 +17,9 @@ creations, delayed entries and descendants are settled. A zero entered-worker
 count does not prove that a created worker has entered yet. Backend drain and
 native joins establish that no further entry can occur before root cleanup.
 
-`user_program_wrapper` retains its legacy callback ABI. The exported
-`user_program_root_wrapper` and `user_program_release_root_heap` also remain for
-older runners that release root captures after their own shutdown sequence.
-The current compiled runners no longer use those deferred-heap entrypoints or
-a separate program-completion call.
+`user_program_wrapper` retains its legacy callback ABI. Legacy runtimes use the
+original wrapper followed by shot end. Managed roots end the shot inside the
+wrapper before root heap cleanup; no deferred heap-release API is needed.
 
 Selene owns shot cancellation and notifies the runtime through a returning
 concurrent hook. The hook wakes blocked calls without joining or taking the

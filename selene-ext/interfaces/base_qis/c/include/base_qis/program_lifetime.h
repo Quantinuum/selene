@@ -17,12 +17,6 @@ EXPORT user_program_result_t user_program_wrapper(
     uint64_t input_arg
 );
 
-// Run the compiled root while retaining its heap through managed worker shutdown.
-// After shot_end has joined all workers, release the heap on this same root thread.
-// Only one compiled root may be active in the runner process at a time.
-EXPORT user_program_result_t user_program_root_wrapper(user_program_t program, uint64_t input_arg);
-EXPORT void user_program_release_root_heap(void);
-
 // Execute a managed callback on the calling worker thread.
 // The concurrent-v2 backend keeps the shot and root captures live until its
 // drain and native joins finish. Selene installs this worker's TLS exit frame

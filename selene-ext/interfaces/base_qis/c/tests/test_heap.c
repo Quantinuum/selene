@@ -45,8 +45,7 @@ static uint64_t no_allocations(uint64_t arg) {
 
 int main(int argc, char** argv) {
     assert(argc == 2);
-    bool root_wrapper = strncmp(argv[1], "root-", 5) == 0;
-    const char *mode = root_wrapper ? argv[1] + 5 : argv[1];
+    const char *mode = argv[1];
     exit_early = strcmp(mode, "normal") != 0;
     exit_code = strcmp(mode, "panic") == 0 ? 1001 : 0;
 
@@ -66,10 +65,7 @@ int main(int argc, char** argv) {
 
     for (uint64_t shot = 0; shot < 128; ++shot) {
         uint64_t expected = UINT64_MAX - shot;
-        user_program_result_t result = root_wrapper
-            ? user_program_root_wrapper(allocate, expected)
-            : user_program_wrapper(allocate, expected);
-        if (root_wrapper) user_program_release_root_heap();
+        user_program_result_t result = user_program_wrapper(allocate, expected);
         assert(result.exited_early == exit_early);
         assert(result.result_or_error_code == (exit_early ? exit_code : expected));
 

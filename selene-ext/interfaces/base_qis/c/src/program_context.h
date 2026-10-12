@@ -23,7 +23,6 @@ typedef struct RunContext {
     bool counted;
     uint64_t error_code;
     mi_heap_t* heap;
-    mi_heap_t* retired_root_heap;
 } RunContext;
 
 extern context_attrs RunContext program_context;
