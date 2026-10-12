@@ -52,8 +52,9 @@ pub type Errno = i32;
 /// shot_start_fn, shot_end_fn, exit_fn, and metric collection. It excludes other
 /// calls during start, exit, and an entire get_metrics_fn enumeration. During end,
 /// existing workers may finish operational calls, and the consumer may retrieve
-/// work and publish results needed for their completion. End must wake or cancel
-/// pending work and join owned workers before returning. The caller stops unrelated
+/// work and publish results needed for their completion. End drains and joins
+/// owned workers before returning. The optional concurrent cancellation hook
+/// wakes pending work before abort joins; it may be called during end. The caller stops unrelated
 /// submissions before end and retains the instance and library through all joins.
 /// No runtime lock may block the consumer while a user waits for a result.
 ///
@@ -273,6 +274,7 @@ pub struct RuntimePluginInterface {
     _lib: libloading::Library,
     descriptor: Descriptor,
     program_complete: Option<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>,
+    cancel: Option<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>,
 }
 
 impl RuntimePluginInterface {
@@ -313,7 +315,19 @@ impl RuntimePluginInterface {
         } else {
             None
         };
+        let cancel = if matches!(descriptor, Descriptor::V2(_)) {
+            unsafe {
+                lib.get::<unsafe extern "C" fn(RuntimeInstanceV2) -> Errno>(
+                    b"selene_runtime_cancel_v2",
+                )
+                .ok()
+                .map(|symbol| *symbol)
+            }
+        } else {
+            None
+        };
         Ok(Arc::new(Self {
+            cancel,
             program_complete,
             _lib: lib,
             descriptor,
@@ -379,6 +393,8 @@ impl RuntimeInterface for RuntimePlugin {
             fn shot_start(&self, shot_id: u64, seed: u64) -> Result<()>;
             fn shot_end(&self) -> Result<()>;
             fn program_complete(&self) -> Result<()>;
+            fn cancel(&self) -> Result<()>;
+            fn supports_worker_cancellation(&self) -> bool;
             fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>>;
             fn qalloc(&self) -> Result<u64>;
             fn qfree(&self, qubit_id: u64) -> Result<()>;
@@ -423,6 +439,22 @@ unsafe impl Send for ConcurrentRuntimePlugin {}
 unsafe impl Sync for ConcurrentRuntimePlugin {}
 
 impl RuntimeInterface for ConcurrentRuntimePlugin {
+    fn supports_worker_cancellation(&self) -> bool {
+        self._interface.cancel.is_some()
+    }
+
+    fn cancel(&self) -> Result<()> {
+        // Completion holds lifecycle while joining. Cancellation must still
+        // reach blocked workers and share access with their operational calls.
+        let _access = self.access.read();
+        match self._interface.cancel {
+            Some(cancel) => check_errno(unsafe { cancel(self.instance) }, || {
+                anyhow!("RuntimePlugin: cancellation failed")
+            }),
+            None => Ok(()),
+        }
+    }
+
     fn program_complete(&self) -> Result<()> {
         let _lifecycle = self.lifecycle.lock();
         let _access = self.access.read();

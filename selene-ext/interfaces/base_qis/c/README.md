@@ -1,20 +1,31 @@
-# Program boundaries and fallible transport
+# Program execution boundaries
 
-`user_program_root_wrapper` installs the root program boundary. Each native worker
-calls `user_program_wrapper` on its own thread. Builds use `USER_PROGRAM_THREADING`
-so the exit frame and heap are thread-local. The wrapper returns the program result
-or the error supplied to `early_exit`; callers must keep frames bypassed by an exit
-free of resources that require cleanup. Root capture storage remains live until the
-runtime has joined workers and calls `user_program_release_root_heap`.
+The compiled Sol and Helios root runs through `user_program_wrapper`. With a
+runtime that supplies concurrent cancellation and drain support, this boundary
+ends the shot before releasing root captures. The simulator consumer remains
+available while the runtime drains managed work and joins native threads.
 
-`custom_runtime_call_fallible` sends borrowed data synchronously and returns an error
-code without calling `early_exit`. Its writable output pointer receives the runtime
-value on success and zero on error. Foreign code can release encoded buffers and
-other owned values after the function returns, then propagate a nonzero code through
-`early_exit` from a frame that has no remaining cleanup obligations.
+An external backend creates each worker and calls `selene_run_worker` on that
+worker. The callback receives its data and writable result pointers. The entry
+installs a live thread-local setjmp frame before checking cancellation. A
+cancelled entry skips the callback. Normal return and early exit share an
+epilogue that retires the entered-worker count once. Build with
+`USER_PROGRAM_THREADING`; do not nest execution boundaries on one thread.
 
-`panic_str_fallible` reports a borrowed message without exiting or retaining it. It
-returns the requested panic code on successful reporting, or the reporting error
-when reporting fails. Release message storage before calling `early_exit` with that
-code. The existing `custom_runtime_call`, `panic`, and `panic_str` functions retain
-their immediate-exit behavior; neither fallible helper installs a nested boundary.
+The backend retains the instance, root captures and loaded code until native
+creations, delayed entries and descendants are settled. A zero entered-worker
+count does not prove that a created worker has entered yet. Backend drain and
+native joins establish that no further entry can occur before root cleanup.
+
+`user_program_wrapper` retains its legacy callback ABI. The exported
+`user_program_root_wrapper` and `user_program_release_root_heap` also remain for
+older runners that release root captures after their own shutdown sequence.
+The current compiled runners no longer use those deferred-heap entrypoints or
+a separate program-completion call.
+
+Selene owns shot cancellation and notifies the runtime through a returning
+concurrent hook. The hook wakes blocked calls without joining or taking the
+lifecycle lock held during completion. Rust dispatch returns before the C-local
+longjmp. Foreign frames crossed by that jump must have no live cleanup or
+borrowing obligations. Temporary encoded buffers and panic messages may use
+ManuallyDrop and intentionally leak on error; normal returns must release them.

@@ -105,6 +105,10 @@ impl Drop for LegacyRuntime {
 }
 
 impl RuntimeInterface for LegacyRuntime {
+    fn supports_worker_cancellation(&self) -> bool {
+        false
+    }
+
     fn exit(&self) -> Result<()> {
         self.call(move |state| state.exit())
     }

@@ -60,6 +60,11 @@ typedef struct selene_u32_result_t {
 } selene_u32_result_t;
 
 /**
+ * Notify cancellation without joining or jumping across any Rust frame.
+ */
+void selene_cancel(struct SeleneInstance *instance, uint32_t code);
+
+/**
  * Some runtimes have additional capabilities outside of the core API. These can be triggered
  * by a frontend by passing in opaque data blobs with an identification tag. The runtime determines
  * how it handles each tag, forming a narrow contract with the frontend about how to trigger custom
@@ -108,6 +113,11 @@ struct selene_u64_result_t selene_get_tc(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_global_barrier(struct SeleneInstance *instance,
                                                   uint64_t sleep_time);
+
+/**
+ * Whether the selected runtime supplies the managed worker drain contract.
+ */
+bool selene_has_worker_boundary(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_load_config(struct SeleneInstance **instance,
                                                const char *config_file);
@@ -304,6 +314,15 @@ struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
  */
 struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instance,
                                                   uint64_t delay);
+
+/**
+ * Enter after installing a live C exit frame on the actual worker.
+ * The value says whether this call acquired one callback count, even when
+ * error_code reports cancellation. An acquired count must be retired once.
+ */
+struct selene_bool_result_t selene_worker_enter(struct SeleneInstance *instance);
+
+void selene_worker_leave(struct SeleneInstance *instance);
 
 /**
  * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.

@@ -18,6 +18,7 @@
 use super::selene_instance::SeleneInstance;
 use crate::selene_instance::configuration::Configuration;
 use anyhow::Result;
+use selene_core::runtime::RuntimeInterface;
 
 #[repr(C)]
 pub struct VoidResult {
@@ -211,7 +212,10 @@ where
     }
     let instance = unsafe { &*instance };
     if let Err(e) = f(instance) {
-        let code = 100001;
+        let code = match instance.emulator.cancellation() {
+            0 => 100001,
+            code => code,
+        };
         instance.fallible_print_panic(format!("{e:#}").as_str(), code);
         VoidResult::err(code)
     } else {
@@ -229,7 +233,10 @@ where
     match f(instance) {
         Ok(value) => BoolResult::ok(value),
         Err(e) => {
-            let code = 100001;
+            let code = match instance.emulator.cancellation() {
+                0 => 100001,
+                code => code,
+            };
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             BoolResult::err(code)
         }
@@ -247,7 +254,10 @@ where
     match f(instance) {
         Ok(value) => U64Result::ok(value),
         Err(e) => {
-            let code = 100001;
+            let code = match instance.emulator.cancellation() {
+                0 => 100001,
+                code => code,
+            };
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             U64Result::err(code)
         }
@@ -264,7 +274,10 @@ where
     match f(instance) {
         Ok(value) => F64Result::ok(value),
         Err(e) => {
-            let code = 100001;
+            let code = match instance.emulator.cancellation() {
+                0 => 100001,
+                code => code,
+            };
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             F64Result::err(code)
         }
@@ -282,7 +295,10 @@ where
     match f(instance) {
         Ok(value) => U32Result::ok(value),
         Err(e) => {
-            let code = 100001;
+            let code = match instance.emulator.cancellation() {
+                0 => 100001,
+                code => code,
+            };
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             U32Result::err(code)
         }
@@ -300,7 +316,10 @@ where
     match f(instance) {
         Ok(value) => FutureResult::ok(value),
         Err(e) => {
-            let code = 100001;
+            let code = match instance.emulator.cancellation() {
+                0 => 100001,
+                code => code,
+            };
             instance.fallible_print_panic(format!("{e:#}").as_str(), code);
             FutureResult::err(code)
         }
@@ -353,7 +372,50 @@ pub unsafe extern "C" fn selene_on_shot_start(
 /// Notify successful compiled-root return while worker result delivery stays live.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_on_program_complete(instance: *mut SeleneInstance) -> VoidResult {
-    with_instance_void(instance, |instance| instance.emulator.program_complete())
+    with_instance_void(instance, |_instance| Ok(()))
+}
+
+/// Whether the selected runtime supplies the managed worker drain contract.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_has_worker_boundary(instance: *mut SeleneInstance) -> bool {
+    !instance.is_null()
+        && unsafe { &*instance }
+            .emulator
+            .runtime
+            .supports_worker_cancellation()
+}
+
+/// Enter after installing a live C exit frame on the actual worker.
+/// The value says whether this call acquired one callback count, even when
+/// error_code reports cancellation. An acquired count must be retired once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_worker_enter(instance: *mut SeleneInstance) -> BoolResult {
+    if instance.is_null() {
+        return BoolResult::err(100000);
+    }
+    let instance = unsafe { &*instance };
+    match instance.emulator.worker_enter() {
+        Ok(error_code) => BoolResult {
+            error_code,
+            value: true,
+        },
+        Err(_) => BoolResult::err(100001),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_worker_leave(instance: *mut SeleneInstance) {
+    if !instance.is_null() {
+        unsafe { &*instance }.emulator.worker_leave();
+    }
+}
+
+/// Notify cancellation without joining or jumping across any Rust frame.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_cancel(instance: *mut SeleneInstance, code: u32) {
+    if !instance.is_null() {
+        unsafe { &*instance }.emulator.cancel(code);
+    }
 }
 
 #[unsafe(no_mangle)]

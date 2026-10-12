@@ -45,6 +45,7 @@ impl SeleneInstance {
         status
     }
     pub fn print_panic(&self, message: &str, error_code: u32) -> Result<()> {
+        self.emulator.cancel(error_code);
         // Worker failure and lifecycle cleanup can observe the same cause.
         // Reserve one primary fatal report per shot; benign exits remain visible.
         if error_code >= 1000

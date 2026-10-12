@@ -1,12 +1,16 @@
 use crate::event_hooks::{Operation, SharedEventHook};
 use crate::selene_instance::configuration::Configuration;
 use anyhow::{Context as _, Result, anyhow};
+use parking_lot::{Condvar, Mutex};
 use selene_core::error_model::BatchResult;
 use selene_core::runtime::{
     BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInterface,
 };
 use selene_core::simulator::SimulatorInterface;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, Ordering},
+};
 use std::time::Instant;
 
 mod consumer;
@@ -85,9 +89,59 @@ impl SimulatorInterface for HookedSimulator {
     }
 }
 
+/// Tracks entered callbacks. Native drain/join protects workers not yet entered.
+#[derive(Default)]
+pub(super) struct ProgramState {
+    cancellation: AtomicU32,
+    workers: Mutex<usize>,
+    workers_done: Condvar,
+}
+
+impl ProgramState {
+    fn cancel(&self, code: u32) {
+        let code = if code == 0 { 100001 } else { code };
+        let _ = self
+            .cancellation
+            .compare_exchange(0, code, Ordering::AcqRel, Ordering::Acquire);
+    }
+
+    fn cancellation(&self) -> u32 {
+        self.cancellation.load(Ordering::Acquire)
+    }
+
+    fn reset(&self) {
+        assert_eq!(
+            *self.workers.lock(),
+            0,
+            "previous worker callbacks remain active"
+        );
+        self.cancellation.store(0, Ordering::Release);
+    }
+
+    fn enter(&self) {
+        *self.workers.lock() += 1;
+    }
+
+    fn leave(&self) {
+        let mut workers = self.workers.lock();
+        *workers = workers.checked_sub(1).expect("worker count underflow");
+        if *workers == 0 {
+            self.workers_done.notify_all();
+        }
+    }
+
+    fn wait(&self) {
+        let mut workers = self.workers.lock();
+        while *workers != 0 {
+            self.workers_done.wait(&mut workers);
+        }
+    }
+}
+
 pub struct Emulator {
     pub runtime: Arc<Runtime>,
     consumer: Consumer,
+    program: Arc<ProgramState>,
     pub event_hooks: SharedEventHook,
 }
 
@@ -123,10 +177,17 @@ impl Emulator {
             ));
         }
 
-        let consumer = Consumer::new(config, runtime.clone(), event_hooks.clone())?;
+        let program = Arc::new(ProgramState::default());
+        let consumer = Consumer::new(
+            config,
+            runtime.clone(),
+            event_hooks.clone(),
+            program.clone(),
+        )?;
         Ok(Self {
             runtime,
             consumer,
+            program,
             event_hooks,
         })
     }
@@ -137,16 +198,40 @@ impl Emulator {
         simulator_seed: u64,
         error_model_seed: u64,
     ) -> Result<()> {
+        self.program.reset();
         self.consumer.call(move |state| {
             state.shot_start(shot_id, runtime_seed, simulator_seed, error_model_seed)
         })
     }
-    pub fn program_complete(&self) -> Result<()> {
-        self.runtime.program_complete()
+    pub fn cancel(&self, code: u32) {
+        self.program.cancel(code);
+        // Repeated notifications are intentional: cancellation can race an
+        // operational error or the start of graceful completion.
+        let _ = self.runtime.cancel();
+    }
+
+    pub fn cancellation(&self) -> u32 {
+        self.program.cancellation()
+    }
+
+    pub fn worker_enter(&self) -> Result<u32> {
+        anyhow::ensure!(
+            self.runtime.supports_worker_cancellation(),
+            "runtime lacks concurrent worker cancellation/drain support"
+        );
+        self.program.enter();
+        Ok(self.cancellation())
+    }
+
+    pub fn worker_leave(&self) {
+        self.program.leave();
     }
     pub fn shot_end(&self) -> Result<()> {
         // Joining on the consumer would prevent workers from delivering results.
         let runtime = self.runtime.shot_end();
+        // Only the backend drain/join closes the launch gap. After it returns,
+        // no delayed worker or descendant may newly enter this program.
+        self.program.wait();
         let cleanup = self.consumer.call(|state| state.shot_end());
         runtime.and(cleanup)
     }

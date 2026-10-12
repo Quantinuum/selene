@@ -3,6 +3,7 @@
 
 #include <setjmp.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <mimalloc.h>
 
 #ifdef USER_PROGRAM_THREADING
@@ -17,6 +18,9 @@
 
 typedef struct RunContext {
     jmp_buf program_end;
+    bool active;
+    bool managed;
+    bool counted;
     uint64_t error_code;
     mi_heap_t* heap;
     mi_heap_t* retired_root_heap;

@@ -21,9 +21,3 @@ void panic_str(int32_t error_code, char const* message) {
     DIAGNOSTIC("   Jumping\n");
     early_exit(error_code);
 }
-
-uint32_t panic_str_fallible(uint32_t error_code, char const* message) {
-    struct selene_void_result_t result =
-        selene_print_panic(selene_instance, parse_c_string(message), error_code);
-    return result.error_code == 0 ? error_code : result.error_code;
-}

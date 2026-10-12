@@ -21,6 +21,8 @@ extern const struct SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descri
 const struct SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descriptor_v1(void);
 extern const struct SeleneRuntimePluginDescriptorV2 selene_runtime_plugin_descriptor_v2;
 const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descriptor_v2(void);
+/* Optional v2 hook: wake pending work without joining or lifecycle exclusion. */
+int32_t selene_runtime_cancel_v2(const void *instance);
 #ifdef __cplusplus
 }
 #endif

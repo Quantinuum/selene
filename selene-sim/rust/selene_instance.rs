@@ -130,15 +130,16 @@ impl SeleneInstance {
     /// stored metadata, and informing event hooks that the shot
     /// has ended.
     pub fn shot_end(&self) -> Result<()> {
-        // Emit any metrics before plugins are invoked with shot_end.
-        // This ensures that metrics reflect the state of the shot
-        // up to this point.
-        if self.config.event_hooks.provide_metrics {
-            self.write_metrics()?;
-        }
-        self.emulator.shot_end()?;
-        self.write_metadata()?;
-        self.print_shot_end()?;
-        Ok(())
+        let ended = self.emulator.shot_end();
+        // Worker joins precede metric exclusion. A failed metric write must
+        // never skip the drain that protects root captures.
+        let metrics = if self.config.event_hooks.provide_metrics {
+            self.write_metrics()
+        } else {
+            Ok(())
+        };
+        let metadata = self.write_metadata();
+        let output = self.print_shot_end();
+        ended.and(metrics).and(metadata).and(output)
     }
 }

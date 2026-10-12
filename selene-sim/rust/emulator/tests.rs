@@ -35,6 +35,7 @@ struct TestRuntime {
     ready: Condvar,
     next: AtomicU64,
     fail: AtomicBool,
+    release_on_cancel: Option<std::sync::mpsc::Sender<()>>,
     ending: Option<(
         std::sync::mpsc::Sender<()>,
         Mutex<std::sync::mpsc::Receiver<()>>,
@@ -42,6 +43,13 @@ struct TestRuntime {
 }
 
 impl RuntimeInterface for TestRuntime {
+    fn cancel(&self) -> Result<()> {
+        if let Some(release) = &self.release_on_cancel {
+            let _ = release.send(());
+        }
+        Ok(())
+    }
+
     fn exit(&self) -> Result<()> {
         Ok(())
     }
@@ -232,10 +240,12 @@ fn instance() -> (SeleneInstance, Arc<AtomicBool>) {
 fn instance_with_runtime(runtime: TestRuntime) -> (SeleneInstance, Arc<AtomicBool>) {
     let runtime = Arc::new(Runtime::from_boxed(Box::new(runtime)));
     let hooks = SharedEventHook::default();
+    let program = Arc::new(super::ProgramState::default());
     let dropped = Arc::new(AtomicBool::new(false));
     let consumer = {
         let runtime = runtime.clone();
         let hooks = hooks.clone();
+        let program = program.clone();
         let dropped = dropped.clone();
         Consumer::spawn(move || {
             Ok(State {
@@ -247,6 +257,7 @@ fn instance_with_runtime(runtime: TestRuntime) -> (SeleneInstance, Arc<AtomicBoo
                 error_model: ErrorModel::from_boxed(Box::new(Passthrough)),
                 hooks,
                 failure: None,
+                program,
             })
         })
         .unwrap()
@@ -271,6 +282,7 @@ seed_mode: default
             emulator: Emulator {
                 runtime,
                 consumer,
+                program,
                 event_hooks: hooks,
             },
             out_encoder: Mutex::new(OutputStream::new(OutputWriter::Internal(
@@ -496,4 +508,44 @@ fn lifecycle_observations_preserve_one_primary_failure_report() {
             .is_empty()
     );
     instance.shot_end().unwrap();
+}
+
+#[test]
+fn cancelled_worker_entry_balances_count_and_next_shot_resets() {
+    let (mut instance, _) = instance();
+    instance.shot_start(0).unwrap();
+    instance.emulator.cancel(53);
+    instance.emulator.cancel(71);
+    assert_eq!(instance.emulator.worker_enter().unwrap(), 53);
+    instance.emulator.worker_leave();
+    instance.shot_end().unwrap();
+    instance.shot_start(1).unwrap();
+    assert_eq!(instance.emulator.worker_enter().unwrap(), 0);
+    instance.emulator.worker_leave();
+    instance.shot_end().unwrap();
+}
+
+#[test]
+fn consumer_error_wakes_completion_and_retires_entered_workers() {
+    let (started, entered_end) = std::sync::mpsc::channel();
+    let (release, done) = std::sync::mpsc::channel();
+    let runtime = TestRuntime {
+        ending: Some((started, Mutex::new(done))),
+        release_on_cancel: Some(release),
+        ..Default::default()
+    };
+    let (mut instance, _) = instance_with_runtime(runtime);
+    instance.shot_start(0).unwrap();
+    assert_eq!(instance.emulator.worker_enter().unwrap(), 0);
+    thread::scope(|scope| {
+        let end = scope.spawn(|| instance.emulator.shot_end());
+        entered_end.recv_timeout(Duration::from_secs(2)).unwrap();
+        // A failure arriving during native drain must wake it without using
+        // the consumer queue or the lifecycle lock held by completion.
+        let error = instance.custom_runtime_call(3, &[]).unwrap_err();
+        assert!(format!("{error:#}").contains("get_next_operations"));
+        instance.emulator.worker_leave();
+        end.join().unwrap().unwrap();
+    });
+    assert_eq!(instance.emulator.cancellation(), 100001);
 }

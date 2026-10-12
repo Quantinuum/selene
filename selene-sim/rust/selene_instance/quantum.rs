@@ -3,71 +3,89 @@ use anyhow::Result;
 
 impl SeleneInstance {
     pub fn qalloc(&self) -> Result<u64> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_qalloc()
     }
 
     pub fn qfree(&self, q: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_qfree(q)
     }
 
     pub fn rz(&self, qubit_id: u64, theta: f64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_rz(qubit_id, theta)
     }
 
     pub fn rxy(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_rxy(qubit_id, theta, phi)
     }
 
     pub fn rzz(&self, qubit_id: u64, qubit_id2: u64, theta: f64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_rzz(qubit_id, qubit_id2, theta)
     }
 
     pub fn rpp(&self, qubit_id: u64, qubit_id2: u64, theta: f64, phi: f64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator
             .user_issued_rpp(qubit_id, qubit_id2, theta, phi)
     }
 
     pub fn qubit_reset(&self, q: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_reset(q)
     }
 
     pub fn qubit_measure(&self, q: u64) -> Result<bool> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_eager_measure(q)
     }
 
     pub fn qubit_lazy_measure(&self, q: u64) -> Result<u64> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_lazy_measure(q)
     }
     pub fn qubit_lazy_measure_leaked(&self, q: u64) -> Result<u64> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_lazy_measure_leaked(q)
     }
 
     pub fn global_barrier(&self, sleep_time: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_global_barrier(sleep_time)
     }
     pub fn local_barrier(&self, qubits: &[u64], sleep_time: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_local_barrier(qubits, sleep_time)
     }
 
     pub fn refcount_decrement(&self, r: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_decrement_measurement_refcount(r)
     }
 
     pub fn refcount_increment(&self, r: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_increment_measurement_refcount(r)
     }
 
     pub fn future_read_bool(&self, r: u64) -> Result<bool> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_read_future_bool(r)
     }
     pub fn future_read_u64(&self, r: u64) -> Result<u64> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.user_issued_read_future_u64(r)
     }
 
     pub fn custom_runtime_call(&self, custom_tag: u64, data: &[u8]) -> Result<u64> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.custom_runtime_call(custom_tag, data)
     }
     pub fn simulate_delay(&self, delay: u64) -> Result<()> {
+        anyhow::ensure!(self.emulator.cancellation() == 0, "shot cancelled");
         self.emulator.simulate_delay(delay)
     }
 }

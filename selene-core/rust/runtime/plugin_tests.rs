@@ -193,10 +193,10 @@ unsafe extern "C" fn simulate_delay_fn(handle: RuntimeInstance, _delay_ns: u64) 
     unsafe { check_access(handle, false) }
 }
 
-#[test]
-fn foreign_calls_use_shared_or_exclusive_access() {
+fn runtime() -> Box<ConcurrentRuntimePlugin> {
     let interface = Arc::new(RuntimePluginInterface {
         program_complete: None,
+        cancel: None,
         descriptor: Descriptor::V2(RuntimePluginDescriptorV2 {
             struct_size: std::mem::size_of::<RuntimePluginDescriptorV2>() as u64,
             api_version: super::super::version::RUNTIME_CURRENT_API_VERSION,
@@ -241,7 +241,12 @@ fn foreign_calls_use_shared_or_exclusive_access() {
         access: RwLock::new(()),
     });
     runtime.instance = (&raw const *runtime).cast();
-    let runtime = &*runtime;
+    runtime
+}
+
+#[test]
+fn foreign_calls_use_shared_or_exclusive_access() {
+    let runtime = runtime();
     runtime.shot_start(0, 0).unwrap();
     runtime.qalloc().unwrap();
     runtime.qfree(0).unwrap();
@@ -267,4 +272,16 @@ fn foreign_calls_use_shared_or_exclusive_access() {
     runtime.shot_end().unwrap();
     runtime.get_metric(0).unwrap();
     runtime.exit().unwrap();
+}
+
+#[test]
+fn cancellation_remains_callable_during_lifecycle_completion() {
+    unsafe extern "C" fn cancel(handle: RuntimeInstance) -> Errno {
+        unsafe { check_access(handle, false) }
+    }
+    let mut runtime = runtime();
+    Arc::get_mut(&mut runtime._interface).unwrap().cancel = Some(cancel);
+    let _completion = runtime.lifecycle.lock();
+    runtime.cancel().unwrap();
+    assert!(runtime.supports_worker_cancellation());
 }

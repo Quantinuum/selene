@@ -53,20 +53,31 @@ pub trait RuntimeInterface: Send + Sync {
     /// Called to signal that the current shot has ended. This is an
     /// ideal place to perform validation (if applicable) and cleanup.
     ///
-    /// Implementations that own workers must wake or cancel pending work and
-    /// join those workers before returning. Existing workers and the consumer
+    /// Implementations that own workers must drain ordinary work and join those
+    /// workers before returning. Cancellation is requested separately through
+    /// [`Self::cancel`], which wakes pending work before the joins. Existing workers and the consumer
     /// may call operational methods during this join. Do not hold a lock that
     /// prevents those calls from completing.
     fn shot_end(&self) -> Result<()>;
 
-    /// The compiled root returned successfully. Wait for ordinary managed work
-    /// without cancelling it. The consumer remains available throughout this call.
-    /// Hosts call shot_end afterward for cleanup; cancellation skips this hook.
-    /// Legacy runtimes need no separate completion notification. V2 plugins may
-    /// export the optional `selene_runtime_program_complete_v2` symbol (API 0.4.1).
-    /// Its absence leaves existing v1 and v2 behavior unchanged.
+    /// Compatibility notification for older callers. New callers use
+    /// [`Self::shot_end`] for graceful managed completion and cleanup.
+    /// The default is a no-op; retain it for already published v2 consumers.
     fn program_complete(&self) -> Result<()> {
         Ok(())
+    }
+
+    /// Wake blocked shot operations after cancellation without joining workers.
+    /// This may overlap shot_end and must not acquire its lifecycle lock. Runtimes
+    /// with no pending asynchronous work need no additional wake action.
+    fn cancel(&self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Whether worker entry can rely on concurrent cancellation and draining.
+    /// Legacy adapters and older loaded v2 plugins do not supply this contract.
+    fn supports_worker_cancellation(&self) -> bool {
+        true
     }
 
     // If a runtime has special behaviour that a user may wish to invoke

@@ -89,6 +89,17 @@ impl AsMut<dyn RuntimeInterface> for Runtime {
 }
 
 impl RuntimeInterface for Runtime {
+    fn cancel(&self) -> Result<()> {
+        check_errno(
+            unsafe { (self.handle.interface.cancel_fn)(self.handle.instance) },
+            || anyhow!("Runtime: cancellation failed"),
+        )
+    }
+
+    fn supports_worker_cancellation(&self) -> bool {
+        unsafe { (self.handle.interface.supports_worker_cancellation_fn)(self.handle.instance) }
+    }
+
     fn exit(&self) -> Result<()> {
         let _ = &self.backing;
         check_errno(

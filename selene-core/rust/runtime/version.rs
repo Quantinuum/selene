@@ -51,7 +51,8 @@ pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0401;
 pub const RUNTIME_V1_API_VERSION: u64 = 0x0000_0300;
 
 // CHANGELOG:
-// 0.4.1: Optional selene_runtime_program_complete_v2 waits without cancellation.
+// 0.4.1: Optional selene_runtime_cancel_v2 wakes pending concurrent work.
+// The experimental program_complete export remains for older consumers.
 // 0.4.0: V2 plugins allow concurrent operational calls on a shared instance.
 // 0.0.1: Initial version
 // 0.0.2: Introduced MeasureLeaked, changed get_result to get_bool_result and get_u64_result

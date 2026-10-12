@@ -49,6 +49,8 @@ impl RuntimeFFIAdapter {
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
                 program_complete_fn: Self::program_complete,
+                cancel_fn: Self::cancel,
+                supports_worker_cancellation_fn: Self::supports_worker_cancellation,
                 get_metrics_fn: Self::get_metric,
                 qalloc_fn: Self::qalloc,
                 qfree_fn: Self::qfree,
@@ -172,6 +174,16 @@ impl RuntimeFFIAdapter {
             format!("RuntimeFFIAdapter: shot_start failed for shot {shot_id}"),
             unsafe { Self::with_runtime(instance, |runtime| runtime.shot_start(shot_id, seed)) },
         )
+    }
+
+    unsafe extern "C" fn cancel(instance: RuntimeInstance) -> Errno {
+        result_to_errno("RuntimeFFIAdapter: cancellation failed", unsafe {
+            Self::with_runtime(instance, |runtime| runtime.cancel())
+        })
+    }
+
+    unsafe extern "C" fn supports_worker_cancellation(instance: RuntimeInstance) -> bool {
+        unsafe { Self::with_runtime(instance, |runtime| runtime.supports_worker_cancellation()) }
     }
 
     unsafe extern "C" fn program_complete(instance: RuntimeInstance) -> Errno {
@@ -451,5 +463,7 @@ pub struct RuntimeOperationInterface<'a> {
     pub custom_call_fn:
         unsafe extern "C" fn(RuntimeInstance, u64, *const ffi::c_void, usize, *mut u64) -> Errno,
     pub simulate_delay_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,
+    pub cancel_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
+    pub supports_worker_cancellation_fn: unsafe extern "C" fn(RuntimeInstance) -> bool,
     _marker: PhantomData<&'a ()>,
 }

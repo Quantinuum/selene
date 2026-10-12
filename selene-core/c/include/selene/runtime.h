@@ -23,6 +23,8 @@ extern const struct SeleneRuntimePluginDescriptorV1 selene_runtime_plugin_descri
 const struct SeleneRuntimePluginDescriptorV1 *selene_runtime_get_plugin_descriptor_v1(void);
 extern const struct SeleneRuntimePluginDescriptorV2 selene_runtime_plugin_descriptor_v2;
 const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descriptor_v2(void);
+/* Optional v2 hook: wake pending work without joining or lifecycle exclusion. */
+int32_t selene_runtime_cancel_v2(const void *instance);
 #ifdef __cplusplus
 }
 #endif
@@ -272,8 +274,9 @@ typedef const void *RuntimeInstanceV2;
  * shot_start_fn, shot_end_fn, exit_fn, and metric collection. It excludes other
  * calls during start, exit, and an entire get_metrics_fn enumeration. During end,
  * existing workers may finish operational calls, and the consumer may retrieve
- * work and publish results needed for their completion. End must wake or cancel
- * pending work and join owned workers before returning. The caller stops unrelated
+ * work and publish results needed for their completion. End drains and joins
+ * owned workers before returning. The optional concurrent cancellation hook
+ * wakes pending work before abort joins; it may be called during end. The caller stops unrelated
  * submissions before end and retains the instance and library through all joins.
  * No runtime lock may block the consumer while a user waits for a result.
  *

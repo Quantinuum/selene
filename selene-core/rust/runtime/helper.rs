@@ -169,6 +169,13 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         )
     }
 
+    pub unsafe fn cancel(instance: RuntimeInstance) -> Errno {
+        result_to_errno(
+            "Failed to cancel shot",
+            Self::with_runtime_instance(instance, |runtime| runtime.cancel()),
+        )
+    }
+
     pub unsafe fn program_complete(instance: RuntimeInstance) -> Errno {
         result_to_errno(
             "Failed to complete program",
@@ -535,6 +542,12 @@ macro_rules! export_runtime_plugin {
             #[unsafe(no_mangle)]
             pub unsafe extern "C" fn selene_runtime_program_complete_v2(instance: RuntimeInstance) -> i32 {
                 Helper::program_complete(instance)
+            }
+
+            /// Wake pending work without joining or excluding operational calls.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_cancel_v2(instance: RuntimeInstance) -> i32 {
+                Helper::cancel(instance)
             }
 
             unsafe extern "C" fn selene_runtime_shot_end(instance: RuntimeInstance) -> i32 {

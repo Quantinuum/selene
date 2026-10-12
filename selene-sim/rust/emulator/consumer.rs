@@ -1,4 +1,4 @@
-use super::HookedSimulator;
+use super::{HookedSimulator, ProgramState};
 use crate::{event_hooks::SharedEventHook, selene_instance::configuration::Configuration};
 use anyhow::{Result, anyhow};
 use selene_core::{
@@ -29,6 +29,7 @@ impl Consumer {
         config: &Configuration,
         runtime: Arc<Runtime>,
         hooks: SharedEventHook,
+        program: Arc<ProgramState>,
     ) -> Result<Self> {
         let n_qubits = config.n_qubits;
         let simulator_config = config.simulator.clone();
@@ -54,6 +55,7 @@ impl Consumer {
                 error_model,
                 hooks,
                 failure: None,
+                program,
             })
         })
     }
@@ -123,6 +125,7 @@ pub(super) struct State {
     pub(super) error_model: ErrorModel,
     pub(super) hooks: SharedEventHook,
     pub(super) failure: Option<String>,
+    pub(super) program: Arc<ProgramState>,
 }
 
 impl State {
@@ -168,6 +171,10 @@ impl State {
         }
         let result = self.drain();
         if let Err(error) = &result {
+            self.program.cancel(100001);
+            // Wake native waiters before the caller or shot_end can join them.
+            // This runs directly on the consumer, without queueing back to it.
+            let _ = self.runtime.cancel();
             self.failure = Some(format!("{error:#}"));
         }
         result
