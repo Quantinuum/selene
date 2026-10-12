@@ -1472,7 +1472,7 @@ requires-dist = [
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=5.0" },
     { name = "typing-extensions", specifier = ">=4" },
-    { name = "ziglang", specifier = "~=0.16" },
+    { name = "ziglang", specifier = "~=0.16.0" },
 ]
 
 [package.metadata.requires-dev]
