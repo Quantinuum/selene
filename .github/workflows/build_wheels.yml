@@ -195,7 +195,9 @@ jobs:
           - '3.12'
           - '3.13'
           - '3.14'
-          - '3.15'
+          # TODO: enable when https://github.com/yaml/pyyaml/issues/951 is closed
+          # and a python3.15-compatible pyyaml release is available on pypi.
+          # - '3.15'
     name: "Install Selene (Python ${{ matrix.python-version }}, ${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     permissions:
