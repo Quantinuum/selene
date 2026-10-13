@@ -2,14 +2,16 @@
 
 Schema: [`../../schemas/trace/legacy.schema.json`](../../schemas/trace/legacy.schema.json)
 
-Before trace protocol versioning, Selene emitted trace documents without a
-`schema_version`. These documents use JSON integers for indices, qubit IDs,
-timestamps, durations, and `OpaquePayload.tag`.
+Selene currently emits trace documents without a `schema_version` through
+`CircuitExtractor` and `selene_core.trace`. These documents use JSON integers
+for indices, qubit IDs, timestamps, durations, and `OpaquePayload.tag`.
 
-A missing `schema_version` identifies this format. New producers
-must emit a versioned format. The Python, Rust, and TypeScript model packages
-provide adapters that validate a legacy document and upgrade it to the current
-in-memory model.
+A missing `schema_version` identifies this format. Producers using the
+`selene-api-models` packages emit the versioned format by default and also support
+legacy serialization for singular traces. Their adapters validate legacy input
+and upgrade it to the current in-memory model. Legacy output omits
+`schema_version` and serializes opaque tags as JSON integers; current validation
+bounds still apply. Collections have no legacy format.
 
 `OpaquePayload.data` accepts the standard or URL-safe Base64 alphabet, with
 optional padding. Unused bits in the final Base64 character must be zero.

@@ -16,4 +16,11 @@ from selene_api_models.trace import (
 trace = Trace(schema_version=SCHEMA_VERSION, events=[])
 traces = Traces(schema_version=SCHEMA_VERSION, traces=[TraceData(events=[])])
 upgraded = parse_trace_json(versionless_trace_json)
+legacy_json = trace.as_legacy().model_dump_json(indent=2)
 ```
+
+`as_legacy()` returns a `LegacyTrace` sharing the current event models and
+validation rules. Its `model_dump()` and `model_dump_json()` omit
+`schema_version` and keep opaque tags numeric. `LegacyTrace` also accepts
+versionless input and defaults its internal version to `0.1.0`. Filtering and
+timing helpers retain legacy serialization. Collections have no legacy format.

@@ -1,7 +1,11 @@
 /** TypeScript bindings for version 0.1.0 of the Selene trace protocol. */
 
 import { z } from "zod";
-import { isLosslessNumber, parse as parseLosslessJson } from "lossless-json";
+import {
+  isLosslessNumber,
+  parse as parseLosslessJson,
+  stringify as stringifyLosslessJson,
+} from "lossless-json";
 
 export const SCHEMA_VERSION = "0.1.0" as const;
 export const SchemaVersionSchema = z.literal(SCHEMA_VERSION);
@@ -429,6 +433,21 @@ export function serializeTrace(trace: Trace): TraceInput {
     schema_version: trace.schema_version,
     ...serializeTraceData(trace),
   };
+}
+
+/** Convert a trace to legacy data, retaining opaque tags as bigint values.
+ * Use serializeLegacyTraceJson to encode tags as exact JSON integers.
+ */
+export function serializeLegacyTrace(trace: Trace): LegacyTrace {
+  const validated = TraceSchema.parse(serializeTrace(trace));
+  return { events: validated.events };
+}
+
+/** Serialize a versionless trace with numeric tags without losing uint64 precision. */
+export function serializeLegacyTraceJson(trace: Trace, space?: string | number): string {
+  const json = stringifyLosslessJson(serializeLegacyTrace(trace), undefined, space);
+  if (json === undefined) throw new TypeError("Trace serialization produced no JSON");
+  return json;
 }
 
 /** Convert a parsed trace collection to its JSON-compatible representation. */
