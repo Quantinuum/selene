@@ -6,7 +6,6 @@ from typing import Iterable, Iterator, cast
 from .state import SeleneStimState
 
 from selene_core import Simulator
-from hugr.qsystem.result import TaggedResult
 
 
 @dataclass
@@ -57,7 +56,7 @@ class StimPlugin(Simulator):
 
     @staticmethod
     def extract_states_dict(
-        results: Iterable[TaggedResult],
+        results: Iterable[tuple[str, object]],
         cleanup: bool = True,
     ) -> dict[str, SeleneStimState]:
         """Extract state results from a shot result stream and return them as a
@@ -70,7 +69,7 @@ class StimPlugin(Simulator):
 
     @staticmethod
     def extract_states(
-        results: Iterable[TaggedResult],
+        results: Iterable[tuple[str, object]],
         cleanup: bool = True,
     ) -> Iterator[tuple[str, SeleneStimState]]:
         """Extract state results from a shot result stream and return them as a
