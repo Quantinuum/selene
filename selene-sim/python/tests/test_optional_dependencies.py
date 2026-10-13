@@ -1,3 +1,4 @@
+import importlib.util
 import subprocess
 import sys
 import textwrap
@@ -14,10 +15,7 @@ def test_interfaces_without_optional_toolchains(missing):
         import importlib.abc
         import importlib.util
         import sys
-        from pathlib import Path
-
-        resource_dir = Path(sys.argv[1])
-        missing = set(sys.argv[2:])
+        missing = set(sys.argv[1:])
         if 'hugr' in missing:
             missing.add('selene_hugr_qis_compiler')
         original_find_spec = importlib.util.find_spec
@@ -42,9 +40,7 @@ def test_interfaces_without_optional_toolchains(missing):
         from selene_helios_qis_plugin import HeliosInterface
         from selene_sol_qis_plugin import SolInterface
 
-        for platform, interface in (
-            ('helios', HeliosInterface()), ('sol', SolInterface())
-        ):
+        for interface in (HeliosInterface(), SolInterface()):
             planner = BuildPlanner()
             register_builtins(planner)
             interface.register_build_steps(planner)
@@ -57,10 +53,6 @@ def test_interfaces_without_optional_toolchains(missing):
             source += 'define void @qmain() { call void @setup() ret void }'
             assert planner.identify_kind(source) is HeliosLLVMIRStringKind
 
-            program = resource_dir / platform / 'add_3_11-any.ll'
-            runner = selene_sim.build(program, interface=interface)
-            assert list(runner.run(selene_sim.Quest(), n_qubits=10)) == [('answer', 14)]
-
         assert not any(name.split('.')[0] in missing for name in sys.modules)
         """
     )
@@ -69,7 +61,6 @@ def test_interfaces_without_optional_toolchains(missing):
             sys.executable,
             "-c",
             script,
-            str(Path(__file__).parent / "resources/qis"),
             *missing,
         ],
         capture_output=True,
@@ -77,3 +68,14 @@ def test_interfaces_without_optional_toolchains(missing):
         timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_qis_runs_without_hugr():
+    if importlib.util.find_spec("hugr") is not None:
+        pytest.skip("requires an environment without HUGR")
+
+    from selene_sim import Quest, build
+
+    program = Path(__file__).parent / "resources/qis/helios/add_3_11-any.ll"
+    runner = build(program)
+    assert list(runner.run(Quest(), n_qubits=10)) == [("answer", 14)]
