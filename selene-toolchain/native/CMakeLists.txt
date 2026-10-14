@@ -16,6 +16,6 @@ if(NOT LLVM_ENABLE_RTTI)
     target_compile_options(selene-llvm PRIVATE -fno-rtti)
 endif()
 
-llvm_map_components_to_libnames(llvm_libraries Core IRReader Support)
+llvm_map_components_to_libnames(llvm_libraries Core IRReader Object Support)
 target_link_libraries(selene-llvm PRIVATE ${llvm_libraries})
 install(TARGETS selene-llvm RUNTIME DESTINATION bin)

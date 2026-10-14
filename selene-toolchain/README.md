@@ -17,6 +17,14 @@ The packaged `selene-llvm inspect [FILE|-]` executable uses LLVM's own parser
 and emits JSON with schema version 1. It includes unused declarations and
 internal functions, and excludes LLVM intrinsics, globals and aliases.
 
+`inspect_object(contents)` accepts a path or bytes containing an ELF, Mach-O
+or PE/COFF object. It returns immutable sets of defined and undefined linker
+symbols, including data and aliases. The same helper provides this through
+`selene-llvm inspect-object [FILE|-]`, with `defined_symbols` and
+`undefined_symbols` in its version 1 JSON response. Mach-O names have their
+platform underscore removed, so `qmain` has the same name on every platform.
+Object inspection uses LLVM's object reader and doesn't depend on LIEF.
+
 Linux uses ELF LLD, position-independent executables, and packaged glibc startup
 objects and GCC compiler helpers. It links against the host's glibc and libm,
 locating their versioned runtime files through the system loader rather than

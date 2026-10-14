@@ -234,6 +234,8 @@ before-test = '''
     fi;
     # Install both packages from this checkout so we can test model changes
     # before publishing a new selene-formats release.
+    # Use the toolchain wheel built earlier, because workspace sources would
+    # make uv rebuild it here instead of testing the wheel we're releasing.
     uv pip install --no-sources ./selene-formats ./selene-core;
 '''
 [tool.cibuildwheel.macos.environment]
