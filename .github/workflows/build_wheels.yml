@@ -182,15 +182,17 @@ jobs:
           restore-keys: |
             selene-sim--build-env--cache--${{ matrix.os }}--${{ hashFiles('hugrenv.lock') }}--
 
+      - name: Configure wheel paths
+        shell: bash
+        run: |
+          echo "SELENE_TOOLCHAIN_WHEEL_DIR=$GITHUB_WORKSPACE/wheelhouse" >> "$GITHUB_ENV"
+          echo "SELENE_TOOLCHAIN_SOURCE_DIR=$GITHUB_WORKSPACE/selene-toolchain/source-bundles" >> "$GITHUB_ENV"
+
       - name: Build selene-toolchain wheels
         uses: pypa/cibuildwheel@v3.4.1
         with:
           package-dir: selene-toolchain
           config-file: selene-toolchain/pyproject.toml
-
-      - name: Locate toolchain wheels
-        shell: bash
-        run: echo "SELENE_TOOLCHAIN_WHEEL_DIR=$GITHUB_WORKSPACE/wheelhouse" >> "$GITHUB_ENV"
 
       # Perform the selene-sim build
       - name: Build selene-sim wheels

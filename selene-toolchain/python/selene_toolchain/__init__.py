@@ -22,22 +22,52 @@ class ModuleSymbols:
     declared_functions: frozenset[str]
 
 
+@dataclass(frozen=True)
+class ObjectSymbols:
+    """Defined and undefined linker symbols, including functions and data."""
+
+    defined_symbols: frozenset[str]
+    undefined_symbols: frozenset[str]
+
+
 def inspect_module(contents: str | Path | bytes) -> ModuleSymbols:
     """Read functions from LLVM IR or bitcode using the packaged LLVM parser."""
-    command = [str(tool_path("selene-llvm")), "inspect"]
-    data: bytes | None = None
     if isinstance(contents, Path):
         if contents.suffix not in (".ll", ".bc"):
             raise ValueError(
                 f"Unsupported file extension for LLVM contents: {contents.suffix}"
             )
-        command.append(str(contents))
     elif isinstance(contents, str):
-        data = contents.encode("utf-8")
-    elif isinstance(contents, bytes):
-        data = contents
-    else:
+        contents = contents.encode("utf-8")
+    elif not isinstance(contents, bytes):
         raise TypeError(f"Unsupported type for LLVM contents: {type(contents)}")
+    definitions, declarations = _inspect_symbols(
+        contents, "inspect", "defined_functions", "declared_functions", "LLVM module"
+    )
+    return ModuleSymbols(definitions, declarations)
+
+
+def inspect_object(contents: Path | bytes) -> ObjectSymbols:
+    """Read linker symbols from ELF, Mach-O or PE/COFF files or bytes."""
+    if not isinstance(contents, (Path, bytes)):
+        raise TypeError(f"Unsupported type for object contents: {type(contents)}")
+    definitions, declarations = _inspect_symbols(
+        contents, "inspect-object", "defined_symbols", "undefined_symbols", "Object"
+    )
+    return ObjectSymbols(definitions, declarations)
+
+
+def _inspect_symbols(
+    contents: Path | bytes,
+    subcommand: str,
+    defined_key: str,
+    undefined_key: str,
+    kind: str,
+) -> tuple[frozenset[str], frozenset[str]]:
+    command = [str(tool_path("selene-llvm")), subcommand]
+    data = contents if isinstance(contents, bytes) else None
+    if isinstance(contents, Path):
+        command.append(str(contents))
     try:
         result = subprocess.run(
             command,
@@ -51,20 +81,20 @@ def inspect_module(contents: str | Path | bytes) -> ModuleSymbols:
     if result.returncode:
         diagnostic = result.stderr.decode("utf-8", errors="replace")
         raise RuntimeError(
-            f"LLVM module inspection failed (exit {result.returncode}):\n{diagnostic}"
+            f"{kind} inspection failed (exit {result.returncode}):\n{diagnostic}"
         )
     try:
         symbols = json.loads(result.stdout)
         if symbols["schema_version"] != 1:
             raise ValueError("Unsupported inspection schema version")
-        definitions = symbols["defined_functions"]
-        declarations = symbols["declared_functions"]
+        definitions = symbols[defined_key]
+        declarations = symbols[undefined_key]
         for names in (definitions, declarations):
             if not isinstance(names, list) or not all(
                 isinstance(name, str) for name in names
             ):
-                raise ValueError("Expected a list of function names")
-        return ModuleSymbols(frozenset(definitions), frozenset(declarations))
+                raise ValueError("Expected a list of symbol names")
+        return frozenset(definitions), frozenset(declarations)
     except (ValueError, KeyError, TypeError) as error:
         raise RuntimeError(f"Invalid response from selene-llvm: {error}") from error
 

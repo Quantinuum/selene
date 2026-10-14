@@ -7,8 +7,6 @@ license = "Apache-2.0"
 readme = "python/selene_core/README.md"
 dependencies = [
   "hugr>=0.13.0",
-  # required for inspecting object files to find defined and declared symbols
-  "lief~=1.0.0",
   "networkx>=2.6,<4",
   "pydantic~=2.12",
   "pydot>=4.0.0",

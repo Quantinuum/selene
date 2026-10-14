@@ -228,7 +228,9 @@ before-test = '''
         # make sure the cache is readable by the host
         chmod -R a+rX /host/tmp/ci-cache/selene
     fi;
-    uv pip install ./selene-core;
+    # Use the toolchain wheel built earlier, because workspace sources would
+    # make uv rebuild it here instead of testing the wheel we're releasing.
+    uv pip install --no-sources ./selene-core;
 '''
 [tool.cibuildwheel.macos.environment]
 PATH = "$PATH:$HOME/.cargo/bin:${HUGRENV_PATH}"
@@ -237,7 +239,7 @@ UV_FIND_LINKS = "$SELENE_TOOLCHAIN_WHEEL_DIR"
 PIP_FIND_LINKS = "$SELENE_TOOLCHAIN_WHEEL_DIR"
 [tool.cibuildwheel.macos]
 before-test = [
-    'uv pip install ./selene-core'
+    'uv pip install --no-sources ./selene-core'
 ]
 
 [tool.cibuildwheel.windows.environment]
@@ -254,5 +256,5 @@ before-all = [
     'rustup target add x86_64-pc-windows-gnu'
 ]
 before-test = [
-    'uv pip install ./selene-core'
+    'uv pip install --no-sources ./selene-core'
 ]
