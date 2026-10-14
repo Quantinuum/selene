@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "selene-api-models"
 version = "0.1.0"
 description = "Selene API models for Python"
-readme = "README.md"
+readme = "python/README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 dependencies = ["pydantic~=2.12"]
