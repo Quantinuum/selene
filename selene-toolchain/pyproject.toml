@@ -39,9 +39,18 @@ test-requires = ["pytest", "hatchling", "packaging"]
 test-command = 'pytest "{package}/tests"'
 
 [tool.cibuildwheel.linux]
-environment-pass = ["HUGRENV_PATH"]
+environment-pass = ["HUGRENV_PATH", "SELENE_TOOLCHAIN_SOURCE_DIR"]
 before-all = "dnf install -y dnf-plugins-core"
-before-build = 'python "{package}/collect_sources.py"'
+before-build = '''
+    set -e
+    python "{package}/collect_sources.py"
+    # The next cibuildwheel invocation uses a fresh container, so keep the
+    # sources on the host for the workflow's runtime-source artifact upload.
+    if [ -n "$SELENE_TOOLCHAIN_SOURCE_DIR" ]; then
+        mkdir -p "/host$SELENE_TOOLCHAIN_SOURCE_DIR"
+        cp "{package}"/source-bundles/* "/host$SELENE_TOOLCHAIN_SOURCE_DIR/"
+    fi
+'''
 
 [tool.cibuildwheel.linux.environment]
 HUGRENV_PATH = "/host$HUGRENV_PATH"
