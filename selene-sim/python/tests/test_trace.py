@@ -7,8 +7,7 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from selene_core.trace import Trace, GateEvent, parse_trace, parse_trace_json
-from selene_api_models.trace import Trace as VersionedTrace
+from selene_core.trace import Trace, GateEvent, UserProgramSource
 
 from selene_sim import Stim, DepolarizingErrorModel, SoftRZRuntime
 from selene_sim.build import build
@@ -65,31 +64,24 @@ def test_legacy_trace_metadata_round_trip(tag, data):
 def test_legacy_trace_constructor_and_helpers():
     trace = Trace(events=[])
     trace.add_user_program_event(
-        GateEvent(gate_name="ClassicalDelay", params=[42]), index=0
+        GateEvent(gate_name="ClassicalDelay", params=[2**60]), index=0
     )
     trace.add_simulator_event(GateEvent(gate_name="Rz", qubits=[0]), 0, 123)
 
     assert Trace().model_dump_json() == '{"events":[]}'
     assert Trace.model_validate_json(trace.model_dump_json()) == trace
-    assert trace.get_user_program_trace().events[0].event.params == [42]
+    assert trace.get_user_program_trace().events[0].event.params == [2**60]
     cleared = trace.clear_simulator_perf_timing()
     assert cleared.get_simulator_trace().events[0].source.duration_ns == 0
     assert trace.get_simulator_trace().events[0].source.duration_ns == 123
     assert "schema_version" not in cleared.model_dump()
-    assert isinstance(trace, VersionedTrace)
-    for parsed in [
-        parse_trace(trace.model_dump(mode="json")),
-        parse_trace_json(trace.model_dump_json()),
-    ]:
-        assert isinstance(parsed, Trace)
-        assert parsed.model_dump_json() == trace.model_dump_json()
 
 
-def test_selene_trace_retains_strict_validation():
-    from pydantic import ValidationError
-
-    with pytest.raises(ValidationError):
-        GateEvent(gate_name="ClassicalDelay", params=[2**60])
+def test_selene_trace_uses_legacy_validation():
+    assert Trace.__module__ == "selene_core.trace"
+    assert UserProgramSource(index="1").index == 1
+    assert GateEvent(gate_name="ClassicalDelay", params=[2**60]).params == [2**60]
+    assert GateEvent(gate_name="Rz", qubits=[-1]).qubits == [-1]
 
 
 @pytest.mark.parametrize("data", [b"", b"\xff", b"\x00\x03\xff"])
