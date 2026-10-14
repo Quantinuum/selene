@@ -7,7 +7,7 @@ from ..types import (
     Artifact,
     Step,
 )
-from ..utils import invoke_zig
+from ..utils import compile_object, link_executable
 from ..symbols import get_symbols_from_object, get_symbols_from_llvm, SymbolTable
 from ..planner import BuildPlanner
 
@@ -201,17 +201,7 @@ class HeliosLLVMIRFileToHeliosObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.helios.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM IR to Helios-QIS object: {out_path}")
-        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
-        zig_cache_dir.mkdir(exist_ok=True)
-        invoke_zig(
-            "cc",
-            "-c",
-            input_artifact.resource,
-            "-o",
-            out_path,
-            verbose=build_ctx.verbose,
-            cache_dir=zig_cache_dir,
-        )
+        compile_object(input_artifact.resource, out_path, verbose=build_ctx.verbose)
         return cls._make_artifact(out_path)
 
 
@@ -228,16 +218,7 @@ class HeliosLLVMBitcodeFileToHeliosObjectFileStep(Step):
         out_path = build_ctx.artifact_dir / "program.helios.o"
         if build_ctx.verbose:
             print(f"Compiling LLVM Bitcode to Helios-QIS object: {out_path}")
-        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
-        zig_cache_dir.mkdir(exist_ok=True)
-        invoke_zig(
-            "cc",
-            "-c",
-            input_artifact.resource,
-            "-o",
-            out_path,
-            cache_dir=zig_cache_dir,
-        )
+        compile_object(input_artifact.resource, out_path, verbose=build_ctx.verbose)
         return cls._make_artifact(out_path)
 
 
@@ -302,7 +283,7 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
         if build_ctx.verbose:
             print("Linking helios object file with shared Helios runtime")
 
-        link_flags = ["-lc"]
+        link_flags = []
         try:
             from selene_sim import dist_dir as selene_dist
         except ImportError:
@@ -318,19 +299,13 @@ class HeliosObjectFileToSeleneExecutableStep(Step):
             library_search_dirs.extend(dep.library_search_dirs)
             libraries.append(dep.path)
 
-        for search_dir in library_search_dirs:
-            link_flags.append(f"-L{search_dir}")
-
-        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
-        zig_cache_dir.mkdir(exist_ok=True)
-        invoke_zig(
-            "build-exe",
-            f"-femit-bin={out_path}",
-            input_artifact.resource,
-            *libraries,
-            *link_flags,
+        link_executable(
+            [input_artifact.resource],
+            out_path,
+            libraries=libraries,
+            library_search_dirs=library_search_dirs,
+            link_flags=link_flags,
             verbose=build_ctx.verbose,
-            cache_dir=zig_cache_dir,
         )
         return Artifact(
             out_path,

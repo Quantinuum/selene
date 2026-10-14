@@ -4,11 +4,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from subprocess import PIPE, CalledProcessError, run
 from typing import Optional
+from selene_toolchain import tool_environment, tool_path
 
 
 def create_dsym(executable: Path) -> Path | None:
     """Create or reuse a dSYM bundle without exposing failures to the caller."""
-    dist_dir = Path(__file__).parent / "_dist"
     dsym_path = Path(f"{executable}.dSYM")
     try:
         if (
@@ -18,7 +18,7 @@ def create_dsym(executable: Path) -> Path | None:
             return dsym_path
         run(
             [
-                str(dist_dir / "bin/dsymutil"),
+                str(tool_path("dsymutil")),
                 "-o",
                 str(dsym_path),
                 str(executable),
@@ -26,8 +26,9 @@ def create_dsym(executable: Path) -> Path | None:
             stdout=PIPE,
             stderr=PIPE,
             check=True,
+            env=tool_environment(),
         )
-    except (OSError, CalledProcessError):
+    except (OSError, CalledProcessError, RuntimeError):
         return None
     return dsym_path
 
@@ -43,10 +44,10 @@ def run_llvm_symbolizer(
     concise description of the failed step. Failure is not considered exceptional.
     """
     assert module
-    dist_dir = Path(__file__).parent / "_dist"
-    llvm_symbolizer = dist_dir / "bin/llvm-symbolizer"
-    if platform.system() == "Windows":
-        llvm_symbolizer = llvm_symbolizer.with_suffix(".exe")
+    try:
+        llvm_symbolizer = tool_path("llvm-symbolizer")
+    except RuntimeError:
+        return None, "running llvm-symbolizer"
 
     command = [
         f"{llvm_symbolizer}",
@@ -63,7 +64,14 @@ def run_llvm_symbolizer(
         command.append(f"--dsym-hint={dsym_hint}")
     command += [f"{address:#x}" for address in addresses]
     try:
-        result = run(command, stdout=PIPE, stderr=PIPE, check=True, text=True)
+        result = run(
+            command,
+            stdout=PIPE,
+            stderr=PIPE,
+            check=True,
+            text=True,
+            env=tool_environment(),
+        )
     except (OSError, CalledProcessError):
         return None, "running llvm-symbolizer"
     try:
