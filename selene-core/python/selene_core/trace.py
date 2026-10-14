@@ -1,5 +1,3 @@
-"""Python models for versionless Selene traces."""
-
 from typing import Annotated, Literal, Union, Callable
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -164,7 +162,7 @@ class Trace(BaseModel):
         return self.filter(lambda e: isinstance(e.source, SimulatorSource))
 
     def clear_simulator_perf_timing(self) -> "Trace":
-        """Return a copy with simulator event durations set to zero."""
+        """Returns a copy of the trace with all simulator event durations set to 0. This is useful for comparing traces while ignoring performance timing differences."""
         return Trace(
             events=[
                 EventRecord(
