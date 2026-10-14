@@ -252,76 +252,6 @@ class UtilitiesBuild:
                             shutil.copy(lib_path, destination)
 
 
-class HugrenvTools:
-    def __init__(self, hook: "BundleBuildHook") -> None:
-        self.hook = hook
-        local_hugrenv = Path(self.hook.root) / ".hugrenv"
-        hugrenv_path = os.environ.get("HUGRENV_PATH")
-        if hugrenv_path:
-            resolved_hugrenv_path = Path(hugrenv_path).expanduser()
-            if not resolved_hugrenv_path.is_absolute():
-                resolved_hugrenv_path = Path(self.hook.root) / resolved_hugrenv_path
-            resolved_hugrenv_path = Path(os.path.abspath(resolved_hugrenv_path))
-            hugrenv_path = str(resolved_hugrenv_path)
-        elif local_hugrenv.is_dir():
-            hugrenv_path = str(local_hugrenv)
-        assert hugrenv_path, (
-            "HUGRENV_PATH environment variable is not set and no local .hugrenv "
-            "directory was found. Run `just hugrenv` or set HUGRENV_PATH. This is "
-            "required for bundling Hugrenv tools into selene's _dist directory."
-        )
-        self.hugrenv_path = Path(hugrenv_path)
-        self.is_cibw_host_path = str(self.hugrenv_path).startswith("/host/")
-        assert self.hugrenv_path.is_dir(), (
-            f"HUGRENV_PATH ('{self.hugrenv_path}') does not exist or is not a directory as required."
-        )
-
-    def resolve_artifact(self, directory: str, name: str) -> Path:
-        seen: set[Path] = set()
-        path = self.hugrenv_path / directory / name
-        while path.is_symlink():
-            if path in seen:
-                raise RuntimeError(f"Symlink loop while resolving {path}")
-            seen.add(path)
-            target = path.readlink()
-            if target.is_absolute():
-                if self.is_cibw_host_path:
-                    target = Path("/host") / target.relative_to("/")
-                path = target
-            else:
-                path = Path(os.path.normpath(path.parent / target))
-        return path
-
-    def extract_artifact(self, directory: str, name: str):
-        artifact_path = self.resolve_artifact(directory, name)
-        assert artifact_path.is_file(), (
-            f"Hugrenv artifact '{name}' not found at {artifact_path}"
-        )
-        dist_dir = (
-            Path(self.hook.root) / f"selene-sim/python/selene_sim/_dist/{directory}"
-        )
-        dist_dir.mkdir(parents=True, exist_ok=True)
-        dist_path = dist_dir / name
-        if dist_path.is_symlink():
-            dist_path.unlink()
-        self.hook.app.display_info(f"Copying {artifact_path} to {dist_dir}")
-        shutil.copy(artifact_path, dist_path)
-        dist_path.chmod(0o755)
-
-    def extract_binary(self, name):
-        if sys.platform == "win32":
-            name += ".exe"
-        self.extract_artifact("bin", name)
-
-    def extract_library(self, name):
-        raise NotImplementedError("extract_library is not implemented yet.")
-
-    def extract(self):
-        self.extract_binary("llvm-symbolizer")
-        if sys.platform == "darwin":
-            self.extract_binary("dsymutil")
-
-
 class BundleBuildHook(BuildHookInterface):
     def target_is_windows(self) -> bool:
         return sys.platform == "win32" or os.environ.get(
@@ -350,6 +280,11 @@ class BundleBuildHook(BuildHookInterface):
         return Path(self.root) / "target/release"
 
     def initialize(self, version: str, build_data: dict) -> None:
+        # Older editable builds left LLVM tools here. They now come from
+        # selene-toolchain, so we must remove them before gathering artifacts.
+        tools_dir = Path(self.root) / "selene-sim/python/selene_sim/_dist/bin"
+        for name in ("llvm-symbolizer", "llvm-symbolizer.exe", "dsymutil"):
+            (tools_dir / name).unlink(missing_ok=True)
         cargo_runner = CargoWorkspaceBuild(self)
         cargo_runner.build_all()
         cargo_runner.extract_libs()
@@ -360,8 +295,6 @@ class BundleBuildHook(BuildHookInterface):
         utilities_builder = UtilitiesBuild(self)
         utilities_builder.build_all()
         utilities_builder.extract_libs()
-        hugrenv_tools = HugrenvTools(self)
-        hugrenv_tools.extract()
 
         packages = [Path("selene-sim/python/selene_sim")]
         for topic_dir in Path("selene-ext").iterdir():

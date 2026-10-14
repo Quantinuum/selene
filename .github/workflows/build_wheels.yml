@@ -119,9 +119,26 @@ jobs:
       - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
         with:
           packages: "llvm"
+          target: ${{ startsWith(matrix.os, 'windows-') && 'win_mingw_amd64' || '' }}
+
+      - name: Install matching MinGW compiler
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        shell: pwsh
+        run: |
+          $toolchain = (Get-Content selene-toolchain/vendor/windows-sources.json -Raw | ConvertFrom-Json).distribution
+          $archive = Join-Path $env:RUNNER_TEMP $toolchain.archive
+          $destination = Join-Path $env:RUNNER_TEMP 'selene-mingw'
+          Invoke-WebRequest -Uri $toolchain.url -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $toolchain.sha256) { throw 'The MinGW compiler checksum does not match its pin' }
+          & 7z x $archive "-o$destination" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract the MinGW compiler' }
+          $mingwRoot = Join-Path $destination 'mingw64'
+          "MINGW_ROOT=$($mingwRoot.Replace('\', '/'))" >> $env:GITHUB_ENV
+          "$mingwRoot\bin" >> $env:GITHUB_PATH
 
       - name: Remove hugrenv clang from PATH on Windows
-        # We add hugrenv to provide llvm tools bundled with selene.
+        # We add hugrenv to provide LLVM tools for selene-toolchain.
         # However, on Windows, this has the side effect of adding clang
         # into the build environment in which e.g. stim is built, instead
         # of the default compiler, and the build fails.
@@ -161,9 +178,21 @@ jobs:
           path: |
             /tmp/ci-cache/selene
             target/
-          key: selene-sim--build-env--cache--${{ matrix.os }}--${{ hashFiles('Cargo.lock') }}
+          key: selene-sim--build-env--cache--${{ matrix.os }}--${{ hashFiles('hugrenv.lock') }}--${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            selene-sim--build-env--cache--${{ matrix.os }}--
+            selene-sim--build-env--cache--${{ matrix.os }}--${{ hashFiles('hugrenv.lock') }}--
+
+      - name: Configure wheel paths
+        shell: bash
+        run: |
+          echo "SELENE_TOOLCHAIN_WHEEL_DIR=$GITHUB_WORKSPACE/wheelhouse" >> "$GITHUB_ENV"
+          echo "SELENE_TOOLCHAIN_SOURCE_DIR=$GITHUB_WORKSPACE/selene-toolchain/source-bundles" >> "$GITHUB_ENV"
+
+      - name: Build selene-toolchain wheels
+        uses: pypa/cibuildwheel@v3.4.1
+        with:
+          package-dir: selene-toolchain
+          config-file: selene-toolchain/pyproject.toml
 
       # Perform the selene-sim build
       - name: Build selene-sim wheels
@@ -174,6 +203,14 @@ jobs:
         with:
           name: selene-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
+          if-no-files-found: error
+
+      - name: Upload runtime sources
+        if: ${{ startsWith(matrix.os, 'ubuntu-') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-sources-${{ matrix.os }}
+          path: selene-toolchain/source-bundles/*
           if-no-files-found: error
 
   test_install:
@@ -198,12 +235,6 @@ jobs:
           # TODO: enable when https://github.com/yaml/pyyaml/issues/951 is closed
           # and a python3.15-compatible pyyaml release is available on pypi.
           # - '3.15'
-        exclude:
-          # llvmlite doesn't support x86-64 macos after 0.45.1.
-          # For that version, only wheels up to and including
-          # python 3.13 are available.
-          - os: macos-15-intel
-            python-version: '3.14'
     name: "Install Selene (Python ${{ matrix.python-version }}, ${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     permissions:
@@ -226,14 +257,15 @@ jobs:
           name: selene-core
           path: wheelhouse
 
-      - name: Download selene-sim wheel
+      - name: Download selene-sim and selene-toolchain wheels
         uses: actions/download-artifact@v8
         with:
           name: selene-wheels-${{ matrix.os }}
           path: wheelhouse
 
       - name: Install wheels and check dependencies
-        # Install both wheels from this run so we also test changes to selene-core.
+        # Install all three packages from this run so the toolchain and
+        # selene-core changes are exercised by the installed-wheel tests.
         # If a dependency doesn't have a compatible wheel, we should fail here
         # rather than building it from source in the install test.
         run: |
@@ -258,6 +290,11 @@ jobs:
             upload: wheelhouse/selene_core-*.whl
           - name: selene-sim
             upload: wheelhouse/selene_sim-*.whl
+          - name: selene-toolchain
+            upload: wheelhouse/selene_toolchain-*.whl
+            sources: |
+              wheelhouse/*.src.rpm
+              wheelhouse/linux-*.json
     name: Release ${{ matrix.target.name }}
     runs-on: ubuntu-latest
     # always do a full build and test before release of any package
@@ -285,11 +322,29 @@ jobs:
           path: wheelhouse
           merge-multiple: true
 
+      - name: Check runtime source assets
+        if: ${{ steps.check-tag.outputs.run == 'true' && matrix.target.name == 'selene-toolchain' }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          root = Path("wheelhouse")
+          manifests = list(root.glob("linux-*.json"))
+          assert {path.stem for path in manifests} == {"linux-x86_64", "linux-aarch64"}
+          for path in manifests:
+              for name, entry in json.loads(path.read_text())["sources"].items():
+                  assert hashlib.sha256((root / name).read_bytes()).hexdigest() == entry["sha256"], name
+          PY
+
       - name: GH Release
         if: ${{ steps.check-tag.outputs.run == 'true' }}
         uses: softprops/action-gh-release@v3
         with:
-          files: ${{ matrix.target.upload }}
+          files: |
+            ${{ matrix.target.upload }}
+            ${{ matrix.target.sources }}
+          fail_on_unmatched_files: true
           generate_release_notes: true
 
       - name: Setup Python

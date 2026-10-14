@@ -18,6 +18,9 @@ def test_windows_symbolizer_uses_relative_addresses(monkeypatch):
         return subprocess.CompletedProcess(command, 0, stdout="[]", stderr="")
 
     monkeypatch.setattr(stack_trace_module.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(
+        stack_trace_module, "tool_path", lambda name: Path(f"{name}.exe")
+    )
     monkeypatch.setattr(stack_trace_module, "run", fake_run)
 
     assert stack_trace_module.run_llvm_symbolizer(Path("program.exe"), [0x123]) == (
@@ -42,6 +45,7 @@ def test_dsym_is_created_while_symbolizing(monkeypatch):
         )
 
     monkeypatch.setattr(stack_trace_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(stack_trace_module, "tool_path", Path)
     monkeypatch.setattr(stack_trace_module, "run", fake_run)
 
     stack_trace = stack_trace_module.StackTrace()
@@ -66,6 +70,7 @@ def test_dsym_failure_does_not_raise(monkeypatch):
         )
 
     monkeypatch.setattr(stack_trace_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(stack_trace_module, "tool_path", Path)
     monkeypatch.setattr(stack_trace_module, "run", fake_run)
 
     stack_trace = stack_trace_module.StackTrace()
