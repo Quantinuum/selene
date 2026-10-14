@@ -83,31 +83,12 @@ def get_symbols_from_llvm(contents: str | Path | bytes) -> SymbolTable:
     """
     Extract symbols from LLVM (IR as a string or path, or bitcode as a string or path).
     """
-    from llvmlite import binding as llvm
+    from selene_toolchain import inspect_module
 
-    mod: llvm.ModuleRef
-
-    if isinstance(contents, Path):
-        if contents.suffix == ".ll":
-            mod = llvm.parse_assembly(contents.read_text())
-        elif contents.suffix == ".bc":
-            mod = llvm.parse_bitcode(contents.read_bytes())
-        else:
-            raise ValueError(
-                f"Unsupported file extension for LLVM contents: {contents.suffix}"
-            )
-    elif isinstance(contents, str):
-        mod = llvm.parse_assembly(contents)
-    elif isinstance(contents, bytes):
-        mod = llvm.parse_bitcode(contents)
-    else:
-        raise TypeError(f"Unsupported type for LLVM contents: {type(contents)}")
-
+    symbols = inspect_module(contents)
     symbol_table = SymbolTable()
-    for func in mod.functions:
-        name = str(func.name)
-        if name.startswith("llvm."):
-            # skip llvm intrinsics
-            continue
-        symbol_table.add_function(name, not func.is_declaration)
+    for name in symbols.defined_functions:
+        symbol_table.add_function(name, True)
+    for name in symbols.declared_functions:
+        symbol_table.add_function(name, False)
     return symbol_table

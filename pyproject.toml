@@ -13,6 +13,7 @@ dependencies = [
   "pyyaml>=6.0.2",
   "selene-core~=0.3.3", # x-release-please-version
   "selene-formats~=0.1.0",
+  "selene-toolchain~=0.1.0",
   "tqdm>=4.67.1",
   # TODO: decide if we want this as a formal dependency or not
   #"selene-hugr-qis-compiler~=0.3.0", 
@@ -65,9 +66,10 @@ dev = [
 selene-sim = { workspace = true }
 selene-core = { workspace = true }
 selene-formats = { workspace = true }
+selene-toolchain = { workspace = true }
 
 [tool.uv.workspace]
-members = ["selene-core", "selene-formats"]
+members = ["selene-core", "selene-formats", "selene-toolchain"]
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
@@ -192,8 +194,10 @@ test-command = "pytest {project}/selene-sim {project}/selene-ext {project}/selen
 [tool.cibuildwheel.linux.environment]
 PATH = "$PATH:$HOME/.cargo/bin:/host$HUGRENV_PATH"
 HUGRENV_PATH = "/host$HUGRENV_PATH"
+UV_FIND_LINKS = "/host$SELENE_TOOLCHAIN_WHEEL_DIR"
+PIP_FIND_LINKS = "/host$SELENE_TOOLCHAIN_WHEEL_DIR"
 [tool.cibuildwheel.linux]
-environment-pass = ["HUGRENV_PATH"]
+environment-pass = ["HUGRENV_PATH", "SELENE_TOOLCHAIN_WHEEL_DIR"]
 before-all = '''
     # clean any non-version-controlled files, e.g. when building locally.
     git clean -dfX;
@@ -235,6 +239,8 @@ before-test = '''
 [tool.cibuildwheel.macos.environment]
 PATH = "$PATH:$HOME/.cargo/bin:${HUGRENV_PATH}"
 MACOSX_DEPLOYMENT_TARGET = "12.0"
+UV_FIND_LINKS = "$SELENE_TOOLCHAIN_WHEEL_DIR"
+PIP_FIND_LINKS = "$SELENE_TOOLCHAIN_WHEEL_DIR"
 [tool.cibuildwheel.macos]
 before-test = [
     'uv pip install --no-sources ./selene-formats ./selene-core'
@@ -243,8 +249,10 @@ before-test = [
 [tool.cibuildwheel.windows.environment]
 PATH = "$PATH:$HOME/.cargo/bin"
 CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu"
-CC = "C:/mingw64/bin/gcc.exe"
-CXX = "C:/mingw64/bin/g++.exe"
+CC = "$MINGW_ROOT/bin/gcc.exe"
+CXX = "$MINGW_ROOT/bin/g++.exe"
+UV_FIND_LINKS = "$SELENE_TOOLCHAIN_WHEEL_DIR"
+PIP_FIND_LINKS = "$SELENE_TOOLCHAIN_WHEEL_DIR"
 [tool.cibuildwheel.windows]
 before-all = [
     'curl -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y',
