@@ -18,7 +18,7 @@ from typing import Any
 
 from ..planner import BuildPlanner
 from ..types import ArtifactKind, Step, BuildCtx, Artifact
-from ..utils import invoke_zig
+from ..utils import link_executable
 from ..symbols import get_symbols_from_object
 
 
@@ -122,7 +122,7 @@ class SeleneObjectToSeleneExecutableStep(Step):
             case "Linux":
                 selene_lib /= "libselene.so"
             case "Windows":
-                selene_lib /= "selene.lib"
+                selene_lib /= "libselene.dll.a"
             case _:
                 raise RuntimeError(f"Unsupported OS {sys.platform}")
         link_flags = []
@@ -133,16 +133,13 @@ class SeleneObjectToSeleneExecutableStep(Step):
 
         if build_ctx.verbose:
             print("Linking selene object file with selene core library")
-        zig_cache_dir = build_ctx.artifact_dir / "zig-cache"
-        zig_cache_dir.mkdir(exist_ok=True)
-        invoke_zig(
-            "cc",
-            "-o",
+        link_executable(
+            [input_artifact.resource],
             out_path,
-            input_artifact.resource,
-            selene_lib,
-            *link_flags,
-            cache_dir=zig_cache_dir,
+            libraries=[selene_lib, *(dep.path for dep in build_ctx.deps)],
+            library_search_dirs=library_search_dirs,
+            link_flags=link_flags,
+            verbose=build_ctx.verbose,
         )
         return cls._make_artifact(
             out_path,

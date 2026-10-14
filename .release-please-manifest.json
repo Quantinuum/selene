@@ -1,5 +1,6 @@
 {
     "selene-core": "0.3.4",
     ".": "0.3.8",
-    "selene-formats": "0.2.0"
+    "selene-formats": "0.2.0",
+    "selene-toolchain": "0.1.0"
 }
