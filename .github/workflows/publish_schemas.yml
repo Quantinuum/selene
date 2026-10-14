@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/publish_schemas.yml"
       - "selene-trace/schemas/**"
+      - "selene-trace/scripts/check_schema_immutability.py"
       - "selene-trace/scripts/validate_schemas.py"
   push:
     branches:
@@ -12,6 +13,7 @@ on:
     paths:
       - ".github/workflows/publish_schemas.yml"
       - "selene-trace/schemas/**"
+      - "selene-trace/scripts/check_schema_immutability.py"
       - "selene-trace/scripts/validate_schemas.py"
   workflow_dispatch:
 
