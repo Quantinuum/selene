@@ -8,6 +8,20 @@
 #include <stdlib.h>
 
 
+/**
+ * The instance handle passed to quantum instruction set (QIS) calls.
+ *
+ * User threads can share this handle and make QIS calls at the same time.
+ * The host must pause those calls during `selene_on_shot_start`,
+ * metric collection, and `selene_exit`. Ending and successful completion
+ * may overlap existing worker calls and consumer delivery. Keep the instance
+ * alive until all user threads have joined.
+ *
+ * One consumer thread runs the simulator and error model. Output records and
+ * random-number operations each run one at a time. All user threads share the
+ * output time cursor, so setting it and then printing are two separate actions
+ * that another thread can interrupt.
+ */
 typedef struct SeleneInstance SeleneInstance;
 
 typedef struct selene_u64_result_t {
@@ -44,6 +58,11 @@ typedef struct selene_u32_result_t {
   uint32_t error_code;
   uint32_t value;
 } selene_u32_result_t;
+
+/**
+ * Notify cancellation without joining or jumping across any Rust frame.
+ */
+void selene_cancel(struct SeleneInstance *instance, uint32_t code);
 
 /**
  * Some runtimes have additional capabilities outside of the core API. These can be triggered
@@ -94,6 +113,11 @@ struct selene_u64_result_t selene_get_tc(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_global_barrier(struct SeleneInstance *instance,
                                                   uint64_t sleep_time);
+
+/**
+ * Whether the selected runtime supplies the managed worker drain contract.
+ */
+bool selene_has_worker_boundary(struct SeleneInstance *instance);
 
 struct selene_void_result_t selene_load_config(struct SeleneInstance **instance,
                                                const char *config_file);
@@ -285,6 +309,15 @@ struct selene_u64_result_t selene_shot_count(struct SeleneInstance *instance);
  */
 struct selene_void_result_t selene_simulate_delay(struct SeleneInstance *instance,
                                                   uint64_t delay);
+
+/**
+ * Enter after installing a live C exit frame on the actual worker.
+ * The value says whether this call acquired one callback count, even when
+ * error_code reports cancellation. An acquired count must be retired once.
+ */
+struct selene_bool_result_t selene_worker_enter(struct SeleneInstance *instance);
+
+void selene_worker_leave(struct SeleneInstance *instance);
 
 /**
  * Read the output stream buffer from the point of the last read, up to a maximum length, copying it into the provided pointer.

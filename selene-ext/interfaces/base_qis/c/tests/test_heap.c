@@ -45,8 +45,9 @@ static uint64_t no_allocations(uint64_t arg) {
 
 int main(int argc, char** argv) {
     assert(argc == 2);
-    exit_early = strcmp(argv[1], "normal") != 0;
-    exit_code = strcmp(argv[1], "panic") == 0 ? 1001 : 0;
+    const char *mode = argv[1];
+    exit_early = strcmp(mode, "normal") != 0;
+    exit_code = strcmp(mode, "panic") == 0 ? 1001 : 0;
 
 #ifdef __linux__
     // Across these shots we leave 1 GiB allocated, but only 8 MiB is needed

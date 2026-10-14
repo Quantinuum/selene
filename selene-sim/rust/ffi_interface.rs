@@ -1,6 +1,25 @@
+//! The C interface used by quantum programs and the host running them.
+//!
+//! Several user threads can make quantum instruction set (QIS) calls on the
+//! same instance. They call the runtime to submit work. One consumer thread
+//! collects that work in batches, executes it, and writes back the results.
+//!
+//! Output messages and random-number operations each run one at a time. All
+//! threads share the random-number generator and the output time cursor, so
+//! their ordering can vary between runs. If you set the cursor and then print,
+//! another thread can change the cursor between those two calls.
+//!
+//! The host must pause user calls while starting a shot, collecting metrics,
+//! or destroying the instance. Shot end drains workers while operational calls
+//! and consumer result delivery remain live. Join all user threads before calling
+//! `selene_exit`. Keep input buffers valid and unchanged until their call
+//! returns, and keep a live reference to each result handle throughout its use,
+//! including when several threads read it.
+
 use super::selene_instance::SeleneInstance;
 use crate::selene_instance::configuration::Configuration;
 use anyhow::Result;
+use selene_core::runtime::RuntimeInterface;
 
 #[repr(C)]
 pub struct VoidResult {
@@ -187,12 +206,12 @@ pub unsafe extern "C" fn selene_load_config(
 
 fn with_instance_void<F>(instance: *mut SeleneInstance, f: F) -> VoidResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<()>,
+    F: FnOnce(&SeleneInstance) -> Result<()>,
 {
     if instance.is_null() {
         return VoidResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     if let Err(e) = f(instance) {
         let code = 100001;
         instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -203,12 +222,12 @@ where
 }
 fn with_instance_bool<F>(instance: *mut SeleneInstance, f: F) -> BoolResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<bool>,
+    F: FnOnce(&SeleneInstance) -> Result<bool>,
 {
     if instance.is_null() {
         return BoolResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => BoolResult::ok(value),
         Err(e) => {
@@ -221,12 +240,12 @@ where
 
 fn with_instance_u64<F>(instance: *mut SeleneInstance, f: F) -> U64Result
 where
-    F: FnOnce(&mut SeleneInstance) -> anyhow::Result<u64>,
+    F: FnOnce(&SeleneInstance) -> anyhow::Result<u64>,
 {
     if instance.is_null() {
         return U64Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => U64Result::ok(value),
         Err(e) => {
@@ -238,12 +257,12 @@ where
 }
 fn with_instance_f64<F>(instance: *mut SeleneInstance, f: F) -> F64Result
 where
-    F: FnOnce(&mut SeleneInstance) -> anyhow::Result<f64>,
+    F: FnOnce(&SeleneInstance) -> anyhow::Result<f64>,
 {
     if instance.is_null() {
         return F64Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => F64Result::ok(value),
         Err(e) => {
@@ -256,12 +275,12 @@ where
 
 fn with_instance_u32<F>(instance: *mut SeleneInstance, f: F) -> U32Result
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<u32>,
+    F: FnOnce(&SeleneInstance) -> Result<u32>,
 {
     if instance.is_null() {
         return U32Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => U32Result::ok(value),
         Err(e) => {
@@ -274,12 +293,12 @@ where
 
 fn with_instance_future_bool<F>(instance: *mut SeleneInstance, f: F) -> FutureResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<u64>,
+    F: FnOnce(&SeleneInstance) -> Result<u64>,
 {
     if instance.is_null() {
         return FutureResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => FutureResult::ok(value),
         Err(e) => {
@@ -320,12 +339,75 @@ pub unsafe extern "C" fn selene_on_shot_start(
     instance: *mut SeleneInstance,
     shot_index: u64,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.shot_start(shot_index))
+    if instance.is_null() {
+        return VoidResult::err(100000);
+    }
+    let instance = unsafe { &mut *instance };
+    match instance.shot_start(shot_index) {
+        Ok(()) => VoidResult::ok(),
+        Err(error) => {
+            instance.fallible_print_panic(&format!("{error:#}"), 100001);
+            VoidResult::err(100001)
+        }
+    }
+}
+
+/// Whether the selected runtime supplies the managed worker drain contract.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_has_worker_boundary(instance: *mut SeleneInstance) -> bool {
+    !instance.is_null()
+        && unsafe { &*instance }
+            .emulator
+            .runtime
+            .supports_worker_cancellation()
+}
+
+/// Enter after installing a live C exit frame on the actual worker.
+/// The value says whether this call acquired one callback count, even when
+/// error_code reports cancellation. An acquired count must be retired once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_worker_enter(instance: *mut SeleneInstance) -> BoolResult {
+    if instance.is_null() {
+        return BoolResult::err(100000);
+    }
+    let instance = unsafe { &*instance };
+    match instance.emulator.worker_enter() {
+        Ok(error_code) => BoolResult {
+            error_code,
+            value: true,
+        },
+        Err(_) => BoolResult::err(100001),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_worker_leave(instance: *mut SeleneInstance) {
+    if !instance.is_null() {
+        unsafe { &*instance }.emulator.worker_leave();
+    }
+}
+
+/// Notify cancellation without joining or jumping across any Rust frame.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn selene_cancel(instance: *mut SeleneInstance, code: u32) {
+    if !instance.is_null() {
+        unsafe { &*instance }.emulator.cancel(code);
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_on_shot_end(instance: *mut SeleneInstance) -> VoidResult {
-    with_instance_void(instance, |instance| instance.shot_end())
+    if instance.is_null() {
+        return VoidResult::err(100000);
+    }
+    let instance = unsafe { &*instance };
+    match instance.shot_end() {
+        Ok(()) => VoidResult::ok(),
+        Err(error) => {
+            instance.fallible_print_panic(&format!("{error:#}"), 100001);
+            VoidResult::err(100001)
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -643,14 +725,14 @@ pub unsafe extern "C" fn selene_global_barrier(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_set_tc(instance: *mut SeleneInstance, tc: u64) -> VoidResult {
     with_instance_void(instance, |instance| {
-        instance.time_cursor = tc;
+        instance.set_time_cursor(tc);
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_get_tc(instance: *mut SeleneInstance) -> U64Result {
-    with_instance_u64(instance, |instance| Ok(instance.time_cursor))
+    with_instance_u64(instance, |instance| Ok(instance.time_cursor()))
 }
 
 /// Some runtimes have additional capabilities outside of the core API. These can be triggered
@@ -741,7 +823,8 @@ pub unsafe extern "C" fn selene_fetch_output(
     out_max_len: u64,
 ) -> U64Result {
     with_instance_u64(instance, |instance| {
-        let data = instance.out_encoder.try_read(out_max_len as usize)?;
+        let mut out_encoder = instance.out_encoder.lock();
+        let data = out_encoder.try_read(out_max_len as usize)?;
         let len = data.len() as u64;
         unsafe {
             std::ptr::copy_nonoverlapping(data.as_ptr(), out_ptr, data.len());

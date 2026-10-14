@@ -2,7 +2,7 @@
 //! plugins as rust crates.
 //!
 //! See `selene-simple-runtime-plugin` for a fully worked example.
-use std::{ffi, mem, sync::Arc};
+use std::{ffi, sync::Arc};
 
 use crate::operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface};
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
@@ -10,13 +10,24 @@ use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to
 use super::{
     Operation, RuntimeInterface,
     interface::RuntimeInterfaceFactory,
-    plugin::{Errno, RuntimeInstance},
+    plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance},
 };
 
 #[derive(Default)]
 /// A helper struct used by [crate::export_runtime_plugin!] to implement the runtime
 /// plugin entry points defined by [super::plugin::RuntimePluginInterface] using an
-/// implentation of [RuntimeInterfaceFactory]`.
+/// implementation of [RuntimeInterfaceFactory].
+///
+/// # Safety
+///
+/// For calls on an instance, use a live handle created by this helper's `init`.
+/// For `init` itself, provide writable space for the new handle.
+/// Keep input buffers readable and unchanged until the call returns, and give
+/// the call exclusive access to its output buffers.
+/// Follow the rules in [`super::plugin::RuntimePluginDescriptorV2`]: serialize
+/// lifecycle and metric calls. Pause operations during start, exit, and metrics.
+/// During end, allow existing workers and the consumer to finish the operational
+/// calls needed for worker joins.
 pub struct Helper<F>(Arc<F>);
 
 impl<F: RuntimeInterfaceFactory> Helper<F> {
@@ -24,19 +35,15 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         Box::into_raw(r) as RuntimeInstance
     }
 
-    unsafe fn from_runtime_instance(instance: RuntimeInstance) -> Box<F::Interface> {
-        unsafe { Box::from_raw(instance as *mut F::Interface) }
-    }
-
     fn with_runtime_instance<T>(
         instance: RuntimeInstance,
-        mut go: impl FnMut(&mut F::Interface) -> T,
+        go: impl FnOnce(&F::Interface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        let mut r = unsafe { Self::from_runtime_instance(instance) };
-        let t = go(&mut r);
-        mem::forget(r);
-        t
+        // SAFETY: callers must supply a live instance created by init, so this
+        // pointer refers to an F::Interface. We only create shared references.
+        // RuntimeInterface requires Sync, which allows these borrows to overlap.
+        go(unsafe { &*instance.cast::<F::Interface>() })
     }
 
     fn factory(&self) -> Arc<F> {
@@ -73,12 +80,9 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
     }
 
     pub unsafe fn exit(instance: RuntimeInstance) -> Errno {
-        // For now we don't: unconditionally drop the box here.
-        // `selene_runtime_exit` is specified to cause all operations to fail on
-        // the RuntimeInstance, but we don't actually check for that right now.
-        // If we uncommented the below, to drop the box, then future calls to
-        // other functions with that instance would be undefined behaviour.
-        // let _ = Self::from_runtime_instance(instance);
+        // A caller can still use the handle after exit to receive an error.
+        // Keep the allocation alive so those calls don't dereference freed memory.
+        // This API has no separate operation for releasing the handle.
         result_to_errno(
             "Failed to exit the runtime plugin",
             Self::with_runtime_instance(instance, |runtime| runtime.exit()),
@@ -162,6 +166,13 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
         result_to_errno(
             format!("Failed to start shot {shot_id}"),
             Self::with_runtime_instance(instance, |runtime| runtime.shot_start(shot_id, seed)),
+        )
+    }
+
+    pub unsafe fn cancel(instance: RuntimeInstance) -> Errno {
+        result_to_errno(
+            "Failed to cancel shot",
+            Self::with_runtime_instance(instance, |runtime| runtime.cancel()),
         )
     }
 
@@ -444,7 +455,7 @@ macro_rules! export_runtime_plugin {
         mod _plugin {
             use selene_core::runtime::{
                 interface::RuntimeInterfaceFactory,
-                plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
+                plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance, RuntimePluginDescriptorV2},
                 version::CURRENT_API_VERSION,
             };
             use selene_core::operation::plugin::{
@@ -487,11 +498,10 @@ macro_rules! export_runtime_plugin {
                 argv: *const *const c_char,
             ) -> i32 {
                 use std::cell::OnceCell;
-                use std::sync::Mutex;
+                use $crate::__parking_lot::Mutex;
                 static FACTORY: Mutex<OnceCell<Helper>> = Mutex::new(OnceCell::new());
                 FACTORY
                     .lock()
-                    .unwrap()
                     .get_or_init(|| Helper::default())
                     .init(instance, n_qubits, start.into(), argc, argv)
             }
@@ -514,6 +524,12 @@ macro_rules! export_runtime_plugin {
                 seed: u64,
             ) -> i32 {
                 Helper::shot_start(instance, shot_id, seed)
+            }
+
+            /// Wake pending work without joining or excluding operational calls.
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn selene_runtime_cancel_v2(instance: RuntimeInstance) -> i32 {
+                Helper::cancel(instance)
             }
 
             /// This function is called at the end of a shot, and it is responsible for
@@ -813,8 +829,8 @@ macro_rules! export_runtime_plugin {
             }
 
             selene_core::export_plugin_descriptor_v1!(
-                selene_runtime_plugin_descriptor_v1,
-                RuntimePluginDescriptorV1,
+                selene_runtime_plugin_descriptor_v2,
+                RuntimePluginDescriptorV2,
                 CURRENT_API_VERSION.as_u64(),
                 {
                     init_fn: selene_runtime_init,
@@ -847,9 +863,9 @@ macro_rules! export_runtime_plugin {
             );
 
             #[unsafe(no_mangle)]
-            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v1(
-            ) -> *const RuntimePluginDescriptorV1 {
-                &raw const selene_runtime_plugin_descriptor_v1
+            pub unsafe extern "C" fn selene_runtime_get_plugin_descriptor_v2(
+            ) -> *const RuntimePluginDescriptorV2 {
+                &raw const selene_runtime_plugin_descriptor_v2
             }
         }
     };

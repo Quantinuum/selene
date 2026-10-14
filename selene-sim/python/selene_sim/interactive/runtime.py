@@ -380,18 +380,43 @@ class SeleneSimRuntimeLib(ctypes.CDLL):
         self._configure_signatures()
 
     def _configure_signatures(self):
-        descriptor: RuntimePluginDescriptorV1 | None = None
-        try:
-            descriptor = RuntimePluginDescriptorV1.in_dll(
-                self, "selene_runtime_plugin_descriptor_v1"
-            )
-        except ValueError:
-            getter = GetRuntimeDescriptorFn(
-                ("selene_runtime_get_plugin_descriptor_v1", self)
-            )
-            descriptor_ptr = getter()
-            if bool(descriptor_ptr):
-                descriptor = descriptor_ptr.contents
+        # v1 and v2 have the same ctypes function-table layout. The handle's
+        # mutability differs in C, and the version selects its concurrency contract.
+        class Prefix(ctypes.Structure):
+            _fields_ = [
+                ("struct_size", ctypes.c_uint64),
+                ("api_version", ctypes.c_uint64),
+            ]
+
+        descriptor = None
+        for suffix, minor in [("v2", 4), ("v1", 3)]:
+            address = None
+            try:
+                prefix = Prefix.in_dll(
+                    self, f"selene_runtime_plugin_descriptor_{suffix}"
+                )
+                address = ctypes.addressof(prefix)
+            except ValueError:
+                try:
+                    getter = ctypes.CFUNCTYPE(ctypes.c_void_p)(
+                        (f"selene_runtime_get_plugin_descriptor_{suffix}", self)
+                    )
+                except AttributeError:
+                    continue
+                address = getter()
+                if not address:
+                    raise RuntimeError(
+                        f"Runtime {suffix} descriptor accessor returned null"
+                    )
+                prefix = Prefix.from_address(address)
+            if prefix.struct_size < ctypes.sizeof(RuntimePluginDescriptorV1):
+                raise RuntimeError(f"Runtime {suffix} descriptor is too small")
+            if prefix.api_version >> 8 != minor:
+                raise RuntimeError(
+                    f"Runtime {suffix} API version does not match its contract"
+                )
+            descriptor = RuntimePluginDescriptorV1.from_address(address)
+            break
         if descriptor is None:
             raise RuntimeError(
                 "Runtime plugin did not expose descriptor symbol or accessor"

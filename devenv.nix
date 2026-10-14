@@ -38,7 +38,6 @@ in {
     languages.rust = {
       enable = true;
       rustflags = "-L${config.env.DEVENV_PROFILE}/lib";
-      components = [ "rustc" "cargo" "clippy" "rustfmt" "rust-analyzer" ];
       toolchainFile = ./rust-toolchain.toml;
     };
 

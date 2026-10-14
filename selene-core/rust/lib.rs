@@ -1,3 +1,8 @@
+// Plugin crates expand our macros without necessarily depending on parking_lot.
+// Re-export it so the macros can find it through $crate.
+#[doc(hidden)]
+pub use parking_lot as __parking_lot;
+
 pub mod encoder;
 pub mod error_model;
 pub mod operation;

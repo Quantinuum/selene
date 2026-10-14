@@ -57,13 +57,22 @@ int selene_helios_run(int argc, char** argv, uint64_t (*entrypoint)(uint64_t)) {
             fprintf(stderr, "Error starting shot %" PRIu64 ": error code %" PRIu32 "\n", current_shot, void_result.error_code);
             return void_result.error_code;
         }
+        bool managed_root = selene_has_worker_boundary(selene_instance);
         user_program_result_t result = user_program_wrapper(entrypoint, 0);
         if (result.exited_early){
             uint64_t error_code = result.result_or_error_code;
             do_continue = (error_code < 1000);
         }
-        void_result = selene_on_shot_end(selene_instance);
+        // The managed wrapper already drained and ended this shot before
+        // releasing root captures. Legacy runtimes keep their original end path.
+        if (!managed_root) {
+            void_result = selene_on_shot_end(selene_instance);
+        } else {
+            void_result.error_code = result.exited_early && result.result_or_error_code >= 1000
+                ? (uint32_t)result.result_or_error_code : 0;
+        }
         if (void_result.error_code != 0) {
+            selene_exit(selene_instance);
             ERROR("Error ending shot %" PRId64 ": error code %" PRIu32 "\n", current_shot, void_result.error_code);
             return void_result.error_code;
         }

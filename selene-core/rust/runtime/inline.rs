@@ -1,6 +1,6 @@
 use super::{
     RuntimeInterface,
-    plugin::{Errno, RuntimeInstance},
+    plugin::{Errno, RuntimeInstanceV2 as RuntimeInstance},
 };
 use crate::{
     operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface},
@@ -11,6 +11,10 @@ use std::{ffi, marker::PhantomData};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+/// A borrowed instance pointer and the functions you can call with it.
+///
+/// Keep its owner alive for every call, and follow the concurrency and buffer
+/// rules in [`super::plugin::RuntimePluginDescriptorV2`].
 pub struct RuntimeHandle<'a> {
     pub instance: RuntimeInstance,
     pub interface: RuntimeOperationInterface<'a>,
@@ -27,14 +31,25 @@ impl RuntimeFFIAdapter {
         Self { runtime }
     }
 
-    pub fn ffi_interface(&mut self) -> RuntimeHandle<'static> {
+    /// Borrow a raw handle for calling this runtime through the C interface.
+    ///
+    /// The handle points to a field inside this adapter. Keep the adapter alive
+    /// and at the same address until all uses of the handle have finished.
+    /// Moving the adapter would leave the handle pointing at its old address.
+    /// The returned type says `'static`, so it won't enforce this lifetime for you.
+    ///
+    /// Calls must follow the concurrency and buffer rules in
+    /// [`super::plugin::RuntimePluginDescriptorV2`].
+    pub fn ffi_interface(&self) -> RuntimeHandle<'static> {
         RuntimeHandle {
-            instance: &raw mut self.runtime as RuntimeInstance,
+            instance: (&raw const self.runtime).cast(),
             interface: RuntimeOperationInterface {
                 exit_fn: Self::exit,
                 get_next_operations_fn: Self::get_next_operations,
                 shot_start_fn: Self::shot_start,
                 shot_end_fn: Self::shot_end,
+                cancel_fn: Self::cancel,
+                supports_worker_cancellation_fn: Self::supports_worker_cancellation,
                 get_metrics_fn: Self::get_metric,
                 qalloc_fn: Self::qalloc,
                 qfree_fn: Self::qfree,
@@ -63,11 +78,15 @@ impl RuntimeFFIAdapter {
 
     unsafe fn with_runtime<T>(
         instance: RuntimeInstance,
-        mut go: impl FnMut(&mut dyn RuntimeInterface) -> T,
+        go: impl FnOnce(&dyn RuntimeInterface) -> T,
     ) -> T {
         assert!(!instance.is_null());
-        let runtime = unsafe { &mut *(instance as *mut Box<dyn RuntimeInterface>) };
-        go(runtime.as_mut())
+        // SAFETY: the caller must keep the adapter alive and at the address
+        // used to create this handle. That keeps its Box field valid here.
+        // We only borrow the runtime through shared references, and the trait
+        // requires Sync so those borrows can overlap.
+        let runtime = unsafe { &*instance.cast::<Box<dyn RuntimeInterface>>() };
+        go(runtime.as_ref())
     }
 
     unsafe extern "C" fn exit(instance: RuntimeInstance) -> Errno {
@@ -154,6 +173,16 @@ impl RuntimeFFIAdapter {
             format!("RuntimeFFIAdapter: shot_start failed for shot {shot_id}"),
             unsafe { Self::with_runtime(instance, |runtime| runtime.shot_start(shot_id, seed)) },
         )
+    }
+
+    unsafe extern "C" fn cancel(instance: RuntimeInstance) -> Errno {
+        result_to_errno("RuntimeFFIAdapter: cancellation failed", unsafe {
+            Self::with_runtime(instance, |runtime| runtime.cancel())
+        })
+    }
+
+    unsafe extern "C" fn supports_worker_cancellation(instance: RuntimeInstance) -> bool {
+        unsafe { Self::with_runtime(instance, |runtime| runtime.supports_worker_cancellation()) }
     }
 
     unsafe extern "C" fn shot_end(instance: RuntimeInstance) -> Errno {
@@ -426,5 +455,7 @@ pub struct RuntimeOperationInterface<'a> {
     pub custom_call_fn:
         unsafe extern "C" fn(RuntimeInstance, u64, *const ffi::c_void, usize, *mut u64) -> Errno,
     pub simulate_delay_fn: unsafe extern "C" fn(RuntimeInstance, u64) -> Errno,
+    pub cancel_fn: unsafe extern "C" fn(RuntimeInstance) -> Errno,
+    pub supports_worker_cancellation_fn: unsafe extern "C" fn(RuntimeInstance) -> bool,
     _marker: PhantomData<&'a ()>,
 }

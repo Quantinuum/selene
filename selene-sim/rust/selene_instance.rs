@@ -1,4 +1,6 @@
 use anyhow::Result;
+use parking_lot::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub mod configuration;
 pub mod metadata;
@@ -12,16 +14,38 @@ use crate::emulator::Emulator;
 use rand_pcg::Pcg32;
 use selene_core::encoder::OutputStream;
 
+/// The instance handle passed to quantum instruction set (QIS) calls.
+///
+/// User threads can share this handle and make QIS calls at the same time.
+/// The host must pause those calls during `selene_on_shot_start`,
+/// metric collection, and `selene_exit`. Ending and successful completion
+/// may overlap existing worker calls and consumer delivery. Keep the instance
+/// alive until all user threads have joined.
+///
+/// One consumer thread runs the simulator and error model. Output records and
+/// random-number operations each run one at a time. All user threads share the
+/// output time cursor, so setting it and then printing are two separate actions
+/// that another thread can interrupt.
 pub struct SeleneInstance {
     pub config: Configuration,
     pub emulator: Emulator,
-    pub out_encoder: OutputStream,
-    pub time_cursor: u64,
+    pub out_encoder: Mutex<OutputStream>,
+    pub time_cursor: AtomicU64,
     pub shot_number: u64,
-    pub prng: Option<Pcg32>,
+    pub prng: Mutex<Option<Pcg32>>,
+    pub(crate) primary_failure_reported: AtomicBool,
+    pub(crate) state_dump_lock: Mutex<()>,
 }
 
 impl SeleneInstance {
+    pub fn time_cursor(&self) -> u64 {
+        self.time_cursor.load(Ordering::Relaxed)
+    }
+
+    pub fn set_time_cursor(&self, value: u64) {
+        self.time_cursor.store(value, Ordering::Relaxed);
+    }
+
     /// Create a new Selene simulator instance from the provided configuration,
     /// e.g. loaded from a config file.
     pub fn new(config: Configuration) -> Result<Self> {
@@ -52,17 +76,19 @@ impl SeleneInstance {
         Ok(Self {
             config,
             emulator,
-            out_encoder,
-            time_cursor: 0,
+            out_encoder: Mutex::new(out_encoder),
+            time_cursor: AtomicU64::new(0),
             shot_number: shot_offset,
-            prng: None,
+            prng: Mutex::new(None),
+            primary_failure_reported: AtomicBool::new(false),
+            state_dump_lock: Mutex::new(()),
         })
     }
 
     /// Upon termination of the simulator instance, we signal to the output stream
     /// that we are closing out gracefully, and flush all remaining data.
     pub fn exit(&mut self) -> Result<()> {
-        self.out_encoder.end_of_stream()?;
+        self.out_encoder.get_mut().end_of_stream()?;
         self.flush_output()?;
         Ok(())
     }
@@ -75,6 +101,8 @@ impl SeleneInstance {
     /// this is handled inside this function. As such, the shot_index parameter
     /// should start at 0 and increment by 1 for each new shot.
     pub fn shot_start(&mut self, shot_index: u64) -> Result<()> {
+        self.primary_failure_reported
+            .store(false, Ordering::Release);
         // Establish the internal shot ID based on the offset and increment,
         // and use it for seeding the various components.
         let shot_id = self.config.shots.offset + self.config.shots.increment * shot_index;
@@ -101,16 +129,20 @@ impl SeleneInstance {
     /// through the runtime and error model, writing out any
     /// stored metadata, and informing event hooks that the shot
     /// has ended.
-    pub fn shot_end(&mut self) -> Result<()> {
-        // Emit any metrics before plugins are invoked with shot_end.
-        // This ensures that metrics reflect the state of the shot
-        // up to this point.
-        if self.config.event_hooks.provide_metrics {
-            self.write_metrics()?;
-        }
-        self.emulator.shot_end()?;
-        self.write_metadata()?;
-        self.print_shot_end()?;
-        Ok(())
+    pub fn shot_end(&self) -> Result<()> {
+        let ended = self.emulator.shot_end();
+        // Worker joins precede metric exclusion. A failed metric write must
+        // never skip the drain that protects root captures.
+        let metrics = if self.config.event_hooks.provide_metrics {
+            self.write_metrics()
+        } else {
+            Ok(())
+        };
+        let metadata = self.write_metadata();
+        // A successful end marker lets the host close the result stream. On
+        // failure, return first so the FFI reports the panic while it is live.
+        // Drain and cleanup above still run before any error is returned.
+        ended.and(metrics).and(metadata)?;
+        self.print_shot_end()
     }
 }
