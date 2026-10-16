@@ -28,4 +28,4 @@ __all__ = [
     "get_include_directory",
 ]
 
-__version__ = "0.3.2"  # x-release-please-version
+__version__ = "0.3.3"  # x-release-please-version
