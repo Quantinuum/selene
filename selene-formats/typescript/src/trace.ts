@@ -329,7 +329,7 @@ function normalizeLosslessJson(value: unknown): unknown {
     return value;
   }
 
-  const normalized: Record<string, unknown> = {};
+  const normalized: Record<string, unknown> = Object.create(null);
   for (const [key, child] of Object.entries(value)) {
     normalized[key] = normalizeLosslessJson(child);
   }
