@@ -1,7 +1,7 @@
 """Transported raw records can be processed independently of a running Selene."""
 
 from unittest.mock import Mock
-from selene_api_models.trace import SCHEMA_VERSION, Trace, ResetEvent
+from selene_core.trace import SCHEMA_VERSION, Trace, ResetEvent
 
 import pytest
 
@@ -47,7 +47,7 @@ def test_raw_payloads_survive_extraction():
 def trace_document_file(tmp_path):
     trace = Trace(schema_version=SCHEMA_VERSION, events=[])
     trace.add_user_program_event(ResetEvent(qubit=0), index=0)
-    from selene_api_models.trace_stream import write_trace_stream
+    from selene_formats.trace_stream import write_trace_stream
 
     path = tmp_path / "trace.msgpack.gz"
     write_trace_stream(path, trace.events)

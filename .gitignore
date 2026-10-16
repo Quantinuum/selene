@@ -43,7 +43,7 @@ _dist/
 wheelhouse/
 node_modules/
 .pnpm-store/
-selene-trace/typescript/dist/
+selene-formats/typescript/dist/
 !.cargo
 scratch/
 

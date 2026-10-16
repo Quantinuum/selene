@@ -1,11 +1,11 @@
 use super::{EventHook, Operation};
-use selene_api_models::trace::{CustomPayload, Event, EventRecord, GateParameter, Source};
-use selene_api_models::trace_stream::{
+use selene_core::encoder::{OutputStream, OutputStreamError, Record};
+use selene_core::runtime::BatchOperation;
+use selene_formats::trace::{CustomPayload, Event, EventRecord, GateParameter, Source};
+use selene_formats::trace_stream::{
     BatchTiming, MeasurementOperation, TraceStreamEvent, TraceStreamRecord, TraceStreamWriter,
     UIntInstruction, UIntInstructionRecord,
 };
-use selene_core::encoder::{OutputStream, OutputStreamError, Record};
-use selene_core::runtime::BatchOperation;
 use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 
@@ -272,15 +272,15 @@ impl EventHook for TraceLog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use selene_api_models::trace::Trace;
-    use selene_api_models::trace_stream::TraceStreamReader;
     use selene_core::encoder::{InternalBuffer, OutputWriter};
+    use selene_formats::trace::Trace;
+    use selene_formats::trace_stream::TraceStreamReader;
 
     struct TestDirectory(PathBuf);
     impl TestDirectory {
         fn new() -> Self {
             let path =
-                std::env::temp_dir().join(format!("selene-trace-test-{}", rand::random::<u64>()));
+                std::env::temp_dir().join(format!("selene-formats-test-{}", rand::random::<u64>()));
             std::fs::create_dir(&path).unwrap();
             Self(path)
         }
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn uint64_operands_survive_writing_and_reading() {
-        use selene_api_models::trace_stream::TraceStreamRecordReader;
+        use selene_formats::trace_stream::TraceStreamRecordReader;
         let directory = TestDirectory::new();
         let mut log = TraceLog::new(directory.0.clone());
         let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));

@@ -93,9 +93,9 @@ in {
         name = "Schema immutability";
         description = "Prevent changes to JSON Schemas already present on origin/0.3-series.";
         package = pkgs.python3;
-        entry = "${pkgs.python3}/bin/python3 selene-trace/scripts/check_schema_immutability.py";
+        entry = "${pkgs.python3}/bin/python3 selene-formats/scripts/check_schema_immutability.py";
         args = ["--base=origin/0.3-series" "--staged"];
-        files = "^(selene-trace/schemas/.*\\.schema\\.json|selene-trace/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
+        files = "^(selene-formats/schemas/.*\\.schema\\.json|selene-formats/scripts/check_schema_immutability\\.py|devenv\\.nix)$";
         pass_filenames = false;
       };
       schema-validation = {
@@ -103,47 +103,47 @@ in {
         name = "Schema ID validation";
         description = "Check that JSON Schema IDs match their publishing URLs.";
         package = pkgs.python3;
-        entry = "${pkgs.python3}/bin/python3 selene-trace/scripts/validate_schemas.py";
+        entry = "${pkgs.python3}/bin/python3 selene-formats/scripts/validate_schemas.py";
         always_run = true;
         pass_filenames = false;
       };
-      api-models-package-versions = {
+      formats-package-versions = {
         enable = true;
-        name = "API models package versions";
-        description = "Check that all API model packages share the same version.";
+        name = "Formats package versions";
+        description = "Check that all formats packages share the same version.";
         package = pkgs.python3;
-        entry = "${pkgs.python3}/bin/python3 selene-trace/scripts/check_package_versions.py";
+        entry = "${pkgs.python3}/bin/python3 selene-formats/scripts/check_package_versions.py";
         always_run = true;
         pass_filenames = false;
       };
-      api-models-python-test = {
+      formats-python-test = {
         enable = true;
-        name = "API models Python tests";
-        description = "Run the Python API model test suite.";
+        name = "Formats Python tests";
+        description = "Run the Python formats test suite.";
         package = pkgs.uv;
-        entry = "uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests";
-        files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        entry = "uv run --locked --package selene-formats --group test pytest selene-formats/python/tests";
+        files = "^(selene-formats/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
       };
-      api-models-rust-test = {
+      formats-rust-test = {
         enable = true;
-        name = "API models Rust tests";
-        description = "Run the Rust API model test suite.";
+        name = "Formats Rust tests";
+        description = "Run the Rust formats test suite.";
         package = pkgs.cargo;
-        entry = "cargo test --package selene-api-models";
-        files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        entry = "cargo test --package selene-formats";
+        files = "^(selene-formats/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
       };
-      api-models-typescript-test = {
+      formats-typescript-test = {
         enable = true;
-        name = "API models TypeScript tests";
-        description = "Install locked dependencies and run the TypeScript API model test suite.";
+        name = "Formats TypeScript tests";
+        description = "Install locked dependencies and run the TypeScript formats test suite.";
         package = config.languages.javascript.pnpm.package;
-        entry = "${pkgs.writeShellScript "api-models-typescript-test" ''
+        entry = "${pkgs.writeShellScript "formats-typescript-test" ''
           ${config.languages.javascript.pnpm.package}/bin/pnpm install --frozen-lockfile
-          ${config.languages.javascript.pnpm.package}/bin/pnpm --filter @quantinuum/selene-api-models test
+          ${config.languages.javascript.pnpm.package}/bin/pnpm --filter @quantinuum/selene-formats test
         ''}";
-        files = "^(selene-trace/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
+        files = "^(selene-formats/.*|Cargo\\.(toml|lock)|pyproject\\.toml|uv\\.lock|pnpm(-workspace)?\\.yaml|devenv\\.nix)$";
         pass_filenames = false;
       };
     };

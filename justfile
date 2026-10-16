@@ -20,11 +20,11 @@ test-rs *TEST_ARGS:
 
 test-ts:
     pnpm install --frozen-lockfile
-    pnpm --filter @quantinuum/selene-api-models test
+    pnpm --filter @quantinuum/selene-formats test
 
-test-api-models:
-    uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests
-    cargo test --package selene-api-models
+test-formats:
+    uv run --locked --package selene-formats --group test pytest selene-formats/python/tests
+    cargo test --package selene-formats
     just test-ts
 
 nitpicks:
@@ -96,4 +96,4 @@ build-ci:
     mkdir -p /tmp/ci-cache
     export CACHE_CARGO=true
     uv build --package selene-core --out-dir wheelhouse
-    uvx cibuildwheel .
+    uvx cibuildwheel==3.4.1 .

@@ -166,6 +166,41 @@ class SeleneQuestState:
             raise ValueError("The state is not a pure state.")
         return all_states[0].state
 
+    def get_global_state(self) -> np.ndarray:
+        """
+        Get the global state vector from the simulator, permuted according to
+        user-specified qubits, without applying phase normalization during extraction.
+
+        Note:
+        This preserves the complex amplitudes and phase of the underlying simulator
+        statevector as extracted. However, Selene does not guarantee global-phase
+        preservation across compilation passes or runtime optimizations.
+
+        Returns:
+        -------
+        np.ndarray
+            1D complex array of size 2^total_qubits representing the global state vector.
+
+        Raises:
+        ------
+        ValueError
+            If not all qubits are specified, or if duplicate qubits are specified.
+        """
+        if len(self.specified_qubits) != self.total_qubits or set(
+            self.specified_qubits
+        ) != set(range(self.total_qubits)):
+            raise ValueError(
+                f"All {self.total_qubits} qubits must be specified without duplicates "
+                f"to get the global state. Got specified_qubits={self.specified_qubits}."
+            )
+
+        state_tensor = self.state.reshape([2] * self.total_qubits)
+        # Note: QuEST uses the convention that qubit 0 is the least significant bit.
+        # Thus, qubit q corresponds to bit index (self.total_qubits - 1 - q) in the reshaped state tensor.
+        permutation = [self.total_qubits - 1 - q for q in self.specified_qubits]
+        permuted = np.transpose(state_tensor, permutation)
+        return permuted.flatten()
+
     def get_dirac_notation(self, zero_threshold=1e-12) -> list[TracedState]:
         try:
             from sympy import nsimplify, Add

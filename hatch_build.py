@@ -119,7 +119,13 @@ class CargoWorkspaceBuild:
 class UtilitiesBuild:
     def __init__(self, hook: "BundleBuildHook") -> None:
         self.hook = hook
-        self.utilities = list(Path(self.hook.root).glob("selene-ext/utilities/*/"))
+        self.utilities = [
+            manifest.parent
+            for manifest in Path(self.hook.root).glob(
+                "selene-ext/utilities/*/Cargo.toml"
+            )
+            if manifest.is_file()
+        ]
 
     def _get_release_dir(self, utility_root: Path) -> Path:
         target = os.environ.get("CARGO_BUILD_TARGET")

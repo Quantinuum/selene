@@ -722,18 +722,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
-name = "selene-api-models"
-version = "0.1.0"
-dependencies = [
- "base64",
- "flate2",
- "rmp-serde",
- "rmpv",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "selene-core"
 version = "0.3.2"
 dependencies = [
@@ -775,6 +763,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "selene-formats"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "flate2",
+ "rmp-serde",
+ "rmpv",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "selene-sim"
 version = "0.3.4"
 dependencies = [
@@ -783,8 +783,8 @@ dependencies = [
  "libc",
  "rand",
  "rand_pcg",
- "selene-api-models",
  "selene-core",
+ "selene-formats",
  "serde",
  "serde_yml",
  "url",

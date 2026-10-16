@@ -1,16 +1,11 @@
-"""Compatibility re-export for the public Selene trace model.
+"""Selene trace models with strict validation and legacy serialization.
 
-New integrations should import :mod:`selene_api_models.trace` directly. This
-module preserves the old import path during the transition, but uses the
-current models. Construct traces with an explicit version:
-``Trace(schema_version=SCHEMA_VERSION, events=[])``. The previous
-``Trace(events=[])`` constructor call must be updated.
-
-Use ``parse_trace`` or ``parse_trace_json`` to upgrade versionless legacy
-serialized traces to the current model.
+Use :mod:`selene_formats.trace` for versioned trace output.
 """
 
-from selene_api_models.trace import (
+from typing import Any
+
+from selene_formats.trace import (
     SCHEMA_VERSION,
     AbstractEvent,
     CustomEvent,
@@ -27,11 +22,22 @@ from selene_api_models.trace import (
     RuntimeSource,
     SimulatorSource,
     Source,
-    Trace,
+    LegacyTrace as Trace,
     UserProgramSource,
-    parse_trace,
-    parse_trace_json,
+    parse_trace as _parse_trace,
+    parse_trace_json as _parse_trace_json,
 )
+
+
+def parse_trace(value: Any) -> Trace:
+    """Read current or legacy trace data and retain legacy serialization."""
+    return _parse_trace(value).as_legacy()
+
+
+def parse_trace_json(data: str | bytes | bytearray) -> Trace:
+    """Read current or legacy trace JSON and retain legacy serialization."""
+    return _parse_trace_json(data).as_legacy()
+
 
 __all__ = [
     "SCHEMA_VERSION",

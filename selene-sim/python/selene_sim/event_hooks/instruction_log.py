@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from typing import Any, Callable
 import math
 
-from selene_api_models.trace import (
+from selene_core.trace import (
     Trace,
     GateEvent,
     MeasurementEvent,
@@ -27,7 +27,7 @@ from selene_api_models.trace import (
 
 from .event_hook import EventHook
 from .trace_store import ShotTrace, TraceStore
-from selene_api_models.trace_stream import BatchStartRecord, UIntInstructionRecord
+from selene_formats.trace_stream import BatchStartRecord, UIntInstructionRecord
 
 PYTKET_AVAILABLE = False
 try:

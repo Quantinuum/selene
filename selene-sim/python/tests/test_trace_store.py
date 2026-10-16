@@ -2,9 +2,8 @@ import pytest
 import gzip
 import msgpack
 
-from selene_api_models.trace import (
+from selene_formats.trace import (
     SCHEMA_VERSION,
-    Trace,
     CustomEvent,
     OpaquePayload,
     GateEvent,
@@ -14,9 +13,10 @@ from selene_api_models.trace import (
     SimulatorSource,
     EventRecord,
 )
+from selene_core.trace import Trace
 from selene_sim.event_hooks import TraceStore, CircuitExtractor
 from selene_sim.event_hooks.instruction_log import CustomOperation, QAlloc, BatchStart
-from selene_api_models.trace_stream import (
+from selene_formats.trace_stream import (
     UIntInstructionRecord,
     TraceStreamEvent,
     iter_trace_stream,
@@ -261,8 +261,8 @@ def test_trace_record_requires_one_filename(data):
     "source", [UserProgramSource(index=0), RuntimeSource(start_time=0, end_time=1)]
 )
 def test_instruction_metadata_is_not_a_gate(tmp_path, source):
-    from selene_api_models.trace import MeasurementEvent
-    from selene_api_models.trace_stream import BatchStartRecord, BatchTiming
+    from selene_formats.trace import MeasurementEvent
+    from selene_formats.trace_stream import BatchStartRecord, BatchTiming
     from selene_sim.event_hooks.instruction_log import FutureRead, MeasureLeakedRequest
 
     boundary = BatchStartRecord(batch_start=BatchTiming(start_time=0, end_time=0))

@@ -591,7 +591,7 @@ def test_ghz_trace_unparsed(compiled_guppy, snapshot, seed_mode):
     assert results == stripped
     assert len(extractor.shots) == len(raw_shots)
     for raw, extracted in zip(raw_shots, extractor.shots):
-        from selene_api_models.trace_stream import iter_trace_stream
+        from selene_formats.trace_stream import iter_trace_stream
 
         events = [
             event

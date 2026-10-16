@@ -11,16 +11,14 @@ class SeleneCoreBuildHook(BuildHookInterface):
         if dist_dir.exists():
             shutil.rmtree(dist_dir)
 
-        # The public trace schema is owned by the language-neutral
-        # selene-trace package. Keep distributing it with selene-core for users
-        # of the legacy selene_core.trace import path.
+        # Distribute the schema matching selene_core.trace and CircuitExtractor output.
         schema_path = Path(
             "python/selene_core/_dist/share/selene-core/schemas/trace.json"
         )
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         schema_source = Path("trace_schema/trace.json")
         if not schema_source.exists():
-            schema_source = Path("../selene-trace/schemas/trace/0.1.0.schema.json")
+            schema_source = Path("../selene-formats/schemas/trace/legacy.schema.json")
         shutil.copy2(schema_source, schema_path)
 
         shutil.copytree(Path("c/include"), dist_dir / "include")

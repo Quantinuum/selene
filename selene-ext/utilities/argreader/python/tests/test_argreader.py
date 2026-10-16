@@ -9,11 +9,34 @@ from selene_sim.event_hooks import CircuitExtractor
 from selene_argreader_plugin import ArgReaderPlugin, ArgProvider, argreader_trace_pass
 from selene_helios_qis_plugin import HeliosInterface
 from selene_sol_qis_plugin import SolInterface
+from selene_core.trace import CustomEvent, OpaquePayload, Trace
+from selene_argreader_plugin.trace_pass import ARGREADER_LOGGING_TAG
 
 # Note to avoid confusion:
 # parameter names are configured by the user program, and we
 # are just using e.g. "input_bool" in argreader_example.ll as
 # a clear example of what's what for testing purposes.
+
+
+def test_argreader_trace_pass_preserves_legacy_format():
+    trace = Trace()
+    trace.add_user_program_event(
+        CustomEvent(
+            payload=OpaquePayload(
+                tag=ARGREADER_LOGGING_TAG,
+                data=b"key: input_u64\nvalue: 42\n",
+            )
+        ),
+        index=0,
+    )
+    processed = argreader_trace_pass(trace)
+    assert "schema_version" not in processed.model_dump()
+    assert processed.events[0].event.payload.data == {
+        "type": "ArgumentRead",
+        "key": "input_u64",
+        "value": 42,
+    }
+    assert Trace.model_validate_json(processed.model_dump_json()) == processed
 
 
 @pytest.mark.parametrize("interface", [HeliosInterface(), SolInterface()])

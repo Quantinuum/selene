@@ -64,7 +64,7 @@
                 {
                     "type": "toml",
                     "path": "Cargo.lock",
-                    "jsonpath": "$.package[?((@.name.value.match(/^selene-/)) && (@.name.value != 'selene-core'))].version"
+                    "jsonpath": "$.package[?((@.name.value.match(/^selene-/)) && (@.name.value != 'selene-core') && (@.name.value != 'selene-formats'))].version"
                 },
                 {
                     "type": "generic",
@@ -72,10 +72,10 @@
                 }
             ]
         },
-        "selene-trace": {
+        "selene-formats": {
             "release-type": "python",
-            "package-name": "selene-api-models",
-            "component": "selene-api-models",
+            "package-name": "selene-formats",
+            "component": "selene-formats",
             "draft": false,
             "versioning": "default",
             "prerelease": false,
@@ -94,12 +94,12 @@
                 {
                     "type": "toml",
                     "path": "/Cargo.lock",
-                    "jsonpath": "$.package[?(@.name.value=='selene-api-models')].version"
+                    "jsonpath": "$.package[?(@.name.value=='selene-formats')].version"
                 },
                 {
                     "type": "toml",
                     "path": "/uv.lock",
-                    "jsonpath": "$.package[?(@.name.value=='selene-api-models')].version"
+                    "jsonpath": "$.package[?(@.name.value=='selene-formats')].version"
                 }
             ]
         }
