@@ -5,7 +5,7 @@ models for Selene's public serialized traces. It has no dependency on the
 emulator.
 
 Selene's `extractor.shots[index].get_trace()` output uses the versionless legacy format and
-`selene_core.trace` Pydantic models, independently of these packages.
+`selene_core.trace` models, which use the Python binding's `LegacyTrace` wrapper.
 The language bindings use protocol 0.1.0 and provide adapters for reading and
 serializing legacy traces with the current validation rules.
 
