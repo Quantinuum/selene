@@ -5,9 +5,9 @@ use selene_core::encoder::{OutputStream, OutputStreamError};
 use selene_core::error_model::BatchResult;
 use selene_core::runtime::BatchOperation;
 
-pub mod instruction_log;
 pub mod measurement_log;
 pub mod metrics;
+pub mod trace_log;
 
 #[derive(Clone)]
 pub enum Operation {
@@ -21,7 +21,6 @@ pub enum Operation {
     MeasureRequest(u64),
     MeasureLeakedRequest(u64),
     FutureRead(u64),
-    BatchStart(u64, u64),
     GlobalBarrier(u64),
     LocalBarrier(Vec<u64>, u64),
     Custom(u64, Vec<u8>),
@@ -113,6 +112,9 @@ pub trait EventHook {
     fn on_error_model_output(&mut self, _: &Operation) {}
     fn on_simulator_call(&mut self, _: &Operation, _: u64) {}
     fn on_runtime_results(&mut self, _: &BatchResult) {}
+    fn drain_pending(&mut self) -> Result<(), OutputStreamError> {
+        Ok(())
+    }
     fn write(
         &mut self,
         _time_cursor: u64,
@@ -135,6 +137,12 @@ impl MultiEventHook {
 }
 
 impl EventHook for MultiEventHook {
+    fn drain_pending(&mut self) -> Result<(), OutputStreamError> {
+        for hook in &mut self.hooks {
+            hook.drain_pending()?;
+        }
+        Ok(())
+    }
     fn on_user_call(&mut self, operation: &Operation) {
         for hook in self.hooks.iter_mut() {
             hook.on_user_call(operation);
@@ -188,6 +196,9 @@ pub struct SharedEventHook {
 }
 
 impl SharedEventHook {
+    pub fn drain_pending(&self) -> Result<(), OutputStreamError> {
+        self.with_hooks(|hooks| hooks.drain_pending())
+    }
     fn with_hooks<T>(&self, callback: impl FnOnce(&mut MultiEventHook) -> T) -> T {
         let mut hooks = self.hooks.borrow_mut();
         callback(&mut hooks)

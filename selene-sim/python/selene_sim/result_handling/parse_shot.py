@@ -24,7 +24,7 @@ from .extract_shot import (
     FullPanicMessage,
     DebugTraceMessage,
     MetricValue,
-    InstructionLogEntry,
+    TraceStreamReference,
     ShotMeasurements,
 )
 
@@ -131,8 +131,8 @@ def parsed_interface(
                         pending_panic = SelenePanicError(message=message, code=code)
                 case MetricValue(name=name, value=value):
                     event_hook.try_invoke(name, [value])
-                case InstructionLogEntry(tag=tag, values=values):
-                    event_hook.try_invoke(tag, values)
+                case TraceStreamReference(path=path):
+                    event_hook.try_invoke("TRACE", [path])
                 case ShotMeasurements(tag=tag, values=values):
                     event_hook.try_invoke(tag, values)
         if pending_panic is not None:
@@ -213,8 +213,8 @@ def unparsed_interface(
                     yield (name, [value])
                 case DebugTraceMessage(module=module, address=address):
                     stack_trace.add_entry(module=module, address=address)
-                case InstructionLogEntry():
-                    yield ((entry.tag, entry.values))
+                case TraceStreamReference(path=path):
+                    yield ("TRACE", [path])
                 case ShotMeasurements():
                     yield ((entry.tag, entry.values))
         if pending_panic is not None:
@@ -272,11 +272,9 @@ def postprocess_unparsed_stream(
       On the other hand, if no MetricStore is provided, then METRICS: entries will
       remain in the final output.
     - The result type does not conform to TaggedResult
-      For example, suppose InstructionLogEntries are present in the result stream.
-      These do not have an encoding that matches int|float|bool or a list of these,
-      and as such will be stripped out of the final output. However, if an event_hook
-      is provided that accepts and processes these entries (e.g. CircuitExtractor),
-      then the results will still be available within that hook.
+      For example, TRACE records contain filenames, which aren't numeric results,
+      so we strip them out of the final output. If a TraceStore or CircuitExtractor
+      is provided, it keeps those references so we can read the traces later.
     """
     results: list[list[TaggedResult]] = []
 

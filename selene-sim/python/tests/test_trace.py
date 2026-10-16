@@ -2,7 +2,6 @@ from textwrap import dedent
 import base64
 from gzip import compress, decompress
 import json
-import struct
 from typing import Literal
 import pytest
 from pydantic import BaseModel, ConfigDict
@@ -13,14 +12,18 @@ from selene_formats.trace import Trace as VersionedTrace
 from selene_sim import Stim, DepolarizingErrorModel, SoftRZRuntime
 from selene_sim.build import build
 from selene_sim.event_hooks import CircuitExtractor
-from selene_sim.event_hooks.instruction_log import CustomOperation, QAlloc, Source
-from selene_sim.result_handling.data_stream import FileStream
-from selene_sim.result_handling.result_stream import ResultStream
+from selene_formats.trace import (
+    CustomEvent,
+    EventRecord,
+    OpaquePayload,
+    UserProgramSource,
+)
+from selene_formats.trace_stream import write_trace_stream
 
 
 @pytest.mark.parametrize("tag", [42, 2**64 - 1])
 @pytest.mark.parametrize("data", [b"", b"\xfb\xff"])
-def test_legacy_trace_metadata_round_trip(tag, data):
+def test_legacy_trace_metadata_round_trip(tmp_path, tag, data):
     class DownstreamTrace(BaseModel):
         model_config = ConfigDict(extra="forbid")
         events: list[dict]
@@ -35,7 +38,17 @@ def test_legacy_trace_metadata_round_trip(tag, data):
 
     extractor = CircuitExtractor()
     extractor.on_new_shot()
-    extractor.try_invoke("INSTRUCTIONLOG", [Source.USER.value, 9, tag, data])
+    path = tmp_path / "trace.msgpack.gz"
+    write_trace_stream(
+        path,
+        [
+            EventRecord(
+                source=UserProgramSource(index=0),
+                event=CustomEvent(payload=OpaquePayload(tag=tag, data=data)),
+            )
+        ],
+    )
+    extractor.try_invoke("TRACE", [str(path)])
     trace = extractor.shots[0].get_trace()
     stringified_trace = trace.model_dump_json(indent=2)
     metadata = (
@@ -90,42 +103,6 @@ def test_selene_trace_retains_strict_validation():
 
     with pytest.raises(ValidationError):
         GateEvent(gate_name="ClassicalDelay", params=[2**60])
-
-
-@pytest.mark.parametrize("data", [b"", b"\xff", b"\x00\x03\xff"])
-@pytest.mark.parametrize("source", list(Source))
-def test_custom_trace_with_optional_data(tmp_path, data, source):
-    def uint(value):
-        return struct.pack("<HHQ", ResultStream.UINT_TAG, 0, value)
-
-    prefix = uint(source.value)
-    if source == Source.SIMULATOR:
-        prefix += uint(123)
-    tag = b"INSTRUCTIONLOG"
-    record = struct.pack("<QHH", 0, ResultStream.STR_TAG, len(tag)) + tag
-    record += prefix + uint(9) + uint(42)
-    record += struct.pack("<HHB", ResultStream.BIT_TAG, 0, bool(data))
-    if data:
-        record += struct.pack("<HH", ResultStream.BYTE_TAG, len(data)) + data
-    # We follow the custom op with an allocation so reading a nonexistent
-    # payload would steal its source and break the next instruction.
-    record += prefix + uint(1) + uint(7)
-    record += struct.pack("<HHQ", 0, 0, ResultStream.EOS)
-    recording = tmp_path / "custom-trace.bin"
-    recording.write_bytes(record)
-    transport = FileStream(recording)
-    extractor = CircuitExtractor()
-    extractor.on_new_shot()
-    try:
-        for entry in ResultStream(transport):
-            assert extractor.try_invoke(entry.tag, entry.values)
-    finally:
-        transport.handle.close()
-
-    custom, allocation = list(extractor.shots[0])
-    assert custom.source == allocation.source == source
-    assert custom.operation == CustomOperation(tag=42, data=data)
-    assert allocation.operation == QAlloc(qubit=7)
 
 
 @pytest.mark.parametrize("seed_mode", ["default", "legacy"])
