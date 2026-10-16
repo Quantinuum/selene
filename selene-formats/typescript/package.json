@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quantinuum/selene.git",
+    "url": "https://github.com/Quantinuum/selene.git",
     "directory": "selene-formats/typescript"
   },
   "type": "module",
