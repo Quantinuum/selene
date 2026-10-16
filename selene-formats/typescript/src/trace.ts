@@ -312,7 +312,7 @@ export function parseTraceDocument(value: unknown): TraceDocument {
   return TraceDocumentSchema.parse(value);
 }
 
-function normalizeLosslessJson(value: unknown, legacy: boolean): unknown {
+function normalizeLosslessJson(value: unknown): unknown {
   if (isLosslessNumber(value)) {
     const converted = value.valueOf();
     if (typeof converted === "bigint") {
@@ -322,7 +322,7 @@ function normalizeLosslessJson(value: unknown, legacy: boolean): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => normalizeLosslessJson(item, legacy));
+    return value.map((item) => normalizeLosslessJson(item));
   }
 
   if (!isObject(value)) {
@@ -331,13 +331,30 @@ function normalizeLosslessJson(value: unknown, legacy: boolean): unknown {
 
   const normalized: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
-    if (
-      legacy &&
-      value.kind === "OpaquePayload" &&
-      key === "tag" &&
-      isLosslessNumber(child)
-    ) {
-      const decimal = child.toString();
+    normalized[key] = normalizeLosslessJson(child);
+  }
+  return normalized;
+}
+
+function normalizeTraceJson(value: unknown): unknown {
+  if (isObject(value) && !("schema_version" in value) && Array.isArray(value.events)) {
+    for (const record of value.events) {
+      if (
+        !isObject(record) ||
+        !isObject(record.event) ||
+        record.event.kind !== "Custom"
+      ) {
+        continue;
+      }
+      const payload = record.event.payload;
+      if (
+        !isObject(payload) ||
+        payload.kind !== "OpaquePayload" ||
+        !isLosslessNumber(payload.tag)
+      ) {
+        continue;
+      }
+      const decimal = payload.tag.toString();
       if (!/^(0|[1-9][0-9]*)$/.test(decimal)) {
         throw new RangeError("legacy OpaquePayload.tag must be an unsigned JSON integer");
       }
@@ -345,26 +362,22 @@ function normalizeLosslessJson(value: unknown, legacy: boolean): unknown {
       if (tag > UINT64_MAX) {
         throw new RangeError("legacy OpaquePayload.tag exceeds the uint64 range");
       }
-      normalized[key] = tag;
-    } else {
-      normalized[key] = normalizeLosslessJson(child, legacy);
+      payload.tag = tag;
     }
   }
-  return normalized;
+  return normalizeLosslessJson(value);
 }
 
 /** Parse trace JSON while preserving a legacy numeric opaque-payload tag. */
 export function parseTraceJson(json: string): Trace {
   const parsed = parseLosslessJson(json);
-  const legacy = isObject(parsed) && !("schema_version" in parsed);
-  return parseTrace(normalizeLosslessJson(parsed, legacy));
+  return parseTrace(normalizeTraceJson(parsed));
 }
 
 /** Parse trace-document JSON while preserving a legacy numeric opaque tag. */
 export function parseTraceDocumentJson(json: string): TraceDocument {
   const parsed = parseLosslessJson(json);
-  const legacy = isObject(parsed) && !("schema_version" in parsed);
-  return parseTraceDocument(normalizeLosslessJson(parsed, legacy));
+  return parseTraceDocument(normalizeTraceJson(parsed));
 }
 
 /** Validate a JSON-compatible value as a Selene trace without throwing. */

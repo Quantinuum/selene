@@ -354,6 +354,31 @@ test("legacy JSON preserves an unsafe numeric opaque-payload tag", () => {
   );
 });
 
+for (const parser of [trace.parseTraceJson, trace.parseTraceDocumentJson]) {
+  for (const tag of [42, -1]) {
+    test(`${parser.name} preserves opaque-looking key-value metadata with tag ${tag}`, () => {
+      const data = { kind: "OpaquePayload", tag };
+      const input = {
+        events: [{
+          source: { kind: "UserProgram", index: 0 },
+          event: {
+            kind: "Custom",
+            payload: { kind: "KeyValuePairPayload", data },
+          },
+        }],
+      };
+      const parsed = parser(JSON.stringify(input));
+      assert.deepEqual(parsed, trace.parseTrace(input));
+      assert.deepEqual(parsed.events[0].event.payload.data, data);
+    });
+  }
+
+  test(`${parser.name} preserves the maximum legacy opaque tag`, () => {
+    const json = '{"events":[{"source":{"kind":"UserProgram","index":0},"event":{"kind":"Custom","payload":{"kind":"OpaquePayload","tag":18446744073709551615,"data":""}}}]}';
+    assert.equal(parser(json).events[0].event.payload.tag, trace.UINT64_MAX);
+  });
+}
+
 test("the JSON Schema uint64 pattern enforces the bound in JavaScript", () => {
   const schema = JSON.parse(readFileSync(
     new URL("../../schemas/trace/0.1.0.schema.json", import.meta.url), "utf8",
