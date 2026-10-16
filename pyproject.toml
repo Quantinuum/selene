@@ -226,14 +226,16 @@ before-test = '''
         # make sure the cache is readable by the host
         chmod -R a+rX /host/tmp/ci-cache/selene
     fi;
-    uv pip install ./selene-core;
+    # Install both packages from this checkout so we can test model changes
+    # before publishing a new selene-api-models release.
+    uv pip install --no-sources ./selene-trace ./selene-core;
 '''
 [tool.cibuildwheel.macos.environment]
 PATH = "$PATH:$HOME/.cargo/bin:${HUGRENV_PATH}"
 MACOSX_DEPLOYMENT_TARGET = "12.0"
 [tool.cibuildwheel.macos]
 before-test = [
-    'uv pip install ./selene-core'
+    'uv pip install --no-sources ./selene-trace ./selene-core'
 ]
 
 [tool.cibuildwheel.windows.environment]
@@ -248,5 +250,5 @@ before-all = [
     'rustup target add x86_64-pc-windows-gnu'
 ]
 before-test = [
-    'uv pip install ./selene-core'
+    'uv pip install --no-sources ./selene-trace ./selene-core'
 ]

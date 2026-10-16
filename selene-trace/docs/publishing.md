@@ -11,3 +11,8 @@ publishes all three distributions. Releases are coordinated but not atomic.
 
 The binding packages share one version, which remains independent from a trace
 document's `schema_version`.
+
+Selene's wheel tests install the Python API models directly from
+`selene-trace/`, alongside `selene-core/`. This lets us test model changes
+before publishing a new API models release. `just build-ci` uses the same
+installation steps locally through cibuildwheel. Run it inside devenv.

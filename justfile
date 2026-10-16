@@ -96,4 +96,4 @@ build-ci:
     mkdir -p /tmp/ci-cache
     export CACHE_CARGO=true
     uv build --package selene-core --out-dir wheelhouse
-    uvx cibuildwheel .
+    uvx cibuildwheel==3.4.1 .
