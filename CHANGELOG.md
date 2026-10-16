@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.5...selene-sim-v0.3.6) (2026-10-16)
+
+
+### Bug Fixes
+
+* package json url fix ([#251](https://github.com/Quantinuum/selene/issues/251)) ([d2cf749](https://github.com/Quantinuum/selene/commit/d2cf74933b75a5e5ac4a530ed88c8b02902a57db))
+
 ## [0.3.5](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.4...selene-sim-v0.3.5) (2026-10-16)
 
 
