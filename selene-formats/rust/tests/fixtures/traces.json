@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1.0",
+  "traces": [
+    {
+      "events": []
+    },
+    {
+      "events": [
+        {
+          "source": {
+            "kind": "UserProgram",
+            "index": 0
+          },
+          "event": {
+            "kind": "Measurement",
+            "qubit": 0
+          }
+        }
+      ]
+    }
+  ]
+}

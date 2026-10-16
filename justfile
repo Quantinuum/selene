@@ -12,11 +12,20 @@ clean-artifacts:
 build-wheels:
     uv run --no-project python scripts/build_wheels.py
 
-test-py *TEST_ARGS: develop
-    uv run pytest {{TEST_ARGS}}
+test-py *TEST_ARGS:
+    uv run --locked --all-packages --all-groups pytest {{TEST_ARGS}}
 
 test-rs *TEST_ARGS:
     uv run cargo test {{TEST_ARGS}}
+
+test-ts:
+    pnpm install --frozen-lockfile
+    pnpm --filter @quantinuum/selene-formats test
+
+test-formats:
+    uv run --locked --package selene-formats --group test pytest selene-formats/python/tests
+    cargo test --package selene-formats
+    just test-ts
 
 nitpicks:
     #!/usr/bin/env bash
@@ -87,4 +96,4 @@ build-ci:
     mkdir -p /tmp/ci-cache
     export CACHE_CARGO=true
     uv build --package selene-core --out-dir wheelhouse
-    uvx cibuildwheel .
+    uvx cibuildwheel==3.4.1 .

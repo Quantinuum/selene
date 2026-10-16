@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "selene-formats/rust",
     "selene-core",
     "selene-sim",
     "selene-ext/simulators/stim",

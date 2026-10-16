@@ -64,11 +64,42 @@
                 {
                     "type": "toml",
                     "path": "Cargo.lock",
-                    "jsonpath": "$.package[?((@.name.value.match(/^selene-/)) && (@.name.value != 'selene-core'))].version"
+                    "jsonpath": "$.package[?((@.name.value.match(/^selene-/)) && (@.name.value != 'selene-core') && (@.name.value != 'selene-formats'))].version"
                 },
                 {
                     "type": "generic",
                     "path": "/selene-sim/python/selene_sim/__init__.py"
+                }
+            ]
+        },
+        "selene-formats": {
+            "release-type": "python",
+            "package-name": "selene-formats",
+            "component": "selene-formats",
+            "draft": false,
+            "versioning": "default",
+            "prerelease": false,
+            "draft-pull-request": true,
+            "extra-files": [
+                {
+                    "type": "toml",
+                    "path": "rust/Cargo.toml",
+                    "jsonpath": "$.package.version"
+                },
+                {
+                    "type": "json",
+                    "path": "typescript/package.json",
+                    "jsonpath": "$.version"
+                },
+                {
+                    "type": "toml",
+                    "path": "/Cargo.lock",
+                    "jsonpath": "$.package[?(@.name.value=='selene-formats')].version"
+                },
+                {
+                    "type": "toml",
+                    "path": "/uv.lock",
+                    "jsonpath": "$.package[?(@.name.value=='selene-formats')].version"
                 }
             ]
         }
