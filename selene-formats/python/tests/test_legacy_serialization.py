@@ -4,10 +4,12 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ValidationError
+from pydantic_core import PydanticSerializationError
 
 from selene_formats import get_legacy_trace_schema
 from selene_formats.trace import (
     SCHEMA_VERSION,
+    MAX_SAFE_INTEGER,
     CustomEvent,
     GateEvent,
     LegacyTrace,
@@ -86,3 +88,42 @@ def test_legacy_serialization_respects_field_exclusions():
         mode="json", exclude={"events": {0: {"event": {"payload": {"kind"}}}}}
     )
     assert document["events"][0]["event"]["payload"] == {"tag": 42, "data": ""}
+
+
+@pytest.mark.parametrize("mode", ["python", "json", "json_text", "nested"])
+@pytest.mark.parametrize("mutation", ["index", "params", "qubits", "tag"])
+def test_legacy_serialization_revalidates_mutated_models(mode, mutation):
+    trace = LegacyTrace()
+    gate = GateEvent(gate_name="H", qubits=[0], params=[0])
+    payload = OpaquePayload(tag=42, data=b"")
+    trace.add_user_program_event(gate, 0)
+    trace.add_user_program_event(CustomEvent(payload=payload), 1)
+
+    if mutation == "index":
+        trace.events[0].source.index = -1
+    elif mutation == "params":
+        gate.params.append(MAX_SAFE_INTEGER + 1)
+    elif mutation == "qubits":
+        gate.qubits[0] = -1
+    else:
+        payload.tag = 2**64
+
+    class Container(BaseModel):
+        trace: LegacyTrace
+
+    with pytest.raises(PydanticSerializationError, match="ValidationError"):
+        if mode == "json_text":
+            trace.model_dump_json()
+        elif mode == "nested":
+            Container(trace=trace).model_dump_json()
+        else:
+            trace.model_dump(mode=mode)
+
+
+def test_legacy_serialization_validates_excluded_mutated_fields():
+    trace = LegacyTrace()
+    trace.add_user_program_event(GateEvent(gate_name="H"), 0)
+    trace.events[0].source.index = -1
+
+    with pytest.raises(PydanticSerializationError, match="ValidationError"):
+        trace.model_dump(mode="json", exclude={"events"})

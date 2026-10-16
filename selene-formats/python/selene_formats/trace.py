@@ -357,6 +357,7 @@ class LegacyTrace(Trace):
 
     Validation uses the current protocol's bounds. Opaque tags remain integers
     in JSON, and the internal schema version is omitted from serialized output.
+    Serialization revalidates nested fields, including mutations after construction.
     """
 
     schema_version: Literal["0.1.0"] = SCHEMA_VERSION
@@ -372,6 +373,8 @@ class LegacyTrace(Trace):
     def _write_legacy(
         self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
     ) -> dict[str, Any]:
+        current = Trace(schema_version=self.schema_version, events=self.events)
+        Trace.model_validate(current.model_dump(mode="python", warnings=False))
         document = handler(self)
         document.pop("schema_version", None)
         if info.mode == "json":
