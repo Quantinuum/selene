@@ -1,10 +1,10 @@
 [package]
-name = "selene-api-models"
+name = "selene-formats"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "Selene API models for Rust"
+description = "Selene formats for Rust"
 readme = "README.md"
 repository.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ keywords = ["quantum", "trace", "serialization"]
 categories = ["encoding", "science"]
 
 [lib]
-name = "selene_api_models"
+name = "selene_formats"
 path = "src/lib.rs"
 
 [dependencies]

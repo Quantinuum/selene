@@ -1,13 +1,13 @@
-# @quantinuum/selene-api-models
+# @quantinuum/selene-formats
 
 TypeScript types for the versioned, serializable Selene trace protocol. See the
-protocol documentation and JSON Schema in the repository's `selene-trace/`
+protocol documentation and JSON Schema in the repository's `selene-formats/`
 directory.
 
 Trace types, Zod schemas, and helpers are exported from the `trace` namespace:
 
 ```ts
-import { trace } from "@quantinuum/selene-api-models";
+import { trace } from "@quantinuum/selene-formats";
 
 const document = trace.parseTrace(value); // Throws ZodError if invalid.
 const fromJson = trace.parseTraceJson(jsonText); // Also handles legacy traces.
@@ -42,11 +42,11 @@ have no legacy format.
 From the repository root, build the package with the project-managed tooling:
 
 ```sh
-devenv shell -- pnpm --dir selene-trace/typescript build
+devenv shell -- pnpm --dir selene-formats/typescript build
 ```
 
 Run the package tests with:
 
 ```sh
-devenv shell -- pnpm --dir selene-trace/typescript test
+devenv shell -- pnpm --dir selene-formats/typescript test
 ```

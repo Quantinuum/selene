@@ -1,4 +1,4 @@
-"""Selene API models for Python."""
+"""Selene formats for Python."""
 
 from . import trace
 from .schema import get_legacy_trace_schema, get_trace_schema

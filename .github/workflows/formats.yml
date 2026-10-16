@@ -1,22 +1,22 @@
-name: API model packages
+name: Formats packages
 
 on:
   pull_request:
     paths:
-      - ".github/workflows/api_models.yml"
+      - ".github/workflows/formats.yml"
       - "Cargo.lock"
       - "Cargo.toml"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "pyproject.toml"
-      - "selene-trace/**"
+      - "selene-formats/**"
       - "uv.lock"
   push:
     branches:
       - main
       - 0.3-series
     tags:
-      - "selene-api-models-v*"
+      - "selene-formats-v*"
   workflow_dispatch:
 
 permissions:
@@ -32,13 +32,13 @@ jobs:
         with:
           enable-cache: true
       - name: Test
-        run: uv run --locked --package selene-api-models --group test pytest selene-trace/python/tests
+        run: uv run --locked --package selene-formats --group test pytest selene-formats/python/tests
       - name: Build distributions
-        run: uv build --package selene-api-models --out-dir dist/python
+        run: uv build --package selene-formats --out-dir dist/python
       - name: Upload distributions
         uses: actions/upload-artifact@v7
         with:
-          name: selene-api-models-python
+          name: selene-formats-python
           path: dist/python/*
           if-no-files-found: error
 
@@ -49,14 +49,14 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
-        run: cargo test --package selene-api-models
+        run: cargo test --package selene-formats
       - name: Package
-        run: cargo package --allow-dirty --package selene-api-models
+        run: cargo package --allow-dirty --package selene-formats
       - name: Test packaged crate
         run: |
           package_dir="$(mktemp -d)"
-          tar -xzf target/package/selene-api-models-*.crate -C "$package_dir"
-          cargo test --manifest-path "$package_dir"/selene-api-models-*/Cargo.toml
+          tar -xzf target/package/selene-formats-*.crate -C "$package_dir"
+          cargo test --manifest-path "$package_dir"/selene-formats-*/Cargo.toml
 
   typescript:
     name: TypeScript
@@ -74,37 +74,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Test
-        run: pnpm --dir selene-trace/typescript test
+        run: pnpm --dir selene-formats/typescript test
       - name: Prepare package directory
         run: mkdir -p dist/typescript
       - name: Package
-        run: pnpm --dir selene-trace/typescript pack --pack-destination "$GITHUB_WORKSPACE/dist/typescript"
+        run: pnpm --dir selene-formats/typescript pack --pack-destination "$GITHUB_WORKSPACE/dist/typescript"
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
-          name: selene-api-models-typescript
+          name: selene-formats-typescript
           path: dist/typescript/*
           if-no-files-found: error
 
   verify-release-version:
     name: Verify shared release version
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-formats-v')
     needs: [python, rust, typescript]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - name: Check package versions match the tag
         run: |
-          expected_version="${GITHUB_REF_NAME#selene-api-models-v}"
-          package_version="$(python3 selene-trace/scripts/check_package_versions.py)"
+          expected_version="${GITHUB_REF_NAME#selene-formats-v}"
+          package_version="$(python3 selene-formats/scripts/check_package_versions.py)"
           if [ "$package_version" != "$expected_version" ]; then
-            echo "Release tag requires version $expected_version in every API-model package; found $package_version" >&2
+            echo "Release tag requires version $expected_version in every Formats package; found $package_version" >&2
             exit 1
           fi
 
   publish-python:
     name: Publish Python package
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-formats-v')
     needs: [verify-release-version]
     runs-on: ubuntu-latest
     permissions:
@@ -112,7 +112,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: selene-api-models-python
+          name: selene-formats-python
           path: dist
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -120,20 +120,20 @@ jobs:
 
   publish-rust:
     name: Publish Rust crate
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-formats-v')
     needs: [verify-release-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Publish
-        run: cargo publish --package selene-api-models
+        run: cargo publish --package selene-formats
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   publish-typescript:
     name: Publish TypeScript package
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-api-models-v')
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'selene-formats-v')
     needs: [verify-release-version]
     runs-on: ubuntu-latest
     permissions:
@@ -154,5 +154,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Publish
-        working-directory: selene-trace/typescript
+        working-directory: selene-formats/typescript
         run: npm publish --access public

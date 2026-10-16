@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
-from selene_api_models.trace import (
+from selene_formats.trace import (
     MAX_SAFE_INTEGER,
     SCHEMA_VERSION,
     ErrorModelSource,

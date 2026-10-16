@@ -1,6 +1,6 @@
-# Selene Trace
+# Selene Formats
 
-`selene-trace` contains the schemas, documentation, examples, and language
+`selene-formats` contains the schemas, documentation, examples, and language
 models for Selene's public serialized traces. It has no dependency on the
 emulator.
 
@@ -25,10 +25,10 @@ Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.
 
 ## Bindings
 
-* Python: [`python/`](python) publishes the `selene-api-models` distribution and is
-  imported as `selene_api_models`.
-* Rust: [`rust/`](rust) publishes the `selene-api-models` crate.
-* TypeScript: [`typescript/`](typescript) publishes the `@quantinuum/selene-api-models`
+* Python: [`python/`](python) publishes the `selene-formats` distribution and is
+  imported as `selene_formats`.
+* Rust: [`rust/`](rust) publishes the `selene-formats` crate.
+* TypeScript: [`typescript/`](typescript) publishes the `@quantinuum/selene-formats`
   package.
 
 The binding release process is described in [`docs/publishing.md`](docs/publishing.md).

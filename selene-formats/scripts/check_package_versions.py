@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the shared API-model package version, or fail if versions differ."""
+"""Print the shared formats package version, or fail if versions differ."""
 
 import json
 import tomllib
@@ -21,7 +21,7 @@ def main() -> None:
     }
     if len(set(versions.values())) != 1:
         raise SystemExit(
-            "API-model package versions must match; "
+            "Formats package versions must match; "
             + ", ".join(f"{name}={version}" for name, version in versions.items())
         )
     print(versions["Python"])

@@ -5,8 +5,8 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 from pydantic import TypeAdapter
-from selene_api_models import get_legacy_trace_schema, get_trace_schema
-from selene_api_models.trace import (
+from selene_formats import get_legacy_trace_schema, get_trace_schema
+from selene_formats.trace import (
     MAX_UINT64,
     OpaquePayload,
     TraceDocument,

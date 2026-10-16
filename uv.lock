@@ -14,7 +14,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "selene-api-models",
+    "selene-formats",
     "selene-core",
     "selene-sim",
 ]
@@ -1899,9 +1899,9 @@ wheels = [
 ]
 
 [[package]]
-name = "selene-api-models"
+name = "selene-formats"
 version = "0.1.0"
-source = { editable = "selene-trace" }
+source = { editable = "selene-formats" }
 dependencies = [
     { name = "pydantic" },
 ]
@@ -1935,7 +1935,7 @@ dependencies = [
     { name = "networkx", version = "3.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pydot" },
     { name = "pyyaml" },
-    { name = "selene-api-models" },
+    { name = "selene-formats" },
     { name = "typing-extensions" },
     { name = "ziglang" },
 ]
@@ -1954,7 +1954,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=2.6,<4" },
     { name = "pydot", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=5.0" },
-    { name = "selene-api-models", editable = "selene-trace" },
+    { name = "selene-formats", editable = "selene-formats" },
     { name = "typing-extensions", specifier = ">=4" },
     { name = "ziglang", specifier = "~=0.16.0" },
 ]

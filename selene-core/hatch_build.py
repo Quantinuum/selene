@@ -18,7 +18,7 @@ class SeleneCoreBuildHook(BuildHookInterface):
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         schema_source = Path("trace_schema/trace.json")
         if not schema_source.exists():
-            schema_source = Path("../selene-trace/schemas/trace/legacy.schema.json")
+            schema_source = Path("../selene-formats/schemas/trace/legacy.schema.json")
         shutil.copy2(schema_source, schema_path)
 
         shutil.copytree(Path("c/include"), dist_dir / "include")

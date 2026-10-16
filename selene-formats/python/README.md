@@ -1,11 +1,11 @@
-# selene-api-models for Python
+# selene-formats for Python
 
 Python models for the versioned, serializable Selene trace protocol. See the
-protocol documentation and JSON Schema in the repository's `selene-trace/`
+protocol documentation and JSON Schema in the repository's `selene-formats/`
 directory.
 
 ```python
-from selene_api_models.trace import (
+from selene_formats.trace import (
     SCHEMA_VERSION,
     Trace,
     TraceData,

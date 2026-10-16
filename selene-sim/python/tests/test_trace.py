@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from selene_core.trace import Trace, GateEvent, parse_trace, parse_trace_json
-from selene_api_models.trace import Trace as VersionedTrace
+from selene_formats.trace import Trace as VersionedTrace
 
 from selene_sim import Stim, DepolarizingErrorModel, SoftRZRuntime
 from selene_sim.build import build

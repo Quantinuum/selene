@@ -7,7 +7,7 @@ Selene currently emits trace documents without a `schema_version` through
 for indices, qubit IDs, timestamps, durations, and `OpaquePayload.tag`.
 
 A missing `schema_version` identifies this format. Producers using the
-`selene-api-models` packages emit the versioned format by default and also support
+`selene-formats` packages emit the versioned format by default and also support
 legacy serialization for singular traces. Their adapters validate legacy input
 and upgrade it to the current in-memory model. Legacy output omits
 `schema_version` and serializes opaque tags as JSON integers; current validation

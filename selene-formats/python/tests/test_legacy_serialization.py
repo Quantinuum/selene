@@ -5,8 +5,8 @@ import pytest
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ValidationError
 
-from selene_api_models import get_legacy_trace_schema
-from selene_api_models.trace import (
+from selene_formats import get_legacy_trace_schema
+from selene_formats.trace import (
     SCHEMA_VERSION,
     CustomEvent,
     GateEvent,

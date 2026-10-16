@@ -12,7 +12,7 @@ from typing import Any
 
 
 def _get_trace_schema_file(filename: str) -> Traversable:
-    schema_file = files("selene_api_models").joinpath(f"schemas/trace/{filename}")
+    schema_file = files("selene_formats").joinpath(f"schemas/trace/{filename}")
     if not schema_file.is_file():
         # The canonical schema lives outside the Python package in a source
         # checkout and is force-included when building a distribution.

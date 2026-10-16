@@ -1,11 +1,11 @@
 """Selene trace models with strict validation and legacy serialization.
 
-Use :mod:`selene_api_models.trace` for versioned trace output.
+Use :mod:`selene_formats.trace` for versioned trace output.
 """
 
 from typing import Any
 
-from selene_api_models.trace import (
+from selene_formats.trace import (
     SCHEMA_VERSION,
     AbstractEvent,
     CustomEvent,

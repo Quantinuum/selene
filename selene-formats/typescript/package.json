@@ -1,13 +1,13 @@
 {
-  "name": "@quantinuum/selene-api-models",
+  "name": "@quantinuum/selene-formats",
   "version": "0.1.0",
-  "description": "Selene API models for TypeScript",
+  "description": "Selene formats for TypeScript",
   "readme": "README.md",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/quantinuum/selene.git",
-    "directory": "selene-trace/typescript"
+    "directory": "selene-formats/typescript"
   },
   "type": "module",
   "main": "./dist/index.js",
