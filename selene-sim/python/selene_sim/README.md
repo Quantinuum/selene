@@ -26,6 +26,13 @@ And we offer two example quantum runtimes, including:
 - Simple, which executes the program as-is, without any modifications
 - SoftRZ, which elides Z rotations through RXY gates, providing the same observable behaviour with fewer quantum operations
 
+## Installation
+
+Run `pip install selene-sim` for the frontend and bundled simulation components.
+For HUGR inputs, install `selene-sim[hugr]`; for QIR inputs, install
+`selene-sim[qir]`. Install `selene-sim[hugr,qir]` to support both formats.
+Already-lowered QIS LLVM IR, bitcode, and object files require neither toolchain.
+
 ## Usage example
 
 Although examples are provided in our [tests](https://github.com/quantinuum/selene/tree/main/selene-sim/python/tests) folder, here is a quick walkthrough to get you started with Selene, HUGR and Guppy.

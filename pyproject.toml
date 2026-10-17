@@ -14,8 +14,6 @@ dependencies = [
   "selene-core~=0.3.2",
   "selene-formats~=0.1.0",
   "tqdm>=4.67.1",
-  # TODO: decide if we want this as a formal dependency or not
-  #"selene-hugr-qis-compiler~=0.3.0", 
 ]
 authors = [
   { name = "Jake Arkinstall", email = "jake.arkinstall@quantinuum.com" },
@@ -45,8 +43,13 @@ classifiers = [
 [project.urls]
 repository = "https://github.com/quantinuum/selene"
 
+[project.optional-dependencies]
+hugr = ["selene-core[hugr]~=0.3.2", "selene-hugr-qis-compiler>=0.3.0"]
+qir = ["selene-core[qir]~=0.3.2"]
+
 [dependency-groups]
 test = [
+  "hugr~=0.16.0",
   "jsonschema>=4.23",
   "pytest-snapshot~=0.9.0",
   "pytest>=8.3.5",
@@ -54,7 +57,6 @@ test = [
   "qir-qis~=0.1.6",
 ]
 dev = [
-  "hugr~=0.16.0",
   "mypy>=1.14.1",
   "ruff~=0.15.0",
   "types-pyyaml>=6.0.12.20250402",
