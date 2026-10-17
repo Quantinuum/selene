@@ -10,7 +10,8 @@ on:
       - main
       - 0.3-series
     tags:
-      - "*"
+      - "selene-core-v*"
+      - "selene-sim-v*"
   workflow_dispatch:
 
 permissions:
@@ -20,6 +21,28 @@ env:
   CARGO_TERM_COLOR: always
   CACHE_CARGO: true
 jobs:
+  build_selene_formats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
+      - name: Build selene-formats wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build --wheel --outdir wheelhouse selene-formats
+
+      - name: Upload selene-formats wheel
+        uses: actions/upload-artifact@v7
+        with:
+          name: selene-formats
+          path: wheelhouse/selene_formats-*.whl
+          if-no-files-found: error
+
   build_selene_core:
     runs-on: ubuntu-latest
     outputs:
@@ -32,7 +55,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: wheelhouse/selene_core-*.whl
-          key: selene-core-wheel-cache-${{ hashFiles('selene-core/**') }}
+          key: selene-core-wheel-cache-${{ hashFiles('selene-core/**', 'selene-formats/schemas/**') }}
 
       ##################################################################
       #
@@ -48,7 +71,7 @@ jobs:
 
       - name: "Set up Python"
         if: steps.selene_core_wheel_cache.outputs.cache-hit != 'true'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.10'
 
@@ -90,7 +113,7 @@ jobs:
 
       - name: Set up UV
         if: ${{ matrix.os != 'ubuntu-latest' }}
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
 
@@ -178,6 +201,7 @@ jobs:
 
   test_install:
     needs:
+      - build_selene_formats
       - build_selene_core
       - build_selene_sim
     strategy:
@@ -215,10 +239,16 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+
+      - name: Download selene-formats wheel
+        uses: actions/download-artifact@v8
+        with:
+          name: selene-formats
+          path: wheelhouse
 
       - name: Download selene-core wheel
         uses: actions/download-artifact@v8
@@ -233,7 +263,7 @@ jobs:
           path: wheelhouse
 
       - name: Install wheels and check dependencies
-        # Install both wheels from this run so we also test changes to selene-core.
+        # Install all three wheels from this run to test the current packages together.
         # If a dependency doesn't have a compatible wheel, we should fail here
         # rather than building it from source in the install test.
         run: |
@@ -303,7 +333,7 @@ jobs:
 
       - name: Setup Python
         if: ${{ steps.check-tag.outputs.run == 'true' }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: 3.12
 

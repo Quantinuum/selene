@@ -7,6 +7,7 @@ from .event_hook import EventHook, NoEventHook, MultiEventHook
 from .instruction_log import CircuitExtractor
 from .metrics import MetricStore
 from .measurement_log import MeasurementExtractor
+from .trace_store import TraceStore
 
 __all__ = [
     "EventHook",
@@ -15,4 +16,5 @@ __all__ = [
     "CircuitExtractor",
     "MetricStore",
     "MeasurementExtractor",
+    "TraceStore",
 ]
