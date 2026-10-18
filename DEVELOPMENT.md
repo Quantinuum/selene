@@ -22,11 +22,14 @@ Directories are structured as follows:
 - `./selene-sim`: The main Selene library, providing the emulation library and the main entry
              point for the emulator.
 - `./selene-ext`: Plugins to be bundled into selene, such as simulators, error models, etc.
+- `./selene-formats`: Public trace schemas, examples, and standalone Python, Rust,
+             and TypeScript bindings, which do not depend on the emulator.
 
-Each library has a compiled component and a python component. Contrary to typical projects
-which mix compiled code and python code, selene does *not* compile libraries as python
-extensions. Instead, it bundles the compiled libraries within python wheels as a distribution
-mechanism, and provides the functionality for using them to achieve emulation.
+The core, simulator, and plugin libraries have a compiled component and a python
+component. Contrary to typical projects which mix compiled code and python code,
+selene does *not* compile libraries as python extensions. Instead, it bundles the
+compiled libraries within python wheels as a distribution mechanism, and provides
+the functionality for using them to achieve emulation.
 
 The python modules for extensions are presently lightweight: they define arguments for their
 respective components, validate user inputs, format them in a manner suitable for passing
@@ -51,6 +54,7 @@ This development shell provides the following:
 
 - A stable rust toolchain (with rustc, cargo, clippy, rustfmt, and cbindgen)
 - A python toolchain (with uv)
+- Node.js and pnpm (for the TypeScript formats package)
 - Just (for running the justfile)
 - gcc and libclang (for build stages)
 - git hooks for pre-commit checks
@@ -59,11 +63,14 @@ Alternatively, you can install the required dependencies manually. The following
 required:
 
 - uv >= 0.6
-- rust >= 1.85 with the stable toolchain
+- The Rust toolchain specified in `rust-toolchain.toml`
 - cbindgen ~= 0.28
 - cargo-expand ~= 1.0
 - cmake
 - just
+
+To work on the TypeScript formats package, also install Node.js 22 and pnpm 10,
+matching the formats test workflow in CI.
 
 The build bundles LLVM tools from [Hugrenv](https://github.com/Quantinuum/hugrverse-env)
 for stack traces, at the version pinned in `hugrenv.lock`. The devenv shell provides
@@ -114,6 +121,7 @@ the name of the crate you want to build. Likewise, to test a specific create, yo
 
 - selene-core
 - selene-sim
+- selene-formats
 - selene-simulator-stim
 - selene-simulator-quest
 - selene-simulator-coinflip
@@ -155,8 +163,10 @@ just nitpicks
 
 ### Running tests
 
-At current, python tests are confined to the selene library in the form of integration
-tests from guppy through to simulation. They require the libraries to be built and available
+#### Emulator tests
+
+The emulator's Python tests include integration tests from guppy through to simulation.
+They require the libraries to be built and available
 either as installed in the python environment or locally by activating the python development
 environment.
 
@@ -170,6 +180,37 @@ just test-rs
 When users develop their own plugins, it is likely that they will want to write isolated
 tests of their plugins. We aim to provide a framework for comprehensive testing of plugins
 in future.
+
+#### Formats tests
+
+The `selene-formats` test suites run independently of the emulator. For changes
+to trace schemas, shared examples, or language bindings, run all three language
+suites from the repository root:
+
+```bash
+just test-formats
+```
+
+This runs the Python and Rust formats tests, then `just test-ts`, which installs
+the locked pnpm dependencies and builds and tests the TypeScript package. It
+requires uv, the repository's Rust toolchain, Node.js 22, pnpm 10, and just.
+These suites do not require `just hugrenv` or a native emulator build.
+
+To run one language suite directly, use the corresponding commands below from
+the repository root. The Python command selects the formats package and its test
+dependencies without building the emulator.
+
+| Language | Commands |
+| --- | --- |
+| Python | `uv run --locked --package selene-formats --group test pytest selene-formats/python/tests` |
+| Rust | `cargo test --package selene-formats` |
+| TypeScript | `pnpm install --frozen-lockfile`, then `pnpm --filter @quantinuum/selene-formats test` |
+
+These are the test commands used by the
+[`Formats packages` workflow](.github/workflows/formats.yml), with the TypeScript
+package selected through the workspace filter used by `just test-ts`.
+
+### Regenerating bindings
 
 If you change the Rust interfaces or shipped C headers, regenerate the bindings with:
 

@@ -33,6 +33,12 @@ Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.
 
 The binding release process is described in [`docs/publishing.md`](docs/publishing.md).
 
+## Development
+
+Run `just test-formats` from the repository root to test the Python, Rust, and
+TypeScript bindings. See the [formats testing guide](../DEVELOPMENT.md#formats-tests)
+for prerequisites and commands to run each language suite independently.
+
 ## Trace streams
 
 `trace_stream` in the Python and Rust APIs implements gzipped MessagePack trace
