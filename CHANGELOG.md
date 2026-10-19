@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.6](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.5...selene-sim-v0.3.6) (2026-10-19)
+
+
+### Bug Fixes
+
+* Don't emit sentinel qubit IDs in traces upon failure ([#261](https://github.com/Quantinuum/selene/issues/261)) ([eb8133f](https://github.com/Quantinuum/selene/commit/eb8133f3764958c3a86c49b4a9af00467ee52f78))
+* package json url fix ([#251](https://github.com/Quantinuum/selene/issues/251)) ([d2cf749](https://github.com/Quantinuum/selene/commit/d2cf74933b75a5e5ac4a530ed88c8b02902a57db))
+
 ## [0.3.5](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.4...selene-sim-v0.3.5) (2026-10-16)
 
 
