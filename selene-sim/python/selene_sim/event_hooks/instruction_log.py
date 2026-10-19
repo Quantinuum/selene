@@ -140,11 +140,16 @@ class GlobalBarrier(Operation):
 
 @dataclass
 class QAlloc(Operation):
-    qubit: int
+    """An allocation request, with no qubit if the allocation failed.
+
+    In the trace, a failed request is a QAlloc gate with an empty qubit list.
+    """
+
+    qubit: int | None = None
 
     def append_to_circuit(self, circuit: "pytket.Circuit"):
         assert PYTKET_AVAILABLE, "pytket is not available"
-        if circuit.n_qubits <= self.qubit:
+        if self.qubit is not None and circuit.n_qubits <= self.qubit:
             circuit.add_qubit(pytket.Qubit(self.qubit))
 
     def to_dict(self) -> dict:
