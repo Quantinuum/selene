@@ -1,12 +1,15 @@
 import pytest
+import sys
 from pathlib import Path
 
 import yaml
 from selene_sim.event_hooks import CircuitExtractor, MetricStore, MultiEventHook
-from selene_sim import Quest
+from selene_sim import Quest, ThreadedRuntime
 from selene_sim.build import build
 from selene_helios_qis_plugin import HeliosInterface
 from selene_sol_qis_plugin import SolInterface
+from selene_base_qis_plugin import BaseQISInterface
+from selene_core.build_utils import invoke_zig
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 QIS_RESOURCE_DIR = RESOURCE_DIR / "qis"
@@ -285,3 +288,65 @@ def test_simulate_delay():
             "source": "Source.USER",
         },
     ]
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="The QIS fixture uses POSIX threads."
+)
+@pytest.mark.parametrize("interface", [HeliosInterface, SolInterface])
+def test_qis_from_multiple_program_threads(interface, tmp_path):
+    class ThreadedInterface(interface):
+        @property
+        def link_flags(self):
+            return [*super().link_flags, "-lpthread"]
+
+    qis = ThreadedInterface()
+    program = tmp_path / "threaded.o"
+    # Compile the same program against each QIS's installed headers. Its worker
+    # threads call the QIS functions, so we exercise the actual C shims as well
+    # as libselene and the runtime's separate peripheral thread.
+    invoke_zig(
+        "cc",
+        "-std=c17",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pthread",
+        *(["-DSOL_QIS"] if isinstance(qis, SolInterface) else []),
+        "-I",
+        BaseQISInterface().library_file.parent.parent / "include",
+        "-I",
+        qis.library_file.parent.parent / "include",
+        "-c",
+        QIS_RESOURCE_DIR / "threaded.c",
+        "-o",
+        program,
+        cache_dir=tmp_path / "zig-cache",
+    )
+    runner = build(program, interface=qis, build_dir=tmp_path / "build")
+    shots = [
+        list(shot)
+        for shot in runner.run_shots(
+            Quest(), runtime=ThreadedRuntime(), n_qubits=4, n_shots=3, timeout=30.0
+        )
+    ]
+    assert len(shots) == 3
+    for shot in shots:
+        assert len(shot) == 4 * 32 + 4 + 1
+        assert shot[-1] == ("joined", 4)
+        for worker in range(4):
+            # Threads may interleave, but each caller's records should remain
+            # complete and in order. Workers alternate between zero and one,
+            # then use their measurement to bring the qubit back to zero.
+            assert [value for tag, value in shot if tag == f"worker_{worker}"] == [
+                [round, (worker + round) % 2, 0] for round in range(32)
+            ]
+
+        # No worker measures until all four state requests have returned. These
+        # snapshots therefore check the forced borrow through the QIS, rather
+        # than observing gates that a measurement has already forced to execute.
+        states = Quest.extract_states_dict(shot)
+        assert set(states) == {f"state_{worker}" for worker in range(4)}
+        for worker in range(4):
+            density = states[f"state_{worker}"].get_density_matrix()
+            assert density[worker % 2, worker % 2] == pytest.approx(1)
