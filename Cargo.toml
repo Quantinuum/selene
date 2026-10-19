@@ -10,6 +10,7 @@ members = [
     "selene-ext/simulators/classical-replay",
     "selene-ext/simulators/quantum-replay",
     "selene-ext/runtimes/simple",
+    "selene-ext/runtimes/threaded",
     "selene-ext/runtimes/soft_rz",
     "selene-ext/error-models/depolarizing",
     "selene-ext/error-models/simple-leakage",

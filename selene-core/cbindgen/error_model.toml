@@ -44,6 +44,7 @@ include = [
   "SimulatorOperationInterface",
 ]
 exclude = [
+  "RUNTIME_V2_API_VERSION",
   "CURRENT_API_VERSION",
   "SIMULATOR_CURRENT_API_VERSION",
   "RUNTIME_CURRENT_API_VERSION",

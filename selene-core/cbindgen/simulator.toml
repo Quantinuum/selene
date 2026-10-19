@@ -40,6 +40,7 @@ include = [
   "SimulatorPluginDescriptorV1",
 ]
 exclude = [
+  "RUNTIME_V2_API_VERSION",
   "CURRENT_API_VERSION",
   "RUNTIME_CURRENT_API_VERSION",
   "ERROR_MODEL_CURRENT_API_VERSION",

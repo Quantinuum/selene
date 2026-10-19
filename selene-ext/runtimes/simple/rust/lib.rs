@@ -41,7 +41,7 @@ struct FutureResult {
     value: u64,
 }
 
-struct SimpleRuntime {
+pub struct SimpleRuntime {
     qubits: Vec<QubitStatus>,
     operation_queue: VecDeque<BatchOperation>,
     future_results: Vec<FutureResult>,
@@ -50,7 +50,7 @@ struct SimpleRuntime {
 }
 
 impl SimpleRuntime {
-    pub fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
+    fn new(n_qubits: u64, start: selene_core::time::Instant, params: Params) -> Self {
         Self {
             qubits: vec![QubitStatus::Free; n_qubits as usize],
             operation_queue: VecDeque::with_capacity(10000),
@@ -290,7 +290,7 @@ impl RuntimeInterface for SimpleRuntime {
 }
 
 #[derive(Default)]
-struct SimpleRuntimeFactory;
+pub struct SimpleRuntimeFactory;
 
 impl RuntimeInterfaceFactory for SimpleRuntimeFactory {
     type Interface = SimpleRuntime;

@@ -68,6 +68,7 @@ pub fn selene_str_to_bytes(s: SeleneStr) -> &'static [u8] {
 }
 
 /// Represents different types of metric values.
+#[derive(Clone)]
 pub enum MetricValue {
     Bool(bool),
     I64(i64),

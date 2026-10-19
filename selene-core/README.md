@@ -53,6 +53,10 @@ selene_simulator_get_plugin_descriptor_v1(void) {
 The equivalent runtime and error-model accessor names are declared in their respective
 headers.
 
+Runtimes that drive a quantum peripheral use `selene/pipeline_runtime.h` and
+`SELENE_RUNTIME_V2_API_VERSION`. The [runtime architecture](rust/runtime/README.md)
+describes ownership, scoped borrowing and compatibility with existing runtimes.
+
 ## The rust crate
 
 The selene-core rust crate defines the compiled plugin interfaces for the Selene
@@ -63,3 +67,5 @@ See the following for examples:
 - [example simulator](examples/simulator/rust/lib.rs)
 - [example error model](examples/error_model/rust/lib.rs)
 - [example runtime](examples/runtime/rust/lib.rs)
+- [threaded runtime](../selene-ext/runtimes/threaded/rust/lib.rs)
+- [C host and quantum peripheral](examples/runtime/c/peripheral.c)

@@ -49,7 +49,7 @@ jobs:
            just generate-bindings
       - name: Compile selene-core C headers
         run: |
-          headers="core_types error_model runtime simulator"
+          headers="core_types error_model runtime simulator pipeline_runtime"
           for header in ${headers}; do
             printf '#include <selene/%s.h>\n' "${header}" |
               cc -x c -std=c17 -pedantic-errors -Wall -Wextra -Werror \

@@ -187,12 +187,12 @@ pub unsafe extern "C" fn selene_load_config(
 
 fn with_instance_void<F>(instance: *mut SeleneInstance, f: F) -> VoidResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<()>,
+    F: FnOnce(&SeleneInstance) -> Result<()>,
 {
     if instance.is_null() {
         return VoidResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     if let Err(e) = f(instance) {
         let code = 100001;
         instance.fallible_print_panic(format!("{e:#}").as_str(), code);
@@ -203,12 +203,12 @@ where
 }
 fn with_instance_bool<F>(instance: *mut SeleneInstance, f: F) -> BoolResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<bool>,
+    F: FnOnce(&SeleneInstance) -> Result<bool>,
 {
     if instance.is_null() {
         return BoolResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => BoolResult::ok(value),
         Err(e) => {
@@ -221,12 +221,12 @@ where
 
 fn with_instance_u64<F>(instance: *mut SeleneInstance, f: F) -> U64Result
 where
-    F: FnOnce(&mut SeleneInstance) -> anyhow::Result<u64>,
+    F: FnOnce(&SeleneInstance) -> anyhow::Result<u64>,
 {
     if instance.is_null() {
         return U64Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => U64Result::ok(value),
         Err(e) => {
@@ -238,12 +238,12 @@ where
 }
 fn with_instance_f64<F>(instance: *mut SeleneInstance, f: F) -> F64Result
 where
-    F: FnOnce(&mut SeleneInstance) -> anyhow::Result<f64>,
+    F: FnOnce(&SeleneInstance) -> anyhow::Result<f64>,
 {
     if instance.is_null() {
         return F64Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => F64Result::ok(value),
         Err(e) => {
@@ -256,12 +256,12 @@ where
 
 fn with_instance_u32<F>(instance: *mut SeleneInstance, f: F) -> U32Result
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<u32>,
+    F: FnOnce(&SeleneInstance) -> Result<u32>,
 {
     if instance.is_null() {
         return U32Result::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => U32Result::ok(value),
         Err(e) => {
@@ -274,12 +274,12 @@ where
 
 fn with_instance_future_bool<F>(instance: *mut SeleneInstance, f: F) -> FutureResult
 where
-    F: FnOnce(&mut SeleneInstance) -> Result<u64>,
+    F: FnOnce(&SeleneInstance) -> Result<u64>,
 {
     if instance.is_null() {
         return FutureResult::err(100000);
     }
-    let instance = unsafe { &mut *instance };
+    let instance = unsafe { &*instance };
     match f(instance) {
         Ok(value) => FutureResult::ok(value),
         Err(e) => {
@@ -320,12 +320,32 @@ pub unsafe extern "C" fn selene_on_shot_start(
     instance: *mut SeleneInstance,
     shot_index: u64,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.shot_start(shot_index))
+    if instance.is_null() {
+        return VoidResult::err(100000);
+    }
+    let instance = unsafe { &mut *instance };
+    match instance.shot_start(shot_index) {
+        Ok(()) => VoidResult::ok(),
+        Err(error) => {
+            instance.fallible_print_panic(&format!("{error:#}"), 100001);
+            VoidResult::err(100001)
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_on_shot_end(instance: *mut SeleneInstance) -> VoidResult {
-    with_instance_void(instance, |instance| instance.shot_end())
+    if instance.is_null() {
+        return VoidResult::err(100000);
+    }
+    let instance = unsafe { &mut *instance };
+    match instance.shot_end() {
+        Ok(()) => VoidResult::ok(),
+        Err(error) => {
+            instance.fallible_print_panic(&format!("{error:#}"), 100001);
+            VoidResult::err(100001)
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -643,14 +663,14 @@ pub unsafe extern "C" fn selene_global_barrier(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_set_tc(instance: *mut SeleneInstance, tc: u64) -> VoidResult {
     with_instance_void(instance, |instance| {
-        instance.time_cursor = tc;
+        instance.set_time_cursor(tc);
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_get_tc(instance: *mut SeleneInstance) -> U64Result {
-    with_instance_u64(instance, |instance| Ok(instance.time_cursor))
+    with_instance_u64(instance, |instance| Ok(instance.time_cursor()))
 }
 
 /// Some runtimes have additional capabilities outside of the core API. These can be triggered
@@ -741,11 +761,48 @@ pub unsafe extern "C" fn selene_fetch_output(
     out_max_len: u64,
 ) -> U64Result {
     with_instance_u64(instance, |instance| {
-        let data = instance.out_encoder.try_read(out_max_len as usize)?;
+        let mut encoder = instance.out_encoder.lock();
+        let data = encoder.try_read(out_max_len as usize)?;
         let len = data.len() as u64;
         unsafe {
             std::ptr::copy_nonoverlapping(data.as_ptr(), out_ptr, data.len());
         }
         Ok(len)
+    })
+}
+
+/// Lend the current peripheral to a host operation on its execution thread.
+/// The request describes access requirements. callback_context is opaque to
+/// Selene and the runtime and is passed unchanged to callback. The call waits
+/// for callback to return. It must not retain the peripheral or re-enter this
+/// runtime, and must not unwind across the C ABI.
+#[unsafe(no_mangle)]
+// selene-core marks its repr(C) operation tables non_exhaustive for Rust
+// callers. Their C layout is fixed by the plugin ABI.
+#[allow(improper_ctypes_definitions)]
+pub unsafe extern "C" fn selene_borrow_peripheral(
+    instance: *mut SeleneInstance,
+    request: *const selene_core::peripheral::PeripheralBorrowRequest,
+    callback: Option<
+        unsafe extern "C" fn(
+            *mut std::ffi::c_void,
+            selene_core::peripheral::QuantumPeripheralHandle,
+        ) -> i32,
+    >,
+    callback_context: *mut std::ffi::c_void,
+) -> VoidResult {
+    if request.is_null() || callback.is_none() {
+        return VoidResult::err(100000);
+    }
+    if unsafe { (*request).struct_size }
+        < size_of::<selene_core::peripheral::PeripheralBorrowRequest>() as u64
+    {
+        return VoidResult::err(100000);
+    }
+    with_instance_void(instance, |instance| unsafe {
+        instance
+            .emulator
+            .runtime
+            .borrow_peripheral(&*request, callback.unwrap(), callback_context)
     })
 }

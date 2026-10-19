@@ -64,8 +64,15 @@ generate-selene-core-headers:
       --crate selene-core \
       --output selene-core/c/include/selene/runtime.h
 
+generate-pipeline-runtime-header:
+    cbindgen \
+      --config selene-core/cbindgen/pipeline_runtime.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/pipeline_runtime.h
+
 generate-headers:
     just generate-selene-core-headers
+    just generate-pipeline-runtime-header
     just generate-selene-sim-headers
 
 generate-selene-sim-headers:
@@ -88,7 +95,7 @@ generate-selene-sim-bindings: generate-selene-sim-headers
 
     rm -rf {{BIND_BUILD}}
 
-generate-bindings: generate-selene-core-headers generate-selene-sim-bindings
+generate-bindings: generate-selene-core-headers generate-pipeline-runtime-header generate-selene-sim-bindings
 
 build-ci:
     #!/usr/bin/env bash

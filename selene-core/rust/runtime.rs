@@ -1,6 +1,7 @@
 pub mod helper;
 pub mod inline;
 pub mod interface;
+pub mod pipeline;
 pub mod plugin;
 pub mod version;
 
