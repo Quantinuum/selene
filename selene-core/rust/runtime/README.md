@@ -206,10 +206,11 @@ The simulator and error-model plugin interfaces are unchanged in both paths.
 The original runtime traits remain in `selene_core::runtime`. New implementations
 use `selene_core::runtime::pipeline::{RuntimeInterface, RuntimeInterfaceFactory}`
 and `export_pipeline_runtime_plugin!`. Their methods take `&self`, and the
-implementation synchronises its scheduling state. The `RuntimeInstructions`
-extension trait provides ordinary call helpers for hosts; implementations only
-need the instruction handler. `destroy` tears down the plugin instance, while an
-`Exit` instruction ends program execution within the current shot.
+implementation synchronises its scheduling state. Hosts construct
+`RuntimeInstruction` objects and call the same handler directly. Results provide
+checked conversions for the expected qubit, future or value. `destroy` tears
+down the plugin instance, while an `Exit` instruction ends program execution
+within the current shot.
 
 The new runtime trait is unsafe to implement because scoped host callbacks rely
 on its lifetime, exclusivity and execution-thread guarantees. The

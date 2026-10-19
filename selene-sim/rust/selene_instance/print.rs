@@ -3,7 +3,7 @@ use super::SeleneInstance;
 use anyhow::Result;
 use selene_core::encoder::{OutputStream, Record, StreamWritable};
 use selene_core::runtime::pipeline::{
-    RuntimeInstructions,
+    RuntimeInstruction,
     output::{ExitRequest, PrintRequest, PrintRequestRaw, PrintValue},
 };
 
@@ -30,7 +30,10 @@ impl SeleneInstance {
         // Reject values the encoder cannot represent before handing them to an
         // asynchronous runtime, while the caller can still receive the error.
         request.record(0)?;
-        self.emulator.runtime.print(request)
+        self.emulator
+            .runtime
+            .handle_instruction(RuntimeInstruction::Print { request })?
+            .into_unit()
     }
     fn exit_request(message: &str, error_code: u32) -> ExitRequest {
         let mut request = ExitRequest {
@@ -59,7 +62,10 @@ impl SeleneInstance {
     pub fn print_panic(&self, message: &str, error_code: u32) -> Result<()> {
         self.emulator
             .runtime
-            .exit(Self::exit_request(message, error_code))
+            .handle_instruction(RuntimeInstruction::Exit {
+                request: Self::exit_request(message, error_code),
+            })?
+            .into_unit()
     }
     pub fn print_exit(&self, message: &str, error_code: u32) -> Result<()> {
         // Panic and exit have the same runtime behaviour. Their code ranges

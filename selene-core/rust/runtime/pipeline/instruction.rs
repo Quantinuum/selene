@@ -1,9 +1,6 @@
 //! Program instructions entering a runtime. These are distinct from the
 //! scheduled operations sent to the quantum peripheral.
-use super::{
-    RuntimeInterface,
-    output::{ExitRequest, ExitRequestRaw, PrintRequest, PrintRequestRaw},
-};
+use super::output::{ExitRequest, ExitRequestRaw, PrintRequest, PrintRequestRaw};
 use anyhow::{Result, anyhow, ensure};
 
 #[derive(Clone, Debug)]
@@ -87,156 +84,45 @@ pub enum RuntimeInstructionResult {
     U64(Option<u64>),
 }
 
-/// Convenience methods for callers. Runtime implementations implement only
-/// handle_instruction, so the Rust and C plugin contracts have one vocabulary.
-pub trait RuntimeInstructions: RuntimeInterface {
-    fn qalloc(&self) -> Result<u64> {
-        match self.handle_instruction(RuntimeInstruction::QAlloc)? {
-            RuntimeInstructionResult::Qubit(value) => Ok(value),
-            _ => Err(anyhow!("Unexpected runtime result for QAlloc")),
+impl RuntimeInstructionResult {
+    /// Check that the runtime returned no value.
+    pub fn into_unit(self) -> Result<()> {
+        match self {
+            Self::None => Ok(()),
+            other => Err(anyhow!("Expected None runtime result, received {other:?}")),
         }
     }
-    fn qfree(&self, qubit_id: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::QFree { qubit_id })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for QFree")),
+    /// Read a Qubit result, reporting an error if the runtime returned a different kind.
+    pub fn into_qubit(self) -> Result<u64> {
+        match self {
+            Self::Qubit(value) => Ok(value),
+            other => Err(anyhow!("Expected Qubit runtime result, received {other:?}")),
         }
     }
-    fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::RXYGate {
-            qubit_id,
-            theta,
-            phi,
-        })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for RXYGate")),
-        }
-    }
-    fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::RZZGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-        })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for RZZGate")),
-        }
-    }
-    fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::RZGate { qubit_id, theta })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for RZGate")),
-        }
-    }
-    fn rpp_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::RPPGate {
-            qubit_id_1,
-            qubit_id_2,
-            theta,
-            phi,
-        })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for RPPGate")),
-        }
-    }
-    fn measure(&self, qubit_id: u64) -> Result<u64> {
-        match self.handle_instruction(RuntimeInstruction::Measure { qubit_id })? {
-            RuntimeInstructionResult::Future(value) => Ok(value),
-            _ => Err(anyhow!("Unexpected runtime result for Measure")),
-        }
-    }
-    fn measure_leaked(&self, qubit_id: u64) -> Result<u64> {
-        match self.handle_instruction(RuntimeInstruction::MeasureLeaked { qubit_id })? {
-            RuntimeInstructionResult::Future(value) => Ok(value),
-            _ => Err(anyhow!("Unexpected runtime result for MeasureLeaked")),
-        }
-    }
-    fn reset(&self, qubit_id: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::Reset { qubit_id })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for Reset")),
-        }
-    }
-    fn force_result(&self, result_id: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::ForceResult { result_id })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for ForceResult")),
-        }
-    }
-    fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
-        match self.handle_instruction(RuntimeInstruction::GetBoolResult { result_id })? {
-            RuntimeInstructionResult::Bool(value) => Ok(value),
-            _ => Err(anyhow!("Unexpected runtime result for GetBoolResult")),
-        }
-    }
-    fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>> {
-        match self.handle_instruction(RuntimeInstruction::GetU64Result { result_id })? {
-            RuntimeInstructionResult::U64(value) => Ok(value),
-            _ => Err(anyhow!("Unexpected runtime result for GetU64Result")),
-        }
-    }
-    fn increment_future_refcount(&self, future: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::IncrementFutureRefcount { future })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!(
-                "Unexpected runtime result for IncrementFutureRefcount"
+    /// Read a Future result, reporting an error if the runtime returned a different kind.
+    pub fn into_future(self) -> Result<u64> {
+        match self {
+            Self::Future(value) => Ok(value),
+            other => Err(anyhow!(
+                "Expected Future runtime result, received {other:?}"
             )),
         }
     }
-    fn decrement_future_refcount(&self, future: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::DecrementFutureRefcount { future })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!(
-                "Unexpected runtime result for DecrementFutureRefcount"
-            )),
+    /// Read a Bool result, reporting an error if the runtime returned a different kind.
+    pub fn into_bool(self) -> Result<Option<bool>> {
+        match self {
+            Self::Bool(value) => Ok(value),
+            other => Err(anyhow!("Expected Bool runtime result, received {other:?}")),
         }
     }
-    fn local_barrier(&self, qubits: &[u64], sleep_ns: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::LocalBarrier {
-            qubits: qubits.to_vec(),
-            sleep_ns,
-        })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for LocalBarrier")),
-        }
-    }
-    fn global_barrier(&self, sleep_ns: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::GlobalBarrier { sleep_ns })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for GlobalBarrier")),
-        }
-    }
-    fn custom_call(&self, tag: u64, data: &[u8]) -> Result<u64> {
-        match self.handle_instruction(RuntimeInstruction::CustomCall {
-            tag,
-            data: data.to_vec(),
-        })? {
-            RuntimeInstructionResult::U64(value) => {
-                Ok(value.ok_or_else(|| anyhow!("Missing custom call result"))?)
-            }
-            _ => Err(anyhow!("Unexpected runtime result for CustomCall")),
-        }
-    }
-    fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::SimulateDelay { delay_ns })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for SimulateDelay")),
-        }
-    }
-    fn print(&self, request: PrintRequest) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::Print { request })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for Print")),
-        }
-    }
-    fn exit(&self, request: ExitRequest) -> Result<()> {
-        match self.handle_instruction(RuntimeInstruction::Exit { request })? {
-            RuntimeInstructionResult::None => Ok(()),
-            _ => Err(anyhow!("Unexpected runtime result for Exit")),
+    /// Read a U64 result, reporting an error if the runtime returned a different kind.
+    pub fn into_u64(self) -> Result<Option<u64>> {
+        match self {
+            Self::U64(value) => Ok(value),
+            other => Err(anyhow!("Expected U64 runtime result, received {other:?}")),
         }
     }
 }
-impl<T: RuntimeInterface + ?Sized> RuntimeInstructions for T {}
 
 /// C instruction tags are fixed-width integers. Unknown tags are rejected
 /// before reading the corresponding union member.

@@ -6,7 +6,7 @@ use selene_core::error_model::BatchResult;
 use selene_core::peripheral::{PeripheralBorrowRequest, QuantumPeripheralInterface};
 use selene_core::runtime::{
     BatchOperation, Operation as RuntimeOperation,
-    pipeline::{self, Runtime, RuntimeInstructions, RuntimeInterface, output::OutputSinkHandle},
+    pipeline::{self, Runtime, RuntimeInstruction, RuntimeInterface, output::OutputSinkHandle},
 };
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -252,65 +252,111 @@ impl Emulator {
         Ok(metrics)
     }
     pub fn user_issued_qalloc(&self) -> Result<u64> {
-        let address = self.runtime.qalloc()?;
+        let address = self
+            .runtime
+            .handle_instruction(RuntimeInstruction::QAlloc)?
+            .into_qubit()?;
         self.event_hooks.on_user_call(&Operation::QAlloc(address));
         self.process_runtime()?;
         Ok(address)
     }
     pub fn user_issued_qfree(&self, address: u64) -> Result<()> {
-        self.runtime.qfree(address)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::QFree { qubit_id: address })?
+            .into_unit()?;
         self.event_hooks.on_user_call(&Operation::QFree(address));
         self.process_runtime()
     }
     pub fn user_issued_local_barrier(&self, qubits: &[u64], sleep_time: u64) -> Result<()> {
-        self.runtime.local_barrier(qubits, sleep_time)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::LocalBarrier {
+                qubits: qubits.to_vec(),
+                sleep_ns: sleep_time,
+            })?
+            .into_unit()?;
         self.event_hooks
             .on_user_call(&Operation::LocalBarrier(qubits.to_vec(), sleep_time));
         self.process_runtime()
     }
     pub fn user_issued_global_barrier(&self, sleep_time: u64) -> Result<()> {
-        self.runtime.global_barrier(sleep_time)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::GlobalBarrier {
+                sleep_ns: sleep_time,
+            })?
+            .into_unit()?;
         self.event_hooks
             .on_user_call(&Operation::GlobalBarrier(sleep_time));
         self.process_runtime()
     }
     pub fn user_issued_rxy(&self, q0: u64, theta: f64, phi: f64) -> Result<()> {
-        self.runtime.rxy_gate(q0, theta, phi)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::RXYGate {
+                qubit_id: q0,
+                theta,
+                phi,
+            })?
+            .into_unit()?;
         self.event_hooks
             .on_user_call(&Operation::RXY(q0, theta, phi));
         self.process_runtime()
     }
     pub fn user_issued_rzz(&self, q0: u64, q1: u64, theta: f64) -> Result<()> {
-        self.runtime.rzz_gate(q0, q1, theta)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::RZZGate {
+                qubit_id_1: q0,
+                qubit_id_2: q1,
+                theta,
+            })?
+            .into_unit()?;
         self.event_hooks
             .on_user_call(&Operation::RZZ(q0, q1, theta));
         self.process_runtime()
     }
     pub fn user_issued_rpp(&self, q0: u64, q1: u64, theta: f64, phi: f64) -> Result<()> {
-        self.runtime.rpp_gate(q0, q1, theta, phi)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::RPPGate {
+                qubit_id_1: q0,
+                qubit_id_2: q1,
+                theta,
+                phi,
+            })?
+            .into_unit()?;
         self.event_hooks
             .on_user_call(&Operation::RPP(q0, q1, theta, phi));
         self.process_runtime()
     }
     pub fn user_issued_rz(&self, q0: u64, theta: f64) -> Result<()> {
-        self.runtime.rz_gate(q0, theta)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::RZGate {
+                qubit_id: q0,
+                theta,
+            })?
+            .into_unit()?;
         self.event_hooks.on_user_call(&Operation::RZ(q0, theta));
         self.process_runtime()
     }
     pub fn user_issued_reset(&self, q0: u64) -> Result<()> {
-        self.runtime.reset(q0)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::Reset { qubit_id: q0 })?
+            .into_unit()?;
         self.event_hooks.on_user_call(&Operation::Reset(q0));
         self.process_runtime()
     }
     pub fn user_issued_lazy_measure(&self, q0: u64) -> Result<u64> {
-        let result_id = self.runtime.measure(q0)?;
+        let result_id = self
+            .runtime
+            .handle_instruction(RuntimeInstruction::Measure { qubit_id: q0 })?
+            .into_future()?;
         self.event_hooks
             .on_user_call(&Operation::MeasureRequest(q0));
         self.process_runtime()?;
         Ok(result_id)
     }
     pub fn user_issued_lazy_measure_leaked(&self, q0: u64) -> Result<u64> {
-        let result_id = self.runtime.measure_leaked(q0)?;
+        let result_id = self
+            .runtime
+            .handle_instruction(RuntimeInstruction::MeasureLeaked { qubit_id: q0 })?
+            .into_future()?;
         self.event_hooks
             .on_user_call(&Operation::MeasureLeakedRequest(q0));
         self.process_runtime()?;
@@ -321,22 +367,36 @@ impl Emulator {
         self.user_issued_read_future_bool(result_id)
     }
     pub fn user_issued_increment_measurement_refcount(&self, result_id: u64) -> Result<()> {
-        self.runtime.increment_future_refcount(result_id)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::IncrementFutureRefcount { future: result_id })?
+            .into_unit()?;
         self.process_runtime()
     }
     pub fn user_issued_decrement_measurement_refcount(&self, result_id: u64) -> Result<()> {
-        self.runtime.decrement_future_refcount(result_id)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::DecrementFutureRefcount { future: result_id })?
+            .into_unit()?;
         self.process_runtime()
     }
     pub fn user_issued_read_future_bool(&self, result_id: u64) -> Result<bool> {
         self.event_hooks
             .on_user_call(&Operation::FutureRead(result_id));
-        match self.runtime.get_bool_result(result_id)? {
+        match self
+            .runtime
+            .handle_instruction(RuntimeInstruction::GetBoolResult { result_id })?
+            .into_bool()?
+        {
             Some(value) => Ok(value),
             None => {
-                self.runtime.force_result(result_id)?;
+                self.runtime
+                    .handle_instruction(RuntimeInstruction::ForceResult { result_id })?
+                    .into_unit()?;
                 self.process_runtime()?;
-                let Some(result) = self.runtime.get_bool_result(result_id)? else {
+                let Some(result) = self
+                    .runtime
+                    .handle_instruction(RuntimeInstruction::GetBoolResult { result_id })?
+                    .into_bool()?
+                else {
                     return Err(anyhow!(
                         "Future bool result not available after attempting to force it."
                     ));
@@ -348,12 +408,22 @@ impl Emulator {
     pub fn user_issued_read_future_u64(&self, result_id: u64) -> Result<u64> {
         self.event_hooks
             .on_user_call(&Operation::FutureRead(result_id));
-        match self.runtime.get_u64_result(result_id)? {
+        match self
+            .runtime
+            .handle_instruction(RuntimeInstruction::GetU64Result { result_id })?
+            .into_u64()?
+        {
             Some(value) => Ok(value),
             None => {
-                self.runtime.force_result(result_id)?;
+                self.runtime
+                    .handle_instruction(RuntimeInstruction::ForceResult { result_id })?
+                    .into_unit()?;
                 self.process_runtime()?;
-                let Some(result) = self.runtime.get_u64_result(result_id)? else {
+                let Some(result) = self
+                    .runtime
+                    .handle_instruction(RuntimeInstruction::GetU64Result { result_id })?
+                    .into_u64()?
+                else {
                     return Err(anyhow!(
                         "Future u64 result not available after attempting to force it."
                     ));
@@ -365,7 +435,14 @@ impl Emulator {
     pub fn custom_runtime_call(&self, tag: u64, data: &[u8]) -> Result<u64> {
         self.event_hooks
             .on_user_call(&Operation::Custom(tag, data.to_vec()));
-        let result = self.runtime.custom_call(tag, data)?;
+        let result = self
+            .runtime
+            .handle_instruction(RuntimeInstruction::CustomCall {
+                tag,
+                data: data.to_vec(),
+            })?
+            .into_u64()?
+            .ok_or_else(|| anyhow!("Missing custom call result"))?;
         self.process_runtime()?;
         Ok(result)
     }
@@ -376,7 +453,9 @@ impl Emulator {
     }
 
     pub fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
-        self.runtime.simulate_delay(delay_ns)?;
+        self.runtime
+            .handle_instruction(RuntimeInstruction::SimulateDelay { delay_ns })?
+            .into_unit()?;
         self.event_hooks
             .on_user_call(&Operation::ClassicalDelay(delay_ns));
         self.process_runtime()

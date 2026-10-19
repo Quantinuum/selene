@@ -12,7 +12,7 @@ use std::sync::Arc;
 pub mod helper;
 pub mod instruction;
 pub mod output;
-pub use instruction::{RuntimeInstruction, RuntimeInstructionResult, RuntimeInstructions};
+pub use instruction::{RuntimeInstruction, RuntimeInstructionResult};
 pub mod legacy;
 pub mod plugin;
 pub use legacy::LegacyRuntime;

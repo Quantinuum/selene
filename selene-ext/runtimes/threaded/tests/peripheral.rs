@@ -6,7 +6,7 @@ use selene_core::{
     },
     runtime::{
         BatchOperation, Operation,
-        pipeline::{self, RuntimeInstructions, RuntimeInterface},
+        pipeline::{self, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface},
     },
 };
 use selene_threaded_runtime::ThreadedRuntime;
@@ -171,11 +171,24 @@ fn execution_and_scoped_borrows_stay_on_the_peripheral_thread() {
     let caller = thread::current().id();
     let records = fixture.calls.clone();
     fixture.start(0);
-    let q = fixture.runtime.qalloc().unwrap();
-    fixture.runtime.reset(q).unwrap();
+    let q = fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::QAlloc)
+        .and_then(RuntimeInstructionResult::into_qubit)
+        .unwrap();
     fixture
         .runtime
-        .rxy_gate(q, std::f64::consts::PI, 0.0)
+        .handle_instruction(RuntimeInstruction::Reset { qubit_id: q })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
+    fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::RXYGate {
+            qubit_id: q,
+            theta: std::f64::consts::PI,
+            phi: 0.0,
+        })
+        .and_then(RuntimeInstructionResult::into_unit)
         .unwrap();
 
     // The runtime has accepted both instructions, but its scheduler hasn't
@@ -210,9 +223,24 @@ fn execution_and_scoped_borrows_stay_on_the_peripheral_thread() {
     .unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "one");
     std::fs::remove_file(path).unwrap();
-    let result = fixture.runtime.measure(q).unwrap();
-    fixture.runtime.force_result(result).unwrap();
-    assert_eq!(fixture.runtime.get_bool_result(result).unwrap(), Some(true));
+    let result = fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::Measure { qubit_id: q })
+        .and_then(RuntimeInstructionResult::into_future)
+        .unwrap();
+    fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::ForceResult { result_id: result })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::GetBoolResult { result_id: result })
+            .and_then(RuntimeInstructionResult::into_bool)
+            .unwrap(),
+        Some(true)
+    );
     fixture.end().unwrap();
     fixture.start(1);
     fixture.end().unwrap();
@@ -234,13 +262,41 @@ fn concurrent_submitters_can_wait_for_their_own_measurements() {
         for _ in 0..8 {
             let runtime = &fixture.runtime;
             scope.spawn(move || {
-                let q = runtime.qalloc().unwrap();
-                runtime.reset(q).unwrap();
-                runtime.rxy_gate(q, std::f64::consts::PI, 0.0).unwrap();
-                let result = runtime.measure(q).unwrap();
-                runtime.force_result(result).unwrap();
-                assert_eq!(runtime.get_bool_result(result).unwrap(), Some(true));
-                runtime.qfree(q).unwrap();
+                let q = runtime
+                    .handle_instruction(RuntimeInstruction::QAlloc)
+                    .and_then(RuntimeInstructionResult::into_qubit)
+                    .unwrap();
+                runtime
+                    .handle_instruction(RuntimeInstruction::Reset { qubit_id: q })
+                    .and_then(RuntimeInstructionResult::into_unit)
+                    .unwrap();
+                runtime
+                    .handle_instruction(RuntimeInstruction::RXYGate {
+                        qubit_id: q,
+                        theta: std::f64::consts::PI,
+                        phi: 0.0,
+                    })
+                    .and_then(RuntimeInstructionResult::into_unit)
+                    .unwrap();
+                let result = runtime
+                    .handle_instruction(RuntimeInstruction::Measure { qubit_id: q })
+                    .and_then(RuntimeInstructionResult::into_future)
+                    .unwrap();
+                runtime
+                    .handle_instruction(RuntimeInstruction::ForceResult { result_id: result })
+                    .and_then(RuntimeInstructionResult::into_unit)
+                    .unwrap();
+                assert_eq!(
+                    runtime
+                        .handle_instruction(RuntimeInstruction::GetBoolResult { result_id: result })
+                        .and_then(RuntimeInstructionResult::into_bool)
+                        .unwrap(),
+                    Some(true)
+                );
+                runtime
+                    .handle_instruction(RuntimeInstruction::QFree { qubit_id: q })
+                    .and_then(RuntimeInstructionResult::into_unit)
+                    .unwrap();
             });
         }
     });
@@ -262,9 +318,17 @@ fn failed_borrows_release_access_and_failed_shots_return_the_peripheral() {
         });
     assert!(panicked.is_err());
     pipeline::borrow_peripheral(&fixture.runtime, &Default::default(), |_| Ok(())).unwrap();
-    let q = fixture.runtime.qalloc().unwrap();
+    let q = fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::QAlloc)
+        .and_then(RuntimeInstructionResult::into_qubit)
+        .unwrap();
     fixture.fail.store(true, Ordering::Relaxed);
-    fixture.runtime.reset(q).unwrap();
+    fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::Reset { qubit_id: q })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
     assert!(fixture.end().is_err());
     // Even though execution failed, shot_end has released the handle and the
     // host can end this shot, then start another one with the same peripheral.
@@ -277,7 +341,11 @@ fn failed_borrows_release_access_and_failed_shots_return_the_peripheral() {
 fn a_borrow_excludes_execution_while_new_submissions_can_queue() {
     let fixture = Fixture::new();
     fixture.start(0);
-    let q = fixture.runtime.qalloc().unwrap();
+    let q = fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::QAlloc)
+        .and_then(RuntimeInstructionResult::into_qubit)
+        .unwrap();
     let (entered, waiting) = std::sync::mpsc::channel();
     let (resume, released) = std::sync::mpsc::channel();
     let calls = fixture.calls.clone();
@@ -305,17 +373,41 @@ fn a_borrow_excludes_execution_while_new_submissions_can_queue() {
             .unwrap();
         // These submissions must be accepted without waiting for the borrow's
         // callback. They must not execute while it still has exclusive access.
-        fixture.runtime.reset(q).unwrap();
         fixture
             .runtime
-            .rxy_gate(q, std::f64::consts::PI, 0.0)
+            .handle_instruction(RuntimeInstruction::Reset { qubit_id: q })
+            .and_then(RuntimeInstructionResult::into_unit)
+            .unwrap();
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::RXYGate {
+                qubit_id: q,
+                theta: std::f64::consts::PI,
+                phi: 0.0,
+            })
+            .and_then(RuntimeInstructionResult::into_unit)
             .unwrap();
         resume.send(()).unwrap();
         assert_eq!(borrowed.join().unwrap(), 812);
     });
-    let result = fixture.runtime.measure(q).unwrap();
-    fixture.runtime.force_result(result).unwrap();
-    assert_eq!(fixture.runtime.get_bool_result(result).unwrap(), Some(true));
+    let result = fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::Measure { qubit_id: q })
+        .and_then(RuntimeInstructionResult::into_future)
+        .unwrap();
+    fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::ForceResult { result_id: result })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::GetBoolResult { result_id: result })
+            .and_then(RuntimeInstructionResult::into_bool)
+            .unwrap(),
+        Some(true)
+    );
     fixture.end().unwrap();
 }
 
@@ -349,19 +441,38 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
         values: vec![false],
     });
     unsafe { runtime.shot_start(0, 123, adapter.ffi_interface(), discard_output()) }.unwrap();
-    let q = runtime.qalloc().unwrap();
-    runtime.reset(q).unwrap();
+    let q = runtime
+        .handle_instruction(RuntimeInstruction::QAlloc)
+        .and_then(RuntimeInstructionResult::into_qubit)
+        .unwrap();
+    runtime
+        .handle_instruction(RuntimeInstruction::Reset { qubit_id: q })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
     assert!(calls.lock().unwrap().is_empty());
     // Libselene records the user call before this checkpoint. We should only
     // see the simulator operation now, in the same order as the old emulator.
     runtime.process_pending().unwrap();
     assert_eq!(calls.lock().unwrap().len(), 1);
     thread::scope(|scope| {
-        assert!(scope.spawn(|| runtime.qalloc()).join().unwrap().is_err());
+        assert!(
+            scope
+                .spawn(|| runtime
+                    .handle_instruction(RuntimeInstruction::QAlloc)
+                    .and_then(RuntimeInstructionResult::into_qubit))
+                .join()
+                .unwrap()
+                .is_err()
+        );
     });
     runtime.shot_end().unwrap();
     runtime.destroy().unwrap();
-    assert!(runtime.qalloc().is_err());
+    assert!(
+        runtime
+            .handle_instruction(RuntimeInstruction::QAlloc)
+            .and_then(RuntimeInstructionResult::into_qubit)
+            .is_err()
+    );
     assert!(
         calls
             .lock()
@@ -451,23 +562,42 @@ fn exit_finishes_quantum_work_and_output_before_returning() {
     use pipeline::output::{ExitRequest, PrintRequest};
     let fixture = Fixture::new();
     fixture.start(0);
-    let qubit = fixture.runtime.qalloc().unwrap();
-    fixture.runtime.reset(qubit).unwrap();
-    fixture
+    let qubit = fixture
         .runtime
-        .rxy_gate(qubit, std::f64::consts::PI, 0.0)
+        .handle_instruction(RuntimeInstruction::QAlloc)
+        .and_then(RuntimeInstructionResult::into_qubit)
         .unwrap();
     fixture
         .runtime
-        .print(PrintRequest::new("USER:array", &[42u64, 64][..]))
+        .handle_instruction(RuntimeInstruction::Reset { qubit_id: qubit })
+        .and_then(RuntimeInstructionResult::into_unit)
         .unwrap();
     fixture
         .runtime
-        .exit(ExitRequest {
-            error_code: 1001,
-            message: "stopped".into(),
-            backtrace: vec![PrintRequest::new("DEBUG:BACKTRACE:program", 123u64)],
+        .handle_instruction(RuntimeInstruction::RXYGate {
+            qubit_id: qubit,
+            theta: std::f64::consts::PI,
+            phi: 0.0,
         })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
+    fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::Print {
+            request: PrintRequest::new("USER:array", &[42u64, 64][..]),
+        })
+        .and_then(RuntimeInstructionResult::into_unit)
+        .unwrap();
+    fixture
+        .runtime
+        .handle_instruction(RuntimeInstruction::Exit {
+            request: ExitRequest {
+                error_code: 1001,
+                message: "stopped".into(),
+                backtrace: vec![PrintRequest::new("DEBUG:BACKTRACE:program", 123u64)],
+            },
+        })
+        .and_then(RuntimeInstructionResult::into_unit)
         .unwrap();
 
     // Exit must execute the pending gates even though we never requested a
@@ -502,10 +632,22 @@ fn exit_finishes_quantum_work_and_output_before_returning() {
     );
     drop(records);
     assert_eq!(fixture.output.flushes.load(Ordering::Relaxed), 1);
-    assert!(fixture.runtime.reset(qubit).is_err());
+    assert!(
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::Reset { qubit_id: qubit })
+            .and_then(RuntimeInstructionResult::into_unit)
+            .is_err()
+    );
     fixture.end().unwrap();
     fixture.start(1);
-    assert!(fixture.runtime.qalloc().is_ok());
+    assert!(
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::QAlloc)
+            .and_then(RuntimeInstructionResult::into_qubit)
+            .is_ok()
+    );
     fixture.end().unwrap();
 }
 
@@ -519,11 +661,15 @@ fn exit_closes_concurrent_submissions_before_waiting_for_output() {
     thread::scope(|scope| {
         let runtime = &fixture.runtime;
         let exiting = scope.spawn(move || {
-            runtime.exit(pipeline::output::ExitRequest {
-                error_code: 0,
-                message: "done".into(),
-                backtrace: Vec::new(),
-            })
+            runtime
+                .handle_instruction(RuntimeInstruction::Exit {
+                    request: pipeline::output::ExitRequest {
+                        error_code: 0,
+                        message: "done".into(),
+                        backtrace: Vec::new(),
+                    },
+                })
+                .and_then(RuntimeInstructionResult::into_unit)
         });
         entered.wait();
         // The printer is still running on the execution thread. New calls
@@ -531,9 +677,15 @@ fn exit_closes_concurrent_submissions_before_waiting_for_output() {
         // for the printer to finish.
         let (reply, result) = std::sync::mpsc::channel();
         let submitting = scope.spawn(move || {
-            let allocation_rejected = runtime.qalloc().is_err();
+            let allocation_rejected = runtime
+                .handle_instruction(RuntimeInstruction::QAlloc)
+                .and_then(RuntimeInstructionResult::into_qubit)
+                .is_err();
             let print_rejected = runtime
-                .print(pipeline::output::PrintRequest::new("late", 1u64))
+                .handle_instruction(RuntimeInstruction::Print {
+                    request: pipeline::output::PrintRequest::new("late", 1u64),
+                })
+                .and_then(RuntimeInstructionResult::into_unit)
                 .is_err();
             reply.send((allocation_rejected, print_rejected)).unwrap();
         });
@@ -551,8 +703,16 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
     for failure in 0..3 {
         let fixture = Fixture::new();
         fixture.start(0);
-        let qubit = fixture.runtime.qalloc().unwrap();
-        fixture.runtime.reset(qubit).unwrap();
+        let qubit = fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::QAlloc)
+            .and_then(RuntimeInstructionResult::into_qubit)
+            .unwrap();
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::Reset { qubit_id: qubit })
+            .and_then(RuntimeInstructionResult::into_unit)
+            .unwrap();
         fixture.fail.store(failure == 0, Ordering::Relaxed);
         fixture.output.fail.store(failure == 1, Ordering::Relaxed);
         fixture
@@ -562,11 +722,14 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
         assert!(
             fixture
                 .runtime
-                .exit(pipeline::output::ExitRequest {
-                    error_code: 1001,
-                    message: "original failure".into(),
-                    backtrace: Vec::new(),
+                .handle_instruction(RuntimeInstruction::Exit {
+                    request: pipeline::output::ExitRequest {
+                        error_code: 1001,
+                        message: "original failure".into(),
+                        backtrace: Vec::new(),
+                    }
                 })
+                .and_then(RuntimeInstructionResult::into_unit)
                 .is_err()
         );
         // A failed quantum flush mustn't suppress the original panic. A failed
@@ -577,8 +740,16 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
         fixture.output.fail.store(false, Ordering::Relaxed);
         fixture.output.fail_flush.store(false, Ordering::Relaxed);
         fixture.start(1);
-        let qubit = fixture.runtime.qalloc().unwrap();
-        fixture.runtime.reset(qubit).unwrap();
+        let qubit = fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::QAlloc)
+            .and_then(RuntimeInstructionResult::into_qubit)
+            .unwrap();
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::Reset { qubit_id: qubit })
+            .and_then(RuntimeInstructionResult::into_unit)
+            .unwrap();
         fixture.end().unwrap();
     }
 }
