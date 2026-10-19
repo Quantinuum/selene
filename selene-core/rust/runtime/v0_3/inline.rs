@@ -3,8 +3,8 @@ use super::{
     plugin::{Errno, RuntimeInstance},
 };
 use crate::{
+    operation::Operation,
     operation::plugin::{RuntimeGetOperationHandle, RuntimeGetOperationInterface},
-    runtime::Operation,
     utils::{result_of_errno_to_errno, result_to_errno},
 };
 use std::{ffi, marker::PhantomData};

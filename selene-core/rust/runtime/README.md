@@ -11,6 +11,9 @@ measurements and metrics. The runtime does not need to know about those layers.
 It sees a stateful object with a C function table, in the same way that an error
 model sees the simulator passed to it.
 
+The [plugin API versioning](../README.md) describes the versioned Rust modules
+and C headers shared by runtimes, simulators and error models.
+
 ## Program instructions
 
 The program-facing API and the peripheral-facing API describe different stages
@@ -18,7 +21,7 @@ of execution. A `RuntimeInstruction` asks the runtime to allocate a qubit, apply
 a gate, measure, print a value or exit. The runtime schedules that work and sends
 batches of `Operation` objects to the peripheral.
 
-A new runtime implements one `handle_instruction` method. In C, its descriptor
+An API 0.4 runtime implements one `handle_instruction` method. In C, its descriptor
 has a `handle_instruction_fn` taking a `SeleneRuntimeInstruction` and a result
 pointer. The instruction contains its size, an integer tag and a union of typed
 payloads. For example:
@@ -87,8 +90,8 @@ output, but its callbacks must not re-enter the runtime.
 
 ## Owning execution
 
-Peripheral runtimes export `SeleneRuntimePluginDescriptorV2` from
-`selene/pipeline_runtime.h`. The descriptor uses API 0.4.x. A plugin can export
+Current runtimes export `SeleneRuntimePluginDescriptorV2` from
+`selene/runtime.h`. The descriptor uses API 0.4.x. A plugin can export
 `selene_runtime_plugin_descriptor_v2` or return the descriptor from
 `selene_runtime_get_plugin_descriptor_v2()`.
 
@@ -183,12 +186,16 @@ runtime normally postpones execution until measurement.
 
 ## Existing runtimes
 
-API 0.3.x and `SeleneRuntimePluginDescriptorV1` are unchanged. The loader chooses
-v2 when it is advertised and otherwise wraps v1 in `pipeline::LegacyRuntime`.
-An invalid advertised v2 is an error rather than a reason to try v1.
+The original Rust interface lives in `selene_core::runtime::v0_3`, and its C
+header is `selene/runtime/v0_3.h`. Both describe API 0.3.x and
+`SeleneRuntimePluginDescriptorV1`, whose layout and symbols are unchanged. The
+loader chooses descriptor V2 when it is advertised and otherwise wraps V1 in
+`runtime::adapters::LegacyRuntime`. An invalid advertised V2 is an error rather
+than a reason to try V1.
 
-The wrapper translates instruction objects into the original API functions. Print
-instructions write directly to the host sink. Exit flushes the old scheduler and
+The adapter in `runtime::adapters::v0_3_to_v0_4` implements the current interface
+using an API 0.3 runtime. The wrapper translates instruction objects into the
+original API functions. Print instructions write directly to the host sink. Exit flushes the old scheduler and
 prints its diagnostic before returning, without destroying the old runtime.
 
 The wrapper preserves the original calling-thread path. After recording a user
@@ -203,10 +210,10 @@ The simulator and error-model plugin interfaces are unchanged in both paths.
 
 ## Rust implementations
 
-The original runtime traits remain in `selene_core::runtime`. New implementations
-use `selene_core::runtime::pipeline::{RuntimeInterface, RuntimeInterfaceFactory}`
-and `export_pipeline_runtime_plugin!`. Their methods take `&self`, and the
-implementation synchronises its scheduling state. Hosts construct
+The current runtime API is available from `selene_core::runtime` and explicitly
+from `selene_core::runtime::v0_4`. New implementations use its `RuntimeInterface`,
+`RuntimeInterfaceFactory` and `export_runtime_plugin!`. Their methods take
+`&self`, and the implementation synchronises its scheduling state. Hosts construct
 `RuntimeInstruction` objects and call the same handler directly. Results provide
 checked conversions for the expected qubit, future or value. `destroy` tears
 down the plugin instance, while an `Exit` instruction ends program execution
@@ -214,7 +221,7 @@ within the current shot.
 
 The new runtime trait is unsafe to implement because scoped host callbacks rely
 on its lifetime, exclusivity and execution-thread guarantees. The
-`pipeline::on_execution_thread` and `pipeline::borrow_peripheral` helpers accept
+`runtime::on_execution_thread` and `runtime::borrow_peripheral` helpers accept
 scoped Rust closures, return their results and keep panics inside Rust. Captures
 and return values must be `Send`; the peripheral itself need not be. The
 `QuantumPeripheral` wrapper cannot be moved or shared between threads.

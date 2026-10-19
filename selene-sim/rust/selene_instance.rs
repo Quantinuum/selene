@@ -40,7 +40,7 @@ impl SeleneInstance {
     pub fn new(config: Configuration) -> Result<Self> {
         let out_encoder = OutputStream::new(config.get_output_writer());
         let out_encoder = Arc::new(Mutex::new(out_encoder));
-        let output = selene_core::runtime::pipeline::output::OutputSinkHandle {
+        let output = selene_core::runtime::output::OutputSinkHandle {
             context: Arc::as_ptr(&out_encoder).cast_mut().cast(),
             write_fn: Some(print::write_output),
             flush_fn: Some(print::flush_output),

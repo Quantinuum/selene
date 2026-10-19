@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
 use std::sync::Arc;
 
-use crate::error_model::BatchResult;
-use crate::runtime::BatchOperation;
+use crate::error_model::v0_3::BatchResult;
+use crate::operation::BatchOperation;
 use crate::utils::MetricValue;
 
 pub trait SimulatorInterface {

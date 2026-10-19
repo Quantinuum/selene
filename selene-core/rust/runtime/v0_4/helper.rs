@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     peripheral::{PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheralHandle},
-    runtime::plugin::{Errno, RuntimeInstance},
+    runtime::v0_4::plugin::{Errno, RuntimeInstance},
     utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno},
 };
 use std::{ffi, sync::Arc};
@@ -162,33 +162,28 @@ impl<F: RuntimeInterfaceFactory + Default> Helper<F> {
 }
 
 #[macro_export]
-macro_rules! export_pipeline_runtime_plugin {
+macro_rules! export_runtime_plugin_v0_4 {
     ($factory:ty) => {
         #[unsafe(no_mangle)]
         pub static selene_runtime_plugin_descriptor_v2:
-            $crate::runtime::pipeline::RuntimePluginDescriptorV2 =
-            $crate::runtime::pipeline::RuntimePluginDescriptorV2 {
-                struct_size: core::mem::size_of::<
-                    $crate::runtime::pipeline::RuntimePluginDescriptorV2,
-                >() as u64,
-                api_version: $crate::runtime::pipeline::plugin::RUNTIME_V2_API_VERSION,
-                init_fn: Some($crate::runtime::pipeline::helper::Helper::<$factory>::init),
-                destroy_fn: Some($crate::runtime::pipeline::helper::Helper::<$factory>::destroy),
-                shot_start_fn: Some(
-                    $crate::runtime::pipeline::helper::Helper::<$factory>::shot_start,
-                ),
-                shot_end_fn: Some($crate::runtime::pipeline::helper::Helper::<$factory>::shot_end),
-                get_metrics_fn: Some(
-                    $crate::runtime::pipeline::helper::Helper::<$factory>::get_metric,
-                ),
+            $crate::runtime::v0_4::RuntimePluginDescriptorV2 =
+            $crate::runtime::v0_4::RuntimePluginDescriptorV2 {
+                struct_size: core::mem::size_of::<$crate::runtime::v0_4::RuntimePluginDescriptorV2>(
+                ) as u64,
+                api_version: $crate::runtime::v0_4::version::RUNTIME_V0_4_API_VERSION,
+                init_fn: Some($crate::runtime::v0_4::helper::Helper::<$factory>::init),
+                destroy_fn: Some($crate::runtime::v0_4::helper::Helper::<$factory>::destroy),
+                shot_start_fn: Some($crate::runtime::v0_4::helper::Helper::<$factory>::shot_start),
+                shot_end_fn: Some($crate::runtime::v0_4::helper::Helper::<$factory>::shot_end),
+                get_metrics_fn: Some($crate::runtime::v0_4::helper::Helper::<$factory>::get_metric),
                 handle_instruction_fn: Some(
-                    $crate::runtime::pipeline::helper::Helper::<$factory>::handle_instruction,
+                    $crate::runtime::v0_4::helper::Helper::<$factory>::handle_instruction,
                 ),
                 on_execution_thread_fn: Some(
-                    $crate::runtime::pipeline::helper::Helper::<$factory>::on_execution_thread,
+                    $crate::runtime::v0_4::helper::Helper::<$factory>::on_execution_thread,
                 ),
                 borrow_peripheral_fn: Some(
-                    $crate::runtime::pipeline::helper::Helper::<$factory>::borrow_peripheral,
+                    $crate::runtime::v0_4::helper::Helper::<$factory>::borrow_peripheral,
                 ),
             };
     };

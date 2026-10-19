@@ -7,6 +7,12 @@ pub mod simulator;
 pub mod time;
 pub mod utils;
 
+// Unversioned exports follow the current contracts. The versioned modules keep
+// their own export macros when another API becomes the default.
+pub use error_model::export_error_model_plugin;
+pub use runtime::export_runtime_plugin;
+pub use simulator::export_simulator_plugin;
+
 #[macro_export]
 macro_rules! export_plugin_descriptor_v1 {
     ($symbol:ident, $descriptor_ty:ident, $api_version:expr, { $($field:ident : $value:expr),* $(,)? }) => {

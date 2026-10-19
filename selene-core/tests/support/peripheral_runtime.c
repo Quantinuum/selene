@@ -1,7 +1,8 @@
-#include <selene/pipeline_runtime.h>
+#include <selene/runtime.h>
+#include <selene/runtime/v0_3.h>
 
 #ifndef TEST_VERSION
-#define TEST_VERSION SELENE_RUNTIME_V2_API_VERSION
+#define TEST_VERSION SELENE_RUNTIME_CURRENT_API_VERSION
 #endif
 #ifndef TEST_SIZE
 #define TEST_SIZE sizeof(SeleneRuntimePluginDescriptorV2)

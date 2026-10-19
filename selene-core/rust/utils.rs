@@ -3,7 +3,7 @@ use std::ffi::CString;
 
 use anyhow::{Result, bail};
 
-use crate::runtime::plugin::Errno;
+pub type Errno = i32;
 
 /// Loads and copies a versioned plugin descriptor without reading beyond the
 /// size advertised by the plugin.

@@ -179,7 +179,7 @@ impl<T: QuantumPeripheralInterface> QuantumPeripheralFFIAdapter<T> {
         batch: RuntimeExtractOperationHandle,
         result: PeripheralResultHandle,
     ) -> i32 {
-        crate::runtime::pipeline::callback_result(|| {
+        crate::runtime::callback_result(|| {
             let this = unsafe { &mut *instance.cast::<Self>() };
             let mut builder = BatchBuilder::default();
             unsafe {
@@ -214,7 +214,7 @@ impl<T: QuantumPeripheralInterface> QuantumPeripheralFFIAdapter<T> {
         qubits: *const u64,
         count: u64,
     ) -> i32 {
-        crate::runtime::pipeline::callback_result(|| {
+        crate::runtime::callback_result(|| {
             let this = unsafe { &mut *instance.cast::<Self>() };
             let file = unsafe { ffi::CStr::from_ptr(file) }.to_str()?;
             let qubits = if count == 0 {

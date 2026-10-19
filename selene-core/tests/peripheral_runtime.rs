@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use selene_core::runtime::pipeline::Runtime;
+use selene_core::runtime::Runtime;
 use std::{
     path::PathBuf,
     process::Command,

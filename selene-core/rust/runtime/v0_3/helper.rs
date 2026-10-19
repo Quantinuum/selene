@@ -1,4 +1,4 @@
-//! Defines the [crate::export_runtime_plugin!] and helpers for implementing runtime
+//! Defines the [crate::export_runtime_plugin_v0_3!] and helpers for implementing runtime
 //! plugins as rust crates.
 //!
 //! See `selene-simple-runtime-plugin` for a fully worked example.
@@ -14,7 +14,7 @@ use super::{
 };
 
 #[derive(Default)]
-/// A helper struct used by [crate::export_runtime_plugin!] to implement the runtime
+/// A helper struct used by [crate::export_runtime_plugin_v0_3!] to implement the runtime
 /// plugin entry points defined by [super::plugin::RuntimePluginInterface] using an
 /// implentation of [RuntimeInterfaceFactory]`.
 pub struct Helper<F>(Arc<F>);
@@ -439,10 +439,10 @@ impl<F: RuntimeInterfaceFactory> Helper<F> {
 /// A crate can only export a single runtime plugin (although it may export
 /// other plugins of other types). See the `selene-simple-runtime-plugin` python
 /// package for a fully worked example.
-macro_rules! export_runtime_plugin {
+macro_rules! export_runtime_plugin_v0_3 {
     ($factory_type:ty) => {
         mod _plugin {
-            use selene_core::runtime::{
+            use selene_core::runtime::v0_3::{
                 interface::RuntimeInterfaceFactory,
                 plugin::{Errno, RuntimeInstance, RuntimePluginDescriptorV1},
                 version::CURRENT_API_VERSION,
@@ -455,7 +455,7 @@ macro_rules! export_runtime_plugin {
             use std::ffi::{c_char, c_void};
 
             /// cbindgen:ignore
-            type Helper = selene_core::runtime::helper::Helper<$factory_type>;
+            type Helper = selene_core::runtime::v0_3::helper::Helper<$factory_type>;
 
             // Enforce that factory_type implements the RuntimeInterfaceFactory trait
             const _: fn() = || {

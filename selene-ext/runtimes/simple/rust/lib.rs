@@ -2,9 +2,11 @@ use std::collections::VecDeque;
 
 use anyhow::{Result, bail};
 use clap::Parser;
+use selene_core::runtime::v0_3::export_runtime_plugin;
 use selene_core::{
-    export_runtime_plugin,
-    runtime::{BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory},
+    runtime::v0_3::{
+        BatchOperation, Operation, RuntimeInterface, interface::RuntimeInterfaceFactory,
+    },
     utils::MetricValue,
 };
 

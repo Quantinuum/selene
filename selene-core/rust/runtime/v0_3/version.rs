@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 #[repr(C)]
 /// A decomposed runtime API version.
 ///
-/// Plugin descriptors use the packed `SELENE_RUNTIME_CURRENT_API_VERSION`
+/// Plugin descriptors use the packed `SELENE_RUNTIME_V0_3_API_VERSION`
 /// integer rather than this structure.
 pub struct RuntimeAPIVersion {
     /// Reserved for future use, must be 0.
@@ -44,7 +44,7 @@ pub const CURRENT_API_VERSION: RuntimeAPIVersion = RuntimeAPIVersion {
 };
 
 /// The current runtime plugin API version, packed for the C descriptor ABI.
-pub const RUNTIME_CURRENT_API_VERSION: u64 = 0x0000_0300;
+pub const RUNTIME_V0_3_API_VERSION: u64 = 0x0000_0300;
 
 // CHANGELOG:
 // 0.0.1: Initial version
@@ -105,6 +105,6 @@ mod tests {
 
     #[test]
     fn c_api_version_matches_rust_version() {
-        assert_eq!(RUNTIME_CURRENT_API_VERSION, CURRENT_API_VERSION.as_u64());
+        assert_eq!(RUNTIME_V0_3_API_VERSION, CURRENT_API_VERSION.as_u64());
     }
 }

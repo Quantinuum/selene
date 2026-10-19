@@ -2,7 +2,7 @@ use super::super::backtrace::Module;
 use super::SeleneInstance;
 use anyhow::Result;
 use selene_core::encoder::{OutputStream, Record, StreamWritable};
-use selene_core::runtime::pipeline::{
+use selene_core::runtime::{
     RuntimeInstruction,
     output::{ExitRequest, PrintRequest, PrintRequestRaw, PrintValue},
 };
@@ -123,7 +123,7 @@ pub(super) unsafe extern "C" fn write_output(
     requests: *const PrintRequestRaw,
     length: u64,
 ) -> i32 {
-    selene_core::runtime::pipeline::callback_result(|| {
+    selene_core::runtime::callback_result(|| {
         anyhow::ensure!(
             length <= isize::MAX as u64 / size_of::<PrintRequestRaw>() as u64,
             "Too many print records"
@@ -144,7 +144,7 @@ pub(super) unsafe extern "C" fn write_output(
 }
 
 pub(super) unsafe extern "C" fn flush_output(context: *mut std::ffi::c_void) -> i32 {
-    selene_core::runtime::pipeline::callback_result(|| {
+    selene_core::runtime::callback_result(|| {
         let encoder = unsafe { &*context.cast::<parking_lot::Mutex<OutputStream>>() };
         encoder.lock().flush()?;
         Ok(())

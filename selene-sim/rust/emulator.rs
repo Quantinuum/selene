@@ -5,8 +5,8 @@ use parking_lot::Mutex;
 use selene_core::error_model::BatchResult;
 use selene_core::peripheral::{PeripheralBorrowRequest, QuantumPeripheralInterface};
 use selene_core::runtime::{
-    BatchOperation, Operation as RuntimeOperation,
-    pipeline::{self, Runtime, RuntimeInstruction, RuntimeInterface, output::OutputSinkHandle},
+    self, BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInstruction,
+    RuntimeInterface, output::OutputSinkHandle,
 };
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -216,7 +216,7 @@ impl Emulator {
     }
 
     pub fn poke(&self) -> Result<()> {
-        pipeline::borrow_peripheral(
+        runtime::borrow_peripheral(
             self.runtime.as_ref(),
             &PeripheralBorrowRequest {
                 force_flush: true,
@@ -227,7 +227,7 @@ impl Emulator {
     }
 
     pub fn dump_quantum_state(&self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
-        pipeline::borrow_peripheral(
+        runtime::borrow_peripheral(
             self.runtime.as_ref(),
             &PeripheralBorrowRequest {
                 force_flush: true,

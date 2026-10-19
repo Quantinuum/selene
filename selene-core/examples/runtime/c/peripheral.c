@@ -1,6 +1,6 @@
 /* A C host and peripheral driving an independently loaded runtime plugin.
  * No simulator or error-model API is needed on this side of the boundary. */
-#include <selene/pipeline_runtime.h>
+#include <selene/runtime.h>
 
 #include <assert.h>
 #include <dlfcn.h>
@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
         dlsym(library, "selene_runtime_plugin_descriptor_v2");
     assert(runtime != NULL);
     assert(runtime->struct_size == sizeof(*runtime));
-    assert(runtime->api_version == SELENE_RUNTIME_V2_API_VERSION);
+    assert(runtime->api_version == SELENE_RUNTIME_CURRENT_API_VERSION);
     char scheduler_arg[4096];
     assert(snprintf(scheduler_arg, sizeof(scheduler_arg), "--scheduler=%s", argv[2]) > 0);
     const char *args[] = {

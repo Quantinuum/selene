@@ -779,10 +779,7 @@ pub unsafe extern "C" fn selene_fetch_output(
     with_instance_u64(instance, |instance| {
         // Finish earlier print instructions before reading their records. This
         // checkpoint does not force pending quantum work to execute.
-        selene_core::runtime::pipeline::on_execution_thread(
-            instance.emulator.runtime.as_ref(),
-            || Ok(()),
-        )?;
+        selene_core::runtime::on_execution_thread(instance.emulator.runtime.as_ref(), || Ok(()))?;
         let mut encoder = instance.out_encoder.lock();
         let data = encoder.try_read(out_max_len as usize)?;
         let len = data.len() as u64;

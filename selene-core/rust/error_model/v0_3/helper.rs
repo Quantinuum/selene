@@ -1,4 +1,4 @@
-//! Defines the [crate::export_error_model_plugin!] and helpers for implementing
+//! Defines the [crate::export_error_model_plugin_v0_3!] and helpers for implementing
 //! error model plugins as rust crates.
 //!
 //! See `selene-ideal-error-model-plugin` for a fully worked example.
@@ -10,13 +10,13 @@ use super::{
 use crate::operation::plugin::{
     BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
 };
-use crate::simulator::Simulator;
-use crate::simulator::inline::SimulatorHandle;
+use crate::simulator::v0_1::Simulator;
+use crate::simulator::v0_1::inline::SimulatorHandle;
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 use std::{ffi, mem, sync::Arc};
 
 #[derive(Default)]
-/// A helper struct used by [crate::export_error_model_plugin!] to implement the error model
+/// A helper struct used by [crate::export_error_model_plugin_v0_3!] to implement the error model
 /// plugin entry points defined by [super::plugin::ErrorModelPluginInterface] using an implementation
 /// of [ErrorModelInterfaceFactory].
 pub struct Helper<F>(Arc<F>);
@@ -161,11 +161,11 @@ impl<F: ErrorModelInterfaceFactory> Helper<F> {
 /// A crate can only export a single runtime plugin (although it may export other
 /// plugins of other types). See the `selene-ideal-error-model-plugin` python package
 /// for a fully worked example.
-macro_rules! export_error_model_plugin {
+macro_rules! export_error_model_plugin_v0_3 {
     ($factory_type:ty) => {
         mod _plugin {
             use selene_core::{
-                error_model::{
+                error_model::v0_3::{
                     ErrorModelInterfaceFactory,
                     plugin::{
                         Errno, ErrorModelInstance, ErrorModelPluginDescriptorV1,
@@ -183,7 +183,7 @@ macro_rules! export_error_model_plugin {
             use std::ffi::c_char;
 
             /// cbindgen:ignore
-            type Helper = selene_core::error_model::helper::Helper<$factory_type>;
+            type Helper = selene_core::error_model::v0_3::helper::Helper<$factory_type>;
 
             // Enforce that $struct_name implements the ErrorModelInterface trait
             const _: fn() = || {
@@ -281,7 +281,7 @@ macro_rules! export_error_model_plugin {
             unsafe extern "C" fn selene_error_model_handle_operations(
                 instance: ErrorModelInstance,
                 batch: RuntimeExtractOperationHandle,
-                simulator: selene_core::simulator::inline::SimulatorHandle<'static>,
+                simulator: selene_core::simulator::v0_1::inline::SimulatorHandle<'static>,
                 result: ErrorModelSetResultHandle,
             ) -> Errno {
                 Helper::handle_operations(instance, batch, simulator, result)

@@ -3,21 +3,22 @@ use super::{
     instruction::{RuntimeInstructionRaw, RuntimeInstructionResultRaw},
     output::OutputSinkHandle,
 };
-use crate::runtime::plugin::{Errno, RuntimeInstance};
 use crate::{
     peripheral::{PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheralHandle},
     utils::{
         MetricValue, check_errno, load_plugin_descriptor, read_raw_metric, with_strings_to_cargs,
     },
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Result, anyhow};
 use std::{
     ffi,
     sync::{Arc, atomic::AtomicBool},
 };
 
-/// Runtime API with direct peripheral ownership. The v1 API remains 0.3.x.
-pub const RUNTIME_V2_API_VERSION: u64 = 0x0000_0400;
+use super::version::RUNTIME_V0_4_API_VERSION;
+
+pub type RuntimeInstance = *mut ffi::c_void;
+pub type Errno = i32;
 
 /// A runtime that owns peripheral execution. All operational functions are
 /// thread safe. Lifecycle calls exclude submissions. Callbacks and peripheral
@@ -36,7 +37,7 @@ pub const RUNTIME_V2_API_VERSION: u64 = 0x0000_0400;
 pub struct RuntimePluginDescriptorV2 {
     /// Must be `sizeof(SeleneRuntimePluginDescriptorV2)`.
     pub struct_size: u64,
-    /// Must be `SELENE_RUNTIME_V2_API_VERSION`.
+    /// Must be `SELENE_RUNTIME_V0_4_API_VERSION`.
     pub api_version: u64,
     /// Create an instance and write its handle. start is the initial simulated
     /// time in nanoseconds. argv contains argc UTF-8 strings, without a program
@@ -137,21 +138,12 @@ unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
 impl Runtime {
-    /// Prefer v2 if advertised. A malformed v2 must not silently fall back to v1.
-    pub fn load_from_file(
-        path: &impl AsRef<std::ffi::OsStr>,
+    pub(crate) fn load_from_library(
+        library: Arc<libloading::Library>,
         n_qubits: u64,
         start: crate::time::Instant,
         args: &[impl AsRef<str>],
-    ) -> Result<Box<dyn RuntimeInterface>> {
-        let library = Arc::new(
-            unsafe { libloading::Library::new(path.as_ref()) }.with_context(|| {
-                format!(
-                    "Failed to load runtime plugin: {}",
-                    path.as_ref().to_string_lossy()
-                )
-            })?,
-        );
+    ) -> Result<Option<Self>> {
         let descriptor = unsafe {
             load_plugin_descriptor::<RuntimePluginDescriptorV2>(
                 &library,
@@ -170,12 +162,10 @@ impl Runtime {
                         .is_ok()
             };
             anyhow::ensure!(!advertised, "Runtime v2 getter returned a null descriptor");
-            return Ok(Box::new(super::LegacyRuntime::new(
-                crate::runtime::Runtime::load_from_file(path, n_qubits, start, args)?,
-            )));
+            return Ok(None);
         };
         anyhow::ensure!(
-            descriptor.api_version >> 8 == RUNTIME_V2_API_VERSION >> 8,
+            descriptor.api_version >> 8 == RUNTIME_V0_4_API_VERSION >> 8,
             "Unsupported peripheral runtime API version"
         );
         anyhow::ensure!(descriptor.init_fn.is_some(), "Runtime v2 requires init_fn");
@@ -217,7 +207,7 @@ impl Runtime {
             )
         })?;
         anyhow::ensure!(!instance.is_null(), "Runtime v2 returned a null instance");
-        Ok(Box::new(Self {
+        Ok(Some(Self {
             _library: library,
             descriptor,
             instance,

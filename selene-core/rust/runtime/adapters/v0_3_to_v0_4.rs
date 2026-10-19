@@ -1,6 +1,6 @@
 //! Compatibility with API 0.3.x. Calls and batch execution stay on the thread
 //! that initialised the legacy runtime; no worker or per-call channel is added.
-use super::{
+use crate::runtime::{
     ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
     output::OutputSinkHandle,
 };
@@ -9,7 +9,7 @@ use crate::{
         PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheral,
         QuantumPeripheralHandle, QuantumPeripheralInterface,
     },
-    runtime::{Runtime, RuntimeInterface as LegacyInterface},
+    runtime::v0_3::{Runtime, RuntimeInterface as LegacyInterface},
     utils::MetricValue,
 };
 use anyhow::{Result, anyhow};

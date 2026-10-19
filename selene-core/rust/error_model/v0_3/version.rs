@@ -2,11 +2,11 @@ use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-/// A decomposed simulator API version.
+/// A decomposed error-model API version.
 ///
-/// Plugin descriptors use the packed `SELENE_SIMULATOR_CURRENT_API_VERSION`
+/// Plugin descriptors use the packed `SELENE_ERROR_MODEL_V0_3_API_VERSION`
 /// integer rather than this structure.
-pub struct SimulatorAPIVersion {
+pub struct ErrorModelAPIVersion {
     /// Reserved for future use, must be 0.
     reserved: u8,
     /// Major version of the API.
@@ -16,7 +16,8 @@ pub struct SimulatorAPIVersion {
     /// Patch version of the API.
     patch: u8,
 }
-impl From<u64> for SimulatorAPIVersion {
+
+impl From<u64> for ErrorModelAPIVersion {
     fn from(value: u64) -> Self {
         Self {
             reserved: ((value >> 24) & 255) as u8,
@@ -26,8 +27,8 @@ impl From<u64> for SimulatorAPIVersion {
         }
     }
 }
-impl From<SimulatorAPIVersion> for u64 {
-    fn from(value: SimulatorAPIVersion) -> u64 {
+impl From<ErrorModelAPIVersion> for u64 {
+    fn from(value: ErrorModelAPIVersion) -> u64 {
         ((value.reserved as u64) << 24)
             | ((value.major as u64) << 16)
             | ((value.minor as u64) << 8)
@@ -36,17 +37,23 @@ impl From<SimulatorAPIVersion> for u64 {
 }
 
 /// cbindgen:ignore
-pub const CURRENT_API_VERSION: SimulatorAPIVersion = SimulatorAPIVersion {
+pub const CURRENT_API_VERSION: ErrorModelAPIVersion = ErrorModelAPIVersion {
     reserved: 0,
     major: 0,
-    minor: 1,
-    patch: 1,
+    minor: 3,
+    patch: 0,
 };
 
-/// The current simulator plugin API version, packed for the C descriptor ABI.
-pub const SIMULATOR_CURRENT_API_VERSION: u64 = 0x0000_0101;
+/// The current error-model plugin API version, packed for the C descriptor ABI.
+pub const ERROR_MODEL_CURRENT_API_VERSION: u64 = 0x0000_0300;
 
-impl SimulatorAPIVersion {
+// Changelog:
+// 0.1.0: Initial version.
+// 0.2.0: Replaced set_measurement_result with set_bool_result and set_u64_result in
+//   ErrorModelSetResultInterface
+// 0.3.0: RuntimeExtractOperationInterface callbacks receive the extraction instance directly.
+
+impl ErrorModelAPIVersion {
     pub const fn as_u64(self) -> u64 {
         ((self.reserved as u64) << 24)
             | ((self.major as u64) << 16)
@@ -86,11 +93,11 @@ impl SimulatorAPIVersion {
             ));
         }
         // The patch version might be bumped for changes that are optional and additive.
-        // For example, if we wish to allow simulators to have a selene_simulator_foo() function,
+        // For example, if we wish to allow error models to have a selene_error_model_foo() function,
         // but it is not mandatory, we express the symbol as optional in plugin.rs, and the
         // behaviour of selene does not change with regards to the other functions (i.e. we do
-        // not avoid calling shot_end() because selene_simulator_foo() has taken over that meaning),
-        // then we can bump the patch version. Otherwise we should bump the minor version.
+        // not avoid calling shot_end() because selene_error_model_foo() has taken over that meaning),
+        // then we can bump the patch self. Otherwise we should bump the minor self.
         Ok(())
     }
 }
@@ -101,6 +108,9 @@ mod tests {
 
     #[test]
     fn c_api_version_matches_rust_version() {
-        assert_eq!(SIMULATOR_CURRENT_API_VERSION, CURRENT_API_VERSION.as_u64());
+        assert_eq!(
+            ERROR_MODEL_CURRENT_API_VERSION,
+            CURRENT_API_VERSION.as_u64()
+        );
     }
 }

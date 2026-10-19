@@ -8,11 +8,10 @@ use selene_core::{
         QuantumPeripheralHandle, QuantumPeripheralInterface,
     },
     runtime::{
-        Runtime as Scheduler, RuntimeInterface as SchedulerInterface,
-        pipeline::{
-            ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
-            RuntimeInterfaceFactory, output::OutputSinkHandle,
-        },
+        ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
+        RuntimeInterfaceFactory,
+        output::OutputSinkHandle,
+        v0_3::{Runtime as Scheduler, RuntimeInterface as SchedulerInterface},
     },
     utils::MetricValue,
 };
@@ -470,4 +469,4 @@ impl RuntimeInterfaceFactory for ThreadedRuntimeFactory {
         Ok(Box::new(ThreadedRuntime::new(n_qubits, start, args)?))
     }
 }
-selene_core::export_pipeline_runtime_plugin!(ThreadedRuntimeFactory);
+selene_core::export_runtime_plugin!(ThreadedRuntimeFactory);

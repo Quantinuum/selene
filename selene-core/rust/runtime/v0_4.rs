@@ -1,7 +1,4 @@
-//! Runtime interfaces that drive a quantum peripheral directly.
-//!
-//! The API 0.3.x interface remains in the parent module. LegacyRuntime adapts
-//! it on the calling thread, including its original batch polling behaviour.
+//! Runtime API 0.4: instruction objects and exclusive peripheral execution.
 use crate::peripheral::{
     PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheralHandle,
 };
@@ -12,10 +9,9 @@ use std::sync::Arc;
 pub mod helper;
 pub mod instruction;
 pub mod output;
+pub mod version;
 pub use instruction::{RuntimeInstruction, RuntimeInstructionResult};
-pub mod legacy;
 pub mod plugin;
-pub use legacy::LegacyRuntime;
 pub use plugin::{Runtime, RuntimePluginDescriptorV2};
 
 /// A host operation performed on the runtime's peripheral execution thread.
@@ -250,3 +246,5 @@ pub fn borrow_peripheral<T: Send>(
     }
     run(runtime, request, operation)
 }
+
+pub use crate::export_runtime_plugin_v0_4 as export_runtime_plugin;

@@ -6,7 +6,7 @@ use crate::{
     operation::plugin::{
         BatchBuilder, RuntimeExtractOperationHandle, RuntimeExtractOperationInterface,
     },
-    simulator::{Simulator, inline::SimulatorHandle},
+    simulator::v0_1::{Simulator, inline::SimulatorHandle},
     utils::{result_of_errno_to_errno, result_to_errno},
 };
 use std::{ffi, marker::PhantomData};

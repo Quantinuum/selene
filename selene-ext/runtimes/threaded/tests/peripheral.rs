@@ -5,8 +5,8 @@ use selene_core::{
         PeripheralBorrowRequest, QuantumPeripheralFFIAdapter, QuantumPeripheralInterface,
     },
     runtime::{
-        BatchOperation, Operation,
-        pipeline::{self, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface},
+        self, BatchOperation, Operation, RuntimeInstruction, RuntimeInstructionResult,
+        RuntimeInterface,
     },
 };
 use selene_threaded_runtime::ThreadedRuntime;
@@ -91,7 +91,7 @@ impl Fixture {
             "--duration-ns-measure-leaked=0",
         ];
         let runtime = ThreadedRuntime::with_scheduler(move || {
-            selene_core::runtime::Runtime::new(
+            selene_core::runtime::v0_3::Runtime::new(
                 Arc::new(selene_simple_runtime::SimpleRuntimeFactory),
                 8,
                 0.into(),
@@ -106,7 +106,7 @@ impl Fixture {
         let fail = Arc::new(AtomicBool::new(false));
         let recorded = calls.clone();
         let failing = fail.clone();
-        let address = pipeline::on_execution_thread(&runtime, move || {
+        let address = runtime::on_execution_thread(&runtime, move || {
             let peripheral = ThreadBoundPeripheral {
                 owner: Rc::new(thread::current().id()),
                 calls: recorded,
@@ -130,7 +130,7 @@ impl Fixture {
         // This callback starts the host's shot on the execution thread, before
         // the runtime receives its peripheral. No Send bound is needed on the
         // actual peripheral: its Rc and state stay on that thread throughout.
-        let (instance, interface) = pipeline::on_execution_thread(&self.runtime, move || {
+        let (instance, interface) = runtime::on_execution_thread(&self.runtime, move || {
             let adapter = unsafe { &mut *(address as *mut Adapter) };
             adapter.inner.record("start");
             let handle = adapter.ffi_interface();
@@ -150,7 +150,7 @@ impl Fixture {
     fn end(&self) -> Result<()> {
         let ended = self.runtime.shot_end();
         let address = self.address;
-        pipeline::on_execution_thread(&self.runtime, move || {
+        runtime::on_execution_thread(&self.runtime, move || {
             unsafe { &*(address as *mut Adapter) }.inner.record("end");
             Ok(())
         })?;
@@ -160,7 +160,7 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         let address = self.address;
-        pipeline::on_execution_thread(&self.runtime, move || {
+        runtime::on_execution_thread(&self.runtime, move || {
             drop(unsafe { Box::from_raw(address as *mut Adapter) });
             Ok(())
         })
@@ -197,7 +197,7 @@ fn execution_and_scoped_borrows_stay_on_the_peripheral_thread() {
     // The runtime has accepted both instructions, but its scheduler hasn't
     // sent them to the peripheral yet. A borrow without a flush must leave
     // that work pending, while still excluding simultaneous peripheral calls.
-    pipeline::borrow_peripheral(
+    runtime::borrow_peripheral(
         &fixture.runtime,
         &PeripheralBorrowRequest::default(),
         |_| {
@@ -215,7 +215,7 @@ fn execution_and_scoped_borrows_stay_on_the_peripheral_thread() {
     .unwrap();
 
     let path = std::env::temp_dir().join(format!("selene-peripheral-{}.state", std::process::id()));
-    pipeline::borrow_peripheral(
+    runtime::borrow_peripheral(
         &fixture.runtime,
         &PeripheralBorrowRequest {
             force_flush: true,
@@ -311,16 +311,16 @@ fn failed_borrows_release_access_and_failed_shots_return_the_peripheral() {
     let fixture = Fixture::new();
     fixture.start(0);
     let failed: Result<()> =
-        pipeline::borrow_peripheral(&fixture.runtime, &Default::default(), |_| {
+        runtime::borrow_peripheral(&fixture.runtime, &Default::default(), |_| {
             Err(anyhow!("Inspection failed"))
         });
     assert!(failed.is_err());
     let panicked: Result<()> =
-        pipeline::borrow_peripheral(&fixture.runtime, &Default::default(), |_| {
+        runtime::borrow_peripheral(&fixture.runtime, &Default::default(), |_| {
             panic!("Inspection panicked")
         });
     assert!(panicked.is_err());
-    pipeline::borrow_peripheral(&fixture.runtime, &Default::default(), |_| Ok(())).unwrap();
+    runtime::borrow_peripheral(&fixture.runtime, &Default::default(), |_| Ok(())).unwrap();
     let q = fixture
         .runtime
         .handle_instruction(RuntimeInstruction::QAlloc)
@@ -355,7 +355,7 @@ fn a_borrow_excludes_execution_while_new_submissions_can_queue() {
     thread::scope(|scope| {
         let runtime = &fixture.runtime;
         let borrowed = scope.spawn(move || {
-            pipeline::borrow_peripheral(runtime, &Default::default(), move |_| {
+            runtime::borrow_peripheral(runtime, &Default::default(), move |_| {
                 entered.send(()).unwrap();
                 released
                     .recv_timeout(std::time::Duration::from_secs(5))
@@ -416,7 +416,7 @@ fn a_borrow_excludes_execution_while_new_submissions_can_queue() {
 
 #[test]
 fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
-    use selene_core::runtime::{Runtime, pipeline::LegacyRuntime};
+    use selene_core::runtime::{adapters::LegacyRuntime, v0_3::Runtime};
     let args = [
         "simple",
         "--duration-ns-rxy=0",
@@ -489,16 +489,16 @@ unsafe extern "C" fn flush_output(_: *mut std::ffi::c_void) -> i32 {
     0
 }
 
-fn discard_output() -> pipeline::output::OutputSinkHandle {
+fn discard_output() -> runtime::output::OutputSinkHandle {
     unsafe extern "C" fn write(
         _: *mut std::ffi::c_void,
         _: u64,
-        _: *const pipeline::output::PrintRequestRaw,
+        _: *const runtime::output::PrintRequestRaw,
         _: u64,
     ) -> i32 {
         0
     }
-    pipeline::output::OutputSinkHandle {
+    runtime::output::OutputSinkHandle {
         context: std::ptr::null_mut(),
         write_fn: Some(write),
         flush_fn: Some(flush_output),
@@ -507,25 +507,25 @@ fn discard_output() -> pipeline::output::OutputSinkHandle {
 
 #[derive(Default)]
 struct OutputLog {
-    records: Mutex<Vec<(ThreadId, Vec<pipeline::output::PrintRequest>)>>,
+    records: Mutex<Vec<(ThreadId, Vec<runtime::output::PrintRequest>)>>,
     pause_exit: Option<(Arc<std::sync::Barrier>, Arc<std::sync::Barrier>)>,
     fail: AtomicBool,
     fail_flush: AtomicBool,
     flushes: std::sync::atomic::AtomicUsize,
 }
 impl OutputLog {
-    fn handle(&self) -> pipeline::output::OutputSinkHandle {
+    fn handle(&self) -> runtime::output::OutputSinkHandle {
         unsafe extern "C" fn write(
             context: *mut std::ffi::c_void,
             _: u64,
-            records: *const pipeline::output::PrintRequestRaw,
+            records: *const runtime::output::PrintRequestRaw,
             length: u64,
         ) -> i32 {
-            pipeline::callback_result(|| {
+            runtime::callback_result(|| {
                 let log = unsafe { &*context.cast::<OutputLog>() };
                 let records = unsafe { std::slice::from_raw_parts(records, length as usize) }
                     .iter()
-                    .map(|raw| unsafe { pipeline::output::PrintRequest::from_raw(raw) })
+                    .map(|raw| unsafe { runtime::output::PrintRequest::from_raw(raw) })
                     .collect::<Result<Vec<_>>>()?;
                 if records[0].tag.starts_with("EXIT:")
                     && let Some((entered, release)) = &log.pause_exit
@@ -542,7 +542,7 @@ impl OutputLog {
             })
         }
         unsafe extern "C" fn flush(context: *mut std::ffi::c_void) -> i32 {
-            pipeline::callback_result(|| {
+            runtime::callback_result(|| {
                 let log = unsafe { &*context.cast::<OutputLog>() };
                 log.flushes.fetch_add(1, Ordering::Relaxed);
                 anyhow::ensure!(
@@ -552,7 +552,7 @@ impl OutputLog {
                 Ok(())
             })
         }
-        pipeline::output::OutputSinkHandle {
+        runtime::output::OutputSinkHandle {
             context: (self as *const Self).cast_mut().cast(),
             write_fn: Some(write),
             flush_fn: Some(flush),
@@ -562,7 +562,7 @@ impl OutputLog {
 
 #[test]
 fn exit_finishes_quantum_work_and_output_before_returning() {
-    use pipeline::output::{ExitRequest, PrintRequest};
+    use runtime::output::{ExitRequest, PrintRequest};
     let fixture = Fixture::new();
     fixture.start(0);
     let qubit = fixture
@@ -666,7 +666,7 @@ fn exit_closes_concurrent_submissions_before_waiting_for_output() {
         let exiting = scope.spawn(move || {
             runtime
                 .handle_instruction(RuntimeInstruction::Exit {
-                    request: pipeline::output::ExitRequest {
+                    request: runtime::output::ExitRequest {
                         error_code: 0,
                         message: "done".into(),
                         backtrace: Vec::new(),
@@ -686,7 +686,7 @@ fn exit_closes_concurrent_submissions_before_waiting_for_output() {
                 .is_err();
             let print_rejected = runtime
                 .handle_instruction(RuntimeInstruction::Print {
-                    request: pipeline::output::PrintRequest::new("late", 1u64),
+                    request: runtime::output::PrintRequest::new("late", 1u64),
                 })
                 .and_then(RuntimeInstructionResult::into_unit)
                 .is_err();
@@ -726,7 +726,7 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
             fixture
                 .runtime
                 .handle_instruction(RuntimeInstruction::Exit {
-                    request: pipeline::output::ExitRequest {
+                    request: runtime::output::ExitRequest {
                         error_code: 1001,
                         message: "original failure".into(),
                         backtrace: Vec::new(),
@@ -757,8 +757,8 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
     }
 }
 
-struct CustomCallScheduler(selene_core::runtime::Runtime);
-impl selene_core::runtime::RuntimeInterface for CustomCallScheduler {
+struct CustomCallScheduler(selene_core::runtime::v0_3::Runtime);
+impl selene_core::runtime::v0_3::RuntimeInterface for CustomCallScheduler {
     fn custom_call(&mut self, _tag: u64, _data: &[u8]) -> Result<u64> {
         self.0.rxy_gate(0, std::f64::consts::PI, 0.0)?;
         self.0.measure(0)
@@ -829,7 +829,7 @@ impl selene_core::runtime::RuntimeInterface for CustomCallScheduler {
 fn custom_calls_execute_their_batches_before_returning() {
     for fail in [false, true] {
         let runtime = ThreadedRuntime::with_scheduler(|| {
-            let scheduler = selene_core::runtime::Runtime::new(
+            let scheduler = selene_core::runtime::v0_3::Runtime::new(
                 Arc::new(selene_simple_runtime::SimpleRuntimeFactory),
                 1,
                 0.into(),
@@ -844,7 +844,7 @@ fn custom_calls_execute_their_batches_before_returning() {
                     "--duration-ns-measure-leaked=0",
                 ],
             )?;
-            Ok(selene_core::runtime::Runtime::from_boxed(Box::new(
+            Ok(selene_core::runtime::v0_3::Runtime::from_boxed(Box::new(
                 CustomCallScheduler(scheduler),
             )))
         })

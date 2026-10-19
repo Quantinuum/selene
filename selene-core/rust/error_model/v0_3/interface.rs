@@ -1,9 +1,9 @@
 use anyhow::Result;
 use std::sync::Arc;
 
-use crate::error_model::BatchResult;
+use crate::error_model::v0_3::BatchResult;
 use crate::operation::BatchOperation;
-use crate::simulator::SimulatorInterface;
+use crate::simulator::v0_1::SimulatorInterface;
 use crate::utils::MetricValue;
 
 /// Instances of error model plugins implement this interface.

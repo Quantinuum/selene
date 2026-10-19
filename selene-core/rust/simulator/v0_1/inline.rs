@@ -1,7 +1,7 @@
 use super::{SimulatorInterface, plugin::SimulatorInstance};
 use crate::{
-    runtime::{BatchOperation, Operation},
-    simulator::plugin::Errno,
+    operation::{BatchOperation, Operation},
+    simulator::v0_1::plugin::Errno,
     utils::{result_of_errno_to_errno, result_to_errno},
 };
 use std::{ffi, marker::PhantomData};

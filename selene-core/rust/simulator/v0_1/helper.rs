@@ -9,7 +9,7 @@ use super::{
     interface::SimulatorInterfaceFactory,
     plugin::{Errno, SimulatorInstance},
 };
-use crate::runtime::{BatchOperation, Operation};
+use crate::operation::{BatchOperation, Operation};
 use crate::utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno};
 
 #[derive(Default)]
@@ -289,10 +289,10 @@ macro_rules! crate_to_inline_simulator {
 /// A crate can only export a single runtime plugin (although it may export
 /// other plugins of other types). See the `selene-coinflip-plugin` python package
 /// for a fully worked example.
-macro_rules! export_simulator_plugin {
+macro_rules! export_simulator_plugin_v0_1 {
     ($factory_type:ty) => {
         mod _plugin {
-            use selene_core::simulator::{
+            use selene_core::simulator::v0_1::{
                 interface::SimulatorInterfaceFactory,
                 plugin::{
                     Errno, SimulatorInstance, SimulatorPluginDescriptorV1,
@@ -304,7 +304,7 @@ macro_rules! export_simulator_plugin {
             use std::ffi::c_char;
 
             /// cbindgen:ignore
-            type Helper = selene_core::simulator::helper::Helper<$factory_type>;
+            type Helper = selene_core::simulator::v0_1::helper::Helper<$factory_type>;
 
             // Enforce that $struct_name implements the SimulatorInterfaceFactory trait
             const _: fn() = || {

@@ -6,10 +6,7 @@ use selene_core::{
     peripheral::{
         QuantumPeripheralFFIAdapter, QuantumPeripheralHandle, QuantumPeripheralInterface,
     },
-    runtime::{
-        BatchOperation,
-        pipeline::{self, RuntimeInterface},
-    },
+    runtime::{self, BatchOperation, RuntimeInterface},
     simulator::{Simulator, SimulatorInterface},
     utils::MetricValue,
 };
@@ -112,7 +109,7 @@ impl PeripheralStorage {
         let error_file = config.error_model.file.clone();
         let error_args = config.error_model.args.clone();
         let n_qubits = config.n_qubits;
-        let address = pipeline::on_execution_thread(runtime, move || {
+        let address = runtime::on_execution_thread(runtime, move || {
             let mut error_model = ErrorModel::load_from_file(&error_file, n_qubits, &error_args)?;
             let simulator =
                 match Simulator::load_from_file(&simulator_file, n_qubits, &simulator_args) {
@@ -144,7 +141,7 @@ impl PeripheralStorage {
         operation: impl FnOnce(&mut QuantumPeripheralFFIAdapter<PeripheralState>) -> Result<T> + Send,
     ) -> Result<T> {
         let address = self.address;
-        pipeline::on_execution_thread(runtime, move || {
+        runtime::on_execution_thread(runtime, move || {
             let state =
                 unsafe { &mut *(address as *mut QuantumPeripheralFFIAdapter<PeripheralState>) };
             state.inner.check_thread()?;
@@ -158,7 +155,7 @@ impl PeripheralStorage {
         operation: impl FnOnce(&mut PeripheralState) -> Result<T> + Send,
     ) -> Result<T> {
         let address = self.address;
-        pipeline::borrow_peripheral(runtime, &Default::default(), move |_| {
+        runtime::borrow_peripheral(runtime, &Default::default(), move |_| {
             let state =
                 unsafe { &mut *(address as *mut QuantumPeripheralFFIAdapter<PeripheralState>) };
             state.inner.check_thread()?;
@@ -171,7 +168,7 @@ impl PeripheralStorage {
         if address == 0 {
             return Ok(());
         }
-        pipeline::on_execution_thread(runtime, move || {
+        runtime::on_execution_thread(runtime, move || {
             let pointer = address as *mut QuantumPeripheralFFIAdapter<PeripheralState>;
             unsafe { &*pointer }.inner.check_thread()?;
             let mut state = unsafe { Box::from_raw(pointer) };

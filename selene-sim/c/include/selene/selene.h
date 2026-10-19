@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <selene/pipeline_runtime.h>
+#include <selene/runtime.h>
 /* Operational calls may overlap when the chosen runtime supports concurrent
  * entry. API 0.3.x runtimes remain restricted to their initialising thread.
  * The host must stop and join program threads before shot_start, shot_end or

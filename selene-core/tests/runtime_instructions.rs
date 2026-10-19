@@ -1,4 +1,4 @@
-use selene_core::runtime::pipeline::{
+use selene_core::runtime::{
     RuntimeInstruction as I, RuntimeInstructionResult as R,
     instruction::{RuntimeInstructionRaw, RuntimeInstructionResultRaw},
     output::{ExitRequest, PrintRequest},
