@@ -6,10 +6,13 @@ use crate::peripheral::{
     PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheralHandle,
 };
 use crate::utils::MetricValue;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use std::sync::Arc;
 
 pub mod helper;
+pub mod instruction;
+pub mod output;
+pub use instruction::{RuntimeInstruction, RuntimeInstructionResult, RuntimeInstructions};
 pub mod legacy;
 pub mod plugin;
 pub use legacy::LegacyRuntime;
@@ -40,20 +43,22 @@ pub unsafe trait RuntimeInterface: Send + Sync {
         Ok(())
     }
 
-    fn exit(&self) -> Result<()>;
+    fn destroy(&self) -> Result<()>;
 
     /// The host has started the peripheral's shot on the execution thread.
     /// Take exclusive access until shot_end returns. If shot_start fails,
     /// return without retaining the handle.
     ///
     /// # Safety
-    /// The handle must remain live until shot_end returns. All use must stay
-    /// on the execution thread, and no handle or callback may escape the shot.
+    /// Both handles must remain live until shot_end returns. Peripheral use
+    /// must stay on the execution thread. The output sink must be thread safe.
+    /// Neither handle nor any callback may escape the shot.
     unsafe fn shot_start(
         &self,
         shot_id: u64,
         seed: u64,
         peripheral: QuantumPeripheralHandle,
+        output: output::OutputSinkHandle,
     ) -> Result<()>;
 
     /// Complete submitted work and relinquish the peripheral, even on failure.
@@ -88,61 +93,22 @@ pub unsafe trait RuntimeInterface: Send + Sync {
         context: *mut std::ffi::c_void,
     ) -> Result<()>;
 
-    fn custom_call(&self, _tag: u64, _data: &[u8]) -> Result<u64> {
-        Err(anyhow!(
-            "A custom call has been issued to a runtime that does not support custom calls."
-        ))
-    }
-
-    fn simulate_delay(&self, _delay_ns: u64) -> Result<()> {
-        Err(anyhow!(
-            "A request to simulate a delay has been issued to a runtime that does not support this feature."
-        ))
-    }
+    /// Accept an owned program instruction. Calls from one thread keep their
+    /// order. Concurrent calls establish an order before accepting the work.
+    /// Gates and prints may return once queued. Queries return their requested
+    /// values, and ForceResult completes execution before returning.
+    ///
+    /// Exit closes the shot to program instructions, flushes all earlier work
+    /// and output, and emits the diagnostic before returning. Even on failure,
+    /// no background work may still access the peripheral when Exit returns.
+    /// Keep the handles until shot_end, which must remain safe to call. Return
+    /// normally: the C program interface performs its jump after this call.
+    fn handle_instruction(
+        &self,
+        instruction: RuntimeInstruction,
+    ) -> Result<RuntimeInstructionResult>;
 
     fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>>;
-
-    fn qalloc(&self) -> Result<u64>;
-
-    fn qfree(&self, qubit_id: u64) -> Result<()>;
-
-    fn rxy_gate(&self, _qubit_id: u64, _theta: f64, _phi: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RXY gate");
-    }
-
-    fn rzz_gate(&self, _qubit_id_1: u64, _qubit_id_2: u64, _theta: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RZZ gate");
-    }
-
-    fn rz_gate(&self, _qubit_id: u64, _theta: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RZ gate");
-    }
-
-    fn rpp_gate(&self, _qubit_id_1: u64, _qubit_id_2: u64, _theta: f64, _phi: f64) -> Result<()> {
-        bail!("RuntimeInterface: The chosen runtime does not support the RPP gate");
-    }
-
-    fn measure(&self, qubit_id: u64) -> Result<u64>;
-
-    fn measure_leaked(&self, qubit_id: u64) -> Result<u64>;
-
-    fn reset(&self, qubit_id: u64) -> Result<()>;
-
-    /// Make the requested result available before returning. Execution and
-    /// publication belong to the runtime; the host will not poll for batches.
-    fn force_result(&self, result_id: u64) -> Result<()>;
-
-    fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>>;
-
-    fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>>;
-
-    fn increment_future_refcount(&self, future: u64) -> Result<()>;
-
-    fn decrement_future_refcount(&self, future: u64) -> Result<()>;
-
-    fn local_barrier(&self, qubits: &[u64], sleep_ns: u64) -> Result<()>;
-
-    fn global_barrier(&self, sleep_ns: u64) -> Result<()>;
 }
 
 pub trait RuntimeInterfaceFactory: Send + Sync {

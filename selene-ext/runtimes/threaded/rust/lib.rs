@@ -9,7 +9,10 @@ use selene_core::{
     },
     runtime::{
         Runtime as Scheduler, RuntimeInterface as SchedulerInterface,
-        pipeline::{ExecutionCallback, RuntimeInterface, RuntimeInterfaceFactory},
+        pipeline::{
+            ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
+            RuntimeInterfaceFactory, output::OutputSinkHandle,
+        },
     },
     utils::MetricValue,
 };
@@ -25,6 +28,7 @@ struct State {
     peripheral: Option<QuantumPeripheralHandle>,
     failure: Option<String>,
     submitted: u64,
+    output: Option<OutputSinkHandle>,
 }
 impl State {
     fn drain(&mut self) -> Result<()> {
@@ -55,10 +59,126 @@ impl State {
         }
         Ok(())
     }
+    fn handle_instruction(
+        &mut self,
+        instruction: RuntimeInstruction,
+    ) -> Result<RuntimeInstructionResult> {
+        use RuntimeInstruction as I;
+        use RuntimeInstructionResult as R;
+        if let I::Exit { request } = instruction {
+            // Even if earlier work failed, attempt the original diagnostic.
+            // This worker performs all execution itself, so returning this reply
+            // also guarantees that no background peripheral access remains.
+            let flushed = self.scheduler.global_barrier(0).and_then(|_| self.drain());
+            let printed = unsafe {
+                self.output
+                    .ok_or_else(|| anyhow!("No output sink"))?
+                    .print(0, &request.records())
+            };
+            let output_flushed = unsafe { self.output.unwrap().flush() };
+            flushed.and(printed).and(output_flushed)?;
+            return Ok(R::None);
+        }
+        if let Some(error) = &self.failure {
+            return Err(anyhow!("{error}"));
+        }
+        self.submitted += 1;
+        match instruction {
+            I::QAlloc => Ok(R::Qubit(self.scheduler.qalloc()?)),
+            I::QFree { qubit_id } => {
+                self.scheduler.qfree(qubit_id)?;
+                Ok(R::None)
+            }
+            I::RXYGate {
+                qubit_id,
+                theta,
+                phi,
+            } => {
+                self.scheduler.rxy_gate(qubit_id, theta, phi)?;
+                Ok(R::None)
+            }
+            I::RZZGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+            } => {
+                self.scheduler.rzz_gate(qubit_id_1, qubit_id_2, theta)?;
+                Ok(R::None)
+            }
+            I::RZGate { qubit_id, theta } => {
+                self.scheduler.rz_gate(qubit_id, theta)?;
+                Ok(R::None)
+            }
+            I::RPPGate {
+                qubit_id_1,
+                qubit_id_2,
+                theta,
+                phi,
+            } => {
+                self.scheduler
+                    .rpp_gate(qubit_id_1, qubit_id_2, theta, phi)?;
+                Ok(R::None)
+            }
+            I::Measure { qubit_id } => Ok(R::Future(self.scheduler.measure(qubit_id)?)),
+            I::MeasureLeaked { qubit_id } => {
+                Ok(R::Future(self.scheduler.measure_leaked(qubit_id)?))
+            }
+            I::Reset { qubit_id } => {
+                self.scheduler.reset(qubit_id)?;
+                Ok(R::None)
+            }
+            I::ForceResult { result_id } => {
+                self.scheduler.force_result(result_id)?;
+                self.drain()?;
+                Ok(R::None)
+            }
+            I::GetBoolResult { result_id } => {
+                Ok(R::Bool(self.scheduler.get_bool_result(result_id)?))
+            }
+            I::GetU64Result { result_id } => Ok(R::U64(self.scheduler.get_u64_result(result_id)?)),
+            I::IncrementFutureRefcount { future } => {
+                self.scheduler.increment_future_refcount(future)?;
+                Ok(R::None)
+            }
+            I::DecrementFutureRefcount { future } => {
+                self.scheduler.decrement_future_refcount(future)?;
+                Ok(R::None)
+            }
+            I::LocalBarrier { qubits, sleep_ns } => {
+                self.scheduler.local_barrier(&qubits, sleep_ns)?;
+                Ok(R::None)
+            }
+            I::GlobalBarrier { sleep_ns } => {
+                self.scheduler.global_barrier(sleep_ns)?;
+                Ok(R::None)
+            }
+            I::CustomCall { tag, data } => {
+                Ok(R::U64(Some(self.scheduler.custom_call(tag, &data)?)))
+            }
+            I::SimulateDelay { delay_ns } => {
+                self.scheduler.simulate_delay(delay_ns)?;
+                Ok(R::None)
+            }
+            I::Print { request } => {
+                unsafe {
+                    self.output
+                        .ok_or_else(|| anyhow!("No output sink"))?
+                        .print(0, &[request])?;
+                }
+                Ok(R::None)
+            }
+            I::Exit { .. } => unreachable!(),
+        }
+    }
+}
+
+struct Queue {
+    sender: Option<mpsc::Sender<Request>>,
+    program_open: bool,
 }
 
 pub struct ThreadedRuntime {
-    requests: Mutex<Option<mpsc::Sender<Request>>>,
+    requests: Mutex<Queue>,
     thread: Mutex<Option<JoinHandle<()>>>,
 }
 impl ThreadedRuntime {
@@ -108,6 +228,7 @@ impl ThreadedRuntime {
                     peripheral: None,
                     failure: None,
                     submitted: 0,
+                    output: None,
                 };
                 if ready.send(Ok(())).is_err() {
                     return;
@@ -118,7 +239,10 @@ impl ThreadedRuntime {
                 let _ = state.scheduler.exit();
             })?;
         let runtime = Self {
-            requests: Mutex::new(Some(requests)),
+            requests: Mutex::new(Queue {
+                sender: Some(requests),
+                program_open: false,
+            }),
             thread: Mutex::new(Some(thread)),
         };
         initialised
@@ -130,6 +254,7 @@ impl ThreadedRuntime {
         self.requests
             .lock()
             .map_err(|_| anyhow!("Runtime queue lock poisoned"))?
+            .sender
             .as_ref()
             .ok_or_else(|| anyhow!("Runtime has exited"))?
             .send(request)
@@ -150,31 +275,18 @@ impl ThreadedRuntime {
             .recv()
             .map_err(|_| anyhow!("Runtime stopped before replying"))?
     }
-    fn submit(
-        &self,
-        operation: impl FnOnce(&mut Scheduler) -> Result<()> + Send + 'static,
-    ) -> Result<()> {
-        self.enqueue(Box::new(move |state| {
-            if state.failure.is_some() {
-                return;
-            }
-            state.submitted += 1;
-            if let Err(error) = operation(&mut state.scheduler) {
-                state.failure = Some(format!("{error:#}"));
-            }
-        }))
-    }
 }
 impl Drop for ThreadedRuntime {
     fn drop(&mut self) {
-        let _ = self.exit();
+        let _ = self.destroy();
     }
 }
 unsafe impl RuntimeInterface for ThreadedRuntime {
-    fn exit(&self) -> Result<()> {
+    fn destroy(&self) -> Result<()> {
         self.requests
             .lock()
             .map_err(|_| anyhow!("Runtime queue lock poisoned"))?
+            .sender
             .take();
         if let Some(thread) = self
             .thread
@@ -193,6 +305,7 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
         shot_id: u64,
         seed: u64,
         peripheral: QuantumPeripheralHandle,
+        output: OutputSinkHandle,
     ) -> Result<()> {
         // Transport only the address and function pointers. The pointed-to
         // plugins were created on this worker and are never used by the caller.
@@ -202,19 +315,30 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
             anyhow::ensure!(state.peripheral.is_none(), "Runtime shot already active");
             state.scheduler.shot_start(shot_id, seed)?;
             state.failure = None;
+            state.output = Some(output);
             state.submitted = 0;
             state.peripheral = Some(QuantumPeripheralHandle {
                 instance: address as *mut ffi::c_void,
                 interface,
             });
             Ok(())
-        })
+        })?;
+        self.requests
+            .lock()
+            .map_err(|_| anyhow!("Runtime queue lock poisoned"))?
+            .program_open = true;
+        Ok(())
     }
     fn shot_end(&self) -> Result<()> {
+        self.requests
+            .lock()
+            .map_err(|_| anyhow!("Runtime queue lock poisoned"))?
+            .program_open = false;
         self.call(|state| {
             let drained = state.drain();
             let ended = state.scheduler.shot_end();
             state.peripheral = None;
+            state.output = None;
             drained.and(ended)
         })
     }
@@ -260,12 +384,6 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
             )
         })
     }
-    fn force_result(&self, result_id: u64) -> Result<()> {
-        self.call(move |state| {
-            state.scheduler.force_result(result_id)?;
-            state.drain()
-        })
-    }
     fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         self.call(move |state| {
             Ok(match nth_metric {
@@ -277,88 +395,60 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
             })
         })
     }
-    fn qalloc(&self) -> Result<u64> {
-        self.call(move |state| {
-            if let Some(error) = &state.failure {
-                return Err(anyhow!("{error}"));
+    fn handle_instruction(
+        &self,
+        instruction: RuntimeInstruction,
+    ) -> Result<RuntimeInstructionResult> {
+        use RuntimeInstruction as I;
+        let is_exit = matches!(&instruction, I::Exit { .. });
+        let synchronous = matches!(
+            &instruction,
+            I::QAlloc
+                | I::Measure { .. }
+                | I::MeasureLeaked { .. }
+                | I::ForceResult { .. }
+                | I::GetBoolResult { .. }
+                | I::GetU64Result { .. }
+                | I::CustomCall { .. }
+                | I::Exit { .. }
+        );
+        let (reply, result) = mpsc::sync_channel(1);
+        {
+            // Exit closes submissions under the same lock that orders requests.
+            // Nothing accepted afterwards can land behind it on the worker.
+            let mut queue = self
+                .requests
+                .lock()
+                .map_err(|_| anyhow!("Runtime queue lock poisoned"))?;
+            anyhow::ensure!(queue.program_open, "Program is not accepting instructions");
+            if is_exit {
+                queue.program_open = false;
             }
-            state.scheduler.qalloc()
-        })
-    }
-    fn qfree(&self, qubit_id: u64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.qfree(qubit_id))
-    }
-    fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.rxy_gate(qubit_id, theta, phi))
-    }
-    fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.rzz_gate(qubit_id_1, qubit_id_2, theta))
-    }
-    fn rpp_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.rpp_gate(qubit_id_1, qubit_id_2, theta, phi))
-    }
-    fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.rz_gate(qubit_id, theta))
-    }
-    fn measure(&self, qubit_id: u64) -> Result<u64> {
-        self.call(move |state| {
-            if let Some(error) = &state.failure {
-                return Err(anyhow!("{error}"));
-            }
-            state.scheduler.measure(qubit_id)
-        })
-    }
-    fn measure_leaked(&self, qubit_id: u64) -> Result<u64> {
-        self.call(move |state| {
-            if let Some(error) = &state.failure {
-                return Err(anyhow!("{error}"));
-            }
-            state.scheduler.measure_leaked(qubit_id)
-        })
-    }
-    fn reset(&self, qubit_id: u64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.reset(qubit_id))
-    }
-    fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
-        self.call(move |state| {
-            if let Some(error) = &state.failure {
-                return Err(anyhow!("{error}"));
-            }
-            state.scheduler.get_bool_result(result_id)
-        })
-    }
-    fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>> {
-        self.call(move |state| {
-            if let Some(error) = &state.failure {
-                return Err(anyhow!("{error}"));
-            }
-            state.scheduler.get_u64_result(result_id)
-        })
-    }
-    fn increment_future_refcount(&self, future: u64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.increment_future_refcount(future))
-    }
-    fn decrement_future_refcount(&self, future: u64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.decrement_future_refcount(future))
-    }
-    fn local_barrier(&self, qubits: &[u64], sleep_ns: u64) -> Result<()> {
-        let qubits = qubits.to_vec();
-        self.submit(move |scheduler| scheduler.local_barrier(&qubits, sleep_ns))
-    }
-    fn global_barrier(&self, sleep_ns: u64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.global_barrier(sleep_ns))
-    }
-    fn custom_call(&self, tag: u64, data: &[u8]) -> Result<u64> {
-        let data = data.to_vec();
-        self.call(move |state| {
-            if let Some(error) = &state.failure {
-                return Err(anyhow!("{error}"));
-            }
-            state.scheduler.custom_call(tag, &data)
-        })
-    }
-    fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
-        self.submit(move |scheduler| scheduler.simulate_delay(delay_ns))
+            queue
+                .sender
+                .as_ref()
+                .ok_or_else(|| anyhow!("Runtime has exited"))?
+                .send(Box::new(move |state| {
+                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        state.handle_instruction(instruction)
+                    }))
+                    .unwrap_or_else(|_| Err(anyhow!("Runtime instruction panicked")));
+                    if let Err(error) = &outcome {
+                        state.failure = Some(format!("{error:#}"));
+                    }
+                    if synchronous {
+                        let _ = reply.send(outcome);
+                    }
+                }))
+                .map_err(|_| anyhow!("Runtime execution thread has stopped"))?;
+        }
+        if synchronous {
+            result
+                .recv()
+                .map_err(|_| anyhow!("Runtime stopped before replying"))?
+        } else {
+            Ok(RuntimeInstructionResult::None)
+        }
     }
 }
 

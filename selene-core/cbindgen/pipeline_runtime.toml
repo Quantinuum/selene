@@ -34,21 +34,53 @@ usize_is_size_t = true
 
 [export]
 include = [
+  "RuntimeInstructionResultTag", "OutputDatatype",
+  "RuntimeInstructionTag", "RuntimeInstructionRaw", "RuntimeInstructionPayload", "RuntimeInstructionResultRaw",
+  "PrintRequestRaw", "ExitRequestRaw", "OutputString", "OutputValue", "OutputSinkHandle",
   "RuntimePluginDescriptorV2", "RUNTIME_V2_API_VERSION",
   "QuantumPeripheralHandle", "QuantumPeripheralOperationInterface",
   "PeripheralBorrowRequest", "PeripheralBorrowCallback", "ExecutionCallback",
   "PeripheralResultHandle", "PeripheralResultInterface",
 ]
 exclude = [
+  "RuntimeInstruction", "RuntimeInstructionResult", "PrintRequest", "ExitRequest", "PrintValue",
   "CURRENT_API_VERSION", "SIMULATOR_CURRENT_API_VERSION", "ERROR_MODEL_CURRENT_API_VERSION",
   "RUNTIME_CURRENT_API_VERSION", "RuntimeAPIVersion", "Errno", "RuntimeInstance",
   "RuntimeGetOperationHandle", "RuntimeGetOperationInterface", "RuntimeGetOperationInstance",
   "RuntimeExtractOperationHandle", "RuntimeExtractOperationInterface", "RuntimeExtractOperationInstance",
   "ErrorModelSetResultHandle", "ErrorModelSetResultInterface", "ErrorModelSetResultInstance",
 ]
-item_types = ["constants", "structs", "enums", "typedefs"]
+item_types = ["constants", "structs", "unions", "enums", "typedefs"]
 
 [export.rename]
+"RuntimeInstructionResultTag" = "SeleneRuntimeInstructionResultTag"
+"OutputDatatype" = "SeleneOutputDatatype"
+"QFreeInstruction" = "SeleneQFreeInstruction"
+"RXYGateInstruction" = "SeleneRXYGateInstruction"
+"RZZGateInstruction" = "SeleneRZZGateInstruction"
+"RZGateInstruction" = "SeleneRZGateInstruction"
+"RPPGateInstruction" = "SeleneRPPGateInstruction"
+"MeasureInstruction" = "SeleneMeasureInstruction"
+"MeasureLeakedInstruction" = "SeleneMeasureLeakedInstruction"
+"ResetInstruction" = "SeleneResetInstruction"
+"ForceResultInstruction" = "SeleneForceResultInstruction"
+"GetBoolResultInstruction" = "SeleneGetBoolResultInstruction"
+"GetU64ResultInstruction" = "SeleneGetU64ResultInstruction"
+"IncrementFutureRefcountInstruction" = "SeleneIncrementFutureRefcountInstruction"
+"DecrementFutureRefcountInstruction" = "SeleneDecrementFutureRefcountInstruction"
+"LocalBarrierInstruction" = "SeleneLocalBarrierInstruction"
+"GlobalBarrierInstruction" = "SeleneGlobalBarrierInstruction"
+"CustomCallInstruction" = "SeleneCustomCallInstruction"
+"SimulateDelayInstruction" = "SeleneSimulateDelayInstruction"
+"RuntimeInstructionRaw" = "SeleneRuntimeInstruction"
+"RuntimeInstructionTag" = "SeleneRuntimeInstructionTag"
+"RuntimeInstructionResultRaw" = "SeleneRuntimeInstructionResult"
+"RuntimeInstructionPayload" = "SeleneRuntimeInstructionPayload"
+"PrintRequestRaw" = "SelenePrintRequest"
+"ExitRequestRaw" = "SeleneExitRequest"
+"OutputString" = "SeleneOutputString"
+"OutputValue" = "SeleneOutputValue"
+"OutputSinkHandle" = "SeleneOutputSink"
 "RuntimePluginDescriptorV2" = "SeleneRuntimePluginDescriptorV2"
 "RUNTIME_V2_API_VERSION" = "SELENE_RUNTIME_V2_API_VERSION"
 "QuantumPeripheralHandle" = "SeleneQuantumPeripheral"
@@ -73,7 +105,7 @@ args = "vertical"
 [enum]
 rename_variants = "None"
 add_sentinel = false
-prefix_with_name = false
+prefix_with_name = true
 derive_helper_methods = false
 derive_const_casts = false
 derive_mut_casts = false

@@ -354,7 +354,9 @@ pub unsafe extern "C" fn selene_print_bool(
     tag: WrappedString,
     value: bool,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -363,7 +365,9 @@ pub unsafe extern "C" fn selene_print_i64(
     tag: WrappedString,
     value: i64,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -372,7 +376,9 @@ pub unsafe extern "C" fn selene_print_u64(
     tag: WrappedString,
     value: u64,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -381,7 +387,9 @@ pub unsafe extern "C" fn selene_print_f64(
     tag: WrappedString,
     value: f64,
 ) -> VoidResult {
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -392,7 +400,9 @@ pub unsafe extern "C" fn selene_print_bool_array(
     length: u64,
 ) -> VoidResult {
     let value = unsafe { std::slice::from_raw_parts(ptr, length as usize) };
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -403,7 +413,9 @@ pub unsafe extern "C" fn selene_print_i64_array(
     length: u64,
 ) -> VoidResult {
     let value = unsafe { std::slice::from_raw_parts(ptr, length as usize) };
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -414,7 +426,9 @@ pub unsafe extern "C" fn selene_print_u64_array(
     length: u64,
 ) -> VoidResult {
     let value = unsafe { std::slice::from_raw_parts(ptr, length as usize) };
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -425,7 +439,9 @@ pub unsafe extern "C" fn selene_print_f64_array(
     length: u64,
 ) -> VoidResult {
     let value = unsafe { std::slice::from_raw_parts(ptr, length as usize) };
-    with_instance_void(instance, |instance| instance.print(tag.to_str(), value))
+    with_instance_void(instance, |instance| {
+        instance.print_program(tag.to_str(), value)
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -761,6 +777,12 @@ pub unsafe extern "C" fn selene_fetch_output(
     out_max_len: u64,
 ) -> U64Result {
     with_instance_u64(instance, |instance| {
+        // Finish earlier print instructions before reading their records. This
+        // checkpoint does not force pending quantum work to execute.
+        selene_core::runtime::pipeline::on_execution_thread(
+            instance.emulator.runtime.as_ref(),
+            || Ok(()),
+        )?;
         let mut encoder = instance.out_encoder.lock();
         let data = encoder.try_read(out_max_len as usize)?;
         let len = data.len() as u64;

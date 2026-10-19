@@ -29,6 +29,330 @@ const struct SeleneRuntimePluginDescriptorV2 *selene_runtime_get_plugin_descript
  */
 #define SELENE_RUNTIME_V2_API_VERSION 1024
 
+/**
+ * The kind of result returned by an instruction.
+ */
+enum SeleneRuntimeInstructionResultTag
+#ifdef __cplusplus
+  : uint32_t
+#endif // __cplusplus
+ {
+  SeleneRuntimeInstructionResultTag_None = 0,
+  SeleneRuntimeInstructionResultTag_Qubit = 1,
+  SeleneRuntimeInstructionResultTag_Future = 2,
+  SeleneRuntimeInstructionResultTag_Bool = 3,
+  SeleneRuntimeInstructionResultTag_U64 = 4,
+};
+#ifndef __cplusplus
+typedef uint32_t SeleneRuntimeInstructionResultTag;
+#endif // __cplusplus
+
+/**
+ * The native C type used by an output value's data pointer.
+ */
+enum SeleneOutputDatatype
+#ifdef __cplusplus
+  : uint32_t
+#endif // __cplusplus
+ {
+  SeleneOutputDatatype_Bool = 0,
+  SeleneOutputDatatype_I64 = 1,
+  SeleneOutputDatatype_U64 = 2,
+  SeleneOutputDatatype_F64 = 3,
+  SeleneOutputDatatype_String = 4,
+};
+#ifndef __cplusplus
+typedef uint32_t SeleneOutputDatatype;
+#endif // __cplusplus
+
+/**
+ * C instruction tags are fixed-width integers. Unknown tags are rejected
+ * before reading the corresponding union member.
+ */
+enum SeleneRuntimeInstructionTag
+#ifdef __cplusplus
+  : uint32_t
+#endif // __cplusplus
+ {
+  /**
+   * Allocate a qubit. Return Qubit with UINT64_MAX when none is free.
+   */
+  SeleneRuntimeInstructionTag_QAlloc = 0,
+  /**
+   * Release a previously allocated qubit address.
+   */
+  SeleneRuntimeInstructionTag_QFree = 1,
+  /**
+   * Schedule an RXY gate. theta and phi are in radians.
+   */
+  SeleneRuntimeInstructionTag_RXYGate = 2,
+  /**
+   * Schedule an RZZ gate. theta is in radians.
+   */
+  SeleneRuntimeInstructionTag_RZZGate = 3,
+  /**
+   * Schedule an RZ gate. theta is in radians.
+   */
+  SeleneRuntimeInstructionTag_RZGate = 4,
+  /**
+   * Schedule an RPP gate. theta and phi are in radians.
+   */
+  SeleneRuntimeInstructionTag_RPPGate = 5,
+  /**
+   * Schedule a measurement and return its new future, starting with one reference.
+   */
+  SeleneRuntimeInstructionTag_Measure = 6,
+  /**
+   * Schedule a leakage measurement and return a future with one reference.
+   */
+  SeleneRuntimeInstructionTag_MeasureLeaked = 7,
+  /**
+   * Schedule a reset of the allocated qubit.
+   */
+  SeleneRuntimeInstructionTag_Reset = 8,
+  /**
+   * Execute and publish the requested result before returning.
+   */
+  SeleneRuntimeInstructionTag_ForceResult = 9,
+  /**
+   * Read a bool future. An unavailable result is not itself an error.
+   */
+  SeleneRuntimeInstructionTag_GetBoolResult = 10,
+  /**
+   * Read a u64 future. An unavailable result is not itself an error.
+   */
+  SeleneRuntimeInstructionTag_GetU64Result = 11,
+  /**
+   * Add a reference to a live future.
+   */
+  SeleneRuntimeInstructionTag_IncrementFutureRefcount = 12,
+  /**
+   * Remove a reference. A future with no references must not be used again.
+   */
+  SeleneRuntimeInstructionTag_DecrementFutureRefcount = 13,
+  /**
+   * Place a scheduling barrier on the listed qubits, then sleep_ns of delay.
+   */
+  SeleneRuntimeInstructionTag_LocalBarrier = 14,
+  /**
+   * Place a scheduling barrier on all allocated qubits, then sleep_ns of delay.
+   */
+  SeleneRuntimeInstructionTag_GlobalBarrier = 15,
+  /**
+   * Perform a runtime-specific call and return its u64 value.
+   */
+  SeleneRuntimeInstructionTag_CustomCall = 16,
+  /**
+   * Schedule delay_ns of simulated inactivity.
+   */
+  SeleneRuntimeInstructionTag_SimulateDelay = 17,
+  /**
+   * Print a tagged value. Acceptance need not flush pending quantum work.
+   */
+  SeleneRuntimeInstructionTag_Print = 18,
+  /**
+   * Close program input and finish prior work and output before returning.
+   */
+  SeleneRuntimeInstructionTag_Exit = 19,
+};
+#ifndef __cplusplus
+typedef uint32_t SeleneRuntimeInstructionTag;
+#endif // __cplusplus
+
+typedef struct SeleneQFreeInstruction {
+  uint64_t qubit_id;
+} SeleneQFreeInstruction;
+
+typedef struct SeleneRXYGateInstruction {
+  uint64_t qubit_id;
+  double theta;
+  double phi;
+} SeleneRXYGateInstruction;
+
+typedef struct SeleneRZZGateInstruction {
+  uint64_t qubit_id_1;
+  uint64_t qubit_id_2;
+  double theta;
+} SeleneRZZGateInstruction;
+
+typedef struct SeleneRZGateInstruction {
+  uint64_t qubit_id;
+  double theta;
+} SeleneRZGateInstruction;
+
+typedef struct SeleneRPPGateInstruction {
+  uint64_t qubit_id_1;
+  uint64_t qubit_id_2;
+  double theta;
+  double phi;
+} SeleneRPPGateInstruction;
+
+typedef struct SeleneMeasureInstruction {
+  uint64_t qubit_id;
+} SeleneMeasureInstruction;
+
+typedef struct SeleneMeasureLeakedInstruction {
+  uint64_t qubit_id;
+} SeleneMeasureLeakedInstruction;
+
+typedef struct SeleneResetInstruction {
+  uint64_t qubit_id;
+} SeleneResetInstruction;
+
+typedef struct SeleneForceResultInstruction {
+  uint64_t result_id;
+} SeleneForceResultInstruction;
+
+typedef struct SeleneGetBoolResultInstruction {
+  uint64_t result_id;
+} SeleneGetBoolResultInstruction;
+
+typedef struct SeleneGetU64ResultInstruction {
+  uint64_t result_id;
+} SeleneGetU64ResultInstruction;
+
+typedef struct SeleneIncrementFutureRefcountInstruction {
+  uint64_t future;
+} SeleneIncrementFutureRefcountInstruction;
+
+typedef struct SeleneDecrementFutureRefcountInstruction {
+  uint64_t future;
+} SeleneDecrementFutureRefcountInstruction;
+
+typedef struct SeleneLocalBarrierInstruction {
+  const uint64_t *qubits;
+  uint64_t qubits_length;
+  uint64_t sleep_ns;
+} SeleneLocalBarrierInstruction;
+
+typedef struct SeleneGlobalBarrierInstruction {
+  uint64_t sleep_ns;
+} SeleneGlobalBarrierInstruction;
+
+typedef struct SeleneCustomCallInstruction {
+  uint64_t tag;
+  const uint8_t *data;
+  uint64_t data_length;
+} SeleneCustomCallInstruction;
+
+typedef struct SeleneSimulateDelayInstruction {
+  uint64_t delay_ns;
+} SeleneSimulateDelayInstruction;
+
+/**
+ * A UTF-8 string borrowed for one call. data may be null when length is zero.
+ */
+typedef struct SeleneOutputString {
+  const char *data;
+  uint64_t length;
+} SeleneOutputString;
+
+/**
+ * One typed value. datatype is an OutputDatatype value. data points to a
+ * native C array: bool, int64_t, uint64_t, double or UTF-8 bytes, respectively.
+ * Scalars have length 1 and is_array false. Text has is_array false and length
+ * bytes. Empty numeric arrays cannot be represented by the output encoding.
+ * All buffers are borrowed for the duration of the call.
+ */
+typedef struct SeleneOutputValue {
+  uint32_t datatype;
+  bool is_array;
+  const void *data;
+  uint64_t length;
+} SeleneOutputValue;
+
+/**
+ * Print one tagged value. Copy the tag and value before returning if the
+ * runtime queues the request. There is no timestamp in a program request.
+ */
+typedef struct SelenePrintRequest {
+  uint64_t struct_size;
+  struct SeleneOutputString tag;
+  struct SeleneOutputValue value;
+} SelenePrintRequest;
+
+/**
+ * Exit codes carry the existing distinction between normal exits and panics.
+ * Backtrace entries are captured on the calling program thread. Copy all
+ * borrowed buffers before returning. No callback may longjmp or unwind.
+ */
+typedef struct SeleneExitRequest {
+  uint64_t struct_size;
+  uint32_t error_code;
+  struct SeleneOutputString message;
+  const struct SelenePrintRequest *backtrace;
+  uint64_t backtrace_length;
+} SeleneExitRequest;
+
+typedef union SeleneRuntimeInstructionPayload {
+  struct SeleneQFreeInstruction qfree;
+  struct SeleneRXYGateInstruction rxy_gate;
+  struct SeleneRZZGateInstruction rzz_gate;
+  struct SeleneRZGateInstruction rz_gate;
+  struct SeleneRPPGateInstruction rpp_gate;
+  struct SeleneMeasureInstruction measure;
+  struct SeleneMeasureLeakedInstruction measure_leaked;
+  struct SeleneResetInstruction reset;
+  struct SeleneForceResultInstruction force_result;
+  struct SeleneGetBoolResultInstruction get_bool_result;
+  struct SeleneGetU64ResultInstruction get_u64_result;
+  struct SeleneIncrementFutureRefcountInstruction increment_future_refcount;
+  struct SeleneDecrementFutureRefcountInstruction decrement_future_refcount;
+  struct SeleneLocalBarrierInstruction local_barrier;
+  struct SeleneGlobalBarrierInstruction global_barrier;
+  struct SeleneCustomCallInstruction custom_call;
+  struct SeleneSimulateDelayInstruction simulate_delay;
+  const struct SelenePrintRequest *print;
+  const struct SeleneExitRequest *exit;
+} SeleneRuntimeInstructionPayload;
+
+/**
+ * The tag selects exactly one payload member. QAlloc ignores the payload.
+ * All buffers are borrowed for this call; a runtime must copy queued work.
+ */
+typedef struct SeleneRuntimeInstruction {
+  uint64_t struct_size;
+  uint32_t tag;
+  union SeleneRuntimeInstructionPayload payload;
+} SeleneRuntimeInstruction;
+
+/**
+ * tag is a RuntimeInstructionResultTag value. QAlloc returns Qubit, Measure
+ * and MeasureLeaked return Future, GetBoolResult returns Bool, and GetU64Result
+ * and CustomCall return U64. Other instructions return None. available is true
+ * for qubits, futures and custom-call values. Result queries can return false
+ * when unavailable, without reserving any u64 value. Bool values are zero or one.
+ */
+typedef struct SeleneRuntimeInstructionResult {
+  uint32_t tag;
+  bool available;
+  uint64_t value;
+} SeleneRuntimeInstructionResult;
+
+/**
+ * A host-owned printer. The handle remains borrowed until shot_end returns,
+ * including after program exit. write_fn writes the group without interleaving
+ * another group and returns zero on success. All arguments are borrowed only
+ * during the call. It must be thread safe and must not re-enter the runtime.
+ */
+typedef struct SeleneOutputSink {
+  void *context;
+  /**
+   * Write count records at timestamp nanoseconds. Buffers are borrowed for
+   * this call. A failed write is an execution failure, rather than a reason
+   * to retry the records and potentially duplicate output.
+   */
+  int32_t (*write_fn)(void *context,
+                      uint64_t timestamp,
+                      const struct SelenePrintRequest *records,
+                      uint64_t count);
+  /**
+   * Flush the output transport before returning. Both sink functions are
+   * required; neither may unwind, retain buffers or call the runtime.
+   */
+  int32_t (*flush_fn)(void *context);
+} SeleneOutputSink;
+
 typedef struct SelenePeripheralResultInterface {
   void (*set_bool_result_fn)(void*,
                              uint64_t,
@@ -106,12 +430,12 @@ typedef int32_t (*SelenePeripheralBorrowCallback)(void *context,
  * thread safe. Lifecycle calls exclude submissions. Callbacks and peripheral
  * calls run on one fixed execution thread, including between shots.
  *
- * shot_start borrows the handle until shot_end returns. On any shot_start
- * failure it must return without retaining the handle. shot_end relinquishes
- * it even on failure. exit must finish all callbacks before unloading code.
+ * shot_start borrows the peripheral and output sink until shot_end returns.
+ * A failed start must retain neither handle. shot_end relinquishes
+ * both even on failure. destroy must finish all callbacks before unloading code.
  * Input buffers and output pointers are borrowed only for the duration of
  * their call. A runtime that queues work copies the inputs before returning.
- * The peripheral handle is the exception: it remains borrowed until shot end.
+ * The peripheral and output sink remain borrowed until shot end.
  * Every function pointer is required. Return zero on success; never unwind.
  * get_metrics_fn uses a nonzero return to indicate the end of enumeration.
  */
@@ -140,18 +464,19 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
    * already ended the shot and cleaned up its peripheral. No subsequent call
    * may use this instance.
    */
-  SeleneErrno (*exit_fn)(RuntimeInstance handle);
+  SeleneErrno (*destroy_fn)(RuntimeInstance handle);
   /**
    * Begin shot_id with the given seed and take exclusive access to the
-   * host-started peripheral. Retain it only until shot_end_fn returns. A
-   * failed start must not retain it or leave callbacks using it.
+   * host-started peripheral and output sink. Keep them until shot_end_fn returns.
+   * A failed start must not keep either handle or leave callbacks using it.
    */
   SeleneErrno (*shot_start_fn)(RuntimeInstance handle,
                                uint64_t shot_id,
                                uint64_t seed,
-                               struct SeleneQuantumPeripheral peripheral);
+                               struct SeleneQuantumPeripheral peripheral,
+                               struct SeleneOutputSink output);
   /**
-   * Finish queued work, publish its results and relinquish the peripheral,
+   * Finish queued work, publish its results and relinquish both shot handles,
    * even if execution fails. Do not call simulator or error-model lifecycle
    * methods: the host performs those after this call.
    */
@@ -169,120 +494,17 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
                             uint8_t *datatype_out,
                             uint64_t *value_out);
   /**
-   * Allocate a qubit and write its address, or UINT64_MAX if none is free.
+   * Handle one program instruction. Copy borrowed inputs before returning.
+   * Write the matching result to result_out on success. Gate and print
+   * instructions may return once queued. ForceResult makes its result
+   * available before returning. Exit closes submissions and flushes all
+   * earlier quantum work and output before returning, even though it keeps
+   * the peripheral and sink until shot_end. On failure, quiesce the worker
+   * so shot_end remains safe. Never longjmp or unwind through this call.
    */
-  SeleneErrno (*qalloc_fn)(RuntimeInstance handle,
-                           uint64_t *qaddress_out);
-  /**
-   * Release a previously allocated qubit address.
-   */
-  SeleneErrno (*qfree_fn)(RuntimeInstance handle,
-                          uint64_t qaddress);
-  /**
-   * Place a scheduling barrier on these qubits, followed by sleep_ns.
-   * A forced peripheral borrow separately requests completed execution.
-   */
-  SeleneErrno (*local_barrier_fn)(RuntimeInstance handle,
-                                  const uint64_t *qubits,
-                                  uint64_t qubits_len,
-                                  uint64_t sleep_ns);
-  /**
-   * Place a scheduling barrier on all allocated qubits, followed by sleep_ns.
-   */
-  SeleneErrno (*global_barrier_fn)(RuntimeInstance handle,
-                                   uint64_t sleep_ns);
-  /**
-   * Schedule an RXY gate. theta and phi are in radians.
-   */
-  SeleneErrno (*rxy_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit,
-                             double theta,
-                             double phi);
-  /**
-   * Schedule an RZZ gate. theta is in radians.
-   */
-  SeleneErrno (*rzz_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit0,
-                             uint64_t qubit1,
-                             double theta);
-  /**
-   * Schedule an RZ gate. theta is in radians.
-   */
-  SeleneErrno (*rz_gate_fn)(RuntimeInstance handle,
-                            uint64_t qubit,
-                            double theta);
-  /**
-   * Schedule an RPP gate. theta and phi are in radians.
-   */
-  SeleneErrno (*rpp_gate_fn)(RuntimeInstance handle,
-                             uint64_t qubit0,
-                             uint64_t qubit1,
-                             double theta,
-                             double phi);
-  /**
-   * Schedule a measurement and write its new result identifier. The result
-   * starts with one reference and may not yet be available.
-   */
-  SeleneErrno (*measure_fn)(RuntimeInstance handle,
-                            uint64_t qubit,
-                            uint64_t *result_id);
-  /**
-   * Schedule a leakage measurement with a new result identifier and one
-   * reference, following the same lifetime rules as measure_fn.
-   */
-  SeleneErrno (*measure_leaked_fn)(RuntimeInstance handle,
-                                   uint64_t qubit,
-                                   uint64_t *result_id);
-  /**
-   * Schedule a reset of the allocated qubit.
-   */
-  SeleneErrno (*reset_fn)(RuntimeInstance handle,
-                          uint64_t qubit);
-  /**
-   * Compile and execute the work needed for result_id, and publish its
-   * value before returning. The host does not retrieve batches itself.
-   */
-  SeleneErrno (*force_result_fn)(RuntimeInstance handle,
-                                 uint64_t result_id);
-  /**
-   * Write -1 if unavailable, 0 for false or 1 for true. An unavailable
-   * result is not itself an error; force_result_fn makes it available.
-   */
-  SeleneErrno (*get_bool_result_fn)(RuntimeInstance handle,
-                                    uint64_t id,
-                                    int8_t *result);
-  /**
-   * Write UINT64_MAX if unavailable, or the result value. UINT64_MAX is
-   * reserved and cannot be represented as an available result in this ABI.
-   */
-  SeleneErrno (*get_u64_result_fn)(RuntimeInstance handle,
-                                   uint64_t id,
-                                   uint64_t *result);
-  /**
-   * Add a reference to a live result identifier.
-   */
-  SeleneErrno (*increment_future_refcount_fn)(RuntimeInstance handle,
-                                              uint64_t result_id);
-  /**
-   * Remove a reference. Once its count reaches zero, the identifier must
-   * not be used again, including to add another reference.
-   */
-  SeleneErrno (*decrement_future_refcount_fn)(RuntimeInstance handle,
-                                              uint64_t result_id);
-  /**
-   * Perform a runtime-specific call. data is borrowed for data_len bytes;
-   * it may be null when data_len is zero. Write the return value to result.
-   */
-  SeleneErrno (*custom_call_fn)(RuntimeInstance handle,
-                                uint64_t tag,
-                                const void *data,
-                                size_t data_len,
-                                uint64_t *result);
-  /**
-   * Schedule delay_ns of simulated inactivity.
-   */
-  SeleneErrno (*simulate_delay_fn)(RuntimeInstance handle,
-                                   uint64_t delay_ns);
+  SeleneErrno (*handle_instruction_fn)(RuntimeInstance,
+                                       const struct SeleneRuntimeInstruction*,
+                                       struct SeleneRuntimeInstructionResult*);
   /**
    * Run the host callback exactly once on the peripheral execution thread
    * and return only after it finishes. Available between shots for plugin

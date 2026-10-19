@@ -16,6 +16,8 @@ struct Peripheral {
     bool value;
     unsigned calls;
     unsigned ends;
+    unsigned prints;
+    unsigned exits;
     SelenePeripheralResultHandle results;
 };
 
@@ -167,6 +169,44 @@ static int32_t inspect(void *context, SeleneQuantumPeripheral borrowed) {
     return 0;
 }
 
+static int32_t print_records(void *context, uint64_t timestamp,
+                             const SelenePrintRequest *records, uint64_t length) {
+    struct Peripheral *state = context;
+    check_thread(state);
+    assert(timestamp == 0);
+    assert(length == 1);
+    const SelenePrintRequest *record = &records[0];
+    assert(record->value.datatype == SeleneOutputDatatype_U64);
+    if (record->value.is_array) {
+        const uint64_t *values = record->value.data;
+        assert(record->value.length == 2);
+        assert(values[0] == 42 && values[1] == 64);
+        state->prints++;
+    } else {
+        assert(*(const uint64_t *)record->value.data == 72);
+        /* Exit must have executed the preceding reset before printing. */
+        assert(!state->value);
+        state->exits++;
+    }
+    return 0;
+}
+
+static int32_t flush_output(void *context) {
+    check_thread(context);
+    return 0;
+}
+
+static SeleneRuntimeInstructionResult instruction(
+    const SeleneRuntimePluginDescriptorV2 *runtime, RuntimeInstance instance,
+    uint32_t tag, SeleneRuntimeInstructionPayload payload) {
+    SeleneRuntimeInstruction request = {
+        .struct_size = sizeof(request), .tag = tag, .payload = payload,
+    };
+    SeleneRuntimeInstructionResult result = {0};
+    assert(runtime->handle_instruction_fn(instance, &request, &result) == 0);
+    return result;
+}
+
 int main(int argc, char **argv) {
     assert(argc == 3);
     void *library = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
@@ -194,16 +234,31 @@ int main(int argc, char **argv) {
         .instance = &state,
         .interface = { .handle_operations_fn = execute, .dump_state_fn = dump_state },
     };
+    SeleneOutputSink output = { .context = &state, .write_fn = print_records, .flush_fn = flush_output };
     for (uint64_t shot = 0; shot < 2; ++shot) {
         /* The host owns lifecycle policy. The runtime merely runs these opaque
          * callbacks on the thread where it will later use the peripheral. */
         assert(runtime->on_execution_thread_fn(instance, start_peripheral, &state) == 0);
         assert(!thrd_equal(state.owner, thrd_current()));
-        assert(runtime->shot_start_fn(instance, shot, 123, peripheral) == 0);
-        uint64_t qubit = UINT64_MAX;
-        assert(runtime->qalloc_fn(instance, &qubit) == 0);
-        assert(runtime->reset_fn(instance, qubit) == 0);
-        assert(runtime->rxy_gate_fn(instance, qubit, 3.141592653589793, 0) == 0);
+        assert(runtime->shot_start_fn(instance, shot, 123, peripheral, output) == 0);
+        SeleneRuntimeInstructionResult allocated = instruction(runtime, instance,
+            SeleneRuntimeInstructionTag_QAlloc, (SeleneRuntimeInstructionPayload){0});
+        assert(allocated.tag == SeleneRuntimeInstructionResultTag_Qubit && allocated.available);
+        uint64_t qubit = allocated.value;
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_Reset,
+            (SeleneRuntimeInstructionPayload){ .reset = { .qubit_id = qubit } });
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_RXYGate,
+            (SeleneRuntimeInstructionPayload){ .rxy_gate = {
+                .qubit_id = qubit, .theta = 3.141592653589793, .phi = 0 } });
+        uint64_t values[] = {42, 64};
+        SelenePrintRequest print = {
+            .struct_size = sizeof(print),
+            .tag = { .data = "example", .length = 7 },
+            .value = { .datatype = SeleneOutputDatatype_U64, .is_array = true, .data = values, .length = 2 },
+        };
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_Print,
+            (SeleneRuntimeInstructionPayload){ .print = &print });
+        values[0] = 999; /* Queued requests must already own their input. */
         SelenePeripheralBorrowRequest request = {
             .struct_size = sizeof(request), .force_flush = false,
         };
@@ -215,17 +270,35 @@ int main(int argc, char **argv) {
         inspection.expected_calls = 2;
         assert(runtime->borrow_peripheral_fn(instance, &request, inspect, &inspection) == 0);
         assert(inspection.calls == 2);
-        uint64_t future = UINT64_MAX;
-        assert(runtime->measure_fn(instance, qubit, &future) == 0);
-        assert(runtime->force_result_fn(instance, future) == 0);
-        int8_t measured = -1;
-        assert(runtime->get_bool_result_fn(instance, future, &measured) == 0);
-        assert(measured == 1);
+        SeleneRuntimeInstructionResult future = instruction(runtime, instance,
+            SeleneRuntimeInstructionTag_Measure,
+            (SeleneRuntimeInstructionPayload){ .measure = { .qubit_id = qubit } });
+        assert(future.tag == SeleneRuntimeInstructionResultTag_Future && future.available);
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_ForceResult,
+            (SeleneRuntimeInstructionPayload){ .force_result = { .result_id = future.value } });
+        SeleneRuntimeInstructionResult measured = instruction(runtime, instance,
+            SeleneRuntimeInstructionTag_GetBoolResult,
+            (SeleneRuntimeInstructionPayload){ .get_bool_result = { .result_id = future.value } });
+        assert(measured.tag == SeleneRuntimeInstructionResultTag_Bool && measured.available && measured.value == 1);
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_Reset,
+            (SeleneRuntimeInstructionPayload){ .reset = { .qubit_id = qubit } });
+        SeleneExitRequest exit = {
+            .struct_size = sizeof(exit), .error_code = 72,
+            .message = { .data = "done", .length = 4 },
+        };
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_Exit,
+            (SeleneRuntimeInstructionPayload){ .exit = &exit });
+        assert(state.prints == shot + 1 && state.exits == shot + 1);
+        SeleneRuntimeInstruction rejected = {
+            .struct_size = sizeof(rejected), .tag = SeleneRuntimeInstructionTag_QAlloc,
+        };
+        SeleneRuntimeInstructionResult ignored;
+        assert(runtime->handle_instruction_fn(instance, &rejected, &ignored) != 0);
         assert(runtime->shot_end_fn(instance) == 0);
         assert(runtime->on_execution_thread_fn(instance, end_peripheral, &state) == 0);
     }
     assert(state.ends == 2);
-    assert(runtime->exit_fn(instance) == 0);
+    assert(runtime->destroy_fn(instance) == 0);
     dlclose(library);
     return 0;
 }

@@ -1,6 +1,9 @@
 //! Compatibility with API 0.3.x. Calls and batch execution stay on the thread
 //! that initialised the legacy runtime; no worker or per-call channel is added.
-use super::{ExecutionCallback, RuntimeInterface};
+use super::{
+    ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
+    output::OutputSinkHandle,
+};
 use crate::{
     peripheral::{
         PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheral,
@@ -20,6 +23,8 @@ struct State {
     runtime: Runtime,
     peripheral: Option<QuantumPeripheralHandle>,
     exited: bool,
+    output: Option<OutputSinkHandle>,
+    program_exited: bool,
 }
 impl State {
     fn drain(&mut self) -> Result<()> {
@@ -60,6 +65,8 @@ impl LegacyRuntime {
                 runtime,
                 peripheral: None,
                 exited: false,
+                output: None,
+                program_exited: false,
             })),
         }
     }
@@ -108,6 +115,7 @@ unsafe impl RuntimeInterface for LegacyRuntime {
         shot_id: u64,
         seed: u64,
         peripheral: QuantumPeripheralHandle,
+        output: OutputSinkHandle,
     ) -> Result<()> {
         self.with(|state| {
             anyhow::ensure!(
@@ -115,12 +123,15 @@ unsafe impl RuntimeInterface for LegacyRuntime {
                 "Legacy runtime shot already active"
             );
             state.peripheral = Some(peripheral);
+            state.output = Some(output);
+            state.program_exited = false;
             let result = state
                 .runtime
                 .shot_start(shot_id, seed)
                 .and_then(|_| state.drain());
             if result.is_err() {
                 state.peripheral = None;
+                state.output = None;
             }
             result
         })
@@ -130,6 +141,7 @@ unsafe impl RuntimeInterface for LegacyRuntime {
             let ended = state.runtime.shot_end();
             let drained = state.drain();
             state.peripheral = None;
+            state.output = None;
             ended.and(drained)
         })
     }
@@ -171,7 +183,7 @@ unsafe impl RuntimeInterface for LegacyRuntime {
             })
         })
     }
-    fn exit(&self) -> Result<()> {
+    fn destroy(&self) -> Result<()> {
         self.with(|state| {
             state.exited = true;
             state.runtime.exit()
@@ -180,58 +192,107 @@ unsafe impl RuntimeInterface for LegacyRuntime {
     fn get_metric(&self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
         self.with(|state| state.runtime.get_metric(nth_metric))
     }
-    fn qalloc(&self) -> Result<u64> {
-        self.with(|state| state.runtime.qalloc())
-    }
-    fn qfree(&self, qubit_id: u64) -> Result<()> {
-        self.with(|state| state.runtime.qfree(qubit_id))
-    }
-    fn rxy_gate(&self, qubit_id: u64, theta: f64, phi: f64) -> Result<()> {
-        self.with(|state| state.runtime.rxy_gate(qubit_id, theta, phi))
-    }
-    fn rzz_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64) -> Result<()> {
-        self.with(|state| state.runtime.rzz_gate(qubit_id_1, qubit_id_2, theta))
-    }
-    fn rpp_gate(&self, qubit_id_1: u64, qubit_id_2: u64, theta: f64, phi: f64) -> Result<()> {
-        self.with(|state| state.runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi))
-    }
-    fn rz_gate(&self, qubit_id: u64, theta: f64) -> Result<()> {
-        self.with(|state| state.runtime.rz_gate(qubit_id, theta))
-    }
-    fn measure(&self, qubit_id: u64) -> Result<u64> {
-        self.with(|state| state.runtime.measure(qubit_id))
-    }
-    fn measure_leaked(&self, qubit_id: u64) -> Result<u64> {
-        self.with(|state| state.runtime.measure_leaked(qubit_id))
-    }
-    fn reset(&self, qubit_id: u64) -> Result<()> {
-        self.with(|state| state.runtime.reset(qubit_id))
-    }
-    fn force_result(&self, result_id: u64) -> Result<()> {
-        self.with(|state| state.runtime.force_result(result_id))
-    }
-    fn get_bool_result(&self, result_id: u64) -> Result<Option<bool>> {
-        self.with(|state| state.runtime.get_bool_result(result_id))
-    }
-    fn get_u64_result(&self, result_id: u64) -> Result<Option<u64>> {
-        self.with(|state| state.runtime.get_u64_result(result_id))
-    }
-    fn increment_future_refcount(&self, future: u64) -> Result<()> {
-        self.with(|state| state.runtime.increment_future_refcount(future))
-    }
-    fn decrement_future_refcount(&self, future: u64) -> Result<()> {
-        self.with(|state| state.runtime.decrement_future_refcount(future))
-    }
-    fn local_barrier(&self, qubits: &[u64], sleep_ns: u64) -> Result<()> {
-        self.with(|state| state.runtime.local_barrier(qubits, sleep_ns))
-    }
-    fn global_barrier(&self, sleep_ns: u64) -> Result<()> {
-        self.with(|state| state.runtime.global_barrier(sleep_ns))
-    }
-    fn custom_call(&self, tag: u64, data: &[u8]) -> Result<u64> {
-        self.with(|state| state.runtime.custom_call(tag, data))
-    }
-    fn simulate_delay(&self, delay_ns: u64) -> Result<()> {
-        self.with(|state| state.runtime.simulate_delay(delay_ns))
+    fn handle_instruction(
+        &self,
+        instruction: RuntimeInstruction,
+    ) -> Result<RuntimeInstructionResult> {
+        self.with(|state| {
+            anyhow::ensure!(state.peripheral.is_some(), "No active runtime shot");
+            anyhow::ensure!(!state.program_exited, "Program has exited");
+            use RuntimeInstruction as I;
+            use RuntimeInstructionResult as R;
+            match instruction {
+                I::QAlloc => Ok(R::Qubit(state.runtime.qalloc()?)),
+                I::QFree { qubit_id } => {
+                    state.runtime.qfree(qubit_id)?;
+                    Ok(R::None)
+                }
+                I::RXYGate {
+                    qubit_id,
+                    theta,
+                    phi,
+                } => {
+                    state.runtime.rxy_gate(qubit_id, theta, phi)?;
+                    Ok(R::None)
+                }
+                I::RZZGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                } => {
+                    state.runtime.rzz_gate(qubit_id_1, qubit_id_2, theta)?;
+                    Ok(R::None)
+                }
+                I::RZGate { qubit_id, theta } => {
+                    state.runtime.rz_gate(qubit_id, theta)?;
+                    Ok(R::None)
+                }
+                I::RPPGate {
+                    qubit_id_1,
+                    qubit_id_2,
+                    theta,
+                    phi,
+                } => {
+                    state.runtime.rpp_gate(qubit_id_1, qubit_id_2, theta, phi)?;
+                    Ok(R::None)
+                }
+                I::Measure { qubit_id } => Ok(R::Future(state.runtime.measure(qubit_id)?)),
+                I::MeasureLeaked { qubit_id } => {
+                    Ok(R::Future(state.runtime.measure_leaked(qubit_id)?))
+                }
+                I::Reset { qubit_id } => {
+                    state.runtime.reset(qubit_id)?;
+                    Ok(R::None)
+                }
+                I::ForceResult { result_id } => {
+                    state.runtime.force_result(result_id)?;
+                    state.drain()?;
+                    Ok(R::None)
+                }
+                I::GetBoolResult { result_id } => {
+                    Ok(R::Bool(state.runtime.get_bool_result(result_id)?))
+                }
+                I::GetU64Result { result_id } => {
+                    Ok(R::U64(state.runtime.get_u64_result(result_id)?))
+                }
+                I::IncrementFutureRefcount { future } => {
+                    state.runtime.increment_future_refcount(future)?;
+                    Ok(R::None)
+                }
+                I::DecrementFutureRefcount { future } => {
+                    state.runtime.decrement_future_refcount(future)?;
+                    Ok(R::None)
+                }
+                I::LocalBarrier { qubits, sleep_ns } => {
+                    state.runtime.local_barrier(&qubits, sleep_ns)?;
+                    Ok(R::None)
+                }
+                I::GlobalBarrier { sleep_ns } => {
+                    state.runtime.global_barrier(sleep_ns)?;
+                    Ok(R::None)
+                }
+                I::CustomCall { tag, data } => {
+                    Ok(R::U64(Some(state.runtime.custom_call(tag, &data)?)))
+                }
+                I::SimulateDelay { delay_ns } => {
+                    state.runtime.simulate_delay(delay_ns)?;
+                    Ok(R::None)
+                }
+                I::Print { request } => {
+                    unsafe {
+                        state.output.unwrap().print(0, &[request])?;
+                    }
+                    Ok(R::None)
+                }
+                I::Exit { request } => {
+                    state.program_exited = true;
+                    let flushed = state.runtime.global_barrier(0).and_then(|_| state.drain());
+                    let printed = unsafe { state.output.unwrap().print(0, &request.records()) };
+                    let output_flushed = unsafe { state.output.unwrap().flush() };
+                    flushed.and(printed).and(output_flushed)?;
+                    Ok(R::None)
+                }
+            }
+        })
     }
 }

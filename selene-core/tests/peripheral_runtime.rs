@@ -64,5 +64,5 @@ fn invalid_v2_descriptors_do_not_fall_back_to_legacy() {
     );
     rejected_plugin(&["TEST_SIZE=16"], "Runtime v2");
     rejected_plugin(&["TEST_NULL"], "Runtime v2");
-    rejected_plugin(&[], "Runtime v2 requires exit_fn");
+    rejected_plugin(&[], "Runtime v2 requires destroy_fn");
 }

@@ -183,3 +183,181 @@ def test_c_borrow_request_and_callback_run_on_the_execution_thread():
         assert all(value == 812 and present for _, value, present in observations)
     finally:
         stack.close()
+
+
+def test_concurrent_prints_produce_complete_records_in_each_callers_order():
+    from selene_sim.interactive.full_stack import selene_string_t
+
+    stack = InteractiveFullStack(
+        simulator=Quest(), runtime=ThreadedRuntime(), n_qubits=1
+    )
+    print_array = stack._lib.selene_print_u64_array
+    print_array.argtypes = [
+        SeleneInstancePtr,
+        selene_string_t,
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_uint64,
+    ]
+    print_array.restype = selene_void_result_t
+    ready = threading.Barrier(4)
+
+    def print_values(worker):
+        ready.wait(timeout=5)
+        for index in range(50):
+            values = (ctypes.c_uint64 * 2)(worker, index)
+            print_array(
+                stack._instance,
+                selene_string_t.from_str(f"USER:ARRAY:{worker}"),
+                values,
+                2,
+            ).unwrap()
+            # The caller is free to reuse this buffer as soon as printing
+            # returns, even if the runtime hasn't written the record yet.
+            values[0] = 999
+            values[1] = 999
+
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(print_values, range(4)))
+        entries = stack.drain_results()
+        assert len(entries) == 200
+        for worker in range(4):
+            values = [
+                entry.values for entry in entries if entry.tag == f"USER:ARRAY:{worker}"
+            ]
+            assert values == [[[worker, index]] for index in range(50)]
+    finally:
+        stack.close()
+
+
+@pytest.mark.parametrize("runtime", [SimpleRuntime, ThreadedRuntime])
+@pytest.mark.parametrize("error_code", [42, 1001])
+def test_exit_flushes_pending_quantum_work_before_returning(runtime, error_code):
+    from selene_sim.interactive.full_stack import selene_string_t
+
+    trace = CircuitExtractor()
+    stack = InteractiveFullStack(
+        simulator=Quest(), runtime=runtime(), n_qubits=1, event_hook=trace
+    )
+    exit_program = stack._lib.selene_print_exit
+    exit_program.argtypes = [SeleneInstancePtr, selene_string_t, ctypes.c_uint32]
+    exit_program.restype = selene_void_result_t
+    try:
+        q = stack.qalloc()
+        stack.reset(q)
+        stack.rxy(q, pi, 0)
+        exit_program(
+            stack._instance, selene_string_t.from_str("finished"), error_code
+        ).unwrap()
+
+        # This borrow deliberately doesn't ask for a flush. If exit returned
+        # before executing the X gate, inspecting the simulator here would see
+        # the wrong state. The host still owns shot end, so the peripheral must
+        # remain available until then.
+        class BorrowRequest(ctypes.Structure):
+            _fields_ = [
+                ("struct_size", ctypes.c_uint64),
+                ("force_flush", ctypes.c_bool),
+            ]
+
+        class PeripheralOperations(ctypes.Structure):
+            _fields_ = [
+                ("handle_operations_fn", ctypes.c_void_p),
+                ("dump_state_fn", ctypes.c_void_p),
+            ]
+
+        class Peripheral(ctypes.Structure):
+            _fields_ = [
+                ("instance", ctypes.c_void_p),
+                ("interface", PeripheralOperations),
+            ]
+
+        callback_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, Peripheral)
+        dump_type = ctypes.CFUNCTYPE(
+            ctypes.c_int32,
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_uint64,
+        )
+        file = stack.artifact_dir / "after_exit.json"
+        calls = []
+
+        @callback_type
+        def inspect(_context, peripheral):
+            dump = dump_type(peripheral.interface.dump_state_fn)
+            qubits = (ctypes.c_uint64 * 1)(q.id)
+            status = dump(peripheral.instance, str(file).encode(), qubits, 1)
+            calls.append(status)
+            return status
+
+        borrow = stack._lib.selene_borrow_peripheral
+        borrow.argtypes = [
+            SeleneInstancePtr,
+            ctypes.POINTER(BorrowRequest),
+            callback_type,
+            ctypes.c_void_p,
+        ]
+        borrow.restype = selene_void_result_t
+        request = BorrowRequest(ctypes.sizeof(BorrowRequest), False)
+        borrow(stack._instance, ctypes.byref(request), inspect, None).unwrap()
+        assert calls == [0]
+        _, state = next(Quest.extract_states([("STATE:after_exit", str(file))]))
+        np.testing.assert_allclose(
+            state.get_density_matrix(), [[0, 0], [0, 1]], atol=1e-12
+        )
+        stack.next_shot()
+        q = stack.qalloc()
+        stack.reset(q)
+        assert not stack.measure(q)
+    finally:
+        stack.close()
+
+
+@pytest.mark.parametrize("runtime", [SimpleRuntime, ThreadedRuntime])
+@pytest.mark.parametrize("panic", [False, True])
+def test_compiled_program_can_jump_after_runtime_exit(runtime, panic):
+    from selene_sim.exceptions import SelenePanicError
+    from selene_sim.result_handling.parse_shot import postprocess_unparsed_stream
+
+    # These snapshots exercise the actual QIS functions and the C jump back to
+    # the program wrapper. A raw libselene exit call can't cover that boundary.
+    resources = Path(__file__).parent / "resources/from_guppy"
+    if panic:
+        folder = resources / "test_backtrace/test_backtrace_always_panic"
+        name = "panic"
+    else:
+        folder = resources / "test_unparsed/test_exit_unparsed"
+        name = "exit_unparsed"
+    runner = build(folder / f"{name}-helios-{get_platform_suffix()}.ll")
+    shots, error = postprocess_unparsed_stream(
+        runner.run_shots(
+            simulator=Quest(),
+            runtime=runtime(),
+            n_qubits=1,
+            n_shots=100,
+            random_seed=0,
+            parse_results=False,
+        )
+    )
+    if panic:
+        assert isinstance(error, SelenePanicError)
+        assert error.code == 1001
+        assert error.message == "This should always panic"
+        assert len(shots) == 1
+        assert error.stack_trace is not None
+        symbols = [
+            symbol for entry in error.stack_trace.entries for symbol in entry.symbols
+        ]
+        assert any(
+            symbol.function_name == "main" and symbol.line == 7 for symbol in symbols
+        )
+    else:
+        assert error is None
+        assert len(shots) == 100
+        assert [("EXIT:INT:Postselection failed", 42)] in shots
+        assert [("USER:BOOL:c", 0)] in shots
+        assert all(
+            shot in [[("EXIT:INT:Postselection failed", 42)], [("USER:BOOL:c", 0)]]
+            for shot in shots
+        )

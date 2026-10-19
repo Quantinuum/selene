@@ -1,7 +1,7 @@
 # Runtimes and quantum peripherals
 
 A runtime is the classical controller of a hybrid quantum program. It accepts
-operations from the program and decides how to schedule them. A quantum
+instruction objects from the program and decides how to schedule them. A quantum
 peripheral is what the runtime drives: it accepts batches of quantum operations
 and returns measurement results.
 
@@ -10,6 +10,80 @@ the configuration, we wrap their calls with event hooks to record traces,
 measurements and metrics. The runtime does not need to know about those layers.
 It sees a stateful object with a C function table, in the same way that an error
 model sees the simulator passed to it.
+
+## Program instructions
+
+The program-facing API and the peripheral-facing API describe different stages
+of execution. A `RuntimeInstruction` asks the runtime to allocate a qubit, apply
+a gate, measure, print a value or exit. The runtime schedules that work and sends
+batches of `Operation` objects to the peripheral.
+
+A new runtime implements one `handle_instruction` method. In C, its descriptor
+has a `handle_instruction_fn` taking a `SeleneRuntimeInstruction` and a result
+pointer. The instruction contains its size, an integer tag and a union of typed
+payloads. For example:
+
+```c
+SeleneRuntimeInstruction instruction = {
+    .struct_size = sizeof(instruction),
+    .tag = SeleneRuntimeInstructionTag_RXYGate,
+    .payload.rxy_gate = { .qubit_id = qubit, .theta = theta, .phi = phi },
+};
+SeleneRuntimeInstructionResult result;
+runtime->handle_instruction_fn(instance, &instruction, &result);
+```
+
+`QAlloc` returns a qubit address; measurements return a future. Result queries
+return a value and whether it is available. Other instructions return no value.
+The header documents each result kind. No u64 value is reserved to represent an
+unavailable result in this interface.
+
+C request buffers are borrowed until the handler returns. If the runtime queues
+an instruction, it must copy all its inputs first, including nested print arrays
+and backtrace entries. The Rust instruction enum owns its buffers. Its C adapters
+perform those copies, so Rust implementations can put the instruction itself on
+a queue. Unknown C tags and undersized requests are rejected before reading their
+payloads.
+
+Calls made sequentially by one thread keep their order. Concurrent calls acquire
+an order when the runtime accepts them. A gate or print may return once accepted;
+queries that need a value wait for their reply. `ForceResult` makes its result
+available before returning. Lifecycle, metric enumeration and peripheral borrowing
+remain separate functions because they manage access to the runtime and its shot.
+
+## Printing and exiting
+
+Libselene keeps the output encoder and lends the runtime a `SeleneOutputSink`
+alongside the peripheral at shot start. The runtime orders `Print` instructions
+and calls the sink on its execution thread. The sink writes complete records and
+can write a diagnostic and its backtrace together without another writer
+interleaving records. Program requests contain no timestamps; the runtime supplies
+the output timestamp when calling the sink.
+
+Printing a value does not force pending quantum work to execute. It writes the
+value supplied by the program. Inspecting simulator state has different
+requirements and uses the forced borrow described below. Reading libselene's
+internal output buffer waits for earlier queued prints, without forcing quantum
+execution.
+
+QIS panic and exit both become an `Exit` instruction. Their code ranges carry the
+distinction. Exit is synchronous: it closes the shot to further program
+instructions, compiles and executes earlier quantum work, writes earlier output
+and the exit diagnostic, and flushes the output transport before returning. If
+execution or output fails, it must still leave no background peripheral access
+running and be ready for `shot_end`. It keeps both handles until shot end returns.
+
+Libselene captures a panic's backtrace on the calling program thread. The runtime
+must return normally through every Rust and C FFI frame. Only then does the C QIS
+interface perform its `longjmp` to the program wrapper on that same thread. The
+runtime never invokes a callback to jump out of its own stack. Program threads
+need their own valid C program boundary; thread-safe runtime entry does not make
+a jump to another thread's boundary valid.
+
+Libselene reports its own failures directly through the encoder, because a broken
+runtime must not be needed to report that it failed. Shot markers and final
+metadata also belong to the host. The sink synchronises those writes with program
+output, but its callbacks must not re-enter the runtime.
 
 ## Owning execution
 
@@ -29,10 +103,10 @@ Libselene owns the simulator and error-model lifecycle:
 1. It uses `on_execution_thread_fn` to load the plugins and create their wrappers
    on the runtime's execution thread.
 2. On that thread, it starts their shots, then gives the peripheral handle to the
-   runtime's `shot_start_fn`.
+   runtime's `shot_start_fn`, together with its output sink.
 3. The runtime exclusively drives the peripheral during the shot. Libselene can
    temporarily borrow it through the callback interface described below.
-4. The runtime's `shot_end_fn` finishes submitted work and releases the handle.
+4. The runtime's `shot_end_fn` finishes submitted work and releases both handles.
    This release must also happen if execution fails.
 5. Libselene collects plugin metrics and ends their shots on the execution
    thread. It can reuse the plugins for another shot. When the instance ends,
@@ -60,8 +134,8 @@ Neither side may retain the batch or result callbacks after the call.
 The runtime decides when to execute. It might submit each batch immediately, or
 queue and optimise instructions until a measurement value is required. A queued
 submission acknowledges acceptance rather than completed execution; an execution
-failure must be reported by a subsequent synchronising operation or shot end. After
-`force_result_fn` succeeds, the requested result must be available: the host does
+failure must be reported by a subsequent synchronising operation or shot end. After a
+`ForceResult` instruction succeeds, the requested result must be available: the host does
 not poll `get_next_operations()` for a peripheral runtime.
 
 The operation and result interfaces make no reference to an error model or a
@@ -113,6 +187,10 @@ API 0.3.x and `SeleneRuntimePluginDescriptorV1` are unchanged. The loader choose
 v2 when it is advertised and otherwise wraps v1 in `pipeline::LegacyRuntime`.
 An invalid advertised v2 is an error rather than a reason to try v1.
 
+The wrapper translates instruction objects into the original API functions. Print
+instructions write directly to the host sink. Exit flushes the old scheduler and
+prints its diagnostic before returning, without destroying the old runtime.
+
 The wrapper preserves the original calling-thread path. After recording a user
 call, libselene polls `get_next_operations()`, executes the returned batches and
 publishes their results, just as the original emulator did. It also preserves
@@ -128,7 +206,10 @@ The simulator and error-model plugin interfaces are unchanged in both paths.
 The original runtime traits remain in `selene_core::runtime`. New implementations
 use `selene_core::runtime::pipeline::{RuntimeInterface, RuntimeInterfaceFactory}`
 and `export_pipeline_runtime_plugin!`. Their methods take `&self`, and the
-implementation synchronises its scheduling state.
+implementation synchronises its scheduling state. The `RuntimeInstructions`
+extension trait provides ordinary call helpers for hosts; implementations only
+need the instruction handler. `destroy` tears down the plugin instance, while an
+`Exit` instruction ends program execution within the current shot.
 
 The new runtime trait is unsafe to implement because scoped host callbacks rely
 on its lifetime, exclusivity and execution-thread guarantees. The

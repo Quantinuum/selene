@@ -6,7 +6,7 @@ use selene_core::error_model::BatchResult;
 use selene_core::peripheral::{PeripheralBorrowRequest, QuantumPeripheralInterface};
 use selene_core::runtime::{
     BatchOperation, Operation as RuntimeOperation,
-    pipeline::{self, Runtime, RuntimeInterface},
+    pipeline::{self, Runtime, RuntimeInstructions, RuntimeInterface, output::OutputSinkHandle},
 };
 use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
@@ -95,10 +95,11 @@ pub struct Emulator {
     metrics: Mutex<Vec<(&'static str, String, MetricValue)>>,
     active: bool,
     collect_metrics: bool,
+    output: OutputSinkHandle,
 }
 
 impl Emulator {
-    pub fn from_configuration(config: &Configuration) -> Result<Self> {
+    pub fn from_configuration(config: &Configuration, output: OutputSinkHandle) -> Result<Self> {
         let event_hooks = SharedEventHook::default();
         if config.event_hooks.provide_metrics {
             event_hooks.add_hook(Box::new(
@@ -129,6 +130,7 @@ impl Emulator {
             metrics: Mutex::new(Vec::new()),
             active: false,
             collect_metrics: config.event_hooks.provide_metrics,
+            output,
         })
     }
 
@@ -151,7 +153,10 @@ impl Emulator {
         // This handle is only ever dereferenced by the runtime on the thread
         // where PeripheralStorage constructed the plugins. It stays live until
         // shot_end has returned, including when execution reports an error.
-        let started = unsafe { self.runtime.shot_start(shot_id, runtime_seed, handle.0) };
+        let started = unsafe {
+            self.runtime
+                .shot_start(shot_id, runtime_seed, handle.0, self.output)
+        };
         if let Err(error) = started {
             let _ = self
                 .peripheral
@@ -393,7 +398,7 @@ impl Emulator {
     pub fn exit(&mut self) -> Result<()> {
         let shot = self.shot_end();
         let peripheral = self.peripheral.clear(self.runtime.as_ref());
-        let runtime = self.runtime.exit();
+        let runtime = self.runtime.destroy();
         shot.and(peripheral).and(runtime)
     }
 }

@@ -1,6 +1,9 @@
 use anyhow::Result;
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 pub mod configuration;
 pub mod metadata;
@@ -17,7 +20,7 @@ use selene_core::encoder::OutputStream;
 pub struct SeleneInstance {
     pub config: Configuration,
     pub emulator: Emulator,
-    pub out_encoder: Mutex<OutputStream>,
+    pub out_encoder: Arc<Mutex<OutputStream>>,
     pub time_cursor: AtomicU64,
     pub shot_number: u64,
     pub prng: Mutex<Option<Pcg32>>,
@@ -35,8 +38,14 @@ impl SeleneInstance {
     /// Create a new Selene simulator instance from the provided configuration,
     /// e.g. loaded from a config file.
     pub fn new(config: Configuration) -> Result<Self> {
-        let mut out_encoder = OutputStream::new(config.get_output_writer());
-        let emulator = match Emulator::from_configuration(&config) {
+        let out_encoder = OutputStream::new(config.get_output_writer());
+        let out_encoder = Arc::new(Mutex::new(out_encoder));
+        let output = selene_core::runtime::pipeline::output::OutputSinkHandle {
+            context: Arc::as_ptr(&out_encoder).cast_mut().cast(),
+            write_fn: Some(print::write_output),
+            flush_fn: Some(print::flush_output),
+        };
+        let emulator = match Emulator::from_configuration(&config, output) {
             Ok(emulator) => emulator,
             Err(e) => {
                 // Note: with the current API design, the out_encoder is locally scoped and owned
@@ -50,7 +59,7 @@ impl SeleneInstance {
                 // Avoiding an API break for now, we write the error to the stream here before returning.
                 eprintln!("Failed to initialize SeleneInstance: {:?}", e);
                 print::print_directly_to_stream(
-                    &mut out_encoder,
+                    &mut out_encoder.lock(),
                     0,
                     "EXIT:INT:Failed during initialization of emulator components",
                     190000u64,
@@ -62,7 +71,7 @@ impl SeleneInstance {
         Ok(Self {
             config,
             emulator,
-            out_encoder: Mutex::new(out_encoder),
+            out_encoder,
             time_cursor: AtomicU64::new(0),
             shot_number: shot_offset,
             prng: Mutex::new(None),

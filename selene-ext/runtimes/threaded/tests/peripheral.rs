@@ -6,7 +6,7 @@ use selene_core::{
     },
     runtime::{
         BatchOperation, Operation,
-        pipeline::{self, RuntimeInterface},
+        pipeline::{self, RuntimeInstructions, RuntimeInterface},
     },
 };
 use selene_threaded_runtime::ThreadedRuntime;
@@ -76,6 +76,7 @@ struct Fixture {
     address: usize,
     calls: Arc<Mutex<Vec<(ThreadId, &'static str)>>>,
     fail: Arc<AtomicBool>,
+    output: Box<OutputLog>,
 }
 impl Fixture {
     fn new() -> Self {
@@ -118,6 +119,7 @@ impl Fixture {
             address,
             calls,
             fail,
+            output: Box::default(),
         }
     }
     fn start(&self, shot: u64) {
@@ -136,7 +138,11 @@ impl Fixture {
             instance: instance as *mut _,
             interface,
         };
-        unsafe { self.runtime.shot_start(shot, 123, handle) }.unwrap();
+        unsafe {
+            self.runtime
+                .shot_start(shot, 123, handle, self.output.handle())
+        }
+        .unwrap();
     }
     fn end(&self) -> Result<()> {
         let ended = self.runtime.shot_end();
@@ -342,7 +348,7 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
         fail: Arc::new(AtomicBool::new(false)),
         values: vec![false],
     });
-    unsafe { runtime.shot_start(0, 123, adapter.ffi_interface()) }.unwrap();
+    unsafe { runtime.shot_start(0, 123, adapter.ffi_interface(), discard_output()) }.unwrap();
     let q = runtime.qalloc().unwrap();
     runtime.reset(q).unwrap();
     assert!(calls.lock().unwrap().is_empty());
@@ -354,7 +360,7 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
         assert!(scope.spawn(|| runtime.qalloc()).join().unwrap().is_err());
     });
     runtime.shot_end().unwrap();
-    runtime.exit().unwrap();
+    runtime.destroy().unwrap();
     assert!(runtime.qalloc().is_err());
     assert!(
         calls
@@ -363,4 +369,216 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
             .iter()
             .all(|(id, _)| *id == thread::current().id())
     );
+}
+
+unsafe extern "C" fn flush_output(_: *mut std::ffi::c_void) -> i32 {
+    0
+}
+
+fn discard_output() -> pipeline::output::OutputSinkHandle {
+    unsafe extern "C" fn write(
+        _: *mut std::ffi::c_void,
+        _: u64,
+        _: *const pipeline::output::PrintRequestRaw,
+        _: u64,
+    ) -> i32 {
+        0
+    }
+    pipeline::output::OutputSinkHandle {
+        context: std::ptr::null_mut(),
+        write_fn: Some(write),
+        flush_fn: Some(flush_output),
+    }
+}
+
+#[derive(Default)]
+struct OutputLog {
+    records: Mutex<Vec<(ThreadId, Vec<pipeline::output::PrintRequest>)>>,
+    pause_exit: Option<(Arc<std::sync::Barrier>, Arc<std::sync::Barrier>)>,
+    fail: AtomicBool,
+    fail_flush: AtomicBool,
+    flushes: std::sync::atomic::AtomicUsize,
+}
+impl OutputLog {
+    fn handle(&self) -> pipeline::output::OutputSinkHandle {
+        unsafe extern "C" fn write(
+            context: *mut std::ffi::c_void,
+            _: u64,
+            records: *const pipeline::output::PrintRequestRaw,
+            length: u64,
+        ) -> i32 {
+            pipeline::callback_result(|| {
+                let log = unsafe { &*context.cast::<OutputLog>() };
+                let records = unsafe { std::slice::from_raw_parts(records, length as usize) }
+                    .iter()
+                    .map(|raw| unsafe { pipeline::output::PrintRequest::from_raw(raw) })
+                    .collect::<Result<Vec<_>>>()?;
+                if records[0].tag.starts_with("EXIT:")
+                    && let Some((entered, release)) = &log.pause_exit
+                {
+                    entered.wait();
+                    release.wait();
+                }
+                log.records
+                    .lock()
+                    .unwrap()
+                    .push((thread::current().id(), records));
+                anyhow::ensure!(!log.fail.load(Ordering::Relaxed), "Printer failed");
+                Ok(())
+            })
+        }
+        unsafe extern "C" fn flush(context: *mut std::ffi::c_void) -> i32 {
+            pipeline::callback_result(|| {
+                let log = unsafe { &*context.cast::<OutputLog>() };
+                log.flushes.fetch_add(1, Ordering::Relaxed);
+                anyhow::ensure!(
+                    !log.fail_flush.load(Ordering::Relaxed),
+                    "Output flush failed"
+                );
+                Ok(())
+            })
+        }
+        pipeline::output::OutputSinkHandle {
+            context: (self as *const Self).cast_mut().cast(),
+            write_fn: Some(write),
+            flush_fn: Some(flush),
+        }
+    }
+}
+
+#[test]
+fn exit_finishes_quantum_work_and_output_before_returning() {
+    use pipeline::output::{ExitRequest, PrintRequest};
+    let fixture = Fixture::new();
+    fixture.start(0);
+    let qubit = fixture.runtime.qalloc().unwrap();
+    fixture.runtime.reset(qubit).unwrap();
+    fixture
+        .runtime
+        .rxy_gate(qubit, std::f64::consts::PI, 0.0)
+        .unwrap();
+    fixture
+        .runtime
+        .print(PrintRequest::new("USER:array", &[42u64, 64][..]))
+        .unwrap();
+    fixture
+        .runtime
+        .exit(ExitRequest {
+            error_code: 1001,
+            message: "stopped".into(),
+            backtrace: vec![PrintRequest::new("DEBUG:BACKTRACE:program", 123u64)],
+        })
+        .unwrap();
+
+    // Exit must execute the pending gates even though we never requested a
+    // measurement. It must also write the preceding print and the complete
+    // diagnostic before returning to C, where the program can jump away.
+    assert!(
+        fixture
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(_, op)| *op == "execute")
+    );
+    let records = fixture.output.records.lock().unwrap();
+    assert_eq!(records.len(), 2);
+    assert_eq!(
+        records[0].1,
+        vec![PrintRequest::new("USER:array", &[42u64, 64][..])]
+    );
+    assert_eq!(
+        records[1].1[0],
+        PrintRequest::new("EXIT:INT:stopped", 1001u64)
+    );
+    assert_eq!(
+        records[1].1[1],
+        PrintRequest::new("DEBUG:BACKTRACE:program", 123u64)
+    );
+    assert!(
+        records
+            .iter()
+            .all(|(owner, _)| *owner != thread::current().id())
+    );
+    drop(records);
+    assert_eq!(fixture.output.flushes.load(Ordering::Relaxed), 1);
+    assert!(fixture.runtime.reset(qubit).is_err());
+    fixture.end().unwrap();
+    fixture.start(1);
+    assert!(fixture.runtime.qalloc().is_ok());
+    fixture.end().unwrap();
+}
+
+#[test]
+fn exit_closes_concurrent_submissions_before_waiting_for_output() {
+    let mut fixture = Fixture::new();
+    let entered = Arc::new(std::sync::Barrier::new(2));
+    let release = Arc::new(std::sync::Barrier::new(2));
+    fixture.output.pause_exit = Some((entered.clone(), release.clone()));
+    fixture.start(0);
+    thread::scope(|scope| {
+        let runtime = &fixture.runtime;
+        let exiting = scope.spawn(move || {
+            runtime.exit(pipeline::output::ExitRequest {
+                error_code: 0,
+                message: "done".into(),
+                backtrace: Vec::new(),
+            })
+        });
+        entered.wait();
+        // The printer is still running on the execution thread. New calls
+        // must fail immediately, rather than queue behind this exit or wait
+        // for the printer to finish.
+        let (reply, result) = std::sync::mpsc::channel();
+        let submitting = scope.spawn(move || {
+            let allocation_rejected = runtime.qalloc().is_err();
+            let print_rejected = runtime
+                .print(pipeline::output::PrintRequest::new("late", 1u64))
+                .is_err();
+            reply.send((allocation_rejected, print_rejected)).unwrap();
+        });
+        let rejected = result.recv_timeout(std::time::Duration::from_secs(2));
+        release.wait();
+        submitting.join().unwrap();
+        assert_eq!(rejected.unwrap(), (true, true));
+        exiting.join().unwrap().unwrap();
+    });
+    fixture.end().unwrap();
+}
+
+#[test]
+fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
+    for failure in 0..3 {
+        let fixture = Fixture::new();
+        fixture.start(0);
+        let qubit = fixture.runtime.qalloc().unwrap();
+        fixture.runtime.reset(qubit).unwrap();
+        fixture.fail.store(failure == 0, Ordering::Relaxed);
+        fixture.output.fail.store(failure == 1, Ordering::Relaxed);
+        fixture
+            .output
+            .fail_flush
+            .store(failure == 2, Ordering::Relaxed);
+        assert!(
+            fixture
+                .runtime
+                .exit(pipeline::output::ExitRequest {
+                    error_code: 1001,
+                    message: "original failure".into(),
+                    backtrace: Vec::new(),
+                })
+                .is_err()
+        );
+        // A failed quantum flush mustn't suppress the original panic. A failed
+        // printer mustn't leave the runtime waiting for another acknowledgement.
+        assert_eq!(fixture.output.records.lock().unwrap().len(), 1);
+        assert!(fixture.end().is_err());
+        fixture.fail.store(false, Ordering::Relaxed);
+        fixture.output.fail.store(false, Ordering::Relaxed);
+        fixture.output.fail_flush.store(false, Ordering::Relaxed);
+        fixture.start(1);
+        let qubit = fixture.runtime.qalloc().unwrap();
+        fixture.runtime.reset(qubit).unwrap();
+        fixture.end().unwrap();
+    }
 }
