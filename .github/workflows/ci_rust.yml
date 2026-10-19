@@ -49,8 +49,10 @@ jobs:
            just generate-bindings
       - name: Compile selene-core C headers
         run: |
-          headers="core_types error_model runtime simulator pipeline_runtime"
+          headers="core_types operations error_model error_model/v0_3 runtime runtime/v0_3 runtime/v0_4 simulator simulator/v0_1"
+          all_headers=''
           for header in ${headers}; do
+            all_headers="${all_headers}#include <selene/${header}.h>\n"
             printf '#include <selene/%s.h>\n' "${header}" |
               cc -x c -std=c17 -pedantic-errors -Wall -Wextra -Werror \
                 -fsyntax-only -I selene-core/c/include -
@@ -58,7 +60,6 @@ jobs:
               c++ -x c++ -std=c++20 -pedantic-errors -Wall -Wextra -Werror \
                 -fsyntax-only -I selene-core/c/include -
           done
-          all_headers='#include <selene/core_types.h>\n#include <selene/error_model.h>\n#include <selene/runtime.h>\n#include <selene/simulator.h>\n'
           printf '%b' "${all_headers}" |
             cc -x c -std=c17 -pedantic-errors -Wall -Wextra -Werror \
               -fsyntax-only -I selene-core/c/include -
