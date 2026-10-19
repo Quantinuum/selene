@@ -45,6 +45,9 @@ impl TraceLog {
         };
         let number = GateParameter::Float;
         Some(match operation {
+            // The runtime returns u64::MAX when no qubits are available, so
+            // we record the request with no qubits to show that it failed.
+            Operation::QAlloc(u64::MAX) => gate("QAlloc", vec![], vec![]),
             Operation::QAlloc(q) => gate("QAlloc", vec![*q], vec![]),
             Operation::QFree(q) => gate("QFree", vec![*q], vec![]),
             Operation::RXY(q, theta, phi) => {

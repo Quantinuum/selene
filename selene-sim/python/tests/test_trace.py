@@ -9,9 +9,11 @@ from pydantic import BaseModel, ConfigDict
 from selene_core.trace import Trace, GateEvent, parse_trace, parse_trace_json
 from selene_formats.trace import Trace as VersionedTrace
 
-from selene_sim import Stim, DepolarizingErrorModel, SoftRZRuntime
+from selene_sim import Stim, DepolarizingErrorModel, SimpleRuntime, SoftRZRuntime
 from selene_sim.build import build
 from selene_sim.event_hooks import CircuitExtractor
+from selene_sim.event_hooks.instruction_log import QAlloc, QFree, Source
+from selene_sim.interactive import InteractiveFullStack
 from selene_formats.trace import (
     CustomEvent,
     EventRecord,
@@ -103,6 +105,50 @@ def test_selene_trace_retains_strict_validation():
 
     with pytest.raises(ValidationError):
         GateEvent(gate_name="ClassicalDelay", params=[2**60])
+
+
+@pytest.mark.parametrize("runtime", [SimpleRuntime, SoftRZRuntime])
+@pytest.mark.parametrize("tracing", [False, True])
+def test_exhausted_allocation_with_tracing(runtime, tracing):
+    extractor = CircuitExtractor() if tracing else None
+    stack = InteractiveFullStack(
+        simulator=Stim(), runtime=runtime(), n_qubits=1, event_hook=extractor
+    )
+    try:
+        qubit = stack.qalloc()
+        assert qubit.id == 0
+        # We've used the only qubit, so the runtime should return its failure
+        # sentinel. Enabling tracing shouldn't turn this into a writing error.
+        assert stack.qalloc().id == 2**64 - 1
+
+        # The failed allocation doesn't stop us from freeing the first qubit
+        # and allocating it again. We should see all four requests in the
+        # trace, but the failed allocation should have an empty qubit list.
+        stack.qfree(qubit)
+        assert stack.qalloc().id == 0
+        stack.close()
+        if extractor is not None:
+            shot = extractor.shots[0]
+            events = shot.get_trace().get_user_program_trace().events
+            assert [record.source.index for record in events] == [0, 1, 2, 3]
+            assert [record.event for record in events] == [
+                GateEvent(gate_name="QAlloc", qubits=[0]),
+                GateEvent(gate_name="QAlloc", qubits=[]),
+                GateEvent(gate_name="QFree", qubits=[0]),
+                GateEvent(gate_name="QAlloc", qubits=[0]),
+            ]
+            # The instruction view uses None for the failed request, so we
+            # can inspect it without adding a qubit to the extracted circuit.
+            operations = [
+                instruction.operation
+                for instruction in shot
+                if instruction.source == Source.USER
+            ]
+            assert operations == [QAlloc(0), QAlloc(None), QFree(0), QAlloc(0)]
+            assert operations[1].to_dict() == {"op": "QAlloc", "qubit": None}
+            assert shot.get_user_circuit().n_qubits == 1
+    finally:
+        stack.delete_run_directory()
 
 
 @pytest.mark.parametrize("seed_mode", ["default", "legacy"])
