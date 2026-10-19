@@ -153,7 +153,12 @@ impl State {
                 Ok(R::None)
             }
             I::CustomCall { tag, data } => {
-                Ok(R::U64(Some(self.scheduler.custom_call(tag, &data)?)))
+                let result = self.scheduler.custom_call(tag, &data)?;
+                // A legacy custom call can make batches ready for execution.
+                // Run those batches before replying, so a caller asking the
+                // scheduler to drain can rely on that work being complete.
+                self.drain()?;
+                Ok(R::U64(Some(result)))
             }
             I::SimulateDelay { delay_ns } => {
                 self.scheduler.simulate_delay(delay_ns)?;

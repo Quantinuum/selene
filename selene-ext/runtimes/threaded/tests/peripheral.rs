@@ -99,6 +99,9 @@ impl Fixture {
             )
         })
         .unwrap();
+        Self::with_runtime(runtime)
+    }
+    fn with_runtime(runtime: ThreadedRuntime) -> Self {
         let calls = Arc::new(Mutex::new(Vec::new()));
         let fail = Arc::new(AtomicBool::new(false));
         let recorded = calls.clone();
@@ -751,5 +754,144 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
             .and_then(RuntimeInstructionResult::into_unit)
             .unwrap();
         fixture.end().unwrap();
+    }
+}
+
+struct CustomCallScheduler(selene_core::runtime::Runtime);
+impl selene_core::runtime::RuntimeInterface for CustomCallScheduler {
+    fn custom_call(&mut self, _tag: u64, _data: &[u8]) -> Result<u64> {
+        self.0.rxy_gate(0, std::f64::consts::PI, 0.0)?;
+        self.0.measure(0)
+    }
+    fn exit(&mut self) -> Result<()> {
+        self.0.exit()
+    }
+    fn get_next_operations(&mut self) -> Result<Option<BatchOperation>> {
+        self.0.get_next_operations()
+    }
+    fn shot_start(&mut self, shot_id: u64, seed: u64) -> Result<()> {
+        self.0.shot_start(shot_id, seed)
+    }
+    fn shot_end(&mut self) -> Result<()> {
+        self.0.shot_end()
+    }
+    fn get_metric(
+        &mut self,
+        nth_metric: u8,
+    ) -> Result<Option<(String, selene_core::utils::MetricValue)>> {
+        self.0.get_metric(nth_metric)
+    }
+    fn qalloc(&mut self) -> Result<u64> {
+        self.0.qalloc()
+    }
+    fn qfree(&mut self, qubit_id: u64) -> Result<()> {
+        self.0.qfree(qubit_id)
+    }
+    fn measure(&mut self, qubit_id: u64) -> Result<u64> {
+        self.0.measure(qubit_id)
+    }
+    fn measure_leaked(&mut self, qubit_id: u64) -> Result<u64> {
+        self.0.measure_leaked(qubit_id)
+    }
+    fn reset(&mut self, qubit_id: u64) -> Result<()> {
+        self.0.reset(qubit_id)
+    }
+    fn force_result(&mut self, result_id: u64) -> Result<()> {
+        self.0.force_result(result_id)
+    }
+    fn get_bool_result(&mut self, result_id: u64) -> Result<Option<bool>> {
+        self.0.get_bool_result(result_id)
+    }
+    fn get_u64_result(&mut self, result_id: u64) -> Result<Option<u64>> {
+        self.0.get_u64_result(result_id)
+    }
+    fn set_bool_result(&mut self, result_id: u64, result: bool) -> Result<()> {
+        self.0.set_bool_result(result_id, result)
+    }
+    fn set_u64_result(&mut self, result_id: u64, result: u64) -> Result<()> {
+        self.0.set_u64_result(result_id, result)
+    }
+    fn increment_future_refcount(&mut self, future: u64) -> Result<()> {
+        self.0.increment_future_refcount(future)
+    }
+    fn decrement_future_refcount(&mut self, future: u64) -> Result<()> {
+        self.0.decrement_future_refcount(future)
+    }
+    fn local_barrier(&mut self, qubits: &[u64], sleep_ns: u64) -> Result<()> {
+        self.0.local_barrier(qubits, sleep_ns)
+    }
+    fn global_barrier(&mut self, sleep_ns: u64) -> Result<()> {
+        self.0.global_barrier(sleep_ns)
+    }
+}
+
+#[test]
+fn custom_calls_execute_their_batches_before_returning() {
+    for fail in [false, true] {
+        let runtime = ThreadedRuntime::with_scheduler(|| {
+            let scheduler = selene_core::runtime::Runtime::new(
+                Arc::new(selene_simple_runtime::SimpleRuntimeFactory),
+                1,
+                0.into(),
+                &[
+                    "custom-call-test",
+                    "--duration-ns-rxy=0",
+                    "--duration-ns-rzz=0",
+                    "--duration-ns-rz=0",
+                    "--duration-ns-rpp=0",
+                    "--duration-ns-measure=0",
+                    "--duration-ns-reset=0",
+                    "--duration-ns-measure-leaked=0",
+                ],
+            )?;
+            Ok(selene_core::runtime::Runtime::from_boxed(Box::new(
+                CustomCallScheduler(scheduler),
+            )))
+        })
+        .unwrap();
+        let fixture = Fixture::with_runtime(runtime);
+        fixture.start(0);
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::QAlloc)
+            .unwrap();
+        fixture.fail.store(fail, Ordering::Relaxed);
+
+        // Our custom call queues an X and a measurement in separate batches.
+        // We should be able to read that measurement as soon as the call returns,
+        // without forcing the result or borrowing the peripheral to flush it.
+        let result = fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::CustomCall {
+                tag: 0,
+                data: vec![],
+            });
+        if fail {
+            // If execution fails, the caller must hear about it during the
+            // custom call, rather than finding out at the end of the shot.
+            assert!(result.is_err());
+            assert!(fixture.end().is_err());
+        } else {
+            let result_id = result.unwrap().into_u64().unwrap().unwrap();
+            assert_eq!(
+                fixture
+                    .runtime
+                    .handle_instruction(RuntimeInstruction::GetBoolResult { result_id })
+                    .and_then(RuntimeInstructionResult::into_bool)
+                    .unwrap(),
+                Some(true),
+            );
+            assert_eq!(
+                fixture
+                    .calls
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|(_, call)| *call == "execute")
+                    .count(),
+                2
+            );
+            fixture.end().unwrap();
+        }
     }
 }
