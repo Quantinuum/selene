@@ -1,5 +1,4 @@
 import pytest
-import sys
 from pathlib import Path
 
 import yaml
@@ -290,35 +289,35 @@ def test_simulate_delay():
     ]
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="The QIS fixture uses POSIX threads."
-)
 @pytest.mark.parametrize("interface", [HeliosInterface, SolInterface])
 def test_qis_from_multiple_program_threads(interface, tmp_path):
     class ThreadedInterface(interface):
         @property
         def link_flags(self):
-            return [*super().link_flags, "-lpthread"]
+            return [*super().link_flags, "-lc++"]
 
     qis = ThreadedInterface()
-    program = tmp_path / "threaded.o"
+    program = tmp_path / "threaded.ll"
     # Compile the same program against each QIS's installed headers. Its worker
     # threads call the QIS functions, so we exercise the actual C shims as well
-    # as libselene and the runtime's separate peripheral thread.
+    # as libselene and the runtime's separate peripheral thread. We pass LLVM
+    # IR to the planner because Windows object files use import-table symbol
+    # names, while the IR keeps the QIS function names it uses for recognition.
     invoke_zig(
-        "cc",
-        "-std=c17",
+        "c++",
+        "-std=c++20",
         "-Wall",
         "-Wextra",
         "-Werror",
-        "-pthread",
+        "-Wno-unused-command-line-argument",
         *(["-DSOL_QIS"] if isinstance(qis, SolInterface) else []),
         "-I",
         BaseQISInterface().library_file.parent.parent / "include",
         "-I",
         qis.library_file.parent.parent / "include",
-        "-c",
-        QIS_RESOURCE_DIR / "threaded.c",
+        "-S",
+        "-emit-llvm",
+        QIS_RESOURCE_DIR / "threaded.cpp",
         "-o",
         program,
         cache_dir=tmp_path / "zig-cache",
