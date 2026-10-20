@@ -475,9 +475,12 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
                                struct SeleneQuantumEndpoint endpoint,
                                struct SeleneOutputSink output);
   /**
-   * Finish queued work, publish its results and relinquish both shot handles,
-   * even if execution fails. Do not call simulator or error-model lifecycle
-   * methods: the host performs those after this call.
+   * End program access and relinquish both shot handles, even on failure.
+   * There are no further observable quantum outcomes, so queued quantum
+   * operations and unread measurements may be discarded rather than simulated.
+   * Complete pending output and wait for endpoint calls and callbacks to return.
+   * Neither handle may be retained or accessed after returning. Do not call
+   * simulator or error-model lifecycle methods: the host performs those next.
    */
   SeleneErrno (*shot_end_fn)(RuntimeInstance handle);
   /**

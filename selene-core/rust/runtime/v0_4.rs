@@ -55,7 +55,11 @@ pub unsafe trait RuntimeInterface: Send + Sync {
         output: output::OutputSinkHandle,
     ) -> Result<()>;
 
-    /// Complete submitted work and relinquish the endpoint, even on failure.
+    /// End program access and relinquish both shot handles, even on failure.
+    /// The program can no longer observe quantum outcomes, so queued quantum
+    /// operations and unread measurements may be discarded rather than simulated.
+    /// Complete pending output and wait for all endpoint calls and callbacks to
+    /// return before releasing the handles. Do not retain access after returning.
     /// This does not end the simulator or error model shot. The host does that
     /// afterwards, on the execution thread.
     fn shot_end(&self) -> Result<()>;

@@ -138,6 +138,9 @@ unsafe impl RuntimeInterface for LegacyRuntime {
     }
     fn shot_end(&self) -> Result<()> {
         self.with(|state| {
+            // The program has ended, so the scheduler may discard quantum work
+            // that can no longer produce an observable result. Don't force a
+            // barrier before cleanup; still poll for work it emits at shot end.
             let ended = state.runtime.shot_end();
             let drained = state.drain();
             state.endpoint = None;

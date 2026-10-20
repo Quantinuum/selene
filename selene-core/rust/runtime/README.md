@@ -109,8 +109,8 @@ Libselene owns the simulator and error-model lifecycle:
    runtime's `shot_start_fn`, together with its output sink.
 3. The runtime exclusively drives the endpoint during the shot. Libselene can
    temporarily borrow it through the callback interface described below.
-4. The runtime's `shot_end_fn` finishes submitted work and releases both handles.
-   This release must also happen if execution fails.
+4. The runtime's `shot_end_fn` completes pending output, stops endpoint activity
+   and releases both handles. This release must also happen if execution fails.
 5. Libselene collects plugin metrics and ends their shots on the execution
    thread. It can reuse the plugins for another shot. When the instance ends,
    it also cleans up and drops them on that thread, before exiting the runtime.
@@ -123,8 +123,30 @@ policy belong to libselene.
 
 A failed `shot_start_fn` must return without retaining the endpoint. A runtime
 must not call an endpoint or retain any callback after handing it back. The
-host must stop and join its submitting program threads before lifecycle calls;
-queued work inside the runtime is completed by the runtime itself.
+host must stop and join its submitting program threads before lifecycle calls.
+The runtime must finish or discard its queued quantum work before releasing the
+endpoint, so none of that work can leak into the next shot.
+
+### Ending a shot
+
+Once the program has ended, there are no more observable quantum outcomes for
+that shot. There is therefore little point in simulating further operations
+solely to finish an unobserved tail of gates or unread measurements. A runtime
+can discard that work at `shot_end`; it needn't compile it or force a global
+flush first. In particular, the legacy adapter lets the old runtime finalise
+its shot without asking it to flush everything before cleanup.
+
+Shot end still has responsibilities. Pending program output must be completed,
+any endpoint call or host callback already in progress must return, and the
+runtime must relinquish both handles even if earlier work failed. Libselene can
+then collect metrics and end the simulator and error-model shots. User-call
+traces may include requests that were never simulated, while execution traces
+and metrics describe the work that actually reached the endpoint.
+
+A forced endpoint borrow is a different boundary: the program is still running
+and will observe the requested state, so earlier quantum work must be executed.
+The synchronous `Exit` instruction also keeps its explicit flush requirement.
+Ordinary `shot_end` does not add another unconditional quantum flush.
 
 ## Executing batches
 

@@ -7,8 +7,12 @@ worker owns the scheduler and makes every endpoint call.
 The example loads the simple runtime as its scheduler. Gates are queued without
 waiting for the worker to acknowledge each call. Measurement requests return
 future identifiers, and forcing a result executes the pending batches and
-publishes their results. A forced endpoint borrow and shot end also execute
-pending work. A borrow without flushing leaves that work pending.
+publishes their results. A forced endpoint borrow also executes pending work,
+while a borrow without flushing leaves it pending. This example drains its
+scheduler at shot end as well, but that is its cleanup policy rather than an API
+requirement. Once the program has ended there are no further observable quantum
+outcomes, so a runtime may discard unobserved quantum work instead. It must still
+complete pending output and stop endpoint access before returning both handles.
 
 From Python, select it in the same way as the other bundled runtimes:
 
