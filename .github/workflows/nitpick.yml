@@ -20,6 +20,17 @@ env:
   UV_FROZEN: 1
 
 jobs:
+  core-dependency-check:
+    name: Check selene-core dependency version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Check selene-sim requires the current selene-core
+        run: python scripts/check_core_dependency.py
+
   format-and-lint-checks:
     name:
     runs-on: ubuntu-latest
