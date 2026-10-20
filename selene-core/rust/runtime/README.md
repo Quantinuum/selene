@@ -164,6 +164,18 @@ and will observe the requested state, so earlier quantum work must be executed.
 The synchronous `Exit` instruction also keeps its explicit flush requirement.
 Ordinary `shot_end` does not add another unconditional quantum flush.
 
+## User-program metrics
+
+Libselene records user calls after the runtime returns. Concurrent callers can
+reach those hooks in a different order from the order in which the runtime
+accepted their instructions. The user-program trace therefore preserves each
+caller's order, but does not establish the runtime's order between threads.
+
+The `user_program:max_allocated` metric follows that observed order, so it is
+approximate for concurrent programs. Counts of individual calls remain accurate,
+and `currently_allocated` at shot end is the total number of allocations minus
+frees. These metrics keep their existing names and format.
+
 ## Executing batches
 
 `SeleneQuantumEndpoint` contains an opaque instance pointer and an operation
