@@ -71,6 +71,7 @@ item_types = ["constants", "structs", "unions", "enums", "typedefs"]
 "LocalBarrierInstruction" = "SeleneLocalBarrierInstruction"
 "GlobalBarrierInstruction" = "SeleneGlobalBarrierInstruction"
 "CustomCallInstruction" = "SeleneCustomCallInstruction"
+"SetTimeCursorInstruction" = "SeleneSetTimeCursorInstruction"
 "SimulateDelayInstruction" = "SeleneSimulateDelayInstruction"
 "RuntimeInstructionRaw" = "SeleneRuntimeInstruction"
 "RuntimeInstructionTag" = "SeleneRuntimeInstructionTag"

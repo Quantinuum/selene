@@ -678,15 +678,12 @@ pub unsafe extern "C" fn selene_global_barrier(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_set_tc(instance: *mut SeleneInstance, tc: u64) -> VoidResult {
-    with_instance_void(instance, |instance| {
-        instance.set_time_cursor(tc);
-        Ok(())
-    })
+    with_instance_void(instance, |instance| instance.set_time_cursor(tc))
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn selene_get_tc(instance: *mut SeleneInstance) -> U64Result {
-    with_instance_u64(instance, |instance| Ok(instance.time_cursor()))
+    with_instance_u64(instance, |instance| instance.time_cursor())
 }
 
 /// Some runtimes have additional capabilities outside of the core API. These can be triggered

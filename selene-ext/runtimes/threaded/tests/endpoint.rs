@@ -437,7 +437,23 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
         fail: Arc::new(AtomicBool::new(false)),
         values: vec![false],
     });
-    unsafe { runtime.shot_start(0, 123, adapter.ffi_interface(), discard_output()) }.unwrap();
+    let output = OutputLog::default();
+    unsafe { runtime.shot_start(0, 123, adapter.ffi_interface(), output.handle()) }.unwrap();
+    runtime
+        .handle_instruction(RuntimeInstruction::SetTimeCursor { time_cursor: 123 })
+        .unwrap();
+    runtime
+        .handle_instruction(RuntimeInstruction::Print {
+            request: runtime::output::PrintRequest::new("USER:INT:clock", 7u64),
+        })
+        .unwrap();
+    assert_eq!(
+        runtime
+            .handle_instruction(RuntimeInstruction::GetTimeCursor)
+            .unwrap(),
+        RuntimeInstructionResult::U64(Some(123))
+    );
+    assert_eq!(*output.timestamps.lock().unwrap(), [123]);
     let q = runtime
         .handle_instruction(RuntimeInstruction::QAlloc)
         .and_then(RuntimeInstructionResult::into_qubit)
@@ -479,28 +495,9 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
     );
 }
 
-unsafe extern "C" fn flush_output(_: *mut std::ffi::c_void) -> i32 {
-    0
-}
-
-fn discard_output() -> runtime::output::OutputSinkHandle {
-    unsafe extern "C" fn write(
-        _: *mut std::ffi::c_void,
-        _: u64,
-        _: *const runtime::output::PrintRequestRaw,
-        _: u64,
-    ) -> i32 {
-        0
-    }
-    runtime::output::OutputSinkHandle {
-        context: std::ptr::null_mut(),
-        write_fn: Some(write),
-        flush_fn: Some(flush_output),
-    }
-}
-
 #[derive(Default)]
 struct OutputLog {
+    timestamps: Mutex<Vec<u64>>,
     records: Mutex<Vec<(ThreadId, Vec<runtime::output::PrintRequest>)>>,
     pause_exit: Option<(Arc<std::sync::Barrier>, Arc<std::sync::Barrier>)>,
     fail: AtomicBool,
@@ -511,12 +508,13 @@ impl OutputLog {
     fn handle(&self) -> runtime::output::OutputSinkHandle {
         unsafe extern "C" fn write(
             context: *mut std::ffi::c_void,
-            _: u64,
+            timestamp: u64,
             records: *const runtime::output::PrintRequestRaw,
             length: u64,
         ) -> i32 {
             runtime::callback_result(|| {
                 let log = unsafe { &*context.cast::<OutputLog>() };
+                log.timestamps.lock().unwrap().push(timestamp);
                 let records = unsafe { std::slice::from_raw_parts(records, length as usize) }
                     .iter()
                     .map(|raw| unsafe { runtime::output::PrintRequest::from_raw(raw) })
@@ -710,6 +708,10 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
             .handle_instruction(RuntimeInstruction::Reset { qubit_id: qubit })
             .and_then(RuntimeInstructionResult::into_unit)
             .unwrap();
+        fixture
+            .runtime
+            .handle_instruction(RuntimeInstruction::SetTimeCursor { time_cursor: 123 })
+            .unwrap();
         fixture.fail.store(failure == 0, Ordering::Relaxed);
         fixture.output.fail.store(failure == 1, Ordering::Relaxed);
         fixture
@@ -732,7 +734,21 @@ fn a_failed_exit_still_allows_shot_end_and_the_next_shot() {
         // A failed quantum flush mustn't suppress the original panic. A failed
         // printer mustn't leave the runtime waiting for another acknowledgement.
         assert_eq!(fixture.output.records.lock().unwrap().len(), 1);
+        assert_eq!(
+            fixture
+                .runtime
+                .handle_instruction(RuntimeInstruction::GetTimeCursor)
+                .unwrap(),
+            RuntimeInstructionResult::U64(Some(123))
+        );
         assert!(fixture.end().is_err());
+        assert_eq!(
+            fixture
+                .runtime
+                .handle_instruction(RuntimeInstruction::GetTimeCursor)
+                .unwrap(),
+            RuntimeInstructionResult::U64(Some(123))
+        );
         fixture.fail.store(false, Ordering::Relaxed);
         fixture.output.fail.store(false, Ordering::Relaxed);
         fixture.output.fail_flush.store(false, Ordering::Relaxed);
@@ -864,7 +880,21 @@ fn custom_calls_execute_their_batches_before_returning() {
             // If execution fails, the caller must hear about it during the
             // custom call, rather than finding out at the end of the shot.
             assert!(result.is_err());
+            assert_eq!(
+                fixture
+                    .runtime
+                    .handle_instruction(RuntimeInstruction::GetTimeCursor)
+                    .unwrap(),
+                RuntimeInstructionResult::U64(Some(0))
+            );
             assert!(fixture.end().is_err());
+            assert_eq!(
+                fixture
+                    .runtime
+                    .handle_instruction(RuntimeInstruction::GetTimeCursor)
+                    .unwrap(),
+                RuntimeInstructionResult::U64(Some(0))
+            );
         } else {
             let result_id = result.unwrap().into_u64().unwrap().unwrap();
             assert_eq!(
@@ -888,4 +918,68 @@ fn custom_calls_execute_their_batches_before_returning() {
             fixture.end().unwrap();
         }
     }
+}
+
+#[test]
+fn runtime_cursor_orders_output_without_flushing_quantum_work() {
+    let fixture = Fixture::new();
+    let runtime = &fixture.runtime;
+    let cursor = || {
+        runtime
+            .handle_instruction(RuntimeInstruction::GetTimeCursor)
+            .unwrap()
+            .into_u64()
+            .unwrap()
+            .unwrap()
+    };
+    assert_eq!(cursor(), 0);
+    fixture.start(0);
+    let q = runtime
+        .handle_instruction(RuntimeInstruction::QAlloc)
+        .unwrap()
+        .into_qubit()
+        .unwrap();
+    runtime
+        .handle_instruction(RuntimeInstruction::Reset { qubit_id: q })
+        .unwrap();
+    for time_cursor in [123, 456, u64::MAX] {
+        runtime
+            .handle_instruction(RuntimeInstruction::SetTimeCursor { time_cursor })
+            .unwrap();
+        runtime
+            .handle_instruction(RuntimeInstruction::Print {
+                request: runtime::output::PrintRequest::new("USER:INT:clock", time_cursor),
+            })
+            .unwrap();
+        assert_eq!(cursor(), time_cursor);
+    }
+    // Reading the clock waits for earlier prints, but we haven't asked for the
+    // reset to be simulated. Cursor queries mustn't turn into quantum barriers.
+    assert!(
+        !fixture
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(_, call)| *call == "execute")
+    );
+    runtime
+        .handle_instruction(RuntimeInstruction::Exit {
+            request: runtime::output::ExitRequest {
+                message: "finished".into(),
+                error_code: 42,
+                backtrace: vec![runtime::output::PrintRequest::new(
+                    "DEBUG:BACKTRACE:test",
+                    7u64,
+                )],
+            },
+        })
+        .unwrap();
+    assert_eq!(cursor(), u64::MAX);
+    assert_eq!(
+        *fixture.output.timestamps.lock().unwrap(),
+        [123, 456, u64::MAX, u64::MAX]
+    );
+    fixture.end().unwrap();
+    assert_eq!(cursor(), u64::MAX);
 }

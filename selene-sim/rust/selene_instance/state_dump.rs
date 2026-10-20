@@ -26,9 +26,10 @@ impl SeleneInstance {
             .find(|f| !f.exists())
             .unwrap();
         self.emulator.dump_quantum_state(&path, _qubits)?;
-        self.out_encoder.lock().add_record(
-            Record::new(self.time_cursor(), message)?.add_entry(path.to_str().unwrap())?,
-        )?;
+        let time_cursor = self.time_cursor()?;
+        self.out_encoder
+            .lock()
+            .add_record(Record::new(time_cursor, message)?.add_entry(path.to_str().unwrap())?)?;
         Ok(())
     }
 }

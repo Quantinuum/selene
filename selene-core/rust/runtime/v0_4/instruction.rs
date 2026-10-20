@@ -73,6 +73,10 @@ pub enum RuntimeInstruction {
     Exit {
         request: ExitRequest,
     },
+    SetTimeCursor {
+        time_cursor: u64,
+    },
+    GetTimeCursor,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -169,6 +173,11 @@ pub enum RuntimeInstructionTag {
     Print = 18,
     /// Close program input and finish prior work and output before returning.
     Exit = 19,
+    /// Set the runtime-owned output cursor, ordered with other instructions.
+    SetTimeCursor = 20,
+    /// Return the current cursor as an available U64, without flushing quantum work.
+    /// Also available before a shot, after Exit and after shot_end.
+    GetTimeCursor = 21,
 }
 
 #[repr(C)]
@@ -287,6 +296,12 @@ pub struct SimulateDelayInstruction {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+pub struct SetTimeCursorInstruction {
+    pub time_cursor: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub union RuntimeInstructionPayload {
     pub qfree: QFreeInstruction,
     pub rxy_gate: RXYGateInstruction,
@@ -305,11 +320,12 @@ pub union RuntimeInstructionPayload {
     pub global_barrier: GlobalBarrierInstruction,
     pub custom_call: CustomCallInstruction,
     pub simulate_delay: SimulateDelayInstruction,
+    pub set_time_cursor: SetTimeCursorInstruction,
     pub print: *const PrintRequestRaw,
     pub exit: *const ExitRequestRaw,
 }
 
-/// The tag selects exactly one payload member. QAlloc ignores the payload.
+/// The tag selects exactly one payload member. QAlloc and GetTimeCursor ignore the payload.
 /// All buffers are borrowed for this call; a runtime must copy queued work.
 #[repr(C)]
 pub struct RuntimeInstructionRaw {
@@ -330,10 +346,11 @@ pub enum RuntimeInstructionResultTag {
 }
 
 /// tag is a RuntimeInstructionResultTag value. QAlloc returns Qubit, Measure
-/// and MeasureLeaked return Future, GetBoolResult returns Bool, and GetU64Result
-/// and CustomCall return U64. Other instructions return None. available is true
-/// for qubits, futures and custom-call values. Result queries can return false
-/// when unavailable, without reserving any u64 value. Bool values are zero or one.
+/// and MeasureLeaked return Future, GetBoolResult returns Bool, and GetU64Result,
+/// CustomCall and GetTimeCursor return U64. Other instructions return None.
+/// available is true for qubits, futures, custom-call values and the time cursor.
+/// Future result queries can return false when unavailable, without reserving
+/// any u64 value. Bool values are zero or one.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct RuntimeInstructionResultRaw {
@@ -506,6 +523,10 @@ impl RuntimeInstruction {
             19 => Self::Exit {
                 request: unsafe { ExitRequest::from_raw(raw.payload.exit)? },
             },
+            20 => Self::SetTimeCursor {
+                time_cursor: unsafe { raw.payload.set_time_cursor }.time_cursor,
+            },
+            21 => Self::GetTimeCursor,
             _ => return Err(anyhow!("Unknown runtime instruction tag")),
         })
     }
@@ -676,6 +697,20 @@ impl RuntimeInstruction {
                     simulate_delay: SimulateDelayInstruction {
                         delay_ns: *delay_ns,
                     },
+                },
+            ),
+            Self::SetTimeCursor { time_cursor } => (
+                20,
+                RuntimeInstructionPayload {
+                    set_time_cursor: SetTimeCursorInstruction {
+                        time_cursor: *time_cursor,
+                    },
+                },
+            ),
+            Self::GetTimeCursor => (
+                21,
+                RuntimeInstructionPayload {
+                    qfree: QFreeInstruction { qubit_id: 0 },
                 },
             ),
             Self::Print { request } => {

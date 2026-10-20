@@ -361,3 +361,44 @@ def test_compiled_program_can_jump_after_runtime_exit(runtime, panic):
             shot in [[("EXIT:INT:Postselection failed", 42)], [("USER:BOOL:c", 0)]]
             for shot in shots
         )
+
+
+@pytest.mark.parametrize("runtime", [SimpleRuntime, ThreadedRuntime])
+def test_libselene_time_cursor_is_ordered_with_program_output(runtime):
+    from selene_sim.interactive.full_stack import selene_string_t
+
+    stack = InteractiveFullStack(simulator=Quest(), runtime=runtime(), n_qubits=1)
+    lib, instance = stack._lib, stack._instance
+    lib.selene_print_u64.argtypes = [
+        SeleneInstancePtr,
+        selene_string_t,
+        ctypes.c_uint64,
+    ]
+    lib.selene_print_u64.restype = selene_void_result_t
+    exit_program = lib.selene_print_exit
+    exit_program.argtypes = [SeleneInstancePtr, selene_string_t, ctypes.c_uint32]
+    exit_program.restype = selene_void_result_t
+    try:
+        assert lib.selene_get_tc(instance).unwrap() == 0
+        for time_cursor in [123, 456, 2**63 + 7]:
+            lib.selene_set_tc(instance, time_cursor).unwrap()
+            assert lib.selene_get_tc(instance).unwrap() == time_cursor
+            lib.selene_print_u64(
+                instance, selene_string_t.from_str("USER:INT:clock"), time_cursor
+            ).unwrap()
+        exit_program(instance, selene_string_t.from_str("finished"), 42).unwrap()
+        # Exit closes program submissions, but the host still needs the cursor
+        # for shot-end records. It must also survive cleanup between shots.
+        assert lib.selene_get_tc(instance).unwrap() == 2**63 + 7
+        entries = stack.drain_results()
+        assert [entry.values for entry in entries if entry.tag == "USER:INT:clock"] == [
+            [123],
+            [456],
+            [2**63 + 7],
+        ]
+        stack.next_shot()
+        assert lib.selene_get_tc(instance).unwrap() == 2**63 + 7
+        lib.selene_set_tc(instance, 0).unwrap()
+        assert lib.selene_get_tc(instance).unwrap() == 0
+    finally:
+        stack.close()

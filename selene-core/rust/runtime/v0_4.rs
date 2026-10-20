@@ -101,6 +101,13 @@ pub unsafe trait RuntimeInterface: Send + Sync {
     /// no background work may still access the endpoint when Exit returns.
     /// Keep the handles until shot_end, which must remain safe to call. Return
     /// normally: the C program interface performs its jump after this call.
+    ///
+    /// The runtime owns the output time cursor, initially zero. SetTimeCursor
+    /// changes it in instruction order, and GetTimeCursor returns an available
+    /// U64 without forcing quantum execution. GetTimeCursor also works outside
+    /// a shot and after Exit or an instruction failure, so the host can timestamp
+    /// its diagnostics and metadata. Keep the cursor after shot_end until it is
+    /// changed again. Neither instruction is a quantum scheduling barrier.
     fn handle_instruction(
         &self,
         instruction: RuntimeInstruction,

@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use selene_core::encoder::{OutputStreamError, Record};
+use selene_core::encoder::Record;
 use selene_core::utils::MetricValue;
 
 use crate::selene_instance::SeleneInstance;
@@ -11,7 +11,7 @@ impl SeleneInstance {
         metric_category: &str,
         metric_tag: &str,
         metric_value: MetricValue,
-    ) -> Result<(), OutputStreamError> {
+    ) -> Result<()> {
         let type_str = match metric_value {
             MetricValue::Bool(_) => "BOOL",
             MetricValue::I64(_) => "INT",
@@ -19,7 +19,7 @@ impl SeleneInstance {
             MetricValue::F64(_) => "FLOAT",
         };
         let full_tag = format!("METRICS:{}:{}:{}", type_str, metric_category, metric_tag);
-        let mut record = Record::new(self.time_cursor(), full_tag.as_str())?;
+        let mut record = Record::new(self.time_cursor()?, full_tag.as_str())?;
         match metric_value {
             MetricValue::Bool(v) => record.push(v)?,
             MetricValue::I64(v) => record.push(v)?,
@@ -43,7 +43,7 @@ impl SeleneInstance {
     pub fn write_metadata(&self) -> Result<()> {
         self.emulator
             .event_hooks
-            .write(self.time_cursor(), &mut self.out_encoder.lock())?;
+            .write(self.time_cursor()?, &mut self.out_encoder.lock())?;
         Ok(())
     }
 }

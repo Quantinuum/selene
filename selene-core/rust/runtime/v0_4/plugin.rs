@@ -95,7 +95,11 @@ pub struct RuntimePluginDescriptorV2 {
     /// available before returning. Exit closes submissions and flushes all
     /// earlier quantum work and output before returning, even though it keeps
     /// the endpoint and sink until shot_end. On failure, quiesce the worker
-    /// so shot_end remains safe. Never longjmp or unwind through this call.
+    /// so shot_end remains safe. GetTimeCursor must still return the cursor
+    /// outside a shot, after Exit or an instruction failure. The cursor starts
+    /// at zero and survives shot_end. SetTimeCursor changes it in instruction
+    /// order; neither cursor instruction forces quantum execution. Never
+    /// longjmp or unwind through this call.
     pub handle_instruction_fn: Option<
         unsafe extern "C" fn(
             RuntimeInstance,

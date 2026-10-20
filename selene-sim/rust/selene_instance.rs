@@ -1,9 +1,7 @@
 use anyhow::Result;
 use parking_lot::Mutex;
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use selene_core::runtime::RuntimeInstruction;
+use std::sync::Arc;
 
 pub mod configuration;
 pub mod metadata;
@@ -21,18 +19,24 @@ pub struct SeleneInstance {
     pub config: Configuration,
     pub emulator: Emulator,
     pub out_encoder: Arc<Mutex<OutputStream>>,
-    pub time_cursor: AtomicU64,
     pub shot_number: u64,
     pub prng: Mutex<Option<Pcg32>>,
     pub(crate) state_dump_lock: Mutex<()>,
 }
 
 impl SeleneInstance {
-    pub fn time_cursor(&self) -> u64 {
-        self.time_cursor.load(Ordering::Relaxed)
+    pub fn time_cursor(&self) -> Result<u64> {
+        self.emulator
+            .runtime
+            .handle_instruction(RuntimeInstruction::GetTimeCursor)?
+            .into_u64()?
+            .ok_or_else(|| anyhow::anyhow!("Runtime returned an unavailable time cursor"))
     }
-    pub fn set_time_cursor(&self, value: u64) {
-        self.time_cursor.store(value, Ordering::Relaxed);
+    pub fn set_time_cursor(&self, value: u64) -> Result<()> {
+        self.emulator
+            .runtime
+            .handle_instruction(RuntimeInstruction::SetTimeCursor { time_cursor: value })?
+            .into_unit()
     }
 
     /// Create a new Selene simulator instance from the provided configuration,
@@ -72,7 +76,6 @@ impl SeleneInstance {
             config,
             emulator,
             out_encoder,
-            time_cursor: AtomicU64::new(0),
             shot_number: shot_offset,
             prng: Mutex::new(None),
             state_dump_lock: Mutex::new(()),

@@ -173,7 +173,7 @@ static int32_t print_records(void *context, uint64_t timestamp,
                              const SelenePrintRequest *records, uint64_t length) {
     struct Endpoint *state = context;
     check_thread(state);
-    assert(timestamp == 0);
+    assert(timestamp == 123);
     assert(length == 1);
     const SelenePrintRequest *record = &records[0];
     assert(record->value.datatype == SeleneOutputDatatype_U64);
@@ -241,6 +241,12 @@ int main(int argc, char **argv) {
         assert(runtime->on_execution_thread_fn(instance, start_endpoint, &state) == 0);
         assert(!thrd_equal(state.owner, thrd_current()));
         assert(runtime->shot_start_fn(instance, shot, 123, endpoint, output) == 0);
+        instruction(runtime, instance, SeleneRuntimeInstructionTag_SetTimeCursor,
+            (SeleneRuntimeInstructionPayload){ .set_time_cursor = { .time_cursor = 123 } });
+        SeleneRuntimeInstructionResult cursor = instruction(runtime, instance,
+            SeleneRuntimeInstructionTag_GetTimeCursor, (SeleneRuntimeInstructionPayload){0});
+        assert(cursor.tag == SeleneRuntimeInstructionResultTag_U64 && cursor.available);
+        assert(cursor.value == 123);
         SeleneRuntimeInstructionResult allocated = instruction(runtime, instance,
             SeleneRuntimeInstructionTag_QAlloc, (SeleneRuntimeInstructionPayload){0});
         assert(allocated.tag == SeleneRuntimeInstructionResultTag_Qubit && allocated.available);
@@ -294,6 +300,10 @@ int main(int argc, char **argv) {
         };
         SeleneRuntimeInstructionResult ignored;
         assert(runtime->handle_instruction_fn(instance, &rejected, &ignored) != 0);
+        cursor = instruction(runtime, instance,
+            SeleneRuntimeInstructionTag_GetTimeCursor, (SeleneRuntimeInstructionPayload){0});
+        assert(cursor.tag == SeleneRuntimeInstructionResultTag_U64 && cursor.available);
+        assert(cursor.value == 123);
         assert(runtime->shot_end_fn(instance) == 0);
         assert(runtime->on_execution_thread_fn(instance, end_endpoint, &state) == 0);
     }

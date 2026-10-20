@@ -63,6 +63,22 @@ can write a diagnostic and its backtrace together without another writer
 interleaving records. Program requests contain no timestamps; the runtime supplies
 the output timestamp when calling the sink.
 
+The existing QIS `set_tc` and `get_tc` calls become `SetTimeCursor` and
+`GetTimeCursor` runtime instructions. The runtime starts with a cursor of zero,
+processes changes in instruction order, and uses that cursor for output. For
+example, setting it to 123, printing, setting it to 456 and printing again
+produces records timestamped 123 and 456, even if the prints were queued. The
+cursor is shared by the program threads, so concurrent changes follow the same
+acceptance order as other instructions. These calls neither flush quantum work
+nor change the scheduler's operation timings.
+
+`GetTimeCursor` returns an available `U64`. It also works before a shot, after
+`Exit`, after an instruction failure and after `shot_end`, because libselene needs
+to timestamp host diagnostics and final metadata. The cursor keeps its value
+until another `SetTimeCursor`; a program's `setup` can set its initial value and
+`teardown` reads it back through the existing QIS shims. The legacy wrapper keeps
+this cursor on behalf of API 0.3 plugins, so their ABI does not change.
+
 Printing a value does not force pending quantum work to execute. It writes the
 value supplied by the program. Inspecting simulator state has different
 requirements and uses the forced borrow described below. Reading libselene's

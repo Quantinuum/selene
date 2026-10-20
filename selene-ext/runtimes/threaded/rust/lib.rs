@@ -27,6 +27,7 @@ struct State {
     endpoint: Option<QuantumEndpointHandle>,
     failure: Option<String>,
     submitted: u64,
+    time_cursor: u64,
     output: Option<OutputSinkHandle>,
 }
 impl State {
@@ -64,6 +65,12 @@ impl State {
     ) -> Result<RuntimeInstructionResult> {
         use RuntimeInstruction as I;
         use RuntimeInstructionResult as R;
+        // The host also reads the cursor when reporting failures or writing
+        // metadata after the program has exited. That must still work if an
+        // earlier instruction failed.
+        if matches!(instruction, I::GetTimeCursor) {
+            return Ok(R::U64(Some(self.time_cursor)));
+        }
         if let I::Exit { request } = instruction {
             // Even if earlier work failed, attempt the original diagnostic.
             // This worker performs all execution itself, so returning this reply
@@ -72,7 +79,7 @@ impl State {
             let printed = unsafe {
                 self.output
                     .ok_or_else(|| anyhow!("No output sink"))?
-                    .print(0, &request.records())
+                    .print(self.time_cursor, &request.records())
             };
             let output_flushed = unsafe { self.output.unwrap().flush() };
             flushed.and(printed).and(output_flushed)?;
@@ -83,6 +90,11 @@ impl State {
         }
         self.submitted += 1;
         match instruction {
+            I::GetTimeCursor => unreachable!(),
+            I::SetTimeCursor { time_cursor } => {
+                self.time_cursor = time_cursor;
+                Ok(R::None)
+            }
             I::QAlloc => Ok(R::Qubit(self.scheduler.qalloc()?)),
             I::QFree { qubit_id } => {
                 self.scheduler.qfree(qubit_id)?;
@@ -167,7 +179,7 @@ impl State {
                 unsafe {
                     self.output
                         .ok_or_else(|| anyhow!("No output sink"))?
-                        .print(0, &[request])?;
+                        .print(self.time_cursor, &[request])?;
                 }
                 Ok(R::None)
             }
@@ -232,6 +244,7 @@ impl ThreadedRuntime {
                     endpoint: None,
                     failure: None,
                     submitted: 0,
+                    time_cursor: 0,
                     output: None,
                 };
                 if ready.send(Ok(())).is_err() {
@@ -415,16 +428,21 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
                 | I::GetU64Result { .. }
                 | I::CustomCall { .. }
                 | I::Exit { .. }
+                | I::GetTimeCursor
         );
         let (reply, result) = mpsc::sync_channel(1);
         {
             // Exit closes submissions under the same lock that orders requests.
-            // Nothing accepted afterwards can land behind it on the worker.
+            // Later program instructions cannot land behind it on the worker.
+            // Host cursor queries remain available for diagnostics and cleanup.
             let mut queue = self
                 .requests
                 .lock()
                 .map_err(|_| anyhow!("Runtime queue lock poisoned"))?;
-            anyhow::ensure!(queue.program_open, "Program is not accepting instructions");
+            anyhow::ensure!(
+                queue.program_open || matches!(instruction, I::GetTimeCursor),
+                "Program is not accepting instructions"
+            );
             if is_exit {
                 queue.program_open = false;
             }

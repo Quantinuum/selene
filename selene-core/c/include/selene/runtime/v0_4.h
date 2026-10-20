@@ -151,6 +151,15 @@ enum SeleneRuntimeInstructionTag
    * Close program input and finish prior work and output before returning.
    */
   SeleneRuntimeInstructionTag_Exit = 19,
+  /**
+   * Set the runtime-owned output cursor, ordered with other instructions.
+   */
+  SeleneRuntimeInstructionTag_SetTimeCursor = 20,
+  /**
+   * Return the current cursor as an available U64, without flushing quantum work.
+   * Also available before a shot, after Exit and after shot_end.
+   */
+  SeleneRuntimeInstructionTag_GetTimeCursor = 21,
 };
 #ifndef __cplusplus
 typedef uint32_t SeleneRuntimeInstructionTag;
@@ -236,6 +245,10 @@ typedef struct SeleneSimulateDelayInstruction {
   uint64_t delay_ns;
 } SeleneSimulateDelayInstruction;
 
+typedef struct SeleneSetTimeCursorInstruction {
+  uint64_t time_cursor;
+} SeleneSetTimeCursorInstruction;
+
 /**
  * A UTF-8 string borrowed for one call. data may be null when length is zero.
  */
@@ -299,12 +312,13 @@ typedef union SeleneRuntimeInstructionPayload {
   struct SeleneGlobalBarrierInstruction global_barrier;
   struct SeleneCustomCallInstruction custom_call;
   struct SeleneSimulateDelayInstruction simulate_delay;
+  struct SeleneSetTimeCursorInstruction set_time_cursor;
   const struct SelenePrintRequest *print;
   const struct SeleneExitRequest *exit;
 } SeleneRuntimeInstructionPayload;
 
 /**
- * The tag selects exactly one payload member. QAlloc ignores the payload.
+ * The tag selects exactly one payload member. QAlloc and GetTimeCursor ignore the payload.
  * All buffers are borrowed for this call; a runtime must copy queued work.
  */
 typedef struct SeleneRuntimeInstruction {
@@ -315,10 +329,11 @@ typedef struct SeleneRuntimeInstruction {
 
 /**
  * tag is a RuntimeInstructionResultTag value. QAlloc returns Qubit, Measure
- * and MeasureLeaked return Future, GetBoolResult returns Bool, and GetU64Result
- * and CustomCall return U64. Other instructions return None. available is true
- * for qubits, futures and custom-call values. Result queries can return false
- * when unavailable, without reserving any u64 value. Bool values are zero or one.
+ * and MeasureLeaked return Future, GetBoolResult returns Bool, and GetU64Result,
+ * CustomCall and GetTimeCursor return U64. Other instructions return None.
+ * available is true for qubits, futures, custom-call values and the time cursor.
+ * Future result queries can return false when unavailable, without reserving
+ * any u64 value. Bool values are zero or one.
  */
 typedef struct SeleneRuntimeInstructionResult {
   uint32_t tag;
@@ -502,7 +517,11 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
    * available before returning. Exit closes submissions and flushes all
    * earlier quantum work and output before returning, even though it keeps
    * the endpoint and sink until shot_end. On failure, quiesce the worker
-   * so shot_end remains safe. Never longjmp or unwind through this call.
+   * so shot_end remains safe. GetTimeCursor must still return the cursor
+   * outside a shot, after Exit or an instruction failure. The cursor starts
+   * at zero and survives shot_end. SetTimeCursor changes it in instruction
+   * order; neither cursor instruction forces quantum execution. Never
+   * longjmp or unwind through this call.
    */
   SeleneErrno (*handle_instruction_fn)(RuntimeInstance,
                                        const struct SeleneRuntimeInstruction*,

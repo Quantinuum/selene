@@ -21,9 +21,12 @@ pub fn print_directly_to_stream<T: StreamWritable>(
 }
 
 impl SeleneInstance {
-    /// Write a host record directly, without calling into the runtime.
+    /// Write a host record using the runtime's current output cursor.
     pub fn print<T: StreamWritable>(&self, tag: &str, value: T) -> Result<()> {
-        print_directly_to_stream(&mut self.out_encoder.lock(), self.time_cursor(), tag, value)
+        // Query before locking the encoder: earlier queued prints may need
+        // that lock before the runtime can reply.
+        let time_cursor = self.time_cursor()?;
+        print_directly_to_stream(&mut self.out_encoder.lock(), time_cursor, tag, value)
     }
     pub fn print_program(&self, tag: &str, value: impl Into<PrintValue>) -> Result<()> {
         let request = PrintRequest::new(tag, value);
@@ -74,9 +77,10 @@ impl SeleneInstance {
     }
     pub fn fallible_print_panic(&self, message: &str, error_code: u32) {
         let request = Self::exit_request(message, error_code);
+        let time_cursor = self.time_cursor().unwrap_or(0);
         if write_records(
             &mut self.out_encoder.lock(),
-            self.time_cursor(),
+            time_cursor,
             &request.records(),
         )
         .is_err()

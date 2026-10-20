@@ -25,6 +25,7 @@ struct State {
     exited: bool,
     output: Option<OutputSinkHandle>,
     program_exited: bool,
+    time_cursor: u64,
 }
 impl State {
     fn drain(&mut self) -> Result<()> {
@@ -67,6 +68,7 @@ impl LegacyRuntime {
                 exited: false,
                 output: None,
                 program_exited: false,
+                time_cursor: 0,
             })),
         }
     }
@@ -200,11 +202,19 @@ unsafe impl RuntimeInterface for LegacyRuntime {
         instruction: RuntimeInstruction,
     ) -> Result<RuntimeInstructionResult> {
         self.with(|state| {
+            if matches!(instruction, RuntimeInstruction::GetTimeCursor) {
+                return Ok(RuntimeInstructionResult::U64(Some(state.time_cursor)));
+            }
             anyhow::ensure!(state.endpoint.is_some(), "No active runtime shot");
             anyhow::ensure!(!state.program_exited, "Program has exited");
             use RuntimeInstruction as I;
             use RuntimeInstructionResult as R;
             match instruction {
+                I::GetTimeCursor => unreachable!(),
+                I::SetTimeCursor { time_cursor } => {
+                    state.time_cursor = time_cursor;
+                    Ok(R::None)
+                }
                 I::QAlloc => Ok(R::Qubit(state.runtime.qalloc()?)),
                 I::QFree { qubit_id } => {
                     state.runtime.qfree(qubit_id)?;
@@ -283,14 +293,19 @@ unsafe impl RuntimeInterface for LegacyRuntime {
                 }
                 I::Print { request } => {
                     unsafe {
-                        state.output.unwrap().print(0, &[request])?;
+                        state.output.unwrap().print(state.time_cursor, &[request])?;
                     }
                     Ok(R::None)
                 }
                 I::Exit { request } => {
                     state.program_exited = true;
                     let flushed = state.runtime.global_barrier(0).and_then(|_| state.drain());
-                    let printed = unsafe { state.output.unwrap().print(0, &request.records()) };
+                    let printed = unsafe {
+                        state
+                            .output
+                            .unwrap()
+                            .print(state.time_cursor, &request.records())
+                    };
                     let output_flushed = unsafe { state.output.unwrap().flush() };
                     flushed.and(printed).and(output_flushed)?;
                     Ok(R::None)
