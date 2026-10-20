@@ -11,7 +11,7 @@ license = "Apache-2.0"
 dependencies = [
   "numpy~=2.0",
   "pyyaml>=6.0.2",
-  "selene-core~=0.3.2",
+  "selene-core~=0.3.3", # x-release-please-version
   "selene-formats~=0.1.0",
   "tqdm>=4.67.1",
   # TODO: decide if we want this as a formal dependency or not
