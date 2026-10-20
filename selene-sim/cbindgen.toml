@@ -21,11 +21,19 @@ include_version = false
 # namespace = "my_namespace"
 namespaces = []
 using_namespaces = []
-sys_includes = []
+sys_includes = ["selene/runtime.h"]
 includes = []
 no_includes = false
 # cpp_compat = true
-after_includes = ""
+after_includes = """
+/* Operational calls may overlap when the chosen runtime supports concurrent
+ * entry. API 0.3.x runtimes remain restricted to their initialising thread.
+ * The host must stop and join program threads before shot_start, shot_end or
+ * exit, and must keep the instance alive until every operational call returns.
+ * Output records and random-number operations are synchronised independently.
+ * An endpoint borrow callback runs on its execution thread and must not
+ * re-enter the same runtime or retain the borrowed endpoint. */
+"""
 
 
 
@@ -59,7 +67,7 @@ usize_is_size_t = true
 
 [export]
 include = []
-exclude = []
+exclude = ["EndpointBorrowRequest", "EndpointBorrowCallback", "QuantumEndpointHandle", "QuantumEndpointOperationInterface"]
 # prefix = "CAPI_"
 item_types = []
 renaming_overrides_prefixing = false
@@ -67,6 +75,9 @@ renaming_overrides_prefixing = false
 
 
 [export.rename]
+EndpointBorrowRequest = "SeleneEndpointBorrowRequest"
+EndpointBorrowCallback = "SeleneEndpointBorrowCallback"
+QuantumEndpointHandle = "SeleneQuantumEndpoint"
 VoidResult = "selene_void_result_t"
 BoolResult = "selene_bool_result_t"
 U64Result = "selene_u64_result_t"
@@ -151,7 +162,8 @@ bitflags = false
 ############## Options for How Your Rust library Should Be Parsed ##############
 
 [parse]
-parse_deps = false
+parse_deps = true
+include = ["selene-core"]
 # include = []
 exclude = []
 clean = false
