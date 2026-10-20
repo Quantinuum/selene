@@ -142,7 +142,7 @@ export type KeyValue = z.infer<typeof KeyValueSchema>;
 
 export const KeyValuePairPayloadSchema = z.object({
   kind: z.literal("KeyValuePairPayload"),
-  data: z.record(KeyValueSchema),
+  data: z.record(z.string(), KeyValueSchema),
 });
 export type KeyValuePairPayload = z.infer<typeof KeyValuePairPayloadSchema>;
 export type KeyValuePairPayloadInput = z.input<typeof KeyValuePairPayloadSchema>;
@@ -381,7 +381,9 @@ export function parseTraceDocumentJson(json: string): TraceDocument {
 }
 
 /** Validate a JSON-compatible value as a Selene trace without throwing. */
-export function safeParseTrace(value: unknown): z.SafeParseReturnType<unknown, Trace> {
+export function safeParseTrace(
+  value: unknown,
+): z.ZodSafeParseSuccess<Trace> | z.ZodSafeParseError<unknown> {
   try {
     return { success: true, data: parseTrace(value) };
   } catch (error) {
@@ -395,7 +397,7 @@ export function safeParseTrace(value: unknown): z.SafeParseReturnType<unknown, T
 /** Validate either trace-document shape without throwing. */
 export function safeParseTraceDocument(
   value: unknown,
-): z.SafeParseReturnType<unknown, TraceDocument> {
+): z.ZodSafeParseSuccess<TraceDocument> | z.ZodSafeParseError<unknown> {
   try {
     return { success: true, data: parseTraceDocument(value) };
   } catch (error) {
