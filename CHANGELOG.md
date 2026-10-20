@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.7](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.6...selene-sim-v0.3.7) (2026-10-20)
+
+
+### Bug Fixes
+
+* bump selene-core dependency and make bumps automatic ([#263](https://github.com/Quantinuum/selene/issues/263)) ([8f349c1](https://github.com/Quantinuum/selene/commit/8f349c1ea1ae5e7f2d5054c472dd4870b853bacc))
+
 ## [0.3.6](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.5...selene-sim-v0.3.6) (2026-10-19)
 
 
