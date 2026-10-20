@@ -15,7 +15,7 @@ pub use crate::operation::{
 pub use plugin::Runtime;
 pub use v0_4::{
     ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
-    RuntimeInterfaceFactory, RuntimePluginDescriptorV2, borrow_peripheral, callback_result, helper,
+    RuntimeInterfaceFactory, RuntimePluginDescriptorV2, borrow_endpoint, callback_result, helper,
     instruction, on_execution_thread, output, version,
 };
 

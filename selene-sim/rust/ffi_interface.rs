@@ -790,22 +790,22 @@ pub unsafe extern "C" fn selene_fetch_output(
     })
 }
 
-/// Lend the current peripheral to a host operation on its execution thread.
+/// Lend the current endpoint to a host operation on its execution thread.
 /// The request describes access requirements. callback_context is opaque to
 /// Selene and the runtime and is passed unchanged to callback. The call waits
-/// for callback to return. It must not retain the peripheral or re-enter this
+/// for callback to return. It must not retain the endpoint or re-enter this
 /// runtime, and must not unwind across the C ABI.
 #[unsafe(no_mangle)]
 // selene-core marks its repr(C) operation tables non_exhaustive for Rust
 // callers. Their C layout is fixed by the plugin ABI.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn selene_borrow_peripheral(
+pub unsafe extern "C" fn selene_borrow_endpoint(
     instance: *mut SeleneInstance,
-    request: *const selene_core::peripheral::PeripheralBorrowRequest,
+    request: *const selene_core::endpoint::EndpointBorrowRequest,
     callback: Option<
         unsafe extern "C" fn(
             *mut std::ffi::c_void,
-            selene_core::peripheral::QuantumPeripheralHandle,
+            selene_core::endpoint::QuantumEndpointHandle,
         ) -> i32,
     >,
     callback_context: *mut std::ffi::c_void,
@@ -814,7 +814,7 @@ pub unsafe extern "C" fn selene_borrow_peripheral(
         return VoidResult::err(100000);
     }
     if unsafe { (*request).struct_size }
-        < size_of::<selene_core::peripheral::PeripheralBorrowRequest>() as u64
+        < size_of::<selene_core::endpoint::EndpointBorrowRequest>() as u64
     {
         return VoidResult::err(100000);
     }
@@ -822,6 +822,6 @@ pub unsafe extern "C" fn selene_borrow_peripheral(
         instance
             .emulator
             .runtime
-            .borrow_peripheral(&*request, callback.unwrap(), callback_context)
+            .borrow_endpoint(&*request, callback.unwrap(), callback_context)
     })
 }

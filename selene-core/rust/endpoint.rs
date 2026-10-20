@@ -1,4 +1,4 @@
-//! A stateful quantum peripheral, exposed as an instance and a C function table.
+//! A stateful quantum endpoint, exposed as an instance and a C function table.
 //!
 //! The runtime sees batches and measurement results. The host decides whether
 //! those operations are implemented by a simulator, an error model, or wrappers.
@@ -18,15 +18,15 @@ use crate::{
 /// structure. Future versions may add fields at the end.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct PeripheralBorrowRequest {
+pub struct EndpointBorrowRequest {
     pub struct_size: u64,
     /// Complete all work ordered before this borrow, including publication of
-    /// measurement results. This applies to the whole peripheral, not a subset
+    /// measurement results. This applies to the whole endpoint, not a subset
     /// of qubits. Unsupported requirements must fail before invoking the callback.
     pub force_flush: bool,
 }
 
-impl Default for PeripheralBorrowRequest {
+impl Default for EndpointBorrowRequest {
     fn default() -> Self {
         Self {
             struct_size: size_of::<Self>() as u64,
@@ -36,34 +36,34 @@ impl Default for PeripheralBorrowRequest {
 }
 
 /// Invoke on the execution thread, with exclusive access for the duration of
-/// the callback. Neither the peripheral nor context may be retained afterwards.
+/// the callback. Neither the endpoint nor context may be retained afterwards.
 /// The callback returns zero on success and must not unwind through C.
-pub type PeripheralBorrowCallback =
-    unsafe extern "C" fn(context: *mut ffi::c_void, peripheral: QuantumPeripheralHandle) -> i32;
+pub type EndpointBorrowCallback =
+    unsafe extern "C" fn(context: *mut ffi::c_void, endpoint: QuantumEndpointHandle) -> i32;
 
-/// A borrowed peripheral. Copying this structure does not create another owner.
+/// A borrowed endpoint. Copying this structure does not create another owner.
 /// Calls must be exclusive and stay on the thread on which the host created it.
 /// The instance, function table and operation/result buffers remain valid only
 /// for the lifetime agreed with the host. Callbacks must not retain buffers.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct QuantumPeripheralHandle {
+pub struct QuantumEndpointHandle {
     pub instance: *mut ffi::c_void,
-    pub interface: QuantumPeripheralOperationInterface,
+    pub interface: QuantumEndpointOperationInterface,
 }
 
 /// A result sink borrowed for one execution call. Result identifiers are
 /// supplied by the runtime in the corresponding measurement operations.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct PeripheralResultHandle {
+pub struct EndpointResultHandle {
     pub instance: *mut ffi::c_void,
-    pub interface: PeripheralResultInterface,
+    pub interface: EndpointResultInterface,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct PeripheralResultInterface {
+pub struct EndpointResultInterface {
     pub set_bool_result_fn: unsafe extern "C" fn(*mut ffi::c_void, u64, bool),
     pub set_u64_result_fn: unsafe extern "C" fn(*mut ffi::c_void, u64, u64),
 }
@@ -73,34 +73,34 @@ pub struct PeripheralResultInterface {
 /// callbacks for operations this particular batch does not happen to contain.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct QuantumPeripheralOperationInterface {
+pub struct QuantumEndpointOperationInterface {
     pub handle_operations_fn: unsafe extern "C" fn(
         *mut ffi::c_void,
         RuntimeExtractOperationHandle,
-        PeripheralResultHandle,
+        EndpointResultHandle,
     ) -> i32,
     pub dump_state_fn:
         unsafe extern "C" fn(*mut ffi::c_void, *const ffi::c_char, *const u64, u64) -> i32,
 }
 
-pub trait QuantumPeripheralInterface {
+pub trait QuantumEndpointInterface {
     fn handle_operations(&mut self, batch: BatchOperation) -> Result<BatchResult>;
     fn dump_state(&mut self, file: &Path, qubits: &[u64]) -> Result<()>;
 }
 
-/// Borrows a C peripheral without taking responsibility for destroying it.
+/// Borrows a C endpoint without taking responsibility for destroying it.
 /// This wrapper deliberately cannot be moved or shared between threads.
-pub struct QuantumPeripheral<'a> {
-    handle: QuantumPeripheralHandle,
+pub struct QuantumEndpoint<'a> {
+    handle: QuantumEndpointHandle,
     _borrow: PhantomData<&'a mut ()>,
     _thread: PhantomData<Rc<()>>,
 }
 
-impl<'a> QuantumPeripheral<'a> {
+impl<'a> QuantumEndpoint<'a> {
     /// # Safety
     /// The handle must be live and exclusively borrowed for 'a. Construct and
-    /// use this wrapper only on the peripheral's execution thread.
-    pub unsafe fn from_raw_parts(handle: QuantumPeripheralHandle) -> Self {
+    /// use this wrapper only on the endpoint's execution thread.
+    pub unsafe fn from_raw_parts(handle: QuantumEndpointHandle) -> Self {
         Self {
             handle,
             _borrow: PhantomData,
@@ -109,14 +109,14 @@ impl<'a> QuantumPeripheral<'a> {
     }
 }
 
-impl QuantumPeripheralInterface for QuantumPeripheral<'_> {
+impl QuantumEndpointInterface for QuantumEndpoint<'_> {
     fn handle_operations(&mut self, batch: BatchOperation) -> Result<BatchResult> {
         let mut extractor = BatchExtractor::from_batch_operation(batch);
         let mut results = BatchResultBuilder::default();
         let sink = results.error_model_set_result();
-        let sink = PeripheralResultHandle {
+        let sink = EndpointResultHandle {
             instance: sink.instance,
-            interface: PeripheralResultInterface {
+            interface: EndpointResultInterface {
                 set_bool_result_fn: sink.interface.set_bool_result_fn,
                 set_u64_result_fn: sink.interface.set_u64_result_fn,
             },
@@ -129,7 +129,7 @@ impl QuantumPeripheralInterface for QuantumPeripheral<'_> {
                     sink,
                 )
             },
-            || anyhow!("QuantumPeripheral: handling operations failed"),
+            || anyhow!("QuantumEndpoint: handling operations failed"),
         )?;
         Ok(results.finish())
     }
@@ -148,26 +148,26 @@ impl QuantumPeripheralInterface for QuantumPeripheral<'_> {
                     qubits.len() as u64,
                 )
             },
-            || anyhow!("QuantumPeripheral: dumping state failed"),
+            || anyhow!("QuantumEndpoint: dumping state failed"),
         )
     }
 }
 
 /// Owns a Rust implementation and lends its C interface to a runtime.
 /// Keep this adapter at a stable address while its handle is in use.
-pub struct QuantumPeripheralFFIAdapter<T> {
+pub struct QuantumEndpointFFIAdapter<T> {
     pub inner: T,
 }
 
-impl<T: QuantumPeripheralInterface> QuantumPeripheralFFIAdapter<T> {
+impl<T: QuantumEndpointInterface> QuantumEndpointFFIAdapter<T> {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
 
-    pub fn ffi_interface(&mut self) -> QuantumPeripheralHandle {
-        QuantumPeripheralHandle {
+    pub fn ffi_interface(&mut self) -> QuantumEndpointHandle {
+        QuantumEndpointHandle {
             instance: self as *mut Self as *mut ffi::c_void,
-            interface: QuantumPeripheralOperationInterface {
+            interface: QuantumEndpointOperationInterface {
                 handle_operations_fn: Self::handle_operations,
                 dump_state_fn: Self::dump_state,
             },
@@ -177,7 +177,7 @@ impl<T: QuantumPeripheralInterface> QuantumPeripheralFFIAdapter<T> {
     unsafe extern "C" fn handle_operations(
         instance: *mut ffi::c_void,
         batch: RuntimeExtractOperationHandle,
-        result: PeripheralResultHandle,
+        result: EndpointResultHandle,
     ) -> i32 {
         crate::runtime::callback_result(|| {
             let this = unsafe { &mut *instance.cast::<Self>() };

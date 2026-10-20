@@ -17,7 +17,7 @@ impl Drop for PluginDirectory {
 fn rejected_plugin(defines: &[&str], expected: &str) {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let directory = PluginDirectory(std::env::temp_dir().join(format!(
-        "selene-peripheral-descriptor-{}-{}",
+        "selene-endpoint-descriptor-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     )));
@@ -39,7 +39,7 @@ fn rejected_plugin(defines: &[&str], expected: &str) {
     let compiled = compiler
         .arg("-I")
         .arg(root.join("c/include"))
-        .arg(root.join("tests/support/peripheral_runtime.c"))
+        .arg(root.join("tests/support/endpoint_runtime.c"))
         .arg("-o")
         .arg(&library)
         .output()
@@ -50,7 +50,7 @@ fn rejected_plugin(defines: &[&str], expected: &str) {
         String::from_utf8_lossy(&compiled.stderr)
     );
     let error = match Runtime::load_from_file(&library, 1, 0.into(), &[] as &[&str]) {
-        Ok(_) => panic!("Malformed peripheral runtime was accepted"),
+        Ok(_) => panic!("Malformed endpoint runtime was accepted"),
         Err(error) => format!("{error:#}"),
     };
     assert!(error.contains(expected), "{error}");
@@ -60,7 +60,7 @@ fn rejected_plugin(defines: &[&str], expected: &str) {
 fn invalid_v2_descriptors_do_not_fall_back_to_legacy() {
     rejected_plugin(
         &["TEST_VERSION=0x500"],
-        "Unsupported peripheral runtime API version",
+        "Unsupported endpoint runtime API version",
     );
     rejected_plugin(&["TEST_SIZE=16"], "Runtime v2");
     rejected_plugin(&["TEST_NULL"], "Runtime v2");

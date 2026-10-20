@@ -12,8 +12,8 @@
  * The host must stop and join program threads before shot_start, shot_end or
  * exit, and must keep the instance alive until every operational call returns.
  * Output records and random-number operations are synchronised independently.
- * A peripheral borrow callback runs on its execution thread and must not
- * re-enter the same runtime or retain the borrowed peripheral. */
+ * An endpoint borrow callback runs on its execution thread and must not
+ * re-enter the same runtime or retain the borrowed endpoint. */
 
 
 typedef struct SeleneInstance SeleneInstance;
@@ -54,17 +54,16 @@ typedef struct selene_u32_result_t {
 } selene_u32_result_t;
 
 /**
- * Lend the current peripheral to a host operation on its execution thread.
+ * Lend the current endpoint to a host operation on its execution thread.
  * The request describes access requirements. callback_context is opaque to
  * Selene and the runtime and is passed unchanged to callback. The call waits
- * for callback to return. It must not retain the peripheral or re-enter this
+ * for callback to return. It must not retain the endpoint or re-enter this
  * runtime, and must not unwind across the C ABI.
  */
-struct selene_void_result_t selene_borrow_peripheral(struct SeleneInstance *instance,
-                                                     const SelenePeripheralBorrowRequest *request,
-                                                     int32_t (*callback)(void*,
-                                                                         SeleneQuantumPeripheral),
-                                                     void *callback_context);
+struct selene_void_result_t selene_borrow_endpoint(struct SeleneInstance *instance,
+                                                   const SeleneEndpointBorrowRequest *request,
+                                                   int32_t (*callback)(void*, SeleneQuantumEndpoint),
+                                                   void *callback_context);
 
 /**
  * Some runtimes have additional capabilities outside of the core API. These can be triggered

@@ -2,8 +2,8 @@ use crate::event_hooks::{Operation, SharedEventHook};
 use crate::selene_instance::configuration::Configuration;
 use anyhow::{Result, anyhow};
 use parking_lot::Mutex;
+use selene_core::endpoint::{EndpointBorrowRequest, QuantumEndpointInterface};
 use selene_core::error_model::BatchResult;
-use selene_core::peripheral::{PeripheralBorrowRequest, QuantumPeripheralInterface};
 use selene_core::runtime::{
     self, BatchOperation, Operation as RuntimeOperation, Runtime, RuntimeInstruction,
     RuntimeInterface, output::OutputSinkHandle,
@@ -12,8 +12,8 @@ use selene_core::simulator::SimulatorInterface;
 use selene_core::utils::MetricValue;
 use std::time::Instant;
 
-mod peripheral;
-use peripheral::PeripheralStorage;
+mod endpoint;
+use endpoint::EndpointStorage;
 
 struct HookedSimulator {
     inner: Box<dyn SimulatorInterface>,
@@ -90,7 +90,7 @@ impl SimulatorInterface for HookedSimulator {
 
 pub struct Emulator {
     pub runtime: Box<dyn RuntimeInterface>,
-    peripheral: PeripheralStorage,
+    endpoint: EndpointStorage,
     pub event_hooks: SharedEventHook,
     metrics: Mutex<Vec<(&'static str, String, MetricValue)>>,
     active: bool,
@@ -122,10 +122,10 @@ impl Emulator {
             selene_core::time::Instant::default(),
             &config.runtime.args,
         )?;
-        let peripheral = PeripheralStorage::new(runtime.as_ref(), config, event_hooks.clone())?;
+        let endpoint = EndpointStorage::new(runtime.as_ref(), config, event_hooks.clone())?;
         Ok(Self {
             runtime,
-            peripheral,
+            endpoint,
             event_hooks,
             metrics: Mutex::new(Vec::new()),
             active: false,
@@ -144,14 +144,14 @@ impl Emulator {
         anyhow::ensure!(!self.active, "Previous runtime shot is still active");
         self.metrics.lock().clear();
         self.event_hooks.on_shot_start(shot_id);
-        let handle = self.peripheral.with(self.runtime.as_ref(), move |state| {
+        let handle = self.endpoint.with(self.runtime.as_ref(), move |state| {
             state
                 .inner
                 .start(shot_id, simulator_seed, error_model_seed)?;
-            Ok(peripheral::PeripheralHandle(state.ffi_interface()))
+            Ok(endpoint::EndpointHandle(state.ffi_interface()))
         })?;
         // This handle is only ever dereferenced by the runtime on the thread
-        // where PeripheralStorage constructed the plugins. It stays live until
+        // where EndpointStorage constructed the plugins. It stays live until
         // shot_end has returned, including when execution reports an error.
         let started = unsafe {
             self.runtime
@@ -159,7 +159,7 @@ impl Emulator {
         };
         if let Err(error) = started {
             let _ = self
-                .peripheral
+                .endpoint
                 .with(self.runtime.as_ref(), |state| state.inner.end());
             return Err(error);
         }
@@ -180,7 +180,7 @@ impl Emulator {
         let legacy_metrics = if self.collect_metrics && self.runtime.is_legacy() {
             self.runtime_metrics().and_then(|mut metrics| {
                 metrics.extend(
-                    self.peripheral
+                    self.endpoint
                         .borrow(self.runtime.as_ref(), |state| state.metrics())?,
                 );
                 Ok(metrics)
@@ -190,10 +190,10 @@ impl Emulator {
         };
         let runtime = self.runtime.shot_end();
         self.active = false;
-        // The runtime has relinquished the peripheral. We can now inspect its
+        // The runtime has relinquished the endpoint. We can now inspect its
         // metrics and end the plugins' shots on their original execution thread.
         let collect_metrics = self.collect_metrics && !self.runtime.is_legacy();
-        let collect = self.peripheral.with(self.runtime.as_ref(), move |state| {
+        let collect = self.endpoint.with(self.runtime.as_ref(), move |state| {
             let metrics = if collect_metrics {
                 state.inner.metrics()
             } else {
@@ -216,9 +216,9 @@ impl Emulator {
     }
 
     pub fn poke(&self) -> Result<()> {
-        runtime::borrow_peripheral(
+        runtime::borrow_endpoint(
             self.runtime.as_ref(),
-            &PeripheralBorrowRequest {
+            &EndpointBorrowRequest {
                 force_flush: true,
                 ..Default::default()
             },
@@ -227,13 +227,13 @@ impl Emulator {
     }
 
     pub fn dump_quantum_state(&self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
-        runtime::borrow_peripheral(
+        runtime::borrow_endpoint(
             self.runtime.as_ref(),
-            &PeripheralBorrowRequest {
+            &EndpointBorrowRequest {
                 force_flush: true,
                 ..Default::default()
             },
-            |peripheral| peripheral.dump_state(file, qubits),
+            |endpoint| endpoint.dump_state(file, qubits),
         )
     }
 
@@ -466,7 +466,7 @@ impl Emulator {
     fn process_runtime(&self) -> Result<()> {
         // Record the user call before the legacy runtime's batches are polled,
         // so the trace keeps its original order. New runtimes drive their own
-        // peripherals and this checkpoint does not send them a request.
+        // endpoints and this checkpoint does not send them a request.
         self.runtime.process_pending()?;
         self.event_hooks.drain_pending()?;
         Ok(())
@@ -476,9 +476,9 @@ impl Emulator {
 impl Emulator {
     pub fn exit(&mut self) -> Result<()> {
         let shot = self.shot_end();
-        let peripheral = self.peripheral.clear(self.runtime.as_ref());
+        let endpoint = self.endpoint.clear(self.runtime.as_ref());
         let runtime = self.runtime.destroy();
-        shot.and(peripheral).and(runtime)
+        shot.and(endpoint).and(runtime)
     }
 }
 

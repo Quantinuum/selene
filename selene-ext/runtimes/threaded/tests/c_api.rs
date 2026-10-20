@@ -1,17 +1,16 @@
 //! Compile the C example against the public headers and run it against our
 //! exported descriptor. This tests both directions of the ABI: C calls the
-//! runtime, and the runtime calls a C peripheral and host borrow callbacks.
+//! runtime, and the runtime calls a C endpoint and host borrow callbacks.
 #![cfg(target_os = "linux")]
 
 #[test]
-fn a_c_host_can_supply_its_own_peripheral() {
+fn a_c_host_can_supply_its_own_endpoint() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let source = root.join("selene-core/examples/runtime/c/peripheral.c");
+    let source = root.join("selene-core/examples/runtime/c/endpoint.c");
     let includes = root.join("selene-core/c/include");
-    let directory =
-        std::env::temp_dir().join(format!("selene-c-peripheral-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!("selene-c-endpoint-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
-    let executable = directory.join("peripheral");
+    let executable = directory.join("endpoint");
     let compiled = std::process::Command::new("cc")
         .args([
             "-std=c17",

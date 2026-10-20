@@ -1,5 +1,5 @@
 //! Program instructions entering a runtime. These are distinct from the
-//! scheduled operations sent to the quantum peripheral.
+//! scheduled operations sent to the quantum endpoint.
 use super::output::{ExitRequest, ExitRequestRaw, PrintRequest, PrintRequestRaw};
 use anyhow::{Result, anyhow, ensure};
 

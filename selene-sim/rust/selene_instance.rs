@@ -126,7 +126,7 @@ impl SeleneInstance {
     /// has ended.
     pub fn shot_end(&mut self) -> Result<()> {
         // The emulator collects plugin metrics after the runtime hands back
-        // the peripheral, before ending the simulator and error-model shots.
+        // the endpoint, before ending the simulator and error-model shots.
         let ended = self.emulator.shot_end();
         let metrics = if self.config.event_hooks.provide_metrics {
             self.write_metrics()

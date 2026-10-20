@@ -139,20 +139,20 @@ def test_c_borrow_request_and_callback_run_on_the_execution_thread():
     class BorrowRequest(ctypes.Structure):
         _fields_ = [("struct_size", ctypes.c_uint64), ("force_flush", ctypes.c_bool)]
 
-    class PeripheralOperations(ctypes.Structure):
+    class EndpointOperations(ctypes.Structure):
         _fields_ = [
             ("handle_operations_fn", ctypes.c_void_p),
             ("dump_state_fn", ctypes.c_void_p),
         ]
 
-    class Peripheral(ctypes.Structure):
-        _fields_ = [("instance", ctypes.c_void_p), ("interface", PeripheralOperations)]
+    class Endpoint(ctypes.Structure):
+        _fields_ = [("instance", ctypes.c_void_p), ("interface", EndpointOperations)]
 
-    callback_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, Peripheral)
+    callback_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, Endpoint)
     stack = InteractiveFullStack(
         simulator=Quest(), runtime=ThreadedRuntime(), n_qubits=1
     )
-    borrow = stack._lib.selene_borrow_peripheral
+    borrow = stack._lib.selene_borrow_endpoint
     borrow.argtypes = [
         SeleneInstancePtr,
         ctypes.POINTER(BorrowRequest),
@@ -165,11 +165,11 @@ def test_c_borrow_request_and_callback_run_on_the_execution_thread():
     context = ctypes.c_uint64(812)
 
     @callback_type
-    def inspect(context_pointer, peripheral):
+    def inspect(context_pointer, endpoint):
         value = ctypes.cast(
             context_pointer, ctypes.POINTER(ctypes.c_uint64)
         ).contents.value
-        observations.append((threading.get_ident(), value, bool(peripheral.instance)))
+        observations.append((threading.get_ident(), value, bool(endpoint.instance)))
         return 0
 
     try:
@@ -252,7 +252,7 @@ def test_exit_flushes_pending_quantum_work_before_returning(runtime, error_code)
 
         # This borrow deliberately doesn't ask for a flush. If exit returned
         # before executing the X gate, inspecting the simulator here would see
-        # the wrong state. The host still owns shot end, so the peripheral must
+        # the wrong state. The host still owns shot end, so the endpoint must
         # remain available until then.
         class BorrowRequest(ctypes.Structure):
             _fields_ = [
@@ -260,19 +260,19 @@ def test_exit_flushes_pending_quantum_work_before_returning(runtime, error_code)
                 ("force_flush", ctypes.c_bool),
             ]
 
-        class PeripheralOperations(ctypes.Structure):
+        class EndpointOperations(ctypes.Structure):
             _fields_ = [
                 ("handle_operations_fn", ctypes.c_void_p),
                 ("dump_state_fn", ctypes.c_void_p),
             ]
 
-        class Peripheral(ctypes.Structure):
+        class Endpoint(ctypes.Structure):
             _fields_ = [
                 ("instance", ctypes.c_void_p),
-                ("interface", PeripheralOperations),
+                ("interface", EndpointOperations),
             ]
 
-        callback_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, Peripheral)
+        callback_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, Endpoint)
         dump_type = ctypes.CFUNCTYPE(
             ctypes.c_int32,
             ctypes.c_void_p,
@@ -284,14 +284,14 @@ def test_exit_flushes_pending_quantum_work_before_returning(runtime, error_code)
         calls = []
 
         @callback_type
-        def inspect(_context, peripheral):
-            dump = dump_type(peripheral.interface.dump_state_fn)
+        def inspect(_context, endpoint):
+            dump = dump_type(endpoint.interface.dump_state_fn)
             qubits = (ctypes.c_uint64 * 1)(q.id)
-            status = dump(peripheral.instance, str(file).encode(), qubits, 1)
+            status = dump(endpoint.instance, str(file).encode(), qubits, 1)
             calls.append(status)
             return status
 
-        borrow = stack._lib.selene_borrow_peripheral
+        borrow = stack._lib.selene_borrow_endpoint
         borrow.argtypes = [
             SeleneInstancePtr,
             ctypes.POINTER(BorrowRequest),

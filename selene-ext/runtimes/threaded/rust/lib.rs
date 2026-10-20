@@ -1,11 +1,11 @@
-//! A runtime that accepts concurrent callers and drives its peripheral on a
+//! A runtime that accepts concurrent callers and drives its endpoint on a
 //! dedicated thread. Gates are queued without waiting for an acknowledgement;
 //! measurements, forced borrows and shot end establish execution boundaries.
 use anyhow::{Result, anyhow};
 use selene_core::{
-    peripheral::{
-        PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheral,
-        QuantumPeripheralHandle, QuantumPeripheralInterface,
+    endpoint::{
+        EndpointBorrowCallback, EndpointBorrowRequest, QuantumEndpoint, QuantumEndpointHandle,
+        QuantumEndpointInterface,
     },
     runtime::{
         ExecutionCallback, RuntimeInstruction, RuntimeInstructionResult, RuntimeInterface,
@@ -24,7 +24,7 @@ use std::{
 type Request = Box<dyn FnOnce(&mut State) + Send>;
 struct State {
     scheduler: Scheduler,
-    peripheral: Option<QuantumPeripheralHandle>,
+    endpoint: Option<QuantumEndpointHandle>,
     failure: Option<String>,
     submitted: u64,
     output: Option<OutputSinkHandle>,
@@ -42,11 +42,11 @@ impl State {
     }
     fn execute(&mut self) -> Result<()> {
         let handle = self
-            .peripheral
-            .ok_or_else(|| anyhow!("No quantum peripheral attached"))?;
-        let mut peripheral = unsafe { QuantumPeripheral::from_raw_parts(handle) };
+            .endpoint
+            .ok_or_else(|| anyhow!("No quantum endpoint attached"))?;
+        let mut endpoint = unsafe { QuantumEndpoint::from_raw_parts(handle) };
         while let Some(batch) = self.scheduler.get_next_operations()? {
-            let results = peripheral.handle_operations(batch)?;
+            let results = endpoint.handle_operations(batch)?;
             for result in results.bool_results {
                 self.scheduler
                     .set_bool_result(result.result_id, result.value)?;
@@ -67,7 +67,7 @@ impl State {
         if let I::Exit { request } = instruction {
             // Even if earlier work failed, attempt the original diagnostic.
             // This worker performs all execution itself, so returning this reply
-            // also guarantees that no background peripheral access remains.
+            // also guarantees that no background endpoint access remains.
             let flushed = self.scheduler.global_barrier(0).and_then(|_| self.drain());
             let printed = unsafe {
                 self.output
@@ -211,7 +211,7 @@ impl ThreadedRuntime {
     }
 
     /// Construct the scheduler on the execution thread as well. The scheduler
-    /// and peripheral can both use plugins with thread-local implementation state.
+    /// and endpoint can both use plugins with thread-local implementation state.
     pub fn with_scheduler(
         initialise: impl FnOnce() -> Result<Scheduler> + Send + 'static,
     ) -> Result<Self> {
@@ -229,7 +229,7 @@ impl ThreadedRuntime {
                 };
                 let mut state = State {
                     scheduler,
-                    peripheral: None,
+                    endpoint: None,
                     failure: None,
                     submitted: 0,
                     output: None,
@@ -308,20 +308,20 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
         &self,
         shot_id: u64,
         seed: u64,
-        peripheral: QuantumPeripheralHandle,
+        endpoint: QuantumEndpointHandle,
         output: OutputSinkHandle,
     ) -> Result<()> {
         // Transport only the address and function pointers. The pointed-to
         // plugins were created on this worker and are never used by the caller.
-        let address = peripheral.instance as usize;
-        let interface = peripheral.interface;
+        let address = endpoint.instance as usize;
+        let interface = endpoint.interface;
         self.call(move |state| {
-            anyhow::ensure!(state.peripheral.is_none(), "Runtime shot already active");
+            anyhow::ensure!(state.endpoint.is_none(), "Runtime shot already active");
             state.scheduler.shot_start(shot_id, seed)?;
             state.failure = None;
             state.output = Some(output);
             state.submitted = 0;
-            state.peripheral = Some(QuantumPeripheralHandle {
+            state.endpoint = Some(QuantumEndpointHandle {
                 instance: address as *mut ffi::c_void,
                 interface,
             });
@@ -341,7 +341,7 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
         self.call(|state| {
             let drained = state.drain();
             let ended = state.scheduler.shot_end();
-            state.peripheral = None;
+            state.endpoint = None;
             state.output = None;
             drained.and(ended)
         })
@@ -359,15 +359,15 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
             )
         })
     }
-    unsafe fn borrow_peripheral(
+    unsafe fn borrow_endpoint(
         &self,
-        request: &PeripheralBorrowRequest,
-        callback: PeripheralBorrowCallback,
+        request: &EndpointBorrowRequest,
+        callback: EndpointBorrowCallback,
         context: *mut ffi::c_void,
     ) -> Result<()> {
         anyhow::ensure!(
-            request.struct_size >= size_of::<PeripheralBorrowRequest>() as u64,
-            "Undersized peripheral borrow request"
+            request.struct_size >= size_of::<EndpointBorrowRequest>() as u64,
+            "Undersized endpoint borrow request"
         );
         let force_flush = request.force_flush;
         let context = context as usize;
@@ -379,12 +379,12 @@ unsafe impl RuntimeInterface for ThreadedRuntime {
                 state.scheduler.global_barrier(0)?;
                 state.drain()?;
             }
-            let peripheral = state
-                .peripheral
-                .ok_or_else(|| anyhow!("No quantum peripheral to borrow"))?;
+            let endpoint = state
+                .endpoint
+                .ok_or_else(|| anyhow!("No quantum endpoint to borrow"))?;
             selene_core::utils::check_errno(
-                unsafe { callback(context as *mut ffi::c_void, peripheral) },
-                || anyhow!("Host peripheral borrow failed"),
+                unsafe { callback(context as *mut ffi::c_void, endpoint) },
+                || anyhow!("Host endpoint borrow failed"),
             )
         })
     }

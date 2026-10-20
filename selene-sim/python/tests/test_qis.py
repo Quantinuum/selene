@@ -300,7 +300,7 @@ def test_qis_from_multiple_program_threads(interface, tmp_path):
     program = tmp_path / "threaded.ll"
     # Compile the same program against each QIS's installed headers. Its worker
     # threads call the QIS functions, so we exercise the actual C shims as well
-    # as libselene and the runtime's separate peripheral thread. We pass LLVM
+    # as libselene and the runtime's separate endpoint thread. We pass LLVM
     # IR to the planner because Windows object files use import-table symbol
     # names, while the IR keeps the QIS function names it uses for recognition.
     invoke_zig(

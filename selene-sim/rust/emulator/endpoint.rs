@@ -2,10 +2,8 @@ use super::HookedSimulator;
 use crate::{event_hooks::SharedEventHook, selene_instance::configuration::Configuration};
 use anyhow::Result;
 use selene_core::{
+    endpoint::{QuantumEndpointFFIAdapter, QuantumEndpointHandle, QuantumEndpointInterface},
     error_model::{BatchResult, ErrorModel, ErrorModelInterface},
-    peripheral::{
-        QuantumPeripheralFFIAdapter, QuantumPeripheralHandle, QuantumPeripheralInterface,
-    },
     runtime::{self, BatchOperation, RuntimeInterface},
     simulator::{Simulator, SimulatorInterface},
     utils::MetricValue,
@@ -15,7 +13,7 @@ use std::{
     thread::{self, ThreadId},
 };
 
-pub(super) struct PeripheralState {
+pub(super) struct EndpointState {
     simulator: Simulator,
     error_model: ErrorModel,
     hooks: SharedEventHook,
@@ -23,11 +21,11 @@ pub(super) struct PeripheralState {
     active: bool,
 }
 
-impl PeripheralState {
+impl EndpointState {
     fn check_thread(&self) -> Result<()> {
         anyhow::ensure!(
             self.owner == thread::current().id(),
-            "Peripheral accessed on a different execution thread"
+            "Endpoint accessed on a different execution thread"
         );
         Ok(())
     }
@@ -70,7 +68,7 @@ impl PeripheralState {
     }
 }
 
-impl QuantumPeripheralInterface for PeripheralState {
+impl QuantumEndpointInterface for EndpointState {
     fn handle_operations(&mut self, batch: BatchOperation) -> Result<BatchResult> {
         self.check_thread()?;
         self.hooks.on_runtime_batch(&batch);
@@ -89,16 +87,16 @@ impl QuantumPeripheralInterface for PeripheralState {
 
 // This is only an address to send back to the execution thread. No safe method
 // on the handle accesses the plugins; the runtime's shot contract governs use.
-pub(super) struct PeripheralHandle(pub QuantumPeripheralHandle);
-unsafe impl Send for PeripheralHandle {}
+pub(super) struct EndpointHandle(pub QuantumEndpointHandle);
+unsafe impl Send for EndpointHandle {}
 
 /// Owns storage whose contents stay on the runtime's execution thread. Host
 /// lifecycle operations go through synchronous callbacks on that thread, and
 /// inspection during a shot goes through the runtime's separate borrow API.
-pub(super) struct PeripheralStorage {
+pub(super) struct EndpointStorage {
     address: usize,
 }
-impl PeripheralStorage {
+impl EndpointStorage {
     pub(super) fn new(
         runtime: &dyn RuntimeInterface,
         config: &Configuration,
@@ -123,14 +121,14 @@ impl PeripheralStorage {
                 simulator.into_boxed(),
                 hooks.clone(),
             )));
-            let state = PeripheralState {
+            let state = EndpointState {
                 simulator,
                 error_model,
                 hooks,
                 owner: thread::current().id(),
                 active: false,
             };
-            Ok(Box::into_raw(Box::new(QuantumPeripheralFFIAdapter::new(state))) as usize)
+            Ok(Box::into_raw(Box::new(QuantumEndpointFFIAdapter::new(state))) as usize)
         })?;
         Ok(Self { address })
     }
@@ -138,12 +136,11 @@ impl PeripheralStorage {
     pub(super) fn with<T: Send>(
         &self,
         runtime: &dyn RuntimeInterface,
-        operation: impl FnOnce(&mut QuantumPeripheralFFIAdapter<PeripheralState>) -> Result<T> + Send,
+        operation: impl FnOnce(&mut QuantumEndpointFFIAdapter<EndpointState>) -> Result<T> + Send,
     ) -> Result<T> {
         let address = self.address;
         runtime::on_execution_thread(runtime, move || {
-            let state =
-                unsafe { &mut *(address as *mut QuantumPeripheralFFIAdapter<PeripheralState>) };
+            let state = unsafe { &mut *(address as *mut QuantumEndpointFFIAdapter<EndpointState>) };
             state.inner.check_thread()?;
             operation(state)
         })
@@ -152,12 +149,11 @@ impl PeripheralStorage {
     pub(super) fn borrow<T: Send>(
         &self,
         runtime: &dyn RuntimeInterface,
-        operation: impl FnOnce(&mut PeripheralState) -> Result<T> + Send,
+        operation: impl FnOnce(&mut EndpointState) -> Result<T> + Send,
     ) -> Result<T> {
         let address = self.address;
-        runtime::borrow_peripheral(runtime, &Default::default(), move |_| {
-            let state =
-                unsafe { &mut *(address as *mut QuantumPeripheralFFIAdapter<PeripheralState>) };
+        runtime::borrow_endpoint(runtime, &Default::default(), move |_| {
+            let state = unsafe { &mut *(address as *mut QuantumEndpointFFIAdapter<EndpointState>) };
             state.inner.check_thread()?;
             operation(&mut state.inner)
         })
@@ -169,7 +165,7 @@ impl PeripheralStorage {
             return Ok(());
         }
         runtime::on_execution_thread(runtime, move || {
-            let pointer = address as *mut QuantumPeripheralFFIAdapter<PeripheralState>;
+            let pointer = address as *mut QuantumEndpointFFIAdapter<EndpointState>;
             unsafe { &*pointer }.inner.check_thread()?;
             let mut state = unsafe { Box::from_raw(pointer) };
             let ended = state.inner.end();

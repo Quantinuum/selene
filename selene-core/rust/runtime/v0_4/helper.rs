@@ -1,11 +1,11 @@
-//! Export a Rust peripheral runtime through the same C ABI used by native plugins.
+//! Export a Rust endpoint runtime through the same C ABI used by native plugins.
 use super::{
     ExecutionCallback, RuntimeInstruction, RuntimeInterface, RuntimeInterfaceFactory,
     instruction::{RuntimeInstructionRaw, RuntimeInstructionResultRaw},
     output::OutputSinkHandle,
 };
 use crate::{
-    peripheral::{PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheralHandle},
+    endpoint::{EndpointBorrowCallback, EndpointBorrowRequest, QuantumEndpointHandle},
     runtime::v0_4::plugin::{Errno, RuntimeInstance},
     utils::{convert_cargs_to_strings, result_of_errno_to_errno, result_to_errno},
 };
@@ -58,7 +58,7 @@ impl<F: RuntimeInterfaceFactory + Default> Helper<F> {
         instance: RuntimeInstance,
         shot_id: u64,
         seed: u64,
-        peripheral: QuantumPeripheralHandle,
+        endpoint: QuantumEndpointHandle,
         output: OutputSinkHandle,
     ) -> Errno {
         catch_errno(|| {
@@ -66,7 +66,7 @@ impl<F: RuntimeInterfaceFactory + Default> Helper<F> {
                 format!("RuntimeFFIAdapter: shot_start failed for shot {shot_id}"),
                 unsafe {
                     Self::with_runtime(instance, |runtime| {
-                        runtime.shot_start(shot_id, seed, peripheral, output)
+                        runtime.shot_start(shot_id, seed, endpoint, output)
                     })
                 },
             )
@@ -135,25 +135,24 @@ impl<F: RuntimeInterfaceFactory + Default> Helper<F> {
             })
         })
     }
-    pub unsafe extern "C" fn borrow_peripheral(
+    pub unsafe extern "C" fn borrow_endpoint(
         instance: RuntimeInstance,
-        request: *const PeripheralBorrowRequest,
-        callback: PeripheralBorrowCallback,
+        request: *const EndpointBorrowRequest,
+        callback: EndpointBorrowCallback,
         context: *mut ffi::c_void,
     ) -> Errno {
         catch_errno(|| {
             super::callback_result(|| {
-                anyhow::ensure!(!request.is_null(), "Peripheral borrow request is null");
+                anyhow::ensure!(!request.is_null(), "Endpoint borrow request is null");
                 // Read the size before the rest of the request so older, shorter
                 // structures can be rejected without reading past their allocation.
                 anyhow::ensure!(
-                    unsafe { (*request).struct_size }
-                        >= size_of::<PeripheralBorrowRequest>() as u64,
-                    "Undersized peripheral borrow request"
+                    unsafe { (*request).struct_size } >= size_of::<EndpointBorrowRequest>() as u64,
+                    "Undersized endpoint borrow request"
                 );
                 unsafe {
                     Self::with_runtime(instance, |runtime| {
-                        runtime.borrow_peripheral(&*request, callback, context)
+                        runtime.borrow_endpoint(&*request, callback, context)
                     })
                 }
             })
@@ -182,8 +181,8 @@ macro_rules! export_runtime_plugin_v0_4 {
                 on_execution_thread_fn: Some(
                     $crate::runtime::v0_4::helper::Helper::<$factory>::on_execution_thread,
                 ),
-                borrow_peripheral_fn: Some(
-                    $crate::runtime::v0_4::helper::Helper::<$factory>::borrow_peripheral,
+                borrow_endpoint_fn: Some(
+                    $crate::runtime::v0_4::helper::Helper::<$factory>::borrow_endpoint,
                 ),
             };
     };

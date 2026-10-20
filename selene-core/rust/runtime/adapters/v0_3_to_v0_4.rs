@@ -5,9 +5,9 @@ use crate::runtime::{
     output::OutputSinkHandle,
 };
 use crate::{
-    peripheral::{
-        PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheral,
-        QuantumPeripheralHandle, QuantumPeripheralInterface,
+    endpoint::{
+        EndpointBorrowCallback, EndpointBorrowRequest, QuantumEndpoint, QuantumEndpointHandle,
+        QuantumEndpointInterface,
     },
     runtime::v0_3::{Runtime, RuntimeInterface as LegacyInterface},
     utils::MetricValue,
@@ -21,7 +21,7 @@ use std::{
 
 struct State {
     runtime: Runtime,
-    peripheral: Option<QuantumPeripheralHandle>,
+    endpoint: Option<QuantumEndpointHandle>,
     exited: bool,
     output: Option<OutputSinkHandle>,
     program_exited: bool,
@@ -29,11 +29,11 @@ struct State {
 impl State {
     fn drain(&mut self) -> Result<()> {
         let handle = self
-            .peripheral
-            .ok_or_else(|| anyhow!("No peripheral attached to legacy runtime"))?;
-        let mut peripheral = unsafe { QuantumPeripheral::from_raw_parts(handle) };
+            .endpoint
+            .ok_or_else(|| anyhow!("No endpoint attached to legacy runtime"))?;
+        let mut endpoint = unsafe { QuantumEndpoint::from_raw_parts(handle) };
         while let Some(batch) = self.runtime.get_next_operations()? {
-            let results = peripheral.handle_operations(batch)?;
+            let results = endpoint.handle_operations(batch)?;
             for result in results.bool_results {
                 self.runtime
                     .set_bool_result(result.result_id, result.value)?;
@@ -63,7 +63,7 @@ impl LegacyRuntime {
             owner: thread::current().id(),
             state: Mutex::new(Some(State {
                 runtime,
-                peripheral: None,
+                endpoint: None,
                 exited: false,
                 output: None,
                 program_exited: false,
@@ -114,15 +114,15 @@ unsafe impl RuntimeInterface for LegacyRuntime {
         &self,
         shot_id: u64,
         seed: u64,
-        peripheral: QuantumPeripheralHandle,
+        endpoint: QuantumEndpointHandle,
         output: OutputSinkHandle,
     ) -> Result<()> {
         self.with(|state| {
             anyhow::ensure!(
-                state.peripheral.is_none(),
+                state.endpoint.is_none(),
                 "Legacy runtime shot already active"
             );
-            state.peripheral = Some(peripheral);
+            state.endpoint = Some(endpoint);
             state.output = Some(output);
             state.program_exited = false;
             let result = state
@@ -130,7 +130,7 @@ unsafe impl RuntimeInterface for LegacyRuntime {
                 .shot_start(shot_id, seed)
                 .and_then(|_| state.drain());
             if result.is_err() {
-                state.peripheral = None;
+                state.endpoint = None;
                 state.output = None;
             }
             result
@@ -140,7 +140,7 @@ unsafe impl RuntimeInterface for LegacyRuntime {
         self.with(|state| {
             let ended = state.runtime.shot_end();
             let drained = state.drain();
-            state.peripheral = None;
+            state.endpoint = None;
             state.output = None;
             ended.and(drained)
         })
@@ -160,15 +160,15 @@ unsafe impl RuntimeInterface for LegacyRuntime {
             })
         })
     }
-    unsafe fn borrow_peripheral(
+    unsafe fn borrow_endpoint(
         &self,
-        request: &PeripheralBorrowRequest,
-        callback: PeripheralBorrowCallback,
+        request: &EndpointBorrowRequest,
+        callback: EndpointBorrowCallback,
         context: *mut ffi::c_void,
     ) -> Result<()> {
         anyhow::ensure!(
-            request.struct_size >= size_of::<PeripheralBorrowRequest>() as u64,
-            "Undersized peripheral borrow request"
+            request.struct_size >= size_of::<EndpointBorrowRequest>() as u64,
+            "Undersized endpoint borrow request"
         );
         self.with(|state| {
             if request.force_flush {
@@ -176,8 +176,8 @@ unsafe impl RuntimeInterface for LegacyRuntime {
                 state.drain()?;
             }
             let handle = state
-                .peripheral
-                .ok_or_else(|| anyhow!("No peripheral to borrow"))?;
+                .endpoint
+                .ok_or_else(|| anyhow!("No endpoint to borrow"))?;
             crate::utils::check_errno(unsafe { callback(context, handle) }, || {
                 anyhow!("Host inspection failed")
             })
@@ -197,7 +197,7 @@ unsafe impl RuntimeInterface for LegacyRuntime {
         instruction: RuntimeInstruction,
     ) -> Result<RuntimeInstructionResult> {
         self.with(|state| {
-            anyhow::ensure!(state.peripheral.is_some(), "No active runtime shot");
+            anyhow::ensure!(state.endpoint.is_some(), "No active runtime shot");
             anyhow::ensure!(!state.program_exited, "Program has exited");
             use RuntimeInstruction as I;
             use RuntimeInstructionResult as R;

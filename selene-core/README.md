@@ -53,7 +53,7 @@ selene_simulator_get_plugin_descriptor_v1(void) {
 The equivalent runtime and error-model accessor names are declared in their respective
 headers.
 
-The current runtime API drives a quantum peripheral through `selene/runtime.h`
+The current runtime API drives a quantum endpoint through `selene/runtime.h`
 and `SELENE_RUNTIME_CURRENT_API_VERSION`. API 0.3 runtime implementations use
 `selene/runtime/v0_3.h` and `SELENE_RUNTIME_V0_3_API_VERSION`. The
 [runtime architecture](rust/runtime/README.md) describes ownership, scoped
@@ -73,4 +73,4 @@ See the following for examples:
 - [example error model](examples/error_model/rust/lib.rs)
 - [API 0.3 runtime](examples/runtime/rust/lib.rs)
 - [threaded runtime](../selene-ext/runtimes/threaded/rust/lib.rs)
-- [C host and quantum peripheral](examples/runtime/c/peripheral.c)
+- [C host and quantum endpoint](examples/runtime/c/endpoint.c)

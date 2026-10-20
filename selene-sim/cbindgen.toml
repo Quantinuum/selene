@@ -31,8 +31,8 @@ after_includes = """
  * The host must stop and join program threads before shot_start, shot_end or
  * exit, and must keep the instance alive until every operational call returns.
  * Output records and random-number operations are synchronised independently.
- * A peripheral borrow callback runs on its execution thread and must not
- * re-enter the same runtime or retain the borrowed peripheral. */
+ * An endpoint borrow callback runs on its execution thread and must not
+ * re-enter the same runtime or retain the borrowed endpoint. */
 """
 
 
@@ -67,7 +67,7 @@ usize_is_size_t = true
 
 [export]
 include = []
-exclude = ["PeripheralBorrowRequest", "PeripheralBorrowCallback", "QuantumPeripheralHandle", "QuantumPeripheralOperationInterface"]
+exclude = ["EndpointBorrowRequest", "EndpointBorrowCallback", "QuantumEndpointHandle", "QuantumEndpointOperationInterface"]
 # prefix = "CAPI_"
 item_types = []
 renaming_overrides_prefixing = false
@@ -75,9 +75,9 @@ renaming_overrides_prefixing = false
 
 
 [export.rename]
-PeripheralBorrowRequest = "SelenePeripheralBorrowRequest"
-PeripheralBorrowCallback = "SelenePeripheralBorrowCallback"
-QuantumPeripheralHandle = "SeleneQuantumPeripheral"
+EndpointBorrowRequest = "SeleneEndpointBorrowRequest"
+EndpointBorrowCallback = "SeleneEndpointBorrowCallback"
+QuantumEndpointHandle = "SeleneQuantumEndpoint"
 VoidResult = "selene_void_result_t"
 BoolResult = "selene_bool_result_t"
 U64Result = "selene_u64_result_t"

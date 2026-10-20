@@ -4,7 +4,7 @@ use super::{
     output::OutputSinkHandle,
 };
 use crate::{
-    peripheral::{PeripheralBorrowCallback, PeripheralBorrowRequest, QuantumPeripheralHandle},
+    endpoint::{EndpointBorrowCallback, EndpointBorrowRequest, QuantumEndpointHandle},
     utils::{
         MetricValue, check_errno, load_plugin_descriptor, read_raw_metric, with_strings_to_cargs,
     },
@@ -20,16 +20,16 @@ use super::version::RUNTIME_V0_4_API_VERSION;
 pub type RuntimeInstance = *mut ffi::c_void;
 pub type Errno = i32;
 
-/// A runtime that owns peripheral execution. All operational functions are
-/// thread safe. Lifecycle calls exclude submissions. Callbacks and peripheral
+/// A runtime that owns endpoint execution. All operational functions are
+/// thread safe. Lifecycle calls exclude submissions. Callbacks and endpoint
 /// calls run on one fixed execution thread, including between shots.
 ///
-/// shot_start borrows the peripheral and output sink until shot_end returns.
+/// shot_start borrows the endpoint and output sink until shot_end returns.
 /// A failed start must retain neither handle. shot_end relinquishes
 /// both even on failure. destroy must finish all callbacks before unloading code.
 /// Input buffers and output pointers are borrowed only for the duration of
 /// their call. A runtime that queues work copies the inputs before returning.
-/// The peripheral and output sink remain borrowed until shot end.
+/// The endpoint and output sink remain borrowed until shot end.
 /// Every function pointer is required. Return zero on success; never unwind.
 /// get_metrics_fn uses a nonzero return to indicate the end of enumeration.
 #[repr(C)]
@@ -53,18 +53,18 @@ pub struct RuntimePluginDescriptorV2 {
         ) -> Errno,
     >,
     /// Finish internal requests and destroy the runtime instance. The host has
-    /// already ended the shot and cleaned up its peripheral. No subsequent call
+    /// already ended the shot and cleaned up its endpoint. No subsequent call
     /// may use this instance.
     pub destroy_fn: Option<unsafe extern "C" fn(handle: RuntimeInstance) -> Errno>,
     /// Begin shot_id with the given seed and take exclusive access to the
-    /// host-started peripheral and output sink. Keep them until shot_end_fn returns.
+    /// host-started endpoint and output sink. Keep them until shot_end_fn returns.
     /// A failed start must not keep either handle or leave callbacks using it.
     pub shot_start_fn: Option<
         unsafe extern "C" fn(
             handle: RuntimeInstance,
             shot_id: u64,
             seed: u64,
-            peripheral: QuantumPeripheralHandle,
+            endpoint: QuantumEndpointHandle,
             output: OutputSinkHandle,
         ) -> Errno,
     >,
@@ -91,7 +91,7 @@ pub struct RuntimePluginDescriptorV2 {
     /// instructions may return once queued. ForceResult makes its result
     /// available before returning. Exit closes submissions and flushes all
     /// earlier quantum work and output before returning, even though it keeps
-    /// the peripheral and sink until shot_end. On failure, quiesce the worker
+    /// the endpoint and sink until shot_end. On failure, quiesce the worker
     /// so shot_end remains safe. Never longjmp or unwind through this call.
     pub handle_instruction_fn: Option<
         unsafe extern "C" fn(
@@ -100,11 +100,11 @@ pub struct RuntimePluginDescriptorV2 {
             *mut RuntimeInstructionResultRaw,
         ) -> Errno,
     >,
-    /// Run the host callback exactly once on the peripheral execution thread
+    /// Run the host callback exactly once on the endpoint execution thread
     /// and return only after it finishes. Available between shots for plugin
     /// creation, lifecycle calls and destruction. Do not retain the callback
-    /// or its context, or overlap it with another peripheral operation. The host
-    /// uses borrow_peripheral_fn for access during a shot.
+    /// or its context, or overlap it with another endpoint operation. The host
+    /// uses borrow_endpoint_fn for access during a shot.
     pub on_execution_thread_fn:
         Option<unsafe extern "C" fn(RuntimeInstance, ExecutionCallback, *mut ffi::c_void) -> Errno>,
     /// During a shot, invoke callback exclusively on the execution thread.
@@ -114,11 +114,11 @@ pub struct RuntimePluginDescriptorV2 {
     /// Unsupported requirements fail without invoking callback. Wait for the
     /// callback to return, propagate failure and resume without retaining the
     /// handle, callback or context. The callback must not re-enter this runtime.
-    pub borrow_peripheral_fn: Option<
+    pub borrow_endpoint_fn: Option<
         unsafe extern "C" fn(
             RuntimeInstance,
-            *const PeripheralBorrowRequest,
-            PeripheralBorrowCallback,
+            *const EndpointBorrowRequest,
+            EndpointBorrowCallback,
             *mut ffi::c_void,
         ) -> Errno,
     >,
@@ -166,7 +166,7 @@ impl Runtime {
         };
         anyhow::ensure!(
             descriptor.api_version >> 8 == RUNTIME_V0_4_API_VERSION >> 8,
-            "Unsupported peripheral runtime API version"
+            "Unsupported endpoint runtime API version"
         );
         anyhow::ensure!(descriptor.init_fn.is_some(), "Runtime v2 requires init_fn");
         anyhow::ensure!(
@@ -194,8 +194,8 @@ impl Runtime {
             "Runtime v2 requires on_execution_thread_fn"
         );
         anyhow::ensure!(
-            descriptor.borrow_peripheral_fn.is_some(),
-            "Runtime v2 requires borrow_peripheral_fn"
+            descriptor.borrow_endpoint_fn.is_some(),
+            "Runtime v2 requires borrow_endpoint_fn"
         );
         let mut instance = std::ptr::null_mut();
         with_strings_to_cargs(args, |argc, argv| {
@@ -243,7 +243,7 @@ unsafe impl RuntimeInterface for Runtime {
         &self,
         shot_id: u64,
         seed: u64,
-        peripheral: QuantumPeripheralHandle,
+        endpoint: QuantumEndpointHandle,
         output: OutputSinkHandle,
     ) -> Result<()> {
         let _access = self
@@ -260,7 +260,7 @@ unsafe impl RuntimeInterface for Runtime {
                     self.instance,
                     shot_id,
                     seed,
-                    peripheral,
+                    endpoint,
                     output,
                 )
             },
@@ -355,10 +355,10 @@ unsafe impl RuntimeInterface for Runtime {
             || anyhow!("Runtime: execution-thread callback failed"),
         )
     }
-    unsafe fn borrow_peripheral(
+    unsafe fn borrow_endpoint(
         &self,
-        request: &PeripheralBorrowRequest,
-        callback: PeripheralBorrowCallback,
+        request: &EndpointBorrowRequest,
+        callback: EndpointBorrowCallback,
         context: *mut ffi::c_void,
     ) -> Result<()> {
         let _access = self
@@ -370,19 +370,19 @@ unsafe impl RuntimeInterface for Runtime {
             "Runtime has been destroyed"
         );
         anyhow::ensure!(
-            request.struct_size >= size_of::<PeripheralBorrowRequest>() as u64,
-            "Undersized peripheral borrow request"
+            request.struct_size >= size_of::<EndpointBorrowRequest>() as u64,
+            "Undersized endpoint borrow request"
         );
         check_errno(
             unsafe {
-                (self.descriptor.borrow_peripheral_fn.unwrap())(
+                (self.descriptor.borrow_endpoint_fn.unwrap())(
                     self.instance,
                     request,
                     callback,
                     context,
                 )
             },
-            || anyhow!("Runtime: peripheral borrow failed"),
+            || anyhow!("Runtime: endpoint borrow failed"),
         )
     }
 }

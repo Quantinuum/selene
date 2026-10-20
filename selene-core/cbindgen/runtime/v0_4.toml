@@ -38,9 +38,9 @@ include = [
   "RuntimeInstructionTag", "RuntimeInstructionRaw", "RuntimeInstructionPayload", "RuntimeInstructionResultRaw",
   "PrintRequestRaw", "ExitRequestRaw", "OutputString", "OutputValue", "OutputSinkHandle",
   "RuntimePluginDescriptorV2", "RUNTIME_V0_4_API_VERSION",
-  "QuantumPeripheralHandle", "QuantumPeripheralOperationInterface",
-  "PeripheralBorrowRequest", "PeripheralBorrowCallback", "ExecutionCallback",
-  "PeripheralResultHandle", "PeripheralResultInterface",
+  "QuantumEndpointHandle", "QuantumEndpointOperationInterface",
+  "EndpointBorrowRequest", "EndpointBorrowCallback", "ExecutionCallback",
+  "EndpointResultHandle", "EndpointResultInterface",
 ]
 exclude = [
   "RuntimeInstruction", "RuntimeInstructionResult", "PrintRequest", "ExitRequest", "PrintValue",
@@ -83,13 +83,13 @@ item_types = ["constants", "structs", "unions", "enums", "typedefs"]
 "OutputSinkHandle" = "SeleneOutputSink"
 "RuntimePluginDescriptorV2" = "SeleneRuntimePluginDescriptorV2"
 "RUNTIME_V0_4_API_VERSION" = "SELENE_RUNTIME_V0_4_API_VERSION"
-"QuantumPeripheralHandle" = "SeleneQuantumPeripheral"
-"QuantumPeripheralOperationInterface" = "SeleneQuantumPeripheralOperationInterface"
-"PeripheralBorrowRequest" = "SelenePeripheralBorrowRequest"
-"PeripheralBorrowCallback" = "SelenePeripheralBorrowCallback"
+"QuantumEndpointHandle" = "SeleneQuantumEndpoint"
+"QuantumEndpointOperationInterface" = "SeleneQuantumEndpointOperationInterface"
+"EndpointBorrowRequest" = "SeleneEndpointBorrowRequest"
+"EndpointBorrowCallback" = "SeleneEndpointBorrowCallback"
 "ExecutionCallback" = "SeleneExecutionCallback"
-"PeripheralResultHandle" = "SelenePeripheralResultHandle"
-"PeripheralResultInterface" = "SelenePeripheralResultInterface"
+"EndpointResultHandle" = "SeleneEndpointResultHandle"
+"EndpointResultInterface" = "SeleneEndpointResultInterface"
 "RuntimeInstance" = "RuntimeInstance"
 "Errno" = "SeleneErrno"
 "RuntimeExtractOperationHandle" = "RuntimeExtractOperationHandle"

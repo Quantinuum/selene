@@ -62,7 +62,7 @@ itself. A version-specific native loader understands just that version's ABI.
 
 The runtime loader prefers API 0.4. If only API 0.3 is advertised, it loads that
 contract and wraps the instance with `runtime::adapters::v0_3_to_v0_4::LegacyRuntime`.
-The wrapper implements the current interface, including peripheral execution,
+The wrapper implements the current interface, including endpoint execution,
 using the old scheduler's batch polling. An invalid advertised API 0.4 descriptor
 is an error, rather than a reason to fall back to API 0.3.
 
@@ -72,5 +72,5 @@ An adapter belongs alongside the supported versions when it can preserve their
 semantics; the layout doesn't promise that every future API change can be
 adapted transparently.
 
-The [runtime architecture](runtime/README.md) explains peripheral ownership,
+The [runtime architecture](runtime/README.md) explains endpoint ownership,
 threading, printing and compatibility in more detail.

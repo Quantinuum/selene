@@ -352,52 +352,52 @@ typedef struct SeleneOutputSink {
 
 typedef void *RuntimeInstance;
 
-typedef struct SelenePeripheralResultInterface {
+typedef struct SeleneEndpointResultInterface {
   void (*set_bool_result_fn)(void*,
                              uint64_t,
                              bool);
   void (*set_u64_result_fn)(void*,
                             uint64_t,
                             uint64_t);
-} SelenePeripheralResultInterface;
+} SeleneEndpointResultInterface;
 
 /**
  * A result sink borrowed for one execution call. Result identifiers are
  * supplied by the runtime in the corresponding measurement operations.
  */
-typedef struct SelenePeripheralResultHandle {
+typedef struct SeleneEndpointResultHandle {
   void *instance;
-  struct SelenePeripheralResultInterface interface;
-} SelenePeripheralResultHandle;
+  struct SeleneEndpointResultInterface interface;
+} SeleneEndpointResultHandle;
 
 /**
  * Both function pointers are required and return zero on success. When
  * extracting a batch, supply a complete operation callback table, including
  * callbacks for operations this particular batch does not happen to contain.
  */
-typedef struct SeleneQuantumPeripheralOperationInterface {
+typedef struct SeleneQuantumEndpointOperationInterface {
   int32_t (*handle_operations_fn)(void*,
                                   RuntimeExtractOperationHandle,
-                                  struct SelenePeripheralResultHandle);
+                                  struct SeleneEndpointResultHandle);
   int32_t (*dump_state_fn)(void*,
                            const char*,
                            const uint64_t*,
                            uint64_t);
-} SeleneQuantumPeripheralOperationInterface;
+} SeleneQuantumEndpointOperationInterface;
 
 /**
- * A borrowed peripheral. Copying this structure does not create another owner.
+ * A borrowed endpoint. Copying this structure does not create another owner.
  * Calls must be exclusive and stay on the thread on which the host created it.
  * The instance, function table and operation/result buffers remain valid only
  * for the lifetime agreed with the host. Callbacks must not retain buffers.
  */
-typedef struct SeleneQuantumPeripheral {
+typedef struct SeleneQuantumEndpoint {
   void *instance;
-  struct SeleneQuantumPeripheralOperationInterface interface;
-} SeleneQuantumPeripheral;
+  struct SeleneQuantumEndpointOperationInterface interface;
+} SeleneQuantumEndpoint;
 
 /**
- * A host operation performed on the runtime's peripheral execution thread.
+ * A host operation performed on the runtime's endpoint execution thread.
  * Return zero on success. Never unwind across this C boundary.
  */
 typedef int32_t (*SeleneExecutionCallback)(void*);
@@ -406,35 +406,35 @@ typedef int32_t (*SeleneExecutionCallback)(void*);
  * Requirements for a temporary borrow. Initialise struct_size to sizeof this
  * structure. Future versions may add fields at the end.
  */
-typedef struct SelenePeripheralBorrowRequest {
+typedef struct SeleneEndpointBorrowRequest {
   uint64_t struct_size;
   /**
    * Complete all work ordered before this borrow, including publication of
-   * measurement results. This applies to the whole peripheral, not a subset
+   * measurement results. This applies to the whole endpoint, not a subset
    * of qubits. Unsupported requirements must fail before invoking the callback.
    */
   bool force_flush;
-} SelenePeripheralBorrowRequest;
+} SeleneEndpointBorrowRequest;
 
 /**
  * Invoke on the execution thread, with exclusive access for the duration of
- * the callback. Neither the peripheral nor context may be retained afterwards.
+ * the callback. Neither the endpoint nor context may be retained afterwards.
  * The callback returns zero on success and must not unwind through C.
  */
-typedef int32_t (*SelenePeripheralBorrowCallback)(void *context,
-                                                  struct SeleneQuantumPeripheral peripheral);
+typedef int32_t (*SeleneEndpointBorrowCallback)(void *context,
+                                                struct SeleneQuantumEndpoint endpoint);
 
 /**
- * A runtime that owns peripheral execution. All operational functions are
- * thread safe. Lifecycle calls exclude submissions. Callbacks and peripheral
+ * A runtime that owns endpoint execution. All operational functions are
+ * thread safe. Lifecycle calls exclude submissions. Callbacks and endpoint
  * calls run on one fixed execution thread, including between shots.
  *
- * shot_start borrows the peripheral and output sink until shot_end returns.
+ * shot_start borrows the endpoint and output sink until shot_end returns.
  * A failed start must retain neither handle. shot_end relinquishes
  * both even on failure. destroy must finish all callbacks before unloading code.
  * Input buffers and output pointers are borrowed only for the duration of
  * their call. A runtime that queues work copies the inputs before returning.
- * The peripheral and output sink remain borrowed until shot end.
+ * The endpoint and output sink remain borrowed until shot end.
  * Every function pointer is required. Return zero on success; never unwind.
  * get_metrics_fn uses a nonzero return to indicate the end of enumeration.
  */
@@ -460,19 +460,19 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
                          const char *const *argv);
   /**
    * Finish internal requests and destroy the runtime instance. The host has
-   * already ended the shot and cleaned up its peripheral. No subsequent call
+   * already ended the shot and cleaned up its endpoint. No subsequent call
    * may use this instance.
    */
   SeleneErrno (*destroy_fn)(RuntimeInstance handle);
   /**
    * Begin shot_id with the given seed and take exclusive access to the
-   * host-started peripheral and output sink. Keep them until shot_end_fn returns.
+   * host-started endpoint and output sink. Keep them until shot_end_fn returns.
    * A failed start must not keep either handle or leave callbacks using it.
    */
   SeleneErrno (*shot_start_fn)(RuntimeInstance handle,
                                uint64_t shot_id,
                                uint64_t seed,
-                               struct SeleneQuantumPeripheral peripheral,
+                               struct SeleneQuantumEndpoint endpoint,
                                struct SeleneOutputSink output);
   /**
    * Finish queued work, publish its results and relinquish both shot handles,
@@ -498,18 +498,18 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
    * instructions may return once queued. ForceResult makes its result
    * available before returning. Exit closes submissions and flushes all
    * earlier quantum work and output before returning, even though it keeps
-   * the peripheral and sink until shot_end. On failure, quiesce the worker
+   * the endpoint and sink until shot_end. On failure, quiesce the worker
    * so shot_end remains safe. Never longjmp or unwind through this call.
    */
   SeleneErrno (*handle_instruction_fn)(RuntimeInstance,
                                        const struct SeleneRuntimeInstruction*,
                                        struct SeleneRuntimeInstructionResult*);
   /**
-   * Run the host callback exactly once on the peripheral execution thread
+   * Run the host callback exactly once on the endpoint execution thread
    * and return only after it finishes. Available between shots for plugin
    * creation, lifecycle calls and destruction. Do not retain the callback
-   * or its context, or overlap it with another peripheral operation. The host
-   * uses borrow_peripheral_fn for access during a shot.
+   * or its context, or overlap it with another endpoint operation. The host
+   * uses borrow_endpoint_fn for access during a shot.
    */
   SeleneErrno (*on_execution_thread_fn)(RuntimeInstance,
                                         SeleneExecutionCallback,
@@ -523,10 +523,10 @@ typedef struct SeleneRuntimePluginDescriptorV2 {
    * callback to return, propagate failure and resume without retaining the
    * handle, callback or context. The callback must not re-enter this runtime.
    */
-  SeleneErrno (*borrow_peripheral_fn)(RuntimeInstance,
-                                      const struct SelenePeripheralBorrowRequest*,
-                                      SelenePeripheralBorrowCallback,
-                                      void*);
+  SeleneErrno (*borrow_endpoint_fn)(RuntimeInstance,
+                                    const struct SeleneEndpointBorrowRequest*,
+                                    SeleneEndpointBorrowCallback,
+                                    void*);
 } SeleneRuntimePluginDescriptorV2;
 
 #endif  /* SELENE_RUNTIME_V0_4_H */

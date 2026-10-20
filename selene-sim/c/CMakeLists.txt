@@ -28,7 +28,7 @@ install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# The public borrow API uses the peripheral and runtime types from selene-core.
+# The public borrow API uses the endpoint and runtime types from selene-core.
 install(DIRECTORY ../../selene-core/c/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

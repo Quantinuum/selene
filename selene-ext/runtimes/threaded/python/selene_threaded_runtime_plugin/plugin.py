@@ -5,9 +5,9 @@ from selene_simple_runtime_plugin import SimpleRuntimePlugin
 
 
 class ThreadedRuntimePlugin(SimpleRuntimePlugin):
-    """A runtime that drives its quantum peripheral on a separate thread.
+    """A runtime that drives its quantum endpoint on a separate thread.
 
-    Gates are queued until a measurement result, a forced peripheral borrow,
+    Gates are queued until a measurement result, a forced endpoint borrow,
     or shot end requires them. Gate durations use the same parameters as the
     simple runtime, so we can compare their results and traces directly.
     """

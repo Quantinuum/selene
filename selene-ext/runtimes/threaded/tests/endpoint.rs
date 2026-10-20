@@ -1,9 +1,7 @@
 use anyhow::{Result, anyhow};
 use selene_core::{
+    endpoint::{EndpointBorrowRequest, QuantumEndpointFFIAdapter, QuantumEndpointInterface},
     error_model::BatchResult,
-    peripheral::{
-        PeripheralBorrowRequest, QuantumPeripheralFFIAdapter, QuantumPeripheralInterface,
-    },
     runtime::{
         self, BatchOperation, Operation, RuntimeInstruction, RuntimeInstructionResult,
         RuntimeInterface,
@@ -20,27 +18,27 @@ use std::{
     thread::{self, ThreadId},
 };
 
-type Adapter = QuantumPeripheralFFIAdapter<ThreadBoundPeripheral>;
+type Adapter = QuantumEndpointFFIAdapter<ThreadBoundEndpoint>;
 
-struct ThreadBoundPeripheral {
+struct ThreadBoundEndpoint {
     owner: Rc<ThreadId>,
     calls: Arc<Mutex<Vec<(ThreadId, &'static str)>>>,
     fail: Arc<AtomicBool>,
     values: Vec<bool>,
 }
-impl ThreadBoundPeripheral {
+impl ThreadBoundEndpoint {
     fn record(&self, operation: &'static str) {
         let thread = thread::current().id();
         assert_eq!(*self.owner, thread);
         self.calls.lock().unwrap().push((thread, operation));
     }
 }
-impl QuantumPeripheralInterface for ThreadBoundPeripheral {
+impl QuantumEndpointInterface for ThreadBoundEndpoint {
     fn handle_operations(&mut self, batch: BatchOperation) -> Result<BatchResult> {
         self.record("execute");
         anyhow::ensure!(
             !self.fail.load(Ordering::Relaxed),
-            "Peripheral execution failed"
+            "Endpoint execution failed"
         );
         let mut results = BatchResult::default();
         for operation in batch {
@@ -65,7 +63,7 @@ impl QuantumPeripheralInterface for ThreadBoundPeripheral {
         Ok(())
     }
 }
-impl Drop for ThreadBoundPeripheral {
+impl Drop for ThreadBoundEndpoint {
     fn drop(&mut self) {
         self.record("drop");
     }
@@ -107,14 +105,14 @@ impl Fixture {
         let recorded = calls.clone();
         let failing = fail.clone();
         let address = runtime::on_execution_thread(&runtime, move || {
-            let peripheral = ThreadBoundPeripheral {
+            let endpoint = ThreadBoundEndpoint {
                 owner: Rc::new(thread::current().id()),
                 calls: recorded,
                 fail: failing,
                 values: vec![false; 8],
             };
-            peripheral.record("create");
-            Ok(Box::into_raw(Box::new(Adapter::new(peripheral))) as usize)
+            endpoint.record("create");
+            Ok(Box::into_raw(Box::new(Adapter::new(endpoint))) as usize)
         })
         .unwrap();
         Self {
@@ -128,8 +126,8 @@ impl Fixture {
     fn start(&self, shot: u64) {
         let address = self.address;
         // This callback starts the host's shot on the execution thread, before
-        // the runtime receives its peripheral. No Send bound is needed on the
-        // actual peripheral: its Rc and state stay on that thread throughout.
+        // the runtime receives its endpoint. No Send bound is needed on the
+        // actual endpoint: its Rc and state stay on that thread throughout.
         let (instance, interface) = runtime::on_execution_thread(&self.runtime, move || {
             let adapter = unsafe { &mut *(address as *mut Adapter) };
             adapter.inner.record("start");
@@ -137,7 +135,7 @@ impl Fixture {
             Ok((handle.instance as usize, handle.interface))
         })
         .unwrap();
-        let handle = selene_core::peripheral::QuantumPeripheralHandle {
+        let handle = selene_core::endpoint::QuantumEndpointHandle {
             instance: instance as *mut _,
             interface,
         };
@@ -169,7 +167,7 @@ impl Drop for Fixture {
 }
 
 #[test]
-fn execution_and_scoped_borrows_stay_on_the_peripheral_thread() {
+fn execution_and_scoped_borrows_stay_on_the_endpoint_thread() {
     let fixture = Fixture::new();
     let caller = thread::current().id();
     let records = fixture.calls.clone();
@@ -195,33 +193,29 @@ fn execution_and_scoped_borrows_stay_on_the_peripheral_thread() {
         .unwrap();
 
     // The runtime has accepted both instructions, but its scheduler hasn't
-    // sent them to the peripheral yet. A borrow without a flush must leave
-    // that work pending, while still excluding simultaneous peripheral calls.
-    runtime::borrow_peripheral(
-        &fixture.runtime,
-        &PeripheralBorrowRequest::default(),
-        |_| {
-            assert!(
-                !records
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .any(|(_, operation)| *operation == "execute")
-            );
-            assert_ne!(thread::current().id(), caller);
-            Ok(())
-        },
-    )
+    // sent them to the endpoint yet. A borrow without a flush must leave
+    // that work pending, while still excluding simultaneous endpoint calls.
+    runtime::borrow_endpoint(&fixture.runtime, &EndpointBorrowRequest::default(), |_| {
+        assert!(
+            !records
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(_, operation)| *operation == "execute")
+        );
+        assert_ne!(thread::current().id(), caller);
+        Ok(())
+    })
     .unwrap();
 
-    let path = std::env::temp_dir().join(format!("selene-peripheral-{}.state", std::process::id()));
-    runtime::borrow_peripheral(
+    let path = std::env::temp_dir().join(format!("selene-endpoint-{}.state", std::process::id()));
+    runtime::borrow_endpoint(
         &fixture.runtime,
-        &PeripheralBorrowRequest {
+        &EndpointBorrowRequest {
             force_flush: true,
             ..Default::default()
         },
-        |peripheral| peripheral.dump_state(&path, &[q]),
+        |endpoint| endpoint.dump_state(&path, &[q]),
     )
     .unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "one");
@@ -307,20 +301,20 @@ fn concurrent_submitters_can_wait_for_their_own_measurements() {
 }
 
 #[test]
-fn failed_borrows_release_access_and_failed_shots_return_the_peripheral() {
+fn failed_borrows_release_access_and_failed_shots_return_the_endpoint() {
     let fixture = Fixture::new();
     fixture.start(0);
     let failed: Result<()> =
-        runtime::borrow_peripheral(&fixture.runtime, &Default::default(), |_| {
+        runtime::borrow_endpoint(&fixture.runtime, &Default::default(), |_| {
             Err(anyhow!("Inspection failed"))
         });
     assert!(failed.is_err());
     let panicked: Result<()> =
-        runtime::borrow_peripheral(&fixture.runtime, &Default::default(), |_| {
+        runtime::borrow_endpoint(&fixture.runtime, &Default::default(), |_| {
             panic!("Inspection panicked")
         });
     assert!(panicked.is_err());
-    runtime::borrow_peripheral(&fixture.runtime, &Default::default(), |_| Ok(())).unwrap();
+    runtime::borrow_endpoint(&fixture.runtime, &Default::default(), |_| Ok(())).unwrap();
     let q = fixture
         .runtime
         .handle_instruction(RuntimeInstruction::QAlloc)
@@ -334,7 +328,7 @@ fn failed_borrows_release_access_and_failed_shots_return_the_peripheral() {
         .unwrap();
     assert!(fixture.end().is_err());
     // Even though execution failed, shot_end has released the handle and the
-    // host can end this shot, then start another one with the same peripheral.
+    // host can end this shot, then start another one with the same endpoint.
     fixture.fail.store(false, Ordering::Relaxed);
     fixture.start(1);
     fixture.end().unwrap();
@@ -355,7 +349,7 @@ fn a_borrow_excludes_execution_while_new_submissions_can_queue() {
     thread::scope(|scope| {
         let runtime = &fixture.runtime;
         let borrowed = scope.spawn(move || {
-            runtime::borrow_peripheral(runtime, &Default::default(), move |_| {
+            runtime::borrow_endpoint(runtime, &Default::default(), move |_| {
                 entered.send(()).unwrap();
                 released
                     .recv_timeout(std::time::Duration::from_secs(5))
@@ -437,7 +431,7 @@ fn legacy_wrapper_keeps_polling_and_execution_on_the_calling_thread() {
         .unwrap(),
     );
     let calls = Arc::new(Mutex::new(Vec::new()));
-    let mut adapter = Adapter::new(ThreadBoundPeripheral {
+    let mut adapter = Adapter::new(ThreadBoundEndpoint {
         owner: Rc::new(thread::current().id()),
         calls: calls.clone(),
         fail: Arc::new(AtomicBool::new(false)),
@@ -859,7 +853,7 @@ fn custom_calls_execute_their_batches_before_returning() {
 
         // Our custom call queues an X and a measurement in separate batches.
         // We should be able to read that measurement as soon as the call returns,
-        // without forcing the result or borrowing the peripheral to flush it.
+        // without forcing the result or borrowing the endpoint to flush it.
         let result = fixture
             .runtime
             .handle_instruction(RuntimeInstruction::CustomCall {
