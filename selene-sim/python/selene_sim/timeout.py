@@ -60,7 +60,7 @@ class Timer:
         duration_seconds: The duration of the timer in seconds, or None
                           for an infinite timer.
         end_timestamp: The time that the timer will expire, or None for
-                       an infinite timer.
+                       an infinite or stopped timer.
     """
 
     start_timestamp: float
@@ -132,6 +132,13 @@ class Timer:
         self.start_timestamp = time.perf_counter()
         if self.duration_seconds is not None:
             self.end_timestamp = self.start_timestamp + self.duration_seconds
+
+    def stop(self):
+        """
+        Clear the deadline so the timer can't expire. Calling reset() starts
+        it again with the configured duration.
+        """
+        self.end_timestamp = None
 
     @staticmethod
     def min_remaining_seconds(timers: list["Timer"]) -> float | None:

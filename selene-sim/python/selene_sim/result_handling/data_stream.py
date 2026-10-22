@@ -324,6 +324,8 @@ class TCPStream(DataStream):
                 "",  # stderr is injected when this exception is caught
             )
 
+        self.connect_timer.stop()
+
     def _wait_for_current_shot_bytes(self, length: int):
         """
         Wait for the current shot client to have at least `length` bytes of data
