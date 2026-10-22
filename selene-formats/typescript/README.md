@@ -4,12 +4,12 @@ TypeScript types for the versioned, serializable Selene trace protocol. See the
 protocol documentation and JSON Schema in the repository's `selene-formats/`
 directory.
 
-Trace types, Zod schemas, and helpers are exported from the `trace` namespace:
+Trace types and helpers are exported from the `trace` namespace:
 
 ```ts
 import { trace } from "@quantinuum/selene-formats";
 
-const document = trace.parseTrace(value); // Throws ZodError if invalid.
+const document = trace.parseTrace(value); // Throws an error if invalid.
 const fromJson = trace.parseTraceJson(jsonText); // Also handles legacy traces.
 const result = trace.safeParseTrace(value); // Non-throwing validation result.
 const jsonReady = trace.serializeTrace(document);
@@ -17,13 +17,16 @@ const collection = trace.createTraces([trace.createTraceData(document.events)]);
 const eitherShape = trace.parseTraceDocument(value);
 ```
 
-Each `*Schema` has a normalized inferred type, such as `trace.Trace`, and an
-`*Input` type for values which rely on protocol defaults, such as
+Normalized types, such as `trace.Trace`, describe parsed values. The corresponding
+`*Input` types describe values which rely on protocol defaults, such as
 `trace.TraceInput`. Indices, times, durations, and qubit IDs are safe
 non-negative JavaScript numbers. Opaque-payload tags use canonical `0x`-prefixed
 uppercase hexadecimal strings in JSON and are decoded to `bigint`;
 use `serializeTrace` or `serializeTraceDocument` before passing a document to
 `JSON.stringify`.
+
+The `safeParseTrace` and `safeParseTraceDocument` helpers return a `ParseResult<T>`: either
+`{ success: true, data: T }` or `{ success: false, error: Error }`.
 
 The `createTrace`, `createTraceData`, and `createTraces` constructors accept
 both wire inputs and normalized values. Wire parsers require hexadecimal
