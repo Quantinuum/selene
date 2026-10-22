@@ -72,7 +72,6 @@ test("constructors validate normalized tags and other event fields", () => {
 test("invalid tag strings return safe parse failures without throwing", () => {
   for (const tag of ["abc", "0x", "0xG", "0x10000000000000000"]) {
     const document = { schema_version: trace.SCHEMA_VERSION, events: [opaqueRecord(tag)] };
-    assert.equal(trace.UInt64Schema.safeParse(tag).success, false);
     assert.equal(trace.safeParseTrace(document).success, false);
     assert.equal(trace.safeParseTraceDocument(document).success, false);
   }
@@ -107,11 +106,22 @@ test("gate parameters and key-value numbers enforce signed safe integer bounds",
     [1e20, false], [-1e20, false], [0, true], [0.5, true], [-1.5, true],
     [true, true], [Infinity, false], [NaN, false],
   ]) {
-    assert.equal(trace.GateParameterSchema.safeParse(value).success, valid);
-    assert.equal(trace.KeyValueSchema.safeParse(value).success, valid);
-    assert.equal(trace.KeyValueSchema.safeParse([value]).success, valid);
+    const source = { kind: "UserProgram", index: 0 };
+    assert.equal(trace.safeParseTrace({ events: [{
+      source, event: { kind: "Gate", gate_name: "Rz", params: [value] },
+    }] }).success, valid);
+    for (const data of [{ value }, { value: [value] }]) {
+      assert.equal(trace.safeParseTrace({ events: [{
+        source, event: { kind: "Custom", payload: { kind: "KeyValuePairPayload", data } },
+      }] }).success, valid);
+    }
   }
-  assert.equal(trace.KeyValueSchema.safeParse("large integers as text").success, true);
+  assert.equal(trace.safeParseTrace({ events: [{
+    source: { kind: "UserProgram", index: 0 },
+    event: { kind: "Custom", payload: {
+      kind: "KeyValuePairPayload", data: { value: "large integers as text" },
+    } },
+  }] }).success, true);
 });
 
 test("createTrace emits the current protocol version", () => {
@@ -233,19 +243,27 @@ test("validation requires source and event discriminator fields", () => {
 });
 
 test("validation rejects negative unsigned trace values", () => {
-  for (const [schema, value] of [
-    [trace.UserProgramSourceSchema, { kind: "UserProgram", index: -1 }],
-    [trace.RuntimeSourceSchema, { kind: "Runtime", start_time: -1, end_time: 0 }],
-    [trace.RuntimeSourceSchema, { kind: "Runtime", start_time: 0, end_time: -1 }],
-    [trace.ErrorModelSourceSchema, { kind: "ErrorModel", index: -1 }],
-    [trace.SimulatorSourceSchema, { kind: "Simulator", index: -1, duration_ns: 0 }],
-    [trace.SimulatorSourceSchema, { kind: "Simulator", index: 0, duration_ns: -1 }],
-    [trace.GateEventSchema, { kind: "Gate", gate_name: "H", qubits: [-1] }],
-    [trace.MeasurementEventSchema, { kind: "Measurement", qubit: -1 }],
-    [trace.ResetEventSchema, { kind: "Reset", qubit: -1 }],
-    [trace.OpaquePayloadSchema, { kind: "OpaquePayload", tag: "-1", data: "dHJhY2U=" }],
+  for (const source of [
+    { kind: "UserProgram", index: -1 },
+    { kind: "Runtime", start_time: -1, end_time: 0 },
+    { kind: "Runtime", start_time: 0, end_time: -1 },
+    { kind: "ErrorModel", index: -1 },
+    { kind: "Simulator", index: -1, duration_ns: 0 },
+    { kind: "Simulator", index: 0, duration_ns: -1 },
   ]) {
-    assert.equal(schema.safeParse(value).success, false);
+    assert.equal(trace.safeParseTrace({ events: [{
+      source, event: { kind: "Gate", gate_name: "H" },
+    }] }).success, false);
+  }
+  for (const event of [
+    { kind: "Gate", gate_name: "H", qubits: [-1] },
+    { kind: "Measurement", qubit: -1 },
+    { kind: "Reset", qubit: -1 },
+    opaqueRecord("-1", "dHJhY2U=").event,
+  ]) {
+    assert.equal(trace.safeParseTrace({ events: [{
+      source: { kind: "UserProgram", index: 0 }, event,
+    }] }).success, false);
   }
 });
 
@@ -276,7 +294,10 @@ test("opaque payload tags preserve the full uint64 range", () => {
 test("safe integer fields reject values outside JavaScript's exact range", () => {
   for (const value of [-1, Number.MAX_SAFE_INTEGER + 1, 1.5]) {
     assert.equal(
-      trace.UserProgramSourceSchema.safeParse({ kind: "UserProgram", index: value }).success,
+      trace.safeParseTrace({ events: [{
+        source: { kind: "UserProgram", index: value },
+        event: { kind: "Gate", gate_name: "H" },
+      }] }).success,
       false,
     );
   }
@@ -391,18 +412,31 @@ test("the JSON Schema uint64 pattern enforces the bound in JavaScript", () => {
     ["-1", false], ["0x1\n", false], [" 0x1", false],
   ]) {
     assert.equal(pattern.test(tag), valid, tag);
-    assert.equal(trace.UInt64HexStringSchema.safeParse(tag).success, valid, tag);
+    assert.equal(trace.safeParseTrace({ schema_version: trace.SCHEMA_VERSION, events: [opaqueRecord(tag)] }).success, valid, tag);
   }
 });
 
 test("opaque payload tags require canonical uint64 hexadecimal strings", () => {
   for (const tag of [0, "-1", "1", "0x01", "0xabcdef", "0X1", "0x", "0x1\n", "0x10000000000000000"]) {
-    const parsed = trace.OpaquePayloadSchema.safeParse({
-      kind: "OpaquePayload",
-      tag,
-      data: "dHJhY2U=",
+    const parsed = trace.safeParseTrace({
+      schema_version: trace.SCHEMA_VERSION,
+      events: [opaqueRecord(tag, "dHJhY2U=")],
     });
 
     assert.equal(parsed.success, false);
+  }
+});
+
+
+test("the public namespace exposes no Zod schemas", () => {
+  assert.deepEqual(Object.keys(trace).filter((name) => name.endsWith("Schema")), []);
+});
+
+test("safe parse failures provide standard errors", () => {
+  for (const parse of [trace.safeParseTrace, trace.safeParseTraceDocument]) {
+    const result = parse({ schema_version: "unsupported" });
+    assert.equal(result.success, false);
+    assert.ok(result.error instanceof Error);
+    assert.ok(result.error.message.length > 0);
   }
 });

@@ -8,7 +8,7 @@ import {
 } from "lossless-json";
 
 export const SCHEMA_VERSION = "0.1.0" as const;
-export const SchemaVersionSchema = z.literal(SCHEMA_VERSION);
+const SchemaVersionSchema = z.literal(SCHEMA_VERSION);
 export type SchemaVersion = z.infer<typeof SchemaVersionSchema>;
 
 /** The largest value representable by an unsigned 64-bit integer. */
@@ -16,7 +16,7 @@ export const UINT64_MAX = (1n << 64n) - 1n;
 export const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
 
 /** A non-negative JSON integer that can be represented exactly by JavaScript. */
-export const SafeUIntSchema = z
+const SafeUIntSchema = z
   .number()
   .int()
   .min(0)
@@ -24,7 +24,7 @@ export const SafeUIntSchema = z
 export type SafeUInt = z.infer<typeof SafeUIntSchema>;
 
 /** A canonical unsigned 64-bit integer encoded as a hexadecimal string. */
-export const UInt64HexStringSchema = z
+const UInt64HexStringSchema = z
   .string()
   .regex(
     /^0x(0|[1-9A-F][0-9A-F]{0,15})(?![\s\S])/,
@@ -33,23 +33,23 @@ export const UInt64HexStringSchema = z
 export type UInt64HexString = z.infer<typeof UInt64HexStringSchema>;
 
 /** A hexadecimal-string uint64 decoded to a bigint for in-memory use. */
-export const UInt64Schema = UInt64HexStringSchema.transform((value) => BigInt(value));
+const UInt64Schema = UInt64HexStringSchema.transform((value) => BigInt(value));
 export type UInt64 = z.infer<typeof UInt64Schema>;
 
-export const PredicateResultSchema = z.object({
+const PredicateResultSchema = z.object({
   predicate: z.string(),
   result: z.boolean(),
 });
 export type PredicateResult = z.infer<typeof PredicateResultSchema>;
 
-export const UserProgramSourceSchema = z.object({
+const UserProgramSourceSchema = z.object({
   kind: z.literal("UserProgram"),
   index: SafeUIntSchema,
 });
 export type UserProgramSource = z.infer<typeof UserProgramSourceSchema>;
 export type UserProgramSourceInput = z.input<typeof UserProgramSourceSchema>;
 
-export const RuntimeSourceSchema = z.object({
+const RuntimeSourceSchema = z.object({
   kind: z.literal("Runtime"),
   start_time: SafeUIntSchema,
   end_time: SafeUIntSchema,
@@ -57,14 +57,14 @@ export const RuntimeSourceSchema = z.object({
 export type RuntimeSource = z.infer<typeof RuntimeSourceSchema>;
 export type RuntimeSourceInput = z.input<typeof RuntimeSourceSchema>;
 
-export const ErrorModelSourceSchema = z.object({
+const ErrorModelSourceSchema = z.object({
   kind: z.literal("ErrorModel"),
   index: SafeUIntSchema,
 });
 export type ErrorModelSource = z.infer<typeof ErrorModelSourceSchema>;
 export type ErrorModelSourceInput = z.input<typeof ErrorModelSourceSchema>;
 
-export const SimulatorSourceSchema = z.object({
+const SimulatorSourceSchema = z.object({
   kind: z.literal("Simulator"),
   index: SafeUIntSchema,
   duration_ns: SafeUIntSchema,
@@ -72,7 +72,7 @@ export const SimulatorSourceSchema = z.object({
 export type SimulatorSource = z.infer<typeof SimulatorSourceSchema>;
 export type SimulatorSourceInput = z.input<typeof SimulatorSourceSchema>;
 
-export const SourceSchema = z.discriminatedUnion("kind", [
+const SourceSchema = z.discriminatedUnion("kind", [
   UserProgramSourceSchema,
   RuntimeSourceSchema,
   ErrorModelSourceSchema,
@@ -82,15 +82,15 @@ export type Source = z.infer<typeof SourceSchema>;
 export type SourceInput = z.input<typeof SourceSchema>;
 
 /** Finite numbers whose integer values are exactly representable in JavaScript. */
-export const SafeNumberSchema = z.number().finite().refine(
+const SafeNumberSchema = z.number().finite().refine(
   (value) => !Number.isInteger(value) || Number.isSafeInteger(value),
   { message: "Integer-valued numbers must be within JavaScript's safe range" },
 );
 
-export const GateParameterSchema = z.union([SafeNumberSchema, z.boolean()]);
+const GateParameterSchema = z.union([SafeNumberSchema, z.boolean()]);
 export type GateParameter = z.infer<typeof GateParameterSchema>;
 
-export const GateEventSchema = z.object({
+const GateEventSchema = z.object({
   kind: z.literal("Gate"),
   qubits: z.array(SafeUIntSchema).default([]),
   gate_name: z.string(),
@@ -100,14 +100,14 @@ export const GateEventSchema = z.object({
 export type GateEvent = z.infer<typeof GateEventSchema>;
 export type GateEventInput = z.input<typeof GateEventSchema>;
 
-export const MeasurementEventSchema = z.object({
+const MeasurementEventSchema = z.object({
   kind: z.literal("Measurement"),
   qubit: SafeUIntSchema,
 });
 export type MeasurementEvent = z.infer<typeof MeasurementEventSchema>;
 export type MeasurementEventInput = z.input<typeof MeasurementEventSchema>;
 
-export const ResetEventSchema = z.object({
+const ResetEventSchema = z.object({
   kind: z.literal("Reset"),
   qubit: SafeUIntSchema,
 });
@@ -115,13 +115,13 @@ export type ResetEvent = z.infer<typeof ResetEventSchema>;
 export type ResetEventInput = z.input<typeof ResetEventSchema>;
 
 /** A base64url-encoded byte sequence. */
-export const Base64UrlSchema = z.string().regex(
+const Base64UrlSchema = z.string().regex(
   // Final-character sets restrict unused bits to zero for one- and two-byte tails.
   /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-][AQgw](?:==)?|[A-Za-z0-9_-]{2}[AEIMQUYcgkosw048]=?)?(?![\s\S])/,
   "Expected base64url data with zero unused pad bits",
 );
 
-export const OpaquePayloadSchema = z.object({
+const OpaquePayloadSchema = z.object({
   kind: z.literal("OpaquePayload"),
   tag: UInt64Schema,
   /** Base64url-encoded bytes. */
@@ -130,7 +130,7 @@ export const OpaquePayloadSchema = z.object({
 export type OpaquePayload = z.infer<typeof OpaquePayloadSchema>;
 export type OpaquePayloadInput = z.input<typeof OpaquePayloadSchema>;
 
-export const KeyValueSchema = z.union([
+const KeyValueSchema = z.union([
   z.string(),
   SafeNumberSchema,
   z.boolean(),
@@ -140,28 +140,28 @@ export const KeyValueSchema = z.union([
 ]);
 export type KeyValue = z.infer<typeof KeyValueSchema>;
 
-export const KeyValuePairPayloadSchema = z.object({
+const KeyValuePairPayloadSchema = z.object({
   kind: z.literal("KeyValuePairPayload"),
-  data: z.record(KeyValueSchema),
+  data: z.record(z.string(), KeyValueSchema),
 });
 export type KeyValuePairPayload = z.infer<typeof KeyValuePairPayloadSchema>;
 export type KeyValuePairPayloadInput = z.input<typeof KeyValuePairPayloadSchema>;
 
-export const CustomPayloadSchema = z.discriminatedUnion("kind", [
+const CustomPayloadSchema = z.discriminatedUnion("kind", [
   OpaquePayloadSchema,
   KeyValuePairPayloadSchema,
 ]);
 export type CustomPayload = z.infer<typeof CustomPayloadSchema>;
 export type CustomPayloadInput = z.input<typeof CustomPayloadSchema>;
 
-export const CustomEventSchema = z.object({
+const CustomEventSchema = z.object({
   kind: z.literal("Custom"),
   payload: CustomPayloadSchema,
 });
 export type CustomEvent = z.infer<typeof CustomEventSchema>;
 export type CustomEventInput = z.input<typeof CustomEventSchema>;
 
-export const EventSchema = z.discriminatedUnion("kind", [
+const EventSchema = z.discriminatedUnion("kind", [
   GateEventSchema,
   MeasurementEventSchema,
   ResetEventSchema,
@@ -170,34 +170,34 @@ export const EventSchema = z.discriminatedUnion("kind", [
 export type Event = z.infer<typeof EventSchema>;
 export type EventInput = z.input<typeof EventSchema>;
 
-export const EventRecordSchema = z.object({
+const EventRecordSchema = z.object({
   source: SourceSchema,
   event: EventSchema,
 });
 export type EventRecord = z.infer<typeof EventRecordSchema>;
 export type EventRecordInput = z.input<typeof EventRecordSchema>;
 
-export const TraceDataSchema = z.object({
+const TraceDataSchema = z.object({
   events: z.array(EventRecordSchema).default([]),
 }).strict();
 export type TraceData = z.infer<typeof TraceDataSchema>;
 export type TraceDataInput = z.input<typeof TraceDataSchema>;
 
-export const TraceSchema = z.object({
+const TraceSchema = z.object({
   schema_version: SchemaVersionSchema,
   events: z.array(EventRecordSchema).default([]),
 }).strict();
 export type Trace = z.infer<typeof TraceSchema>;
 export type TraceInput = z.input<typeof TraceSchema>;
 
-export const TracesSchema = z.object({
+const TracesSchema = z.object({
   schema_version: SchemaVersionSchema,
   traces: z.array(TraceDataSchema),
 }).strict();
 export type Traces = z.infer<typeof TracesSchema>;
 export type TracesInput = z.input<typeof TracesSchema>;
 
-export const TraceDocumentSchema = z.union([TraceSchema, TracesSchema]);
+const TraceDocumentSchema = z.union([TraceSchema, TracesSchema]);
 export type TraceDocument = z.infer<typeof TraceDocumentSchema>;
 export type TraceDocumentInput = z.input<typeof TraceDocumentSchema>;
 
@@ -235,7 +235,7 @@ const LegacyEventRecordSchema = EventRecordSchema.extend({
 });
 
 /** The versionless trace representation emitted before protocol versioning. */
-export const LegacyTraceSchema = z.object({
+const LegacyTraceSchema = z.object({
   events: z.array(LegacyEventRecordSchema).default([]),
 }).passthrough().refine((value) => !("schema_version" in value), {
   message: "Legacy trace documents must not contain schema_version",
@@ -380,8 +380,15 @@ export function parseTraceDocumentJson(json: string): TraceDocument {
   return parseTraceDocument(normalizeTraceJson(parsed));
 }
 
+/** The result of validation, with a parsed value or an error describing the failure. */
+export type ParseResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: Error };
+
 /** Validate a JSON-compatible value as a Selene trace without throwing. */
-export function safeParseTrace(value: unknown): z.SafeParseReturnType<unknown, Trace> {
+export function safeParseTrace(
+  value: unknown,
+): ParseResult<Trace> {
   try {
     return { success: true, data: parseTrace(value) };
   } catch (error) {
@@ -395,7 +402,7 @@ export function safeParseTrace(value: unknown): z.SafeParseReturnType<unknown, T
 /** Validate either trace-document shape without throwing. */
 export function safeParseTraceDocument(
   value: unknown,
-): z.SafeParseReturnType<unknown, TraceDocument> {
+): ParseResult<TraceDocument> {
   try {
     return { success: true, data: parseTraceDocument(value) };
   } catch (error) {
