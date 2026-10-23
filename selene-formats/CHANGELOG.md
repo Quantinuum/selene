@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Quantinuum/selene/compare/selene-formats-v0.1.2...selene-formats-v0.1.3) (2026-10-23)
+
+
+### Documentation
+
+* document standalone formats testing ([#255](https://github.com/Quantinuum/selene/issues/255)) ([675ceb6](https://github.com/Quantinuum/selene/commit/675ceb6d110efcb659cb8009df1d4f6d68ff13f3))
+
 ## [0.1.2](https://github.com/Quantinuum/selene/compare/selene-formats-v0.1.1...selene-formats-v0.1.2) (2026-10-22)
 
 

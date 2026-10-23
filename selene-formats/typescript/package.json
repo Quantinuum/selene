@@ -1,6 +1,6 @@
 {
   "name": "@quantinuum/selene-formats",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Selene formats for TypeScript",
   "readme": "README.md",
   "license": "Apache-2.0",
