@@ -39,13 +39,12 @@ index) without tying to specific QIS implementations.
 """
 
 import platform
+import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 
 from selene_core import QuantumInterface, BuildPlanner
 from selene_base_qis_plugin import BaseQISInterface, LogLevel
-
-from . import build
 
 
 @dataclass
@@ -117,5 +116,9 @@ class HeliosInterface(QuantumInterface):
                 raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
     def register_build_steps(self, planner: BuildPlanner):
+        if importlib.util.find_spec("hugr") is None:
+            return
+        from . import build
+
         planner.add_step(build.SeleneCompileHUGRToLLVMIRStringStep)
         planner.add_step(build.SeleneCompileHUGRToLLVMBitcodeStringStep)
