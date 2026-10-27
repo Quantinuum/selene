@@ -53,13 +53,24 @@ selene_simulator_get_plugin_descriptor_v1(void) {
 The equivalent runtime and error-model accessor names are declared in their respective
 headers.
 
+The current runtime API drives a quantum endpoint through `selene/runtime.h`
+and `SELENE_RUNTIME_CURRENT_API_VERSION`. API 0.3 runtime implementations use
+`selene/runtime/v0_3.h` and `SELENE_RUNTIME_V0_3_API_VERSION`. The
+[runtime architecture](rust/runtime/README.md) describes ownership, scoped
+borrowing and compatibility with existing runtimes.
+
 ## The rust crate
 
 The selene-core rust crate defines the compiled plugin interfaces for the Selene
 backend to use. It additionally provides helper functionality for rust-based plugins
 to expose the Selene plugin APIs while providing a more idiomatic trait interface.
 
+The [plugin API versioning](rust/README.md) explains how to select a specific
+contract or use the current one, and how older plugins are adapted.
+
 See the following for examples:
 - [example simulator](examples/simulator/rust/lib.rs)
 - [example error model](examples/error_model/rust/lib.rs)
-- [example runtime](examples/runtime/rust/lib.rs)
+- [API 0.3 runtime](examples/runtime/rust/lib.rs)
+- [threaded runtime](../selene-ext/runtimes/threaded/rust/lib.rs)
+- [C host and quantum endpoint](examples/runtime/c/endpoint.c)

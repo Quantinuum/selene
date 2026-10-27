@@ -3,7 +3,7 @@ use std::ffi::CString;
 
 use anyhow::{Result, bail};
 
-use crate::runtime::plugin::Errno;
+pub type Errno = i32;
 
 /// Loads and copies a versioned plugin descriptor without reading beyond the
 /// size advertised by the plugin.
@@ -68,6 +68,7 @@ pub fn selene_str_to_bytes(s: SeleneStr) -> &'static [u8] {
 }
 
 /// Represents different types of metric values.
+#[derive(Clone)]
 pub enum MetricValue {
     Bool(bool),
     I64(i64),

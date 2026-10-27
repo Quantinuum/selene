@@ -9,7 +9,8 @@ version.workspace = true
 [lib]
 name = "selene_simple_runtime"
 path = "rust/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
 
 [dependencies]
 anyhow.workspace = true

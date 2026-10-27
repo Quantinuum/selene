@@ -24,6 +24,12 @@ through:
 #include <selene/runtime.h>     # for the runtime API
 ```
 
+These headers select the current API. To target a specific contract, include its
+versioned header, such as `selene/runtime/v0_3.h`, and use
+`SELENE_RUNTIME_V0_3_API_VERSION`. The current runtime API is 0.4; existing API 0.3
+runtime plugins are accepted through a compatibility adapter. Simulator and
+error-model APIs are unchanged.
+
 Each header defines a descriptor structure and a packed current-version constant:
 
 - `SELENE_SIMULATOR_CURRENT_API_VERSION`
