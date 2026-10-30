@@ -53,15 +53,39 @@ pub unsafe extern "C" fn invalidQuESTInputError(err_msg: *const c_char, err_func
     std::process::exit(1);
 }
 
-pub struct QuestSimulator {
+/// Owns the native register and its environment for one simulator instance.
+struct QuestState {
     environment: quest_sys::QuESTEnv,
     qureg: Qureg,
+}
+
+impl Drop for QuestState {
+    fn drop(&mut self) {
+        // SAFETY: these handles are created together by the factory and owned
+        // exclusively by this non-Clone state. The register must be destroyed
+        // while its environment is still alive. Taking the state on exit also
+        // prevents later callbacks or a second drop from using the handles.
+        unsafe {
+            quest_sys::destroyQureg(self.qureg, self.environment);
+            quest_sys::destroyQuESTEnv(self.environment);
+        }
+    }
+}
+
+pub struct QuestSimulator {
+    state: Option<QuestState>,
     n_qubits: u64,
     cumulative_postselect_probability: f64,
 }
 
 impl QuestSimulator {
-    fn seed(&mut self, seed: u64) {
+    fn state(&self) -> Result<&QuestState> {
+        self.state
+            .as_ref()
+            .ok_or_else(|| anyhow!("QuEST simulator has exited"))
+    }
+
+    fn seed(&mut self, seed: u64) -> Result<()> {
         // seedQuest accepts an array of 'c_ulong's, so we need to split the
         // provided seed accordingly.
         //
@@ -72,31 +96,43 @@ impl QuestSimulator {
         seed_bytes[..size_of::<u64>()].copy_from_slice(&seed.to_le_bytes());
         unsafe {
             quest_sys::seedQuEST(
-                &mut self.environment,
+                &mut self
+                    .state
+                    .as_mut()
+                    .ok_or_else(|| anyhow!("QuEST simulator has exited"))?
+                    .environment,
                 seed_bytes.as_mut_ptr() as *mut c_ulong,
                 N_ULONGS as i32,
             );
         }
+        Ok(())
     }
 }
 
 impl SimulatorInterface for QuestSimulator {
     fn exit(&mut self) -> Result<()> {
+        let state = self
+            .state
+            .take()
+            .ok_or_else(|| anyhow!("QuEST simulator has exited"))?;
+        drop(state);
         Ok(())
     }
 
     fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
-        unsafe { quest_sys::initClassicalState(self.qureg, 0) };
+        unsafe { quest_sys::initClassicalState(self.state()?.qureg, 0) };
         self.cumulative_postselect_probability = 1.0;
-        self.seed(seed);
+        self.seed(seed)?;
         Ok(())
     }
 
     fn shot_end(&mut self) -> Result<()> {
+        self.state()?;
         Ok(())
     }
 
     fn handle_operations(&mut self, operations: BatchOperation) -> Result<BatchResult> {
+        self.state()?;
         let mut results = BatchResult::default();
         for operation in operations {
             match operation {
@@ -133,12 +169,15 @@ impl SimulatorInterface for QuestSimulator {
         Ok(results)
     }
     fn postselect(&mut self, q0: u64, target_value: bool) -> Result<()> {
+        self.state()?;
         self.do_postselect(q0, target_value)
     }
     fn get_metric(&mut self, nth_metric: u8) -> Result<Option<(String, MetricValue)>> {
+        self.state()?;
         self.do_get_metric(nth_metric)
     }
     fn dump_state(&mut self, file: &std::path::Path, qubits: &[u64]) -> Result<()> {
+        self.state()?;
         self.do_dump_state(file, qubits)
     }
 }
@@ -152,7 +191,7 @@ impl QuestSimulator {
             ))
         } else {
             // Use the built-in from QuEST
-            unsafe { quest_sys::rotateZ(self.qureg, q0 as c_int, theta) };
+            unsafe { quest_sys::rotateZ(self.state()?.qureg, q0 as c_int, theta) };
             Ok(())
         }
     }
@@ -197,7 +236,7 @@ impl QuestSimulator {
                 ],
                 imag: [[0.0, -sin_theta_2 * cos_phi], [-sin_theta_2 * cos_phi, 0.0]],
             };
-            unsafe { quest_sys::unitary(self.qureg, q0 as c_int, u) };
+            unsafe { quest_sys::unitary(self.state()?.qureg, q0 as c_int, u) };
             Ok(())
         }
     }
@@ -238,11 +277,12 @@ impl QuestSimulator {
             let mut targets: [c_int; 2] = [q0 as c_int, q1 as c_int];
             let diag_real: [f64; 4] = [1.0, cos, cos, 1.0];
             let diag_imag: [f64; 4] = [0.0, sin, sin, 0.0];
+            let qureg = self.state()?.qureg;
             unsafe {
                 let op = quest_sys::createSubDiagonalOp(2);
                 std::ptr::copy_nonoverlapping(diag_real.as_ptr(), op.real, 4);
                 std::ptr::copy_nonoverlapping(diag_imag.as_ptr(), op.imag, 4);
-                quest_sys::applySubDiagonalOp(self.qureg, targets.as_mut_ptr(), 2, op);
+                quest_sys::applySubDiagonalOp(qureg, targets.as_mut_ptr(), 2, op);
                 quest_sys::destroySubDiagonalOp(op);
             }
             Ok(())
@@ -311,7 +351,7 @@ impl QuestSimulator {
                     [-sin_theta_2 * cos_2phi, 0.0, 0.0, 0.0],
                 ],
             };
-            unsafe { quest_sys::twoQubitUnitary(self.qureg, q0 as c_int, q1 as c_int, u) };
+            unsafe { quest_sys::twoQubitUnitary(self.state()?.qureg, q0 as c_int, q1 as c_int, u) };
             Ok(())
         }
     }
@@ -323,7 +363,7 @@ impl QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            Ok(unsafe { quest_sys::measure(self.qureg, q0 as i32) } > 0)
+            Ok(unsafe { quest_sys::measure(self.state()?.qureg, q0 as i32) } > 0)
         }
     }
 
@@ -336,9 +376,9 @@ impl QuestSimulator {
         } else {
             let target_value = if target_value { 1 } else { 0 };
             unsafe {
-                quest_sys::applyProjector(self.qureg, q0 as i32, target_value);
+                quest_sys::applyProjector(self.state()?.qureg, q0 as i32, target_value);
             }
-            let postselect_probability = unsafe { quest_sys::calcTotalProb(self.qureg) };
+            let postselect_probability = unsafe { quest_sys::calcTotalProb(self.state()?.qureg) };
             self.cumulative_postselect_probability *= postselect_probability;
             if postselect_probability < 1e-10 {
                 return Err(anyhow!(
@@ -352,7 +392,7 @@ impl QuestSimulator {
                 imag: [[0.0, 0.0], [0.0, 0.0]],
             };
             unsafe {
-                quest_sys::applyMatrix2(self.qureg, q0 as i32, mat);
+                quest_sys::applyMatrix2(self.state()?.qureg, q0 as i32, mat);
             }
             Ok(())
         }
@@ -365,9 +405,9 @@ impl QuestSimulator {
                 self.n_qubits
             ))
         } else {
-            let outcome = unsafe { quest_sys::measure(self.qureg, q0 as i32) };
+            let outcome = unsafe { quest_sys::measure(self.state()?.qureg, q0 as i32) };
             if outcome == 1 {
-                unsafe { quest_sys::pauliX(self.qureg, q0 as i32) };
+                unsafe { quest_sys::pauliX(self.state()?.qureg, q0 as i32) };
             }
             Ok(())
         }
@@ -390,8 +430,8 @@ impl QuestSimulator {
         for &q in qubits {
             writer.write_all(q.to_le_bytes().as_slice())?;
         }
-        let reals: *const f64 = self.qureg.stateVec.real;
-        let imags: *const f64 = self.qureg.stateVec.imag;
+        let reals: *const f64 = self.state()?.qureg.stateVec.real;
+        let imags: *const f64 = self.state()?.qureg.stateVec.imag;
         for i in 0..(1 << self.n_qubits) {
             let real: f64 = unsafe { *reals.add(i as usize) };
             let imag: f64 = unsafe { *imags.add(i as usize) };
@@ -458,8 +498,7 @@ impl SimulatorInterfaceFactory for QuestSimulatorFactory {
         let environment = unsafe { quest_sys::createQuESTEnv() };
         let qureg = unsafe { quest_sys::createQureg(n_qubits.try_into().unwrap(), environment) };
         Ok(Box::new(QuestSimulator {
-            environment,
-            qureg,
+            state: Some(QuestState { environment, qureg }),
             n_qubits,
             cumulative_postselect_probability: 1.0,
         }))
