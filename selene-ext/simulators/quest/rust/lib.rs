@@ -59,6 +59,30 @@ struct QuestState {
     qureg: Qureg,
 }
 
+impl QuestState {
+    fn initialize(&mut self) {
+        unsafe { quest_sys::initClassicalState(self.qureg, 0) };
+    }
+
+    fn seed(&mut self, seed: u64) {
+        // seedQuest accepts an array of 'c_ulong's, so we need to split the
+        // provided seed accordingly.
+        //
+        // c_ulong does not have a standard size, so we find out how many c_ulongs we
+        // need and populate them with (low endian) bytes from the seed.
+        const N_ULONGS: usize = size_of::<u64>().div_ceil(size_of::<c_ulong>());
+        let mut seed_bytes = [0_u8; N_ULONGS * size_of::<c_ulong>()];
+        seed_bytes[..size_of::<u64>()].copy_from_slice(&seed.to_le_bytes());
+        unsafe {
+            quest_sys::seedQuEST(
+                &mut self.environment,
+                seed_bytes.as_mut_ptr() as *mut c_ulong,
+                N_ULONGS as i32,
+            );
+        }
+    }
+}
+
 impl Drop for QuestState {
     fn drop(&mut self) {
         // SAFETY: these handles are created together by the factory and owned
@@ -85,27 +109,10 @@ impl QuestSimulator {
             .ok_or_else(|| anyhow!("QuEST simulator has exited"))
     }
 
-    fn seed(&mut self, seed: u64) -> Result<()> {
-        // seedQuest accepts an array of 'c_ulong's, so we need to split the
-        // provided seed accordingly.
-        //
-        // c_ulong does not have a standard size, so we find out how many c_ulongs we
-        // need and populate them with (low endian) bytes from the seed.
-        const N_ULONGS: usize = size_of::<u64>().div_ceil(size_of::<c_ulong>());
-        let mut seed_bytes = [0_u8; N_ULONGS * size_of::<c_ulong>()];
-        seed_bytes[..size_of::<u64>()].copy_from_slice(&seed.to_le_bytes());
-        unsafe {
-            quest_sys::seedQuEST(
-                &mut self
-                    .state
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("QuEST simulator has exited"))?
-                    .environment,
-                seed_bytes.as_mut_ptr() as *mut c_ulong,
-                N_ULONGS as i32,
-            );
-        }
-        Ok(())
+    fn state_mut(&mut self) -> Result<&mut QuestState> {
+        self.state
+            .as_mut()
+            .ok_or_else(|| anyhow!("QuEST simulator has exited"))
     }
 }
 
@@ -120,9 +127,9 @@ impl SimulatorInterface for QuestSimulator {
     }
 
     fn shot_start(&mut self, _shot_id: u64, seed: u64) -> Result<()> {
-        unsafe { quest_sys::initClassicalState(self.state()?.qureg, 0) };
+        self.state_mut()?.initialize();
         self.cumulative_postselect_probability = 1.0;
-        self.seed(seed)?;
+        self.state_mut()?.seed(seed);
         Ok(())
     }
 
