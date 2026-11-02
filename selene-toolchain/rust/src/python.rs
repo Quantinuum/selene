@@ -211,8 +211,14 @@ impl PyResultRecord {
         self.result.key.clone()
     }
 }
+#[pyfunction]
+fn _shutdown(py: Python<'_>) {
+    py.detach(crate::backend::shutdown);
+}
+
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(_shutdown, module)?)?;
     module.add_class::<PyArtifact>()?;
     module.add_class::<PyPlan>()?;
     module.add_class::<PyToolchain>()?;

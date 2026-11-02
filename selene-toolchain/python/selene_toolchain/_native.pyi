@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+def _shutdown() -> None: ...
+
 class Artifact:
     @staticmethod
     def from_bytes(kind_name: str, bytes: bytes) -> Artifact: ...

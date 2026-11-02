@@ -12,6 +12,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
@@ -44,7 +45,11 @@ struct STBuffer { unsigned char *data; size_t length; int status; };
 ST_EXPORT STBuffer st_call(const char *, const unsigned char *, size_t, const char *);
 ST_EXPORT void st_free(STBuffer);
 ST_EXPORT unsigned st_abi_version();
+ST_EXPORT void st_shutdown();
 }
+
+static std::mutex backendMutex;
+static bool usable = true;
 
 static STBuffer buffer(llvm::StringRef text, int status = 0) {
     auto *data = static_cast<unsigned char *>(std::malloc(text.size() + 1));
@@ -195,10 +200,8 @@ extern "C" ST_EXPORT STBuffer st_call(const char *operation, const unsigned char
                                        size_t length, const char *configuration) {
     // LLD and LLVM have process-wide state. Serialise entry across all Rust
     // toolchain instances, including callers that have released Python's GIL.
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> guard(mutex);
+    std::lock_guard<std::mutex> guard(backendMutex);
     static bool initialised = false;
-    static bool usable = true;
     if (!usable) return buffer("LLVM backend is unusable after a fatal linker failure", 1);
     if (!initialised) {
         llvm::InitializeAllTargetInfos();
@@ -248,3 +251,14 @@ extern "C" ST_EXPORT STBuffer st_call(const char *operation, const unsigned char
 extern "C" ST_EXPORT void st_free(STBuffer value) { std::free(value.data); }
 
 extern "C" ST_EXPORT unsigned st_abi_version() { return 1; }
+
+extern "C" ST_EXPORT void st_shutdown() {
+    std::lock_guard<std::mutex> guard(backendMutex);
+    static bool stopped = false;
+    if (stopped) return;
+    stopped = true;
+    usable = false;
+    // Stop LLVM's workers before Windows starts unloading the DLL. Waiting
+    // for them from a DLL destructor can deadlock under the loader lock.
+    llvm::llvm_shutdown();
+}

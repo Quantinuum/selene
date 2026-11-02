@@ -282,6 +282,10 @@ impl LinkBuilder {
             }
             if self.kind == ArtifactKind::SharedLibrary {
                 text(&mut args, "--shared");
+                // LLD's default DLL entry point uses MSVC's spelling, but
+                // our MinGW startup object defines DllMainCRTStartup.
+                text(&mut args, "--entry");
+                text(&mut args, "DllMainCRTStartup");
             }
         } else {
             text(

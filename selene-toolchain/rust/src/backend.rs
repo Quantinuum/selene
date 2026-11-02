@@ -20,6 +20,15 @@ unsafe extern "C" {
     ) -> Buffer;
     fn st_free(buffer: Buffer);
     fn st_abi_version() -> u32;
+    #[cfg(feature = "python")]
+    fn st_shutdown();
+}
+
+#[cfg(feature = "python")]
+pub(crate) fn shutdown() {
+    // SAFETY: The bridge serialises shutdown with other native calls and
+    // rejects subsequent operations once LLVM's global state has been freed.
+    unsafe { st_shutdown() };
 }
 
 pub(crate) struct Backend {
