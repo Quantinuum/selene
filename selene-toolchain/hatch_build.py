@@ -120,12 +120,21 @@ class ToolchainBuildHook(BuildHookInterface):
 
             target_platform = process_macos_plat_tag(target_platform, compat=False)
         build_data["tag"] = f"cp310-abi3-{target_platform}"
+        self._include_artifacts(root, dist, build_data)
+
+    @staticmethod
+    def _include_artifacts(root: Path, dist: Path, build_data: dict) -> None:
+        # Hatch interprets these as gitignore patterns, where backslashes are
+        # escapes. Use forward slashes even when building on Windows, because
+        # the native .pyd would otherwise be excluded by Hatch's *.py[cdo] rule.
         build_data["artifacts"] += [
-            str(path.relative_to(root)) for path in dist.rglob("*") if path.is_file()
+            path.relative_to(root).as_posix()
+            for path in dist.rglob("*")
+            if path.is_file()
         ]
         build_data["artifacts"].append("python/selene_toolchain/py.typed")
         build_data["artifacts"] += [
-            str(path.relative_to(root))
+            path.relative_to(root).as_posix()
             for path in (root / "python/selene_toolchain").glob("_native.*")
             if path.suffix in (".so", ".pyd")
         ]
