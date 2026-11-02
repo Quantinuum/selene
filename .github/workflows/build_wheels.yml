@@ -12,6 +12,7 @@ on:
     tags:
       - "selene-core-v*"
       - "selene-sim-v*"
+      - "selene-toolchain-v*"
   workflow_dispatch:
 
 permissions:

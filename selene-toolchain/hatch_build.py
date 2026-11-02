@@ -7,6 +7,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
@@ -24,9 +25,17 @@ class ToolchainBuildHook(BuildHookInterface):
         (dist / "bin").mkdir(parents=True)
         runtime = dist / "runtime"
         runtime.mkdir()
-        hugrenv = Path(os.environ.get("HUGRENV_PATH", root.parent / ".hugrenv"))
+        hugrenv = Path(
+            os.environ.get("SELENE_TOOLCHAIN_LLVM_PREFIX")
+            or os.environ.get("HUGRENV_PATH")
+            or root.parent / ".hugrenv"
+        )
         if not hugrenv.is_absolute():
             hugrenv = root / hugrenv
+        elif (
+            not hugrenv.exists() and (Path("/host") / hugrenv.relative_to("/")).is_dir()
+        ):
+            hugrenv = Path("/host") / hugrenv.relative_to("/")
         system = platform.system()
         if system == "Windows":
             self._windows_llvm_runtime(hugrenv, dist)
@@ -36,31 +45,36 @@ class ToolchainBuildHook(BuildHookInterface):
             raise RuntimeError(f"Unsupported architecture: {machine}")
         if system == "Windows" and machine != "x86_64":
             raise RuntimeError("Windows toolchain wheels currently require x86_64")
-        tools = ["llc", "llvm-symbolizer"]
-        tools += ["ld64.lld", "dsymutil"] if system == "Darwin" else ["ld.lld"]
+        tools = ["llvm-symbolizer"]
+        if system == "Darwin":
+            tools.append("dsymutil")
         for tool in tools:
             name = tool + (".exe" if system == "Windows" else "")
             source = self._resolve(hugrenv / "bin" / name)
             if not source.is_file():
-                raise RuntimeError(f"Hugrenv tool not found: {source}")
-            # Resolve the symlink before copying, but keep the driver's name:
-            # LLD chooses its command-line syntax from that name.
+                raise RuntimeError(f"LLVM tool not found: {source}")
             shutil.copy2(source, dist / "bin" / name)
 
-        self._build_inspector(root, hugrenv, dist, system)
+        self._build_rust(root, system, hugrenv)
 
-        config = {
+        llvm_version = subprocess.check_output(
+            [
+                str(
+                    self._resolve(
+                        hugrenv
+                        / "bin"
+                        / ("llvm-config.exe" if system == "Windows" else "llvm-config")
+                    )
+                ),
+                "--version",
+            ],
+            text=True,
+        ).strip()
+
+        config: dict = {
             "system": system,
             "machine": machine,
-            "llvm": subprocess.check_output(
-                [
-                    str(dist / "bin" / ("llc.exe" if system == "Windows" else "llc")),
-                    "--version",
-                ],
-                text=True,
-            )
-            .splitlines()[1]
-            .strip(),
+            "llvm": llvm_version,
             "before": [],
             "after": [],
             "libraries": [],
@@ -91,6 +105,7 @@ class ToolchainBuildHook(BuildHookInterface):
             ).splitlines()[0]
         (dist / "link.json").write_text(json.dumps(config, indent=2) + "\n")
         shutil.copytree(root / "vendor/licenses", dist / "licenses")
+        self._rust_licenses(root, dist)
         shutil.copy2(root / "vendor/README.md", dist / "licenses/PROVENANCE.md")
         if system == "Linux":
             self._source_manifest(root, dist, machine)
@@ -104,11 +119,122 @@ class ToolchainBuildHook(BuildHookInterface):
             from hatchling.builders.macos import process_macos_plat_tag
 
             target_platform = process_macos_plat_tag(target_platform, compat=False)
-        build_data["tag"] = f"py3-none-{target_platform}"
+        build_data["tag"] = f"cp310-abi3-{target_platform}"
         build_data["artifacts"] += [
             str(path.relative_to(root)) for path in dist.rglob("*") if path.is_file()
         ]
         build_data["artifacts"].append("python/selene_toolchain/py.typed")
+        build_data["artifacts"] += [
+            str(path.relative_to(root))
+            for path in (root / "python/selene_toolchain").glob("_native.*")
+            if path.suffix in (".so", ".pyd")
+        ]
+
+    @staticmethod
+    def _rust_licenses(root: Path, dist: Path) -> None:
+        metadata = json.loads(
+            subprocess.check_output(
+                [
+                    "cargo",
+                    "metadata",
+                    "--manifest-path",
+                    str(root / "rust/Cargo.toml"),
+                    "--features",
+                    "python",
+                    "--format-version",
+                    "1",
+                    "--locked",
+                ],
+                cwd=root.parent,
+                text=True,
+            )
+        )
+        packages = {package["id"]: package for package in metadata["packages"]}
+        nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
+        start = next(
+            key
+            for key, package in packages.items()
+            if package["name"] == "selene-toolchain"
+        )
+        pending, visited, notices = [start], set(), []
+        while pending:
+            key = pending.pop()
+            if key in visited:
+                continue
+            visited.add(key)
+            pending.extend(dependency["pkg"] for dependency in nodes[key]["deps"])
+            package = packages[key]
+            if key == start:
+                continue
+            source = Path(package["manifest_path"]).parent
+            destination = (
+                dist / "licenses/rust" / f"{package['name']}-{package['version']}"
+            )
+            destination.mkdir(parents=True, exist_ok=True)
+            for path in source.iterdir():
+                if path.is_file() and path.name.upper().startswith(
+                    ("LICENSE", "LICENCE", "NOTICE", "COPYRIGHT")
+                ):
+                    shutil.copy2(path, destination / path.name)
+            notices.append(
+                {
+                    "name": package["name"],
+                    "version": package["version"],
+                    "license": package["license"],
+                    "repository": package.get("repository"),
+                }
+            )
+        (dist / "licenses/rust/dependencies.json").write_text(
+            json.dumps(notices, indent=2) + "\n"
+        )
+
+    @staticmethod
+    def _build_rust(root: Path, system: str, prefix: Path) -> None:
+        env = os.environ.copy()
+        env["PYO3_PYTHON"] = sys.executable
+        env["SELENE_TOOLCHAIN_LLVM_PREFIX"] = str(prefix)
+        command = [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(root / "rust/Cargo.toml"),
+            "--package",
+            "selene-toolchain",
+            "--features",
+            "python",
+            "--release",
+            "--locked",
+        ]
+        target = root.parent / "target"
+        if system == "Windows":
+            compilers = [
+                Path(shutil.which(command[0]) or command[0]).resolve()
+                for command in (
+                    shlex.split(env.get("CC", "gcc").replace("\\", "/")),
+                    shlex.split(env.get("CXX", "g++").replace("\\", "/")),
+                )
+            ]
+            if compilers[0].parent != compilers[1].parent:
+                raise RuntimeError(
+                    "CC and CXX must come from the same MinGW installation"
+                )
+            command += ["--target", "x86_64-pc-windows-gnu"]
+            env["CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER"] = shlex.split(
+                env.get("CC", "gcc").replace("\\", "/")
+            )[0]
+            target = target / "x86_64-pc-windows-gnu"
+        subprocess.run(command, env=env, cwd=root.parent, check=True)
+        source_name = {
+            "Linux": "libselene_toolchain.so",
+            "Darwin": "libselene_toolchain.dylib",
+            "Windows": "selene_toolchain.dll",
+        }[system]
+        destination = (
+            root
+            / "python/selene_toolchain"
+            / ("_native.pyd" if system == "Windows" else "_native.abi3.so")
+        )
+        shutil.copy2(target / "release" / source_name, destination)
 
     def _source_manifest(self, root: Path, dist: Path, machine: str) -> None:
         manifest_path = root / "source-bundles" / f"linux-{machine}.json"
@@ -194,75 +320,6 @@ class ToolchainBuildHook(BuildHookInterface):
             shutil.copy2(hugrenv / "bin" / name, dist / "bin" / name)
 
     @staticmethod
-    def _build_inspector(root: Path, hugrenv: Path, dist: Path, system: str) -> None:
-        # Devenv's hugrenv is a tree of absolute Nix-store symlinks. Inside
-        # cibuildwheel we can reach their targets under /host, so resolve the
-        # config file before asking CMake to load its neighbouring files.
-        llvm_config = ToolchainBuildHook._resolve(
-            hugrenv / "lib/cmake/llvm/LLVMConfig.cmake"
-        )
-        if not llvm_config.is_file():
-            raise RuntimeError(
-                f"Hugrenv LLVM CMake package not found: {llvm_config}. "
-                "Check HUGRENV_PATH points to the LLVM development installation."
-            )
-        build = root / "_native-build"
-        if build.exists():
-            shutil.rmtree(build)
-        command = [
-            "cmake",
-            "-S",
-            str(root / "native"),
-            "-B",
-            str(build),
-            f"-DLLVM_DIR={llvm_config.parent}",
-            "-DCMAKE_BUILD_TYPE=Release",
-        ]
-        env = os.environ.copy()
-        if system == "Windows":
-            compilers = []
-            for variable, fallback in (("CC", "gcc"), ("CXX", "g++")):
-                compiler = shlex.split(env.get(variable, fallback).replace("\\", "/"))
-                if len(compiler) != 1:
-                    raise RuntimeError(
-                        f"{variable} must name a MinGW compiler executable"
-                    )
-                compilers.append(
-                    Path(shutil.which(compiler[0]) or compiler[0]).resolve()
-                )
-            if compilers[0].parent != compilers[1].parent:
-                raise RuntimeError(
-                    "CC and CXX must come from the same MinGW installation"
-                )
-            command += [
-                "-G",
-                "Ninja",
-                f"-DCMAKE_C_COMPILER={compilers[0].as_posix()}",
-                f"-DCMAKE_CXX_COMPILER={compilers[1].as_posix()}",
-            ]
-        elif system == "Darwin":
-            command += ["-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"]
-        subprocess.run(command, env=env, check=True)
-        subprocess.run(
-            ["cmake", "--build", str(build), "--config", "Release", "--parallel", "2"],
-            env=env,
-            check=True,
-        )
-        subprocess.run(
-            [
-                "cmake",
-                "--install",
-                str(build),
-                "--config",
-                "Release",
-                "--prefix",
-                str(dist),
-            ],
-            env=env,
-            check=True,
-        )
-
-    @staticmethod
     def _resolve(path: Path) -> Path:
         seen = set()
         while path.is_symlink():
@@ -322,7 +379,7 @@ class ToolchainBuildHook(BuildHookInterface):
             "-lgcc",
             "-lgcc_eh",
         ]
-        for name in [*config["before"], *config["after"]]:
+        for name in [*config["before"], *config["after"], "dllcrt2.o"]:
             shutil.copy2(self._compiler_file(compiler, name), runtime / name)
         # The import libraries describe the Windows DLLs already supplied by
         # the OS. Include the MinGW library directory so plugins can also ask

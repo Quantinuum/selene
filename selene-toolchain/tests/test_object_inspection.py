@@ -1,11 +1,9 @@
-import json
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from selene_toolchain import inspect_object, tool_environment, tool_path
+from selene_toolchain import ObjectFile, Store, Toolchain, inspect_object, target_triple
 
 resources = Path(__file__).parent / "resources"
 
@@ -36,20 +34,12 @@ def object_file(object_target, tmp_path):
             + "\n@qmain_alias = alias i32 (), ptr @qmain\n"
             + "define weak void @weak_helper() { ret void }\n"
         )
-    subprocess.run(
-        [
-            str(tool_path("llc")),
-            f"-mtriple={object_target}",
-            "-filetype=obj",
-            "-relocation-model=pic",
-            "-O0",
-            str(source),
-            "-o",
-            str(output),
-        ],
-        check=True,
-        capture_output=True,
-        env=tool_environment(),
+    output.write_bytes(
+        bytes(
+            Toolchain.bundled()._handle.compile_bytes(
+                source.read_bytes(), object_target
+            )
+        )
     )
     return output
 
@@ -81,53 +71,31 @@ def test_object_symbols_without_system_tools(
         assert "weak_helper" not in symbols.undefined_symbols
 
 
-def test_object_cli_agrees_for_file_and_stdin(object_file):
-    command = [str(tool_path("selene-llvm")), "inspect-object"]
-    from_file = subprocess.run(
-        [*command, str(object_file)],
-        capture_output=True,
-        check=True,
-        env=tool_environment(),
-    )
-    from_stdin = subprocess.run(
-        [*command, "-"],
-        input=object_file.read_bytes(),
-        capture_output=True,
-        check=True,
-        env=tool_environment(),
-    )
-    assert from_file.stdout == from_stdin.stdout
-    result = json.loads(from_file.stdout)
-    assert result["schema_version"] == 1
-    for key in ("defined_symbols", "undefined_symbols"):
-        assert result[key] == sorted(set(result[key]))
+def test_object_inspection_agrees_for_paths_and_bytes(object_file):
+    assert inspect_object(object_file) == inspect_object(object_file.read_bytes())
 
 
 @pytest.mark.skipif(
     sys.platform != "linux", reason="Uses the ELF linker bundled on Linux"
 )
 def test_stripped_shared_library_symbols(object_file, object_target, tmp_path):
-    if "linux" not in object_target:
-        pytest.skip("The ELF linker needs an ELF object")
-    output = tmp_path / "stripped.so"
-    subprocess.run(
-        [
-            str(tool_path("ld.lld")),
-            "-shared",
-            "--strip-all",
-            str(object_file),
-            "-o",
-            str(output),
-        ],
-        check=True,
-        capture_output=True,
-        env=tool_environment(),
+    if object_target != target_triple():
+        pytest.skip("Build plans currently link only native objects")
+    plan = (
+        Toolchain.bundled()
+        .link_shared_library()
+        .object(ObjectFile.from_path(object_file))
+        .link_flag("--strip-all")
+        .plan()
     )
+    output = Store.local(tmp_path / "store").build(plan).path
     # After stripping, the only names left are in the dynamic symbol table.
     # qmain and its external references should still be available to callers.
     symbols = inspect_object(output)
     assert "qmain" in symbols.defined_symbols
-    assert symbols.undefined_symbols == {"selene_load_config", "external_data"}
+    # Shared-library startup files also have weak references to optional
+    # runtime hooks. The program's references must survive stripping too.
+    assert {"selene_load_config", "external_data"} <= symbols.undefined_symbols
 
 
 @pytest.mark.parametrize(
@@ -139,5 +107,5 @@ def test_invalid_objects_report_diagnostics(contents):
 
 
 def test_missing_object_is_reported(tmp_path):
-    with pytest.raises(RuntimeError, match="Cannot read object file"):
+    with pytest.raises(FileNotFoundError):
         inspect_object(tmp_path / "missing.o")

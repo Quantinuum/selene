@@ -1,253 +1,295 @@
-"""Inspect LLVM modules, compile objects, and link with the packaged LLVM tools."""
+"""Immutable artifacts and native LLVM build plans, backed by a Rust library."""
 
 import json
-import ctypes
 import os
 import platform
-import struct
-import subprocess
 import sys
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Iterable
+from enum import IntEnum
+from functools import cache
+from pathlib import Path
+from typing import ClassVar, Iterable
 
 dist_dir = Path(__file__).parent / "_dist"
+# Keep handles alive for local Windows builds too. Repaired wheels additionally
+# use delvewheel's package-level DLL directory.
+_dll_directories: list[object] = []
+if sys.platform == "win32":
+    for _directory in (dist_dir / "bin", dist_dir / "lib"):
+        if _directory.is_dir():
+            _dll_directories.append(os.add_dll_directory(str(_directory)))
+
+from . import _native  # noqa: E402
+
+
+class Optimisation(IntEnum):
+    NONE = 0
+    LESS = 1
+    DEFAULT = 2
+    AGGRESSIVE = 3
 
 
 @dataclass(frozen=True)
 class ModuleSymbols:
-    """Function definitions and declarations found in an LLVM module."""
-
     defined_functions: frozenset[str]
     declared_functions: frozenset[str]
 
 
 @dataclass(frozen=True)
 class ObjectSymbols:
-    """Defined and undefined linker symbols, including functions and data."""
-
     defined_symbols: frozenset[str]
     undefined_symbols: frozenset[str]
 
 
+@dataclass(frozen=True)
+class Artifact:
+    """An immutable snapshot, independent of later changes to the source file."""
+
+    _handle: _native.Artifact
+    _kind: ClassVar[str]
+
+    @classmethod
+    def from_path(cls, path: Path | str):
+        return cls(_native.Artifact.from_path(cls._kind, Path(path)))
+
+    @classmethod
+    def from_bytes(cls, data: bytes):
+        return cls(_native.Artifact.from_bytes(cls._kind, data))
+
+    @property
+    def digest(self) -> str:
+        return self._handle.digest
+
+    def copy_to(self, path: Path | str) -> None:
+        self._handle.copy_to(Path(path))
+
+    def to_bytes(self) -> bytes:
+        return bytes(self._handle.bytes())
+
+    def symbols(self, toolchain=None) -> ObjectSymbols:
+        toolchain = toolchain or Toolchain.bundled()
+        result = toolchain._inspect(self)
+        return ObjectSymbols(
+            frozenset(result["defined_symbols"]), frozenset(result["undefined_symbols"])
+        )
+
+    def target(self, toolchain=None) -> str:
+        return (toolchain or Toolchain.bundled())._inspect(self)["target"]
+
+
+class Bitcode(Artifact):
+    """LLVM IR or bitcode. Functions and linker symbols are different queries."""
+
+    _kind = "bitcode"
+
+    def symbols(self, toolchain=None) -> ObjectSymbols:
+        raise TypeError(
+            "Use functions() for LLVM modules, or inspect symbols after compiling an object"
+        )
+
+    def functions(self, toolchain=None) -> ModuleSymbols:
+        result = (toolchain or Toolchain.bundled())._inspect(self)
+        return ModuleSymbols(
+            frozenset(result["defined_functions"]),
+            frozenset(result["declared_functions"]),
+        )
+
+
+class ObjectFile(Artifact):
+    _kind = "object"
+
+
+class StaticLibrary(Artifact):
+    _kind = "static_library"
+
+
+class SharedLibrary(Artifact):
+    _kind = "shared_library"
+
+
+class Executable(Artifact):
+    _kind = "executable"
+
+
+@dataclass(frozen=True)
+class Plan:
+    _handle: _native.Plan
+
+    def describe(self) -> dict:
+        return json.loads(self._handle.describe())
+
+
+@dataclass(frozen=True)
+class CompileBuilder:
+    toolchain: "Toolchain"
+    source: Bitcode
+    level: int = 0
+    retargeting: bool = False
+
+    def optimisation(self, level: Optimisation | int) -> "CompileBuilder":
+        return CompileBuilder(self.toolchain, self.source, int(level), self.retargeting)
+
+    def retarget(self, enabled: bool = True) -> "CompileBuilder":
+        return CompileBuilder(self.toolchain, self.source, self.level, enabled)
+
+    def plan(self) -> Plan:
+        return Plan(
+            self.toolchain._handle.compile_plan(
+                self.source._handle, self.level, self.retargeting
+            )
+        )
+
+
+@dataclass(frozen=True)
+class LinkBuilder:
+    toolchain: "Toolchain"
+    shared: bool = False
+    inputs: tuple = ()
+    system: tuple[str, ...] = ()
+    directories: tuple[Path, ...] = ()
+    flags: tuple[str, ...] = ()
+
+    def _with(self, **changes):
+        from dataclasses import replace
+
+        return replace(self, **changes)
+
+    def object(self, artifact: ObjectFile | Plan) -> "LinkBuilder":
+        return self._with(inputs=(*self.inputs, artifact))
+
+    def library(self, artifact: StaticLibrary | SharedLibrary) -> "LinkBuilder":
+        return self._with(inputs=(*self.inputs, artifact))
+
+    def system_library(self, name: str) -> "LinkBuilder":
+        return self._with(system=(*self.system, name))
+
+    def search_directory(self, path: Path | str) -> "LinkBuilder":
+        return self._with(directories=(*self.directories, Path(path)))
+
+    def link_flag(self, flag: str) -> "LinkBuilder":
+        return self._with(flags=(*self.flags, flag))
+
+    def plan(self) -> Plan:
+        return Plan(
+            self.toolchain._handle.link_plan(
+                [item._handle for item in self.inputs],
+                list(self.system),
+                list(self.directories),
+                list(self.flags),
+                self.shared,
+            )
+        )
+
+
+class Toolchain:
+    def __init__(self, directory: Path | str):
+        self._handle = _native.Toolchain(Path(directory))
+
+    @classmethod
+    @cache
+    def bundled(cls) -> "Toolchain":
+        return cls(dist_dir)
+
+    @property
+    def version(self) -> str:
+        return self._handle.version()
+
+    def _inspect(self, artifact: Artifact) -> dict:
+        return json.loads(self._handle.inspect(artifact._handle))
+
+    def compile(self, source: Bitcode) -> CompileBuilder:
+        return CompileBuilder(self, source)
+
+    def link_executable(self) -> LinkBuilder:
+        return LinkBuilder(self)
+
+    def link_shared_library(self) -> LinkBuilder:
+        return LinkBuilder(self, shared=True)
+
+
+class BuildResult:
+    def __init__(self, handle):
+        self._handle = handle
+
+    @property
+    def artifact(self) -> Artifact:
+        handle = self._handle.artifact
+        cls = {
+            "object": ObjectFile,
+            "shared_library": SharedLibrary,
+            "executable": Executable,
+        }[handle.kind]
+        return cls(handle)
+
+    @property
+    def path(self) -> Path:
+        return self._handle.path
+
+    @property
+    def cache_hit(self) -> bool:
+        return self._handle.cache_hit
+
+    @property
+    def diagnostics(self) -> str:
+        return self._handle.diagnostics
+
+    @property
+    def key(self) -> str:
+        return self._handle.key
+
+
+class Store:
+    def __init__(self, directory: Path | str | None = None):
+        self._handle = _native.Store(None if directory is None else Path(directory))
+
+    @classmethod
+    @cache
+    def default(cls) -> "Store":
+        return cls()
+
+    @classmethod
+    def local(cls, directory: Path | str) -> "Store":
+        return cls(directory)
+
+    @property
+    def root(self) -> Path:
+        return self._handle.root
+
+    def build(self, plan: Plan) -> BuildResult:
+        return BuildResult(self._handle.build(plan._handle))
+
+    def clean(self, *, dry_run: bool = False) -> int:
+        """Evict build records and temporary files, preserving captured libraries."""
+        return self._handle.clean(dry_run)
+
+
 def inspect_module(contents: str | Path | bytes) -> ModuleSymbols:
-    """Read functions from LLVM IR or bitcode using the packaged LLVM parser."""
     if isinstance(contents, Path):
         if contents.suffix not in (".ll", ".bc"):
             raise ValueError(
                 f"Unsupported file extension for LLVM contents: {contents.suffix}"
             )
+        contents = contents.read_bytes()
     elif isinstance(contents, str):
-        contents = contents.encode("utf-8")
+        contents = contents.encode()
     elif not isinstance(contents, bytes):
         raise TypeError(f"Unsupported type for LLVM contents: {type(contents)}")
-    definitions, declarations = _inspect_symbols(
-        contents, "inspect", "defined_functions", "declared_functions", "LLVM module"
-    )
-    return ModuleSymbols(definitions, declarations)
+    return Bitcode.from_bytes(contents).functions()
 
 
 def inspect_object(contents: Path | bytes) -> ObjectSymbols:
-    """Read linker symbols from ELF, Mach-O or PE/COFF files or bytes."""
-    if not isinstance(contents, (Path, bytes)):
-        raise TypeError(f"Unsupported type for object contents: {type(contents)}")
-    definitions, declarations = _inspect_symbols(
-        contents, "inspect-object", "defined_symbols", "undefined_symbols", "Object"
-    )
-    return ObjectSymbols(definitions, declarations)
-
-
-def _inspect_symbols(
-    contents: Path | bytes,
-    subcommand: str,
-    defined_key: str,
-    undefined_key: str,
-    kind: str,
-) -> tuple[frozenset[str], frozenset[str]]:
-    command = [str(tool_path("selene-llvm")), subcommand]
-    data = contents if isinstance(contents, bytes) else None
     if isinstance(contents, Path):
-        command.append(str(contents))
-    try:
-        result = subprocess.run(
-            command,
-            input=data,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=tool_environment(),
-        )
-    except OSError as error:
-        raise RuntimeError(f"Unable to run selene-llvm: {error}") from error
-    if result.returncode:
-        diagnostic = result.stderr.decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"{kind} inspection failed (exit {result.returncode}):\n{diagnostic}"
-        )
-    try:
-        symbols = json.loads(result.stdout)
-        if symbols["schema_version"] != 1:
-            raise ValueError("Unsupported inspection schema version")
-        definitions = symbols[defined_key]
-        declarations = symbols[undefined_key]
-        for names in (definitions, declarations):
-            if not isinstance(names, list) or not all(
-                isinstance(name, str) for name in names
-            ):
-                raise ValueError("Expected a list of symbol names")
-        return frozenset(definitions), frozenset(declarations)
-    except (ValueError, KeyError, TypeError) as error:
-        raise RuntimeError(f"Invalid response from selene-llvm: {error}") from error
-
-
-def tool_environment() -> dict[str, str]:
-    """Make repaired wheel DLLs available to tools launched as subprocesses."""
-    env = os.environ.copy()
-    if platform.system() == "Windows":
-        # delvewheel's Python DLL loading patch doesn't apply to child EXEs.
-        # They need the vendored DLL directory in their own search path.
-        dll_dir = dist_dir.parent.parent / "selene_toolchain.libs"
-        env["PATH"] = os.pathsep.join(
-            [
-                str(dist_dir / "bin"),
-                str(dll_dir),
-                str(Path(sys.executable).parent),
-                env.get("PATH", ""),
-            ]
-        )
-    return env
-
-
-def tool_path(name: str) -> Path:
-    """Return a packaged tool without searching the user's PATH."""
-    if platform.system() == "Windows":
-        name += ".exe"
-    path = dist_dir / "bin" / name
-    if not path.is_file():
-        raise RuntimeError(f"Missing selene-toolchain tool: {path}")
-    return path
-
-
-def target_triple() -> str:
-    machine = platform.machine().lower()
-    if machine in ("amd64", "x86_64"):
-        arch = "x86_64"
-    elif machine in ("arm64", "aarch64"):
-        arch = "aarch64"
-    else:
-        raise RuntimeError(f"Unsupported architecture: {machine}")
-    system = platform.system()
-    if system == "Linux":
-        return f"{arch}-unknown-linux-gnu"
-    if system == "Darwin":
-        return f"{arch}-apple-macosx11.0.0"
-    if system == "Windows" and arch == "x86_64":
-        return "x86_64-w64-windows-gnu"
-    raise RuntimeError(f"Unsupported platform: {system} {arch}")
-
-
-def _run(name: str, args: Iterable[str | Path], *, verbose: bool) -> None:
-    command = [str(tool_path(name)), *(str(arg) for arg in args)]
-    if verbose:
-        print(f"LLVM command: {subprocess.list2cmdline(command)}")
-    try:
-        result = subprocess.run(
-            command,
-            stdout=None if verbose else subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=tool_environment(),
-        )
-    except OSError as error:
-        raise RuntimeError(f"Unable to run {name}: {error}") from error
-    if result.returncode:
-        raise RuntimeError(
-            f"{name} command failed:\n"
-            f"  Command: {subprocess.list2cmdline(command)}\n"
-            f"  Error: {result.stderr}"
-        )
+        contents = contents.read_bytes()
+    elif not isinstance(contents, bytes):
+        raise TypeError(f"Unsupported type for object contents: {type(contents)}")
+    return ObjectFile.from_bytes(contents).symbols()
 
 
 def compile_object(source: Path, output: Path, *, verbose: bool = False) -> None:
-    """Compile LLVM IR or bitcode without a C compiler or its headers."""
-    _run(
-        "llc",
-        [
-            f"-mtriple={target_triple()}",
-            "-filetype=obj",
-            "-relocation-model=pic",
-            "--frame-pointer=all",
-            "-O=0",
-            source,
-            "-o",
-            output,
-        ],
-        verbose=verbose,
-    )
-
-
-def _linux_interpreter() -> str:
-    # Python is already running on this machine, so its ELF interpreter tells
-    # us which loader to use. This also works on NixOS, where the usual /lib64
-    # path doesn't exist. We only support 64-bit little-endian Linux targets.
-    with open(sys.executable, "rb") as executable:
-        header = executable.read(64)
-        if header[:6] != b"\x7fELF\x02\x01":
-            raise RuntimeError("Cannot determine the host's ELF interpreter")
-        offset = struct.unpack_from("<Q", header, 32)[0]
-        entry_size, count = struct.unpack_from("<HH", header, 54)
-        for index in range(count):
-            executable.seek(offset + index * entry_size)
-            entry = executable.read(entry_size)
-            if struct.unpack_from("<I", entry)[0] == 3:  # PT_INTERP
-                path_offset = struct.unpack_from("<Q", entry, 8)[0]
-                size = struct.unpack_from("<Q", entry, 32)[0]
-                executable.seek(path_offset)
-                return executable.read(size).rstrip(b"\0").decode()
-    raise RuntimeError("Python's executable does not have an ELF interpreter")
-
-
-def _linux_link_flag(flag: str) -> str:
-    # A glibc runtime installation has versioned shared objects, but generally
-    # doesn't have the unversioned lib*.so files supplied by development
-    # packages. Ask the loader for the actual library so LLD can read its
-    # symbols without needing those development packages or an ldconfig command.
-    sonames = {
-        "-lc": "libc.so.6",
-        "-lm": "libm.so.6",
-        "-lpthread": "libpthread.so.0",
-        "-ldl": "libdl.so.2",
-        "-lrt": "librt.so.1",
-        "-lresolv": "libresolv.so.2",
-        "-lutil": "libutil.so.1",
-        "-lanl": "libanl.so.1",
-    }
-    soname = sonames.get(flag)
-    if soname is None:
-        return flag
-
-    class LinkMap(ctypes.Structure):
-        _fields_ = [("address", ctypes.c_void_p), ("name", ctypes.c_char_p)]
-
-    try:
-        library = ctypes.CDLL(soname)
-        libdl = ctypes.CDLL("libdl.so.2")
-        dlinfo = libdl.dlinfo
-        dlinfo.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
-        dlinfo.restype = ctypes.c_int
-        link_map = ctypes.POINTER(LinkMap)()
-        if dlinfo(library._handle, 2, ctypes.byref(link_map)) != 0:  # RTLD_DI_LINKMAP
-            raise RuntimeError(f"Cannot find the loaded path for {soname}")
-        name = link_map.contents.name
-        if not name:
-            raise RuntimeError(f"The loader did not return a path for {soname}")
-        path = Path(os.fsdecode(name)).resolve()
-        if not path.is_file():
-            raise RuntimeError(f"The loaded library does not exist at {path}")
-        return str(path)
-    except (OSError, AttributeError) as error:
-        raise RuntimeError(
-            f"Cannot locate the host glibc library {soname}: {error}"
-        ) from error
+    # The old llc adapter always overrode target metadata with the host target.
+    # Keep that policy explicit here; new build plans default to validation.
+    plan = Toolchain.bundled().compile(Bitcode.from_path(source)).retarget().plan()
+    _build_to(plan, output, verbose)
 
 
 def link_executable(
@@ -259,71 +301,62 @@ def link_executable(
     link_flags: Iterable[str] = (),
     verbose: bool = False,
 ) -> None:
-    """Link a native executable using this wheel's startup and runtime inputs."""
-    target_triple()
-    config = json.loads((dist_dir / "link.json").read_text())
-    if config["system"] != platform.system():
-        raise RuntimeError(
-            "selene-toolchain was built for a different operating system"
-        )
-    if config["machine"] != target_triple().split("-")[0]:
-        raise RuntimeError("selene-toolchain was built for a different architecture")
-    runtime = dist_dir / "runtime"
-    search_dirs = [runtime, *library_search_dirs]
-    user_inputs = [*objects, *libraries]
-    flags = list(link_flags)
-    # Plugins currently use compiler-style -Wl flags. LLD takes those options
-    # directly, so we remove the compiler driver's wrapper here.
-    flags = [
-        part
-        for flag in flags
-        for part in (flag[4:].split(",") if flag.startswith("-Wl,") else [flag])
-    ]
+    builder = Toolchain.bundled().link_executable()
+    for path in objects:
+        builder = builder.object(ObjectFile.from_path(path))
+    for path in libraries:
+        cls = StaticLibrary if path.suffix in (".a", ".lib") else SharedLibrary
+        builder = builder.library(cls.from_path(path))
+    for path in library_search_dirs:
+        builder = builder.search_directory(path)
+    for flag in link_flags:
+        builder = builder.link_flag(flag)
+    _build_to(builder.plan(), output, verbose)
+
+
+def _build_to(plan: Plan, output: Path, verbose: bool) -> None:
+    result = Store.default().build(plan)
+    result.artifact.copy_to(output)
+    if verbose:
+        print(f"LLVM build {result.key}: {'cached' if result.cache_hit else 'built'}")
+        if result.diagnostics:
+            print(result.diagnostics)
+
+
+def target_triple() -> str:
+    machine = platform.machine().lower()
+    arch = {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
+    if arch not in ("x86_64", "aarch64"):
+        raise RuntimeError(f"Unsupported architecture: {machine}")
     system = platform.system()
-    args: list[str | Path]
+    if system == "Linux":
+        return f"{arch}-unknown-linux-gnu"
     if system == "Darwin":
-        arch = "arm64" if config["machine"] == "aarch64" else "x86_64"
-        args = [
-            "-arch",
-            arch,
-            "-platform_version",
-            "macos",
-            "11.0",
-            "11.0",
-            "-o",
-            output,
-            *(f"-L{path}" for path in search_dirs),
-            *user_inputs,
-            *flags,
-            # QIS defines panic, which libSystem also exports. We need to
-            # search our archives first so that calls use the QIS definition.
-            "-lSystem",
-        ]
-        linker = "ld64.lld"
-    else:
-        before = [runtime / name for name in config["before"]]
-        after = [runtime / name for name in config["after"]]
-        args = ["-o", output, *(f"-L{path}" for path in search_dirs)]
-        if system == "Linux":
-            # The runtime unwinder needs the ELF frame index to find unwind
-            # information for user functions. A compiler driver normally adds
-            # this option, but we're invoking LLD directly.
-            args += ["-pie", "--eh-frame-hdr", "--dynamic-linker", _linux_interpreter()]
-        else:
-            args += ["-m", "i386pep", "--subsystem", "console"]
-        runtime_libraries = list(config["libraries"])
-        if system == "Linux":
-            flags = [_linux_link_flag(flag) for flag in flags]
-            runtime_libraries = [_linux_link_flag(flag) for flag in runtime_libraries]
-            runtime_libraries.append(runtime / "libc_nonshared.a")
-        args += [
-            *before,
-            "--start-group",
-            *user_inputs,
-            *flags,
-            *runtime_libraries,
-            "--end-group",
-            *after,
-        ]
-        linker = "ld.lld"
-    _run(linker, args, verbose=verbose)
+        return f"{arch}-apple-macosx11.0.0"
+    if system == "Windows" and arch == "x86_64":
+        return "x86_64-w64-windows-gnu"
+    raise RuntimeError(f"Unsupported platform: {system} {arch}")
+
+
+def tool_path(name: str) -> Path:
+    """Find the remaining diagnostic utilities; builds use LLVM libraries."""
+    path = (
+        dist_dir / "bin" / (name + (".exe" if platform.system() == "Windows" else ""))
+    )
+    if not path.is_file():
+        raise RuntimeError(f"Missing selene-toolchain tool: {path}")
+    return path
+
+
+def tool_environment() -> dict[str, str]:
+    env = os.environ.copy()
+    if platform.system() == "Windows":
+        env["PATH"] = os.pathsep.join(
+            [
+                str(dist_dir / "bin"),
+                str(dist_dir.parent.parent / "selene_toolchain.libs"),
+                str(Path(sys.executable).parent),
+                env.get("PATH", ""),
+            ]
+        )
+    return env
