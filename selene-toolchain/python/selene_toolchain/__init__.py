@@ -1,5 +1,6 @@
 """Immutable artifacts and native LLVM build plans, backed by a Rust library."""
 
+import atexit
 import json
 import os
 import platform
@@ -20,6 +21,9 @@ if sys.platform == "win32":
             _dll_directories.append(os.add_dll_directory(str(_directory)))
 
 from . import _native  # noqa: E402
+
+if sys.platform == "win32":
+    atexit.register(_native._shutdown)
 
 
 class Optimisation(IntEnum):

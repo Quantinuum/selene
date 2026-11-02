@@ -184,11 +184,26 @@ fn main() {
         println!("cargo:rustc-link-lib=static:-bundle=stdc++");
         println!("cargo:rustc-cdylib-link-arg=-Wl,--exclude-libs,ALL");
         println!("cargo:rustc-cdylib-link-arg=-Wl,-Bsymbolic");
+    } else if os == "windows" {
+        // Rust uses a static GCC unwinder. If we use the C++ runtime DLL,
+        // its emulated TLS state lives in a separate libgcc DLL, so LLD's
+        // std::call_once reads a different callback and crashes. Link the C++
+        // and threading runtimes statically too, using the compiler's archives.
+        let tool = compiler.get_compiler();
+        for name in ["libstdc++.a", "libwinpthread.a"] {
+            let path = resolve(Path::new(&output(
+                tool.to_command().arg(format!("-print-file-name={name}")),
+            )));
+            assert!(path.is_file(), "The MinGW C++ compiler must provide {name}");
+            hash_file(&mut backend, &path);
+            println!(
+                "cargo:rustc-link-search=native={}",
+                path.parent().unwrap().display()
+            );
+            println!("cargo:rustc-link-lib=static:-bundle,+verbatim={name}");
+        }
     } else {
-        println!(
-            "cargo:rustc-link-lib={}",
-            if os == "macos" { "c++" } else { "stdc++" }
-        );
+        println!("cargo:rustc-link-lib=c++");
     }
     let system = query(&["--link-static", "--system-libs"]);
     let flags = shlex::split(&system).expect("Invalid LLVM system library flags");

@@ -3,6 +3,8 @@
 import concurrent.futures
 import json
 import subprocess
+import sys
+import textwrap
 
 import pytest
 
@@ -59,6 +61,33 @@ def test_exported_executable_runs(toolchain, tmp_path):
     output = tmp_path / "program.exe"
     result.artifact.copy_to(output)
     subprocess.run([str(output)], check=True)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Exercises Windows DLL unloading")
+def test_python_exits_after_native_linking():
+    # LLD leaves a worker pool alive after linking. We need to stop it before
+    # Windows unloads the extension, because waiting for workers during DLL
+    # destruction can leave Python hanging even though the build succeeded.
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""\
+                from tempfile import TemporaryDirectory
+                from selene_toolchain import Bitcode, Store, Toolchain
+
+                toolchain = Toolchain.bundled()
+                with TemporaryDirectory() as root:
+                    source = Bitcode.from_bytes(b"define i32 @main() { ret i32 0 }")
+                    plan = toolchain.link_executable().object(
+                        toolchain.compile(source).plan()
+                    ).plan()
+                    Store.local(root).build(plan)
+                """),
+        ],
+        check=True,
+        timeout=30,
+    )
 
 
 def test_input_snapshot_and_invalidation(toolchain, tmp_path):
@@ -129,6 +158,20 @@ def test_linking_shared_library(toolchain, tmp_path):
     )
     assert isinstance(library.artifact, SharedLibrary)
     assert "answer" in library.artifact.symbols().defined_symbols
+    output = tmp_path / ("answer.dll" if sys.platform == "win32" else "libanswer.so")
+    library.artifact.copy_to(output)
+    # Inspecting the symbols doesn't tell us whether the loader can initialise
+    # the library. Load it in another process so Windows can release the DLL
+    # before pytest removes the temporary directory.
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import ctypes, sys\nassert ctypes.CDLL(sys.argv[1]).answer() == 42",
+            str(output),
+        ],
+        check=True,
+    )
 
 
 def test_linker_escape_hatch_disables_cache(toolchain, tmp_path):
