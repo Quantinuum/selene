@@ -64,6 +64,8 @@ class CargoWorkspaceBuild:
                 "cargo",
                 "build",
                 "--workspace",
+                "--exclude",
+                "selene-toolchain",
                 "--release",
                 "--locked",
             ]
@@ -74,6 +76,10 @@ class CargoWorkspaceBuild:
         release_dir = self.hook.get_cargo_release_dir()
         assert release_dir.exists()
         for package in self.metadata["packages"]:
+            # The toolchain has its own wheel and builds its Python bindings
+            # separately. Its Rust library isn't a Selene runtime plugin.
+            if package["name"] == "selene-toolchain":
+                continue
             for target in package["targets"]:
                 if "cdylib" not in target["kind"]:
                     continue

@@ -98,7 +98,7 @@ def test_missing_symbol_is_reported_at_link_time(tmp_path):
 def test_invalid_ir_has_a_useful_error(tmp_path):
     source = tmp_path / "invalid.ll"
     source.write_text("this is not LLVM IR")
-    with pytest.raises(RuntimeError, match="llc command failed"):
+    with pytest.raises(RuntimeError, match="inspection failed"):
         compile_object(source, tmp_path / "invalid.o")
 
 

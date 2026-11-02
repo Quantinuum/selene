@@ -56,6 +56,9 @@ jobs:
           enable-cache: true
       - name: Rust format check
         run: cargo fmt --all -- --check
+      - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
+        with:
+          packages: "llvm"
       - name: Rust lint
         run: cargo clippy --all --all-features -- -D warnings
       - name: Build docs

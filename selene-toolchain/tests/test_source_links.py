@@ -23,15 +23,6 @@ def build_hook():
 
 
 @pytest.fixture
-def llvm_hugrenv(tmp_path):
-    prefix = tmp_path / "hugrenv"
-    config = prefix / "lib/cmake/llvm/LLVMConfig.cmake"
-    config.parent.mkdir(parents=True)
-    config.write_text("# LLVM package config\n")
-    return prefix
-
-
-@pytest.fixture
 def source_release(tmp_path, monkeypatch):
     monkeypatch.setenv("CIBUILDWHEEL", "1")
     sources = tmp_path / "source-bundles"
@@ -177,58 +168,6 @@ def test_windows_llvm_requires_the_same_mingw_build(
         }
 
 
-def test_windows_inspector_uses_the_mingw_compilers(
-    build_hook, tmp_path, monkeypatch, llvm_hugrenv
-):
-    compiler_bin = tmp_path / "MinGW with spaces/bin"
-    monkeypatch.setenv("CC", f'"{compiler_bin}/gcc.exe"')
-    monkeypatch.setenv("CXX", f'"{compiler_bin}/g++.exe"')
-    commands = []
-    monkeypatch.setattr(
-        "subprocess.run", lambda command, **kwargs: commands.append((command, kwargs))
-    )
-    # We only inspect CMake's arguments here. The native Windows build and
-    # execution tests run in CI, so this test doesn't invoke a compiler.
-    build_hook._build_inspector(tmp_path, llvm_hugrenv, tmp_path / "dist", "Windows")
-    configure, options = commands[0]
-    assert configure[configure.index("-G") + 1] == "Ninja"
-    assert f"-DCMAKE_C_COMPILER={(compiler_bin / 'gcc.exe').as_posix()}" in configure
-    assert f"-DCMAKE_CXX_COMPILER={(compiler_bin / 'g++.exe').as_posix()}" in configure
-    assert options["env"]["CC"] == f'"{compiler_bin}/gcc.exe"'
-    assert options["env"]["CXX"] == f'"{compiler_bin}/g++.exe"'
-
-
-def test_windows_inspector_rejects_mixed_compilers(
-    build_hook, tmp_path, monkeypatch, llvm_hugrenv
-):
-    monkeypatch.setenv("CC", str(tmp_path / "mingw/bin/gcc.exe"))
-    monkeypatch.setenv("CXX", str(tmp_path / "other/bin/g++.exe"))
-    with pytest.raises(RuntimeError, match="same MinGW installation"):
-        build_hook._build_inspector(
-            tmp_path, llvm_hugrenv, tmp_path / "dist", "Windows"
-        )
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="Nix symlink layout")
-def test_inspector_uses_the_real_llvm_package_directory(
-    build_hook, tmp_path, monkeypatch, llvm_hugrenv
-):
-    config = llvm_hugrenv / "lib/cmake/llvm/LLVMConfig.cmake"
-    real_config = tmp_path / "llvm-source/lib/cmake/llvm/LLVMConfig.cmake"
-    real_config.parent.mkdir(parents=True)
-    config.rename(real_config)
-    config.symlink_to(real_config)
-    commands = []
-    monkeypatch.setattr(
-        "subprocess.run", lambda command, **kwargs: commands.append(command)
-    )
-    # Nix's joined prefix contains symlinks, while LLVM's unpacked archive has
-    # the config files beside their exports. CMake should load that real
-    # directory so its includes don't lead back into the joined prefix.
-    build_hook._build_inspector(tmp_path, llvm_hugrenv, tmp_path / "dist", "Linux")
-    assert f"-DLLVM_DIR={real_config.parent}" in commands[0]
-
-
 @pytest.mark.skipif(sys.platform == "win32", reason="Linux host mount paths")
 def test_container_llvm_config_symlink_points_into_host_mount(build_hook, monkeypatch):
     joined = Path("/host/nix/store/join/lib/cmake/llvm/LLVMConfig.cmake")
@@ -238,10 +177,3 @@ def test_container_llvm_config_symlink_points_into_host_mount(build_hook, monkey
     # Docker mounts the host under /host. The symlink still contains the
     # host's original absolute path, so the resolved path needs that prefix.
     assert build_hook._resolve(joined) == Path("/host") / target.relative_to("/")
-
-
-def test_missing_llvm_package_reports_the_path(build_hook, tmp_path):
-    with pytest.raises(RuntimeError, match="LLVMConfig.cmake.*HUGRENV_PATH"):
-        build_hook._build_inspector(
-            tmp_path, tmp_path / "missing", tmp_path / "dist", "Linux"
-        )

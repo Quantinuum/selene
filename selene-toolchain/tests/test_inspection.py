@@ -1,10 +1,8 @@
-import json
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from selene_toolchain import inspect_module, tool_environment, tool_path
+from selene_toolchain import inspect_module
 
 resources = Path(__file__).parent / "resources"
 
@@ -36,27 +34,9 @@ def test_function_inspection_without_system_tools(tmp_path, monkeypatch, source_
 
 
 @pytest.mark.parametrize("suffix", [".ll", ".bc"])
-def test_inspector_cli_returns_the_same_schema_for_files_and_stdin(suffix):
+def test_inspection_agrees_for_paths_and_bytes(suffix):
     source = resources / f"symbols{suffix}"
-    command = [str(tool_path("selene-llvm")), "inspect"]
-    from_file = subprocess.run(
-        [*command, str(source)],
-        capture_output=True,
-        check=True,
-        env=tool_environment(),
-    )
-    from_stdin = subprocess.run(
-        [*command, "-"],
-        input=source.read_bytes(),
-        capture_output=True,
-        check=True,
-        env=tool_environment(),
-    )
-    assert from_file.stdout == from_stdin.stdout
-    result = json.loads(from_file.stdout)
-    assert result["schema_version"] == 1
-    assert result["defined_functions"] == sorted(result["defined_functions"])
-    assert result["declared_functions"] == sorted(result["declared_functions"])
+    assert inspect_module(source) == inspect_module(source.read_bytes())
 
 
 @pytest.mark.parametrize(
@@ -69,7 +49,7 @@ def test_invalid_modules_report_llvm_diagnostics(contents):
 
 
 def test_missing_file_is_reported(tmp_path):
-    with pytest.raises(RuntimeError, match="Cannot read LLVM module"):
+    with pytest.raises(FileNotFoundError):
         inspect_module(tmp_path / "missing.ll")
 
 
