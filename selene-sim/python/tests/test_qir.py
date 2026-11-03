@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 from qir_qis import qir_ll_to_bc, get_entry_attributes
 from selene_sim import Stim
-from selene_sim.build import build
+from selene_sim.build import build, BitcodeString
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 QIR_RESOURCE_DIR = RESOURCE_DIR / "qir"
@@ -15,6 +15,8 @@ def test_adaptive_cond_loop(snapshot):
     ll_text = ll_file.read_text()
     # generate bitcode
     bc_bytes = qir_ll_to_bc(ll_file.read_text())
+    # wrap in a BitcodeString
+    bc_string = BitcodeString(bc_bytes)
     # make a temp file to store the bitcode
     import tempfile
 
@@ -33,6 +35,7 @@ def test_adaptive_cond_loop(snapshot):
         ("ll_text", ll_text),
         ("bc_bytes", bc_bytes),
         ("bc_file", Path(bc_file.name)),
+        ("bc_string", bc_string),
     ]:
         runner = build(input_program, "no_results")
         results[name] = list(
