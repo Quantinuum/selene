@@ -22,7 +22,7 @@ def _get_trace_schema_file(filename: str) -> Traversable:
 
 def get_trace_schema() -> dict[str, Any]:
     """Return a new dictionary containing the current trace JSON Schema."""
-    schema_file = _get_trace_schema_file("0.1.0.schema.json")
+    schema_file = _get_trace_schema_file("0.2.0.schema.json")
     return json.loads(schema_file.read_text())
 
 

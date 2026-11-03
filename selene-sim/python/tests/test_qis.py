@@ -131,10 +131,20 @@ def test_simulate_delay():
         {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
         {"op": "Reset", "qubit": 1},
         {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
-        {"op": "FutureRead", "qubit": 0},
+        {"op": "MeasureRequest", "qubit": 0},
+        {
+            "op": "FutureResult",
+            "result_id": 0,
+            "outcome": 0,
+        },
         # simulated delay happens here, so we expect the next operations to be logged as starting at 1,234,500,000 ns
         {"op": "BatchStart", "start_time_ns": 1234500000, "duration_ns": 0},
-        {"op": "FutureRead", "qubit": 1},
+        {"op": "MeasureRequest", "qubit": 1},
+        {
+            "op": "FutureResult",
+            "result_id": 1,
+            "outcome": 0,
+        },
     ]
 
     all_output = list(helios_circuit_extractor.shots[0])
@@ -221,10 +231,7 @@ def test_simulate_delay():
             "source": "Source.OPTIMISER",
         },
         {
-            "operation": {
-                "op": "FutureRead",
-                "qubit": 0,
-            },
+            "operation": {"op": "MeasureRequest", "qubit": 0},
             "source": "Source.OPTIMISER",
         },
         {
@@ -235,11 +242,16 @@ def test_simulate_delay():
             "source": "Source.USER",
         },
         {
-            "operation": {
-                "op": "FutureRead",
-                "qubit": 0,
-            },
+            "operation": {"op": "FutureRead", "result_id": 0},
             "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "FutureResult",
+                "result_id": 0,
+                "outcome": 0,
+            },
+            "source": "Source.OPTIMISER",
         },
         {
             "operation": {
@@ -264,10 +276,7 @@ def test_simulate_delay():
             "source": "Source.OPTIMISER",
         },
         {
-            "operation": {
-                "op": "FutureRead",
-                "qubit": 1,
-            },
+            "operation": {"op": "MeasureRequest", "qubit": 1},
             "source": "Source.OPTIMISER",
         },
         {
@@ -278,10 +287,15 @@ def test_simulate_delay():
             "source": "Source.USER",
         },
         {
-            "operation": {
-                "op": "FutureRead",
-                "qubit": 1,
-            },
+            "operation": {"op": "FutureRead", "result_id": 1},
             "source": "Source.USER",
+        },
+        {
+            "operation": {
+                "op": "FutureResult",
+                "result_id": 1,
+                "outcome": 0,
+            },
+            "source": "Source.OPTIMISER",
         },
     ]

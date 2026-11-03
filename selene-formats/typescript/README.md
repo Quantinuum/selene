@@ -4,6 +4,21 @@ TypeScript types for the versioned, serializable Selene trace protocol. See the
 protocol documentation and JSON Schema in the repository's `selene-formats/`
 directory.
 
+JSON schema support:
+
+- Parsing helpers read `0.1.0`, `0.2.0`, and versionless legacy traces, normalizing
+  them to the current model.
+- Versioned models and JSON output use `0.2.0`.
+- Measurement types are non-empty strings, and outcomes can be JSON values of
+  any shape within the protocol's numeric bounds. Parsing and serialization
+  preserve unfamiliar types and outcomes; interpretation requires type-specific
+  support.
+- Explicit legacy output is supported for traces without `FutureRead` or
+  `FutureResult` events. Collections have no legacy format.
+
+See [package and schema compatibility](../docs/versioning.md) for support by
+package release.
+
 Trace types and helpers are exported from the `trace` namespace:
 
 ```ts

@@ -262,6 +262,41 @@ impl<W: Write> TraceStreamWriter<W> {
 /// deserializer's is_human_readable flag. Adapt the two JSON-specific fields here
 /// rather than relaxing their validation for ordinary JSON documents. No JSON
 /// text is produced or parsed in this path.
+fn record_value(mut value: rmpv::Value) -> io::Result<serde_json::Value> {
+    use rmpv::Value as V;
+    fn field<'a>(fields: &'a mut [(V, V)], name: &str) -> Option<&'a mut V> {
+        fields
+            .iter_mut()
+            .find(|(key, _)| key.as_str() == Some(name))
+            .map(|(_, value)| value)
+    }
+    if let V::Map(fields) = &mut value
+        && let Some(V::Map(event)) = field(fields, "event")
+        && field(event, "kind").and_then(|value| value.as_str()) == Some("Custom")
+        && let Some(V::Map(payload)) = field(event, "payload")
+        && field(payload, "kind").and_then(|value| value.as_str()) == Some("OpaquePayload")
+    {
+        for (key, value) in payload {
+            match key.as_str() {
+                Some("tag") => {
+                    let tag = value
+                        .as_u64()
+                        .ok_or_else(|| invalid("OpaquePayload.tag must be uint64"))?;
+                    *value = format!("0x{tag:X}").into();
+                }
+                Some("data") => {
+                    let V::Binary(bytes) = value else {
+                        return Err(invalid("OpaquePayload.data must be binary"));
+                    };
+                    *value = URL_SAFE.encode(bytes).into();
+                }
+                _ => {}
+            }
+        }
+    }
+    model_value(value)
+}
+
 fn model_value(value: rmpv::Value) -> io::Result<serde_json::Value> {
     use rmpv::Value as V;
     Ok(match value {
@@ -286,29 +321,7 @@ fn model_value(value: rmpv::Value) -> io::Result<serde_json::Value> {
             .map(model_value)
             .collect::<io::Result<Vec<_>>>()?
             .into(),
-        V::Map(mut fields) => {
-            let opaque = fields.iter().any(|(key, value)| {
-                key.as_str() == Some("kind") && value.as_str() == Some("OpaquePayload")
-            });
-            if opaque {
-                for (key, value) in &mut fields {
-                    match key.as_str() {
-                        Some("tag") => {
-                            let tag = value
-                                .as_u64()
-                                .ok_or_else(|| invalid("OpaquePayload.tag must be uint64"))?;
-                            *value = format!("0x{tag:X}").into();
-                        }
-                        Some("data") => {
-                            let V::Binary(bytes) = value else {
-                                return Err(invalid("OpaquePayload.data must be binary"));
-                            };
-                            *value = URL_SAFE.encode(bytes).into();
-                        }
-                        _ => {}
-                    }
-                }
-            }
+        V::Map(fields) => {
             let mut map = serde_json::Map::new();
             for (key, value) in fields {
                 let key = key
@@ -329,6 +342,7 @@ pub struct TraceStreamRecordReader<R: Read> {
     reader: BufReader<MultiGzDecoder<R>>,
     record_number: usize,
     done: bool,
+    previous_schema: bool,
 }
 
 impl<R: Read> TraceStreamRecordReader<R> {
@@ -337,12 +351,17 @@ impl<R: Read> TraceStreamRecordReader<R> {
             reader: BufReader::new(MultiGzDecoder::new(reader)),
             record_number: 0,
             done: false,
+            previous_schema: false,
         };
         let value = rmpv::decode::read_value(&mut result.reader)
             .map_err(|error| invalid(format!("Trace stream header: {error}")))?;
-        if model_value(value)? != header() {
+        let actual = model_value(value)?;
+        let mut previous = header();
+        previous["schema_version"] = "0.1.0".into();
+        if actual != header() && actual != previous {
             return Err(invalid("Unsupported trace stream header"));
         }
+        result.previous_schema = actual == previous;
         Ok(result)
     }
 }
@@ -363,7 +382,15 @@ impl<R: Read> Iterator for TraceStreamRecordReader<R> {
                 }
                 return Ok(None);
             }
-            let record = serde_json::from_value(model_value(value)?).map_err(invalid)?;
+            let record: TraceStreamRecord =
+                serde_json::from_value(record_value(value)?).map_err(invalid)?;
+            if self.previous_schema
+                && matches!(&record, TraceStreamRecord::Event(event) if matches!(event.record.event, Event::FutureRead { .. } | Event::FutureResult { .. }))
+            {
+                return Err(invalid(
+                    "FutureRead and FutureResult require trace schema 0.2.0",
+                ));
+            }
             Ok(Some(record))
         })();
         match result {
@@ -409,6 +436,74 @@ impl<R: Read> Iterator for TraceStreamReader<R> {
 mod tests {
     use super::*;
     use crate::trace::{CustomPayload, Event, GateParameter, Source};
+
+    #[test]
+    fn arbitrary_outcome_objects_are_not_decoded_as_opaque_payloads() {
+        for outcome in [
+            serde_json::json!({"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}),
+            serde_json::json!({"nested": {"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}}),
+            serde_json::json!([true, null, {"value": 0.25}]),
+            serde_json::json!({"__proto__": {"x": 1}, "constructor": "value"}),
+        ] {
+            let events = vec![
+                EventRecord {
+                    source: Source::Runtime {
+                        start_time: 0,
+                        end_time: 1,
+                    },
+                    event: Event::Measurement {
+                        qubit: 3,
+                        result_id: Some(42),
+                        measurement_type: crate::trace::MeasurementType::Other(
+                            "com.example/Custom".into(),
+                        ),
+                    },
+                },
+                EventRecord {
+                    source: Source::Runtime {
+                        start_time: 1,
+                        end_time: 1,
+                    },
+                    event: Event::FutureResult {
+                        result_id: 42,
+                        outcome,
+                    },
+                },
+            ];
+            let mut writer = TraceStreamWriter::new(Vec::new());
+            writer.write_events(&events).unwrap();
+            let data = writer.finish().unwrap();
+            assert_eq!(
+                TraceStreamReader::new(data.as_slice())
+                    .unwrap()
+                    .collect::<io::Result<Vec<_>>>()
+                    .unwrap(),
+                events
+            );
+        }
+    }
+
+    #[test]
+    fn previous_schema_reads_measurements_but_rejects_future_events() {
+        for kind in ["Measurement", "FutureRead", "FutureResult"] {
+            let mut previous = header();
+            previous["schema_version"] = "0.1.0".into();
+            let event = match kind {
+                "FutureRead" => serde_json::json!({"kind": kind, "result_id": 42}),
+                "FutureResult" => serde_json::json!({"kind": kind, "result_id": 42, "outcome": 0}),
+                _ => serde_json::json!({"kind": kind, "qubit": 3}),
+            };
+            let record = serde_json::json!({"source": {"kind": "Runtime", "start_time": 0, "end_time": 0}, "event": event});
+            let mut bytes = rmp_serde::to_vec_named(&previous).unwrap();
+            bytes.extend(rmp_serde::to_vec_named(&record).unwrap());
+            bytes.push(0xc0);
+            let data = compress(&bytes);
+            let records = TraceStreamReader::new(data.as_slice())
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>();
+            assert_eq!(records.is_err(), kind != "Measurement");
+        }
+    }
 
     #[test]
     fn event_reader_rejects_unsafe_instruction_qubits() {

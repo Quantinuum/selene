@@ -51,7 +51,7 @@ def test_legacy_trace_metadata_round_trip(tmp_path, tag, data):
         ],
     )
     extractor.try_invoke("TRACE", [str(path)])
-    trace = extractor.shots[0].get_trace()
+    trace = extractor.shots[0].get_trace().as_legacy()
     stringified_trace = trace.model_dump_json(indent=2)
     metadata = (
         f'{{"version": 1, "shots": [{{"index": 0, "trace": {stringified_trace}}}]}}'
@@ -194,3 +194,124 @@ def test_ghz_trace(compiled_guppy, snapshot, seed_mode):
     # performance timing included, as each run will differ in exact timing.
     trace = trace.clear_simulator_perf_timing()
     snapshot.assert_match(trace.model_dump_json(indent=2), "trace.json")
+
+
+@pytest.mark.parametrize("runtime", [SimpleRuntime, SoftRZRuntime])
+@pytest.mark.parametrize(
+    "measurement_type,outcome",
+    [
+        ("Standard", 0),
+        ("Standard", 1),
+        ("Leaked", 0),
+        ("Leaked", 1),
+        ("Leaked", 2),
+    ],
+)
+def test_measurement_identity_and_future_results(runtime, measurement_type, outcome):
+    from selene_sim import SimpleLeakageErrorModel
+    from selene_formats.trace import (
+        MeasurementEvent,
+        FutureReadEvent,
+        FutureResultEvent,
+        RuntimeSource,
+    )
+    from selene_sim.event_hooks.instruction_log import FutureResult
+
+    extractor = CircuitExtractor()
+    stack = InteractiveFullStack(
+        simulator=Stim(),
+        runtime=runtime(
+            duration_ns_rxy=3,
+            duration_ns_measure=5,
+            duration_ns_measure_leaked=7,
+            duration_ns_reset=11,
+        ),
+        error_model=SimpleLeakageErrorModel(p_leak=1 if outcome == 2 else 0),
+        n_qubits=1,
+        event_hook=extractor,
+    )
+    try:
+        qubit = stack.qalloc()
+        import math
+
+        stack.reset(qubit)
+        stack.rxy(qubit, math.pi if outcome == 1 else 0.0, 0.0)
+        result_id = (
+            stack.lazy_measure_leaked(qubit)
+            if measurement_type == "Leaked"
+            else stack.lazy_measure(qubit)
+        )
+        # No result event is emitted until the user actually reads the future.
+        assert not any(
+            isinstance(r.event, FutureResultEvent)
+            for r in extractor.shots[0].get_trace().events
+        )
+        read = (
+            stack.future_read_u64
+            if measurement_type == "Leaked"
+            else stack.future_read_bool
+        )
+        assert read(result_id) == outcome
+        stack.reset(qubit)
+        assert read(result_id) == outcome
+        assert read(result_id) == outcome
+        eager_outcome = stack.measure(qubit)
+        assert eager_outcome is False
+        # A failed read must not emit a FutureResult.
+        with pytest.raises(Exception):
+            stack.future_read_bool(9999)
+        stack.close()
+        trace = extractor.shots[0].get_trace()
+        assert trace.schema_version == "0.2.0"
+        measurements = [
+            r.event
+            for r in trace.get_runtime_trace().events
+            if isinstance(r.event, MeasurementEvent)
+        ]
+        assert measurements[0].result_id == result_id
+        assert measurements[0].measurement_type == measurement_type
+        results = [r for r in trace.events if isinstance(r.event, FutureResultEvent)]
+        assert len(results) == 4
+        reads = [r for r in trace.events if isinstance(r.event, FutureReadEvent)]
+        assert len(reads) == 5
+        assert all(r.source.kind == "UserProgram" for r in reads)
+        assert [r.event.result_id for r in reads] == [result_id] * 3 + [
+            measurements[1].result_id,
+            9999,
+        ]
+        assert trace.events.index(reads[0]) < trace.events.index(results[0])
+        if runtime is SoftRZRuntime:
+            execution = next(
+                r
+                for r in trace.get_runtime_trace().events
+                if isinstance(r.event, MeasurementEvent)
+            )
+            assert (
+                trace.events.index(reads[0])
+                < trace.events.index(execution)
+                < trace.events.index(results[0])
+            )
+        for record in results[:3]:
+            assert isinstance(record.source, RuntimeSource)
+            assert record.source.start_time == record.source.end_time
+            assert record.event.result_id == result_id
+            assert record.event.outcome == outcome
+            assert "measurement_type" not in record.event.model_dump()
+        assert results[0].source.start_time == (
+            21 if measurement_type == "Leaked" else 19
+        )
+        # SoftRZ may defer reset until the eager measurement forces execution.
+        assert results[1].source.start_time >= results[0].source.start_time
+        assert results[2].source.start_time == results[1].source.start_time
+        assert results[3].event.result_id == measurements[1].result_id
+        instructions = list(extractor.shots[0])
+        assert sum(isinstance(i.operation, FutureResult) for i in instructions) == 4
+        # Reading a future must not add another measurement to the circuit.
+        assert (
+            extractor.shots[0]
+            .get_user_circuit()
+            .n_gates_of_type(__import__("pytket").OpType.Measure)
+            == 2
+        )
+    finally:
+        stack.delete_run_directory()

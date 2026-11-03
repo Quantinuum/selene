@@ -13,7 +13,7 @@ from selene_formats.trace import (
     SimulatorSource,
     EventRecord,
 )
-from selene_core.trace import Trace
+from selene_formats.trace import Trace
 from selene_sim.event_hooks import TraceStore, CircuitExtractor
 from selene_sim.event_hooks.instruction_log import CustomOperation, QAlloc, BatchStart
 from selene_formats.trace_stream import (
@@ -366,3 +366,39 @@ def test_bad_compressed_trace_has_context(tmp_path, damage):
     store.try_invoke("TRACE", [str(path)])
     with pytest.raises(ValueError, match="damaged.msgpack.gz.*record"):
         list(store.shots[0].iter_events())
+
+
+def test_extension_measurements_are_readable_but_not_interpreted_as_standard(tmp_path):
+    from selene_formats.trace import MeasurementEvent, FutureResultEvent
+    from selene_sim.event_hooks.instruction_log import FutureResult
+
+    path = tmp_path / "extension.msgpack.gz"
+    source = RuntimeSource(start_time=0, end_time=1)
+    measurement = EventRecord(
+        source=source,
+        event=MeasurementEvent(
+            qubit=3, result_id=42, measurement_type="com.example/Custom"
+        ),
+    )
+    write_trace_stream(path, [measurement])
+    extractor = CircuitExtractor()
+    extractor.on_new_shot()
+    extractor.try_invoke("TRACE", [str(path)])
+    assert extractor.shots[0].get_trace().events == [measurement]
+    with pytest.raises(ValueError, match="Unsupported measurement type"):
+        list(extractor.shots[0])
+
+    outcome = {"value": [True, None, "unknown"]}
+    result_path = tmp_path / "result.msgpack.gz"
+    write_trace_stream(
+        result_path,
+        [
+            EventRecord(
+                source=source, event=FutureResultEvent(result_id=42, outcome=outcome)
+            )
+        ],
+    )
+    results = CircuitExtractor()
+    results.on_new_shot()
+    results.try_invoke("TRACE", [str(result_path)])
+    assert next(iter(results.shots[0])).operation == FutureResult(42, outcome)

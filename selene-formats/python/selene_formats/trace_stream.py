@@ -108,7 +108,7 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
             header = next(unpacker, missing)
             if (
                 not isinstance(header, dict)
-                or header != _header()
+                or header not in (_header(), {**_header(), "schema_version": "0.1.0"})
                 or type(header.get("format_version")) is not int
             ):
                 raise ValueError("Unsupported or incomplete trace stream header")
@@ -138,7 +138,16 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
                         raise ValueError(
                             "OpaquePayload requires a native integer tag and binary data"
                         )
-                yield _record_adapter.validate_python(item)
+                record = _record_adapter.validate_python(item)
+                if (
+                    header["schema_version"] == "0.1.0"
+                    and isinstance(record, TraceStreamEvent)
+                    and record.event.kind in ("FutureRead", "FutureResult")
+                ):
+                    raise ValueError(
+                        "FutureRead and FutureResult require trace schema 0.2.0"
+                    )
+                yield record
     except FileNotFoundError as error:
         raise ValueError(
             f"Trace stream {str(path)!r} is no longer available. Its run directory "
@@ -177,7 +186,8 @@ def write_trace_stream(
     with gzip.open(path, "xb", compresslevel=1) as output:
         output.write(packer.pack(_header()))
         for event in events:
-            output.write(
-                packer.pack(event.model_dump(mode="python", exclude_none=True))
-            )
+            record = event.model_dump(mode="python")
+            if isinstance(event, TraceStreamEvent) and event.instruction is None:
+                record.pop("instruction", None)
+            output.write(packer.pack(record))
         output.write(packer.pack(None))

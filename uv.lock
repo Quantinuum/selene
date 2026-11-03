@@ -14,8 +14,8 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "selene-formats",
     "selene-core",
+    "selene-formats",
     "selene-sim",
 ]
 
@@ -2007,33 +2007,6 @@ wheels = [
 ]
 
 [[package]]
-name = "selene-formats"
-version = "0.1.2"
-source = { editable = "selene-formats" }
-dependencies = [
-    { name = "msgpack" },
-    { name = "pydantic" },
-]
-
-[package.dev-dependencies]
-test = [
-    { name = "jsonschema" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "msgpack", specifier = ">=1.1,<2" },
-    { name = "pydantic", specifier = "~=2.12" },
-]
-
-[package.metadata.requires-dev]
-test = [
-    { name = "jsonschema", specifier = ">=4.23" },
-    { name = "pytest", specifier = ">=8.3" },
-]
-
-[[package]]
 name = "selene-core"
 version = "0.3.3"
 source = { editable = "selene-core" }
@@ -2075,6 +2048,35 @@ requires-dist = [
 dev = [{ name = "qir-qis", specifier = "~=0.1.10" }]
 
 [[package]]
+name = "selene-formats"
+version = "0.1.2"
+source = { editable = "selene-formats" }
+dependencies = [
+    { name = "msgpack" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[package.dev-dependencies]
+test = [
+    { name = "jsonschema" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "msgpack", specifier = ">=1.1,<2" },
+    { name = "pydantic", specifier = "~=2.12" },
+    { name = "typing-extensions", specifier = ">=4.14" },
+]
+
+[package.metadata.requires-dev]
+test = [
+    { name = "jsonschema", specifier = ">=4.23" },
+    { name = "pytest", specifier = ">=8.3" },
+]
+
+[[package]]
 name = "selene-sim"
 version = "0.3.7"
 source = { editable = "." }
@@ -2083,8 +2085,8 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pyyaml" },
-    { name = "selene-formats" },
     { name = "selene-core" },
+    { name = "selene-formats" },
     { name = "tqdm" },
 ]
 
@@ -2112,8 +2114,8 @@ test = [
 requires-dist = [
     { name = "numpy", specifier = "~=2.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "selene-formats", editable = "selene-formats" },
     { name = "selene-core", editable = "selene-core" },
+    { name = "selene-formats", editable = "selene-formats" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 

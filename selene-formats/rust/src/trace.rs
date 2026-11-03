@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 /// The only protocol version represented by this crate release.
-pub const SCHEMA_VERSION: &str = "0.1.0";
+pub const SCHEMA_VERSION: &str = "0.2.0";
 
 /// The largest integer represented exactly by a JavaScript number.
 pub const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
@@ -15,10 +15,10 @@ pub const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 /// The version of a Selene trace document.
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub enum SchemaVersion {
-    /// Version 0.1.0 preserves the original event model and adds versioning.
+    /// Measurements carry identities and types; future reads carry outcomes.
     #[default]
-    #[serde(rename = "0.1.0")]
-    V0_1_0,
+    #[serde(rename = "0.2.0")]
+    V0_2_0,
 }
 
 /// A complete trace document.
@@ -87,6 +87,51 @@ pub enum Source {
     },
 }
 
+/// The measurement operation requested by the runtime.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum MeasurementType {
+    #[default]
+    Standard,
+    Leaked,
+    Other(String),
+}
+
+impl MeasurementType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Standard => "Standard",
+            Self::Leaked => "Leaked",
+            Self::Other(value) => value,
+        }
+    }
+}
+impl Serialize for MeasurementType {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.as_str().is_empty() {
+            return Err(serde::ser::Error::custom(
+                "Measurement type must be non-empty",
+            ));
+        }
+        serializer.serialize_str(self.as_str())
+    }
+}
+impl<'de> Deserialize<'de> for MeasurementType {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "" => Err(serde::de::Error::custom(
+                "Measurement type must be non-empty",
+            )),
+            "Standard" => Ok(Self::Standard),
+            "Leaked" => Ok(Self::Leaked),
+            _ => Ok(Self::Other(value)),
+        }
+    }
+}
+
+/// A JSON value whose numbers obey the protocol's finite, safe-integer bounds.
+pub type JsonValue = Value;
+
 /// An event in the Selene trace protocol.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind")]
@@ -104,6 +149,20 @@ pub enum Event {
     Measurement {
         #[serde(with = "json_safe_u64")]
         qubit: u64,
+        #[serde(default)]
+        measurement_type: MeasurementType,
+        #[serde(default, with = "optional_json_safe_u64")]
+        result_id: Option<u64>,
+    },
+    FutureRead {
+        #[serde(with = "json_safe_u64")]
+        result_id: u64,
+    },
+    FutureResult {
+        #[serde(with = "json_safe_u64")]
+        result_id: u64,
+        #[serde(with = "safe_numbers")]
+        outcome: JsonValue,
     },
     Reset {
         #[serde(with = "json_safe_u64")]
@@ -112,6 +171,27 @@ pub enum Event {
     Custom {
         payload: CustomPayload,
     },
+}
+
+mod optional_json_safe_u64 {
+    use super::*;
+    pub fn serialize<S: Serializer>(value: &Option<u64>, serializer: S) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(value) => json_safe_u64::serialize(value, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<u64>, D::Error> {
+        let value = Option::<u64>::deserialize(deserializer)?;
+        if value.is_some_and(|value| value > MAX_SAFE_INTEGER) {
+            return Err(serde::de::Error::custom(
+                "integer exceeds JavaScript's safe range",
+            ));
+        }
+        Ok(value)
+    }
 }
 
 /// A predicate associated with a gate event.
@@ -175,6 +255,17 @@ mod safe_numbers {
     impl Valid for f64 {
         fn is_valid(&self) -> bool {
             self.is_finite() && (self.fract() != 0.0 || self.abs() <= MAX_SAFE_INTEGER as f64)
+        }
+    }
+
+    impl Valid for Value {
+        fn is_valid(&self) -> bool {
+            match self {
+                Value::Number(value) => value.as_f64().is_some_and(|value| value.is_valid()),
+                Value::Array(values) => values.iter().all(Valid::is_valid),
+                Value::Object(values) => values.values().all(Valid::is_valid),
+                _ => true,
+            }
         }
     }
 
@@ -337,6 +428,7 @@ pub fn parse_trace_value(mut value: Value) -> Result<Trace, serde_json::Error> {
     if is_legacy {
         upgrade_legacy_value(&mut value)?;
     }
+    upgrade_version(&mut value)?;
     serde_json::from_value(value)
 }
 
@@ -346,13 +438,14 @@ pub fn parse_trace_document_json(input: &str) -> Result<TraceDocument, serde_jso
 }
 
 /// Parse a current trace-document value or a versionless legacy trace value.
-pub fn parse_trace_document_value(value: Value) -> Result<TraceDocument, serde_json::Error> {
+pub fn parse_trace_document_value(mut value: Value) -> Result<TraceDocument, serde_json::Error> {
     let is_legacy = value
         .as_object()
         .is_some_and(|document| !document.contains_key("schema_version"));
     if is_legacy {
         return parse_trace_value(value).map(TraceDocument::Trace);
     }
+    upgrade_version(&mut value)?;
     serde_json::from_value(value)
 }
 
@@ -360,6 +453,16 @@ pub fn parse_trace_document_value(value: Value) -> Result<TraceDocument, serde_j
 ///
 /// Current protocol validation still applies. Collections have no legacy format.
 pub fn serialize_legacy_trace(trace: &Trace) -> Result<Value, serde_json::Error> {
+    if trace.events.iter().any(|record| {
+        matches!(
+            record.event,
+            Event::FutureRead { .. } | Event::FutureResult { .. }
+        )
+    }) {
+        return Err(<serde_json::Error as serde::ser::Error>::custom(
+            "FutureRead and FutureResult events cannot be serialized as a legacy trace",
+        ));
+    }
     let mut value = serde_json::to_value(trace)?;
     let document = value
         .as_object_mut()
@@ -394,7 +497,38 @@ pub fn serialize_legacy_trace_json(trace: &Trace) -> Result<String, serde_json::
     serde_json::to_string(&serialize_legacy_trace(trace)?)
 }
 
+fn check_previous_events(value: &Value) -> Result<(), serde_json::Error> {
+    if let Some(events) = value.get("events").and_then(Value::as_array)
+        && events.iter().any(|record| {
+            record
+                .get("event")
+                .and_then(|event| event.get("kind"))
+                .and_then(Value::as_str)
+                .is_some_and(|kind| matches!(kind, "FutureRead" | "FutureResult"))
+        })
+    {
+        return Err(<serde_json::Error as serde::de::Error>::custom(
+            "FutureRead and FutureResult require trace schema 0.2.0",
+        ));
+    }
+    if let Some(traces) = value.get("traces").and_then(Value::as_array) {
+        for trace in traces {
+            check_previous_events(trace)?;
+        }
+    }
+    Ok(())
+}
+
+fn upgrade_version(value: &mut Value) -> Result<(), serde_json::Error> {
+    if value.get("schema_version").and_then(Value::as_str) == Some("0.1.0") {
+        check_previous_events(value)?;
+        value["schema_version"] = SCHEMA_VERSION.into();
+    }
+    Ok(())
+}
+
 fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
+    check_previous_events(value)?;
     let document = value.as_object_mut().ok_or_else(|| {
         <serde_json::Error as serde::de::Error>::custom("trace document must be a JSON object")
     })?;
@@ -445,6 +579,124 @@ fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extension_measurements_and_results_preserve_json_values() {
+        for outcome in [
+            serde_json::json!(null),
+            serde_json::json!(true),
+            serde_json::json!(-3),
+            serde_json::json!(0.25),
+            serde_json::json!("custom"),
+            serde_json::json!([1, null, {"value": false}]),
+            serde_json::json!({"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}),
+        ] {
+            let value =
+                serde_json::json!({"kind": "FutureResult", "result_id": 42, "outcome": outcome});
+            let event: Event = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(serde_json::to_value(event).unwrap(), value);
+        }
+        let value = serde_json::json!({"kind": "Measurement", "qubit": 3, "result_id": 42, "measurement_type": "com.example/Custom"});
+        let event: Event = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(event).unwrap(), value);
+        for measurement_type in [
+            serde_json::json!(""),
+            serde_json::json!(null),
+            serde_json::json!(1),
+            serde_json::json!(true),
+        ] {
+            assert!(serde_json::from_value::<Event>(serde_json::json!({"kind": "Measurement", "qubit": 0, "measurement_type": measurement_type})).is_err());
+        }
+        assert!(serde_json::to_value(MeasurementType::Other(String::new())).is_err());
+        assert!(
+            serde_json::from_value::<Event>(
+                serde_json::json!({"kind": "FutureResult", "result_id": 42})
+            )
+            .is_err()
+        );
+        for value in [
+            serde_json::json!({"nested": [MAX_SAFE_INTEGER + 1]}),
+            serde_json::json!({"nested": [-((MAX_SAFE_INTEGER + 1) as i64)]}),
+        ] {
+            let event = Event::FutureResult {
+                result_id: 42,
+                outcome: value.clone(),
+            };
+            assert!(serde_json::to_value(event).is_err());
+            assert!(
+                serde_json::from_value::<Event>(
+                    serde_json::json!({"kind": "FutureResult", "result_id": 42, "outcome": value})
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn future_reads_preserve_result_identity() {
+        let event = Event::FutureRead { result_id: 42 };
+        let value = serde_json::json!({"kind": "FutureRead", "result_id": 42});
+        assert_eq!(serde_json::to_value(&event).unwrap(), value);
+        assert_eq!(serde_json::from_value::<Event>(value).unwrap(), event);
+        for result_id in [
+            serde_json::json!(-1),
+            serde_json::json!(true),
+            serde_json::json!(MAX_SAFE_INTEGER + 1),
+        ] {
+            assert!(
+                serde_json::from_value::<Event>(
+                    serde_json::json!({"kind": "FutureRead", "result_id": result_id})
+                )
+                .is_err()
+            );
+        }
+        let trace = Trace {
+            schema_version: Default::default(),
+            events: vec![EventRecord {
+                source: Source::UserProgram { index: 0 },
+                event,
+            }],
+        };
+        assert!(serialize_legacy_trace(&trace).is_err());
+    }
+
+    #[test]
+    fn future_result_requires_current_schema() {
+        for version in [None, Some("0.1.0")] {
+            let mut value = serde_json::json!({"events": [{"source": {"kind": "Runtime", "start_time": 0, "end_time": 0}, "event": {"kind": "FutureResult", "result_id": 42, "outcome": 0}}]});
+            if let Some(version) = version {
+                value["schema_version"] = version.into();
+            }
+            assert!(parse_trace_value(value).is_err());
+        }
+    }
+
+    #[test]
+    fn measurement_results_validate_and_round_trip() {
+        for (outcome, valid) in [(0, true), (1, true), (2, true), (3, true)] {
+            let value =
+                serde_json::json!({"kind": "FutureResult", "result_id": 42, "outcome": outcome});
+            let parsed = serde_json::from_value::<Event>(value.clone());
+            assert_eq!(parsed.is_ok(), valid);
+            if let Ok(parsed) = parsed {
+                assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+            }
+        }
+        let event = Event::FutureResult {
+            result_id: 42,
+            outcome: serde_json::json!({"invalid": [MAX_SAFE_INTEGER + 1]}),
+        };
+        assert!(serde_json::to_value(event).is_err());
+        let trace = parse_trace_json(r#"{"schema_version":"0.1.0","events":[{"source":{"kind":"Runtime","start_time":0,"end_time":1},"event":{"kind":"Measurement","qubit":3}}]}"#).unwrap();
+        assert_eq!(trace.schema_version, SchemaVersion::V0_2_0);
+        assert!(matches!(
+            trace.events[0].event,
+            Event::Measurement {
+                result_id: None,
+                ..
+            }
+        ));
+    }
 
     #[test]
     fn legacy_serialization_round_trips_examples_and_preserves_tags() {
@@ -552,7 +804,7 @@ mod tests {
         let trace: Trace = serde_json::from_str(include_str!("../tests/fixtures/minimal.json"))
             .expect("minimal example must conform to the trace model");
 
-        assert_eq!(trace.schema_version, SchemaVersion::V0_1_0);
+        assert_eq!(trace.schema_version, SchemaVersion::V0_2_0);
         assert_eq!(trace.events.len(), 1);
     }
 
@@ -574,7 +826,7 @@ mod tests {
         let TraceDocument::Traces(traces) = document else {
             panic!("traces example must deserialize as Traces");
         };
-        assert_eq!(traces.schema_version, SchemaVersion::V0_1_0);
+        assert_eq!(traces.schema_version, SchemaVersion::V0_2_0);
         assert_eq!(traces.traces.len(), 2);
     }
 
@@ -713,7 +965,7 @@ mod tests {
                     }]
                 });
                 if !legacy {
-                    document["schema_version"] = Value::String("0.1.0".into());
+                    document["schema_version"] = Value::String("0.2.0".into());
                     document["events"][0]["event"]["payload"]["tag"] = Value::String("0x1".into());
                 }
                 assert!(
@@ -800,7 +1052,7 @@ mod tests {
         let trace = parse_trace_json(include_str!("../tests/fixtures/legacy.json"))
             .expect("legacy example must be supported");
 
-        assert_eq!(trace.schema_version, SchemaVersion::V0_1_0);
+        assert_eq!(trace.schema_version, SchemaVersion::V0_2_0);
         assert_eq!(trace.events.len(), 2);
         assert!(matches!(
             &trace.events[1].event,

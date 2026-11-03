@@ -1,4 +1,5 @@
 {
+  "schema_version": "0.2.0",
   "events": [
     {
       "source": {
@@ -1502,7 +1503,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 0
+        "qubit": 0,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -1527,7 +1530,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 1
+        "qubit": 1,
+        "measurement_type": "Standard",
+        "result_id": 1
       }
     },
     {
@@ -1552,7 +1557,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 2
+        "qubit": 2,
+        "measurement_type": "Standard",
+        "result_id": 2
       }
     },
     {
@@ -1577,7 +1584,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 3
+        "qubit": 3,
+        "measurement_type": "Standard",
+        "result_id": 3
       }
     },
     {
@@ -1602,7 +1611,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 4
+        "qubit": 4,
+        "measurement_type": "Standard",
+        "result_id": 4
       }
     },
     {
@@ -1627,7 +1638,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 5
+        "qubit": 5,
+        "measurement_type": "Standard",
+        "result_id": 5
       }
     },
     {
@@ -1652,7 +1665,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 6
+        "qubit": 6,
+        "measurement_type": "Standard",
+        "result_id": 6
       }
     },
     {
@@ -1677,7 +1692,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 7
+        "qubit": 7,
+        "measurement_type": "Standard",
+        "result_id": 7
       }
     },
     {
@@ -1701,8 +1718,8 @@
         "index": 106
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 0
+        "kind": "FutureRead",
+        "result_id": 0
       }
     },
     {
@@ -4041,7 +4058,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 0
+        "qubit": 0,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4052,7 +4071,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 1
+        "qubit": 1,
+        "measurement_type": "Standard",
+        "result_id": 1
       }
     },
     {
@@ -4063,7 +4084,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 2
+        "qubit": 2,
+        "measurement_type": "Standard",
+        "result_id": 2
       }
     },
     {
@@ -4074,7 +4097,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 3
+        "qubit": 3,
+        "measurement_type": "Standard",
+        "result_id": 3
       }
     },
     {
@@ -4085,7 +4110,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 4
+        "qubit": 4,
+        "measurement_type": "Standard",
+        "result_id": 4
       }
     },
     {
@@ -4096,7 +4123,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 5
+        "qubit": 5,
+        "measurement_type": "Standard",
+        "result_id": 5
       }
     },
     {
@@ -4107,7 +4136,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 6
+        "qubit": 6,
+        "measurement_type": "Standard",
+        "result_id": 6
       }
     },
     {
@@ -4118,7 +4149,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 7
+        "qubit": 7,
+        "measurement_type": "Standard",
+        "result_id": 7
       }
     },
     {
@@ -4128,7 +4161,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 0
+        "qubit": 0,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4139,7 +4174,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 0
+        "qubit": 0,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4149,7 +4186,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 1
+        "qubit": 1,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4160,7 +4199,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 1
+        "qubit": 1,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4170,7 +4211,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 2
+        "qubit": 2,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4181,7 +4224,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 2
+        "qubit": 2,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4191,7 +4236,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 3
+        "qubit": 3,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4202,7 +4249,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 3
+        "qubit": 3,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4212,7 +4261,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 4
+        "qubit": 4,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4223,7 +4274,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 4
+        "qubit": 4,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4233,7 +4286,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 5
+        "qubit": 5,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4244,7 +4299,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 5
+        "qubit": 5,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4254,7 +4311,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 6
+        "qubit": 6,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4265,7 +4324,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 6
+        "qubit": 6,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4275,7 +4336,9 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 7
+        "qubit": 7,
+        "measurement_type": "Standard",
+        "result_id": 0
       }
     },
     {
@@ -4286,7 +4349,21 @@
       },
       "event": {
         "kind": "Measurement",
-        "qubit": 7
+        "qubit": 7,
+        "measurement_type": "Standard",
+        "result_id": 0
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 0,
+        "outcome": 0
       }
     },
     {
@@ -4295,8 +4372,20 @@
         "index": 107
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 1
+        "kind": "FutureRead",
+        "result_id": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 1,
+        "outcome": 1
       }
     },
     {
@@ -4305,8 +4394,20 @@
         "index": 108
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 2
+        "kind": "FutureRead",
+        "result_id": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 2,
+        "outcome": 0
       }
     },
     {
@@ -4315,8 +4416,20 @@
         "index": 109
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 3
+        "kind": "FutureRead",
+        "result_id": 3
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 3,
+        "outcome": 1
       }
     },
     {
@@ -4325,8 +4438,20 @@
         "index": 110
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 4
+        "kind": "FutureRead",
+        "result_id": 4
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 4,
+        "outcome": 0
       }
     },
     {
@@ -4335,8 +4460,20 @@
         "index": 111
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 5
+        "kind": "FutureRead",
+        "result_id": 5
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 5,
+        "outcome": 0
       }
     },
     {
@@ -4345,8 +4482,20 @@
         "index": 112
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 6
+        "kind": "FutureRead",
+        "result_id": 6
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 6,
+        "outcome": 0
       }
     },
     {
@@ -4355,8 +4504,20 @@
         "index": 113
       },
       "event": {
-        "kind": "Measurement",
-        "qubit": 7
+        "kind": "FutureRead",
+        "result_id": 7
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 84300000,
+        "end_time": 84300000
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 7,
+        "outcome": 0
       }
     }
   ]

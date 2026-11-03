@@ -129,7 +129,7 @@ def test_interactive_full_stack_event_hooks():
     error_model_output = extractor.get_error_model_output()
     expected_error_model_output = []
     for entry in output:
-        if entry["op"] == "BatchStart":
+        if entry["op"] in {"BatchStart", "FutureResult"}:
             continue
         if entry["op"] == "FutureRead":
             expected_error_model_output.append(
@@ -174,7 +174,7 @@ def test_interactive_full_stack_error_model_io():
         {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
         {"op": "Reset", "qubit": 0},
         {"op": "BatchStart", "start_time_ns": 0, "duration_ns": 0},
-        {"op": "FutureRead", "qubit": 0},
+        {"op": "MeasureRequest", "qubit": 0},
     ]
 
     error_model_output = instructions.get_error_model_output()

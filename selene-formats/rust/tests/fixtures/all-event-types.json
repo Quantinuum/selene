@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "events": [
     {
       "source": { "kind": "UserProgram", "index": 0 },
@@ -13,7 +13,7 @@
     },
     {
       "source": { "kind": "Runtime", "start_time": 20, "end_time": 50 },
-      "event": { "kind": "Measurement", "qubit": 0 }
+      "event": { "kind": "Measurement", "qubit": 0, "measurement_type": "Standard", "result_id": 0 }
     },
     {
       "source": { "kind": "ErrorModel", "index": 0 },

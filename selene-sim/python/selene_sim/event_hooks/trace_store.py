@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from pathlib import Path
 
-from selene_core.trace import SCHEMA_VERSION, EventRecord, Trace
+from selene_formats.trace import SCHEMA_VERSION, EventRecord, Trace
 from selene_formats.trace_stream import (
     TraceStreamEvent,
     UIntInstructionRecord,

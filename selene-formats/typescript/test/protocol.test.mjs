@@ -65,7 +65,7 @@ test("constructors validate normalized tags and other event fields", () => {
     assert.throws(() => trace.createTraceData([record]));
     assert.throws(() => trace.createTraces([{ events: [record] }]));
   }
-  assert.throws(() => trace.createTraces([{ events: [], schema_version: "0.1.0" }]));
+  assert.throws(() => trace.createTraces([{ events: [], schema_version: "0.2.0" }]));
   assert.throws(() => trace.createTraces([{ events: null }]));
 });
 
@@ -80,7 +80,7 @@ test("invalid tag strings return safe parse failures without throwing", () => {
 test("Base64 schemas and parsers require zero pad bits with optional padding", () => {
   for (const legacy of [false, true]) {
     const schema = JSON.parse(readFileSync(
-      new URL(`../../schemas/trace/${legacy ? "legacy" : "0.1.0"}.schema.json`, import.meta.url), "utf8",
+      new URL(`../../schemas/trace/${legacy ? "legacy" : "0.2.0"}.schema.json`, import.meta.url), "utf8",
     ));
     const pattern = new RegExp(schema.$defs.OpaquePayload.properties.data.pattern);
     for (const [data, valid] of [
@@ -139,7 +139,7 @@ test("createTraces versions unversioned trace data once", () => {
 });
 
 test("shared protocol examples identify the current protocol version", () => {
-  for (const exampleName of ["minimal.json", "all-event-types.json"]) {
+  for (const exampleName of ["minimal.json", "all-event-types.json", "measurement-results.json"]) {
     const exampleUrl = new URL(
       `../../examples/trace/${exampleName}`,
       import.meta.url,
@@ -318,7 +318,7 @@ test("versionless legacy traces are upgraded", () => {
     events: [
       {
         source: { kind: "UserProgram", index: 0 },
-        event: { kind: "Measurement", qubit: 1 },
+        event: { kind: "Measurement", qubit: 1, measurement_type: "Standard", result_id: null },
       },
     ],
   });
@@ -402,7 +402,7 @@ for (const parser of [trace.parseTraceJson, trace.parseTraceDocumentJson]) {
 
 test("the JSON Schema uint64 pattern enforces the bound in JavaScript", () => {
   const schema = JSON.parse(readFileSync(
-    new URL("../../schemas/trace/0.1.0.schema.json", import.meta.url), "utf8",
+    new URL("../../schemas/trace/0.2.0.schema.json", import.meta.url), "utf8",
   ));
   const pattern = new RegExp(schema.$defs.OpaquePayload.properties.tag.pattern);
   for (const [tag, valid] of [
@@ -439,4 +439,97 @@ test("safe parse failures provide standard errors", () => {
     assert.ok(result.error instanceof Error);
     assert.ok(result.error.message.length > 0);
   }
+});
+
+
+test("measurement results validate and round trip", () => {
+  for (const [outcome, valid] of [
+    [0, true], [1, true], [2, true], [3, true], [-1, true], [true, true],
+  ]) {
+    const event = { kind: "FutureResult", result_id: 42, outcome };
+    const document = { schema_version: trace.SCHEMA_VERSION, events: [{
+      source: { kind: "Runtime", start_time: 5, end_time: 5 }, event,
+    }] };
+    const parsed = trace.safeParseTrace(document);
+    assert.equal(parsed.success, valid);
+    if (valid) {
+      assert.deepEqual(trace.serializeTrace(parsed.data), document);
+      assert.throws(() => trace.serializeLegacyTrace(parsed.data));
+    }
+  }
+});
+
+test("previous schema measurements have unknown result IDs", () => {
+  const document = { schema_version: "0.1.0", events: [{
+    source: { kind: "Runtime", start_time: 0, end_time: 1 },
+    event: { kind: "Measurement", qubit: 3 },
+  }] };
+  const parsed = trace.parseTrace(document);
+  assert.equal(parsed.schema_version, trace.SCHEMA_VERSION);
+  assert.equal(parsed.events[0].event.result_id, null);
+  assert.equal(document.schema_version, "0.1.0");
+});
+
+test("FutureResult requires the current schema", () => {
+  for (const version of [undefined, "0.1.0"]) {
+    const document = { events: [{
+      source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome: 0 },
+    }] };
+    if (version !== undefined) document.schema_version = version;
+    assert.equal(trace.safeParseTrace(document).success, false);
+  }
+});
+
+
+test("FutureRead preserves result identity and requires the current schema", () => {
+  const record = { source: { kind: "UserProgram", index: 0 }, event: { kind: "FutureRead", result_id: 42 } };
+  const document = { schema_version: trace.SCHEMA_VERSION, events: [record] };
+  const parsed = trace.parseTrace(document);
+  assert.deepEqual(trace.serializeTrace(parsed), document);
+  assert.throws(() => trace.serializeLegacyTrace(parsed));
+  assert.equal(trace.safeParseTrace({ ...document, schema_version: "0.1.0" }).success, false);
+  assert.equal(trace.safeParseTrace({ events: [record] }).success, false);
+  for (const result_id of [-1, true, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(trace.safeParseTrace({ ...document, events: [{ ...record, event: { kind: "FutureRead", result_id } }] }).success, false);
+  }
+});
+
+
+test("extension measurement types and JSON outcomes survive round trips", () => {
+  for (const outcome of [null, true, -3, 0.25, "custom", [1, null, { value: false }],
+    { kind: "OpaquePayload", tag: "arbitrary", data: "literal" },
+    { nested: { kind: "OpaquePayload", tag: "arbitrary", data: "literal" } },
+    JSON.parse('{"__proto__":{"x":1},"constructor":"value"}'),
+    JSON.parse('{"__proto__":false,"__selene_proto__":1}'),
+  ]) {
+    const events = [
+      { source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "Measurement", qubit: 3, result_id: 42, measurement_type: "com.example/Custom" } },
+      { source: { kind: "Runtime", start_time: 1, end_time: 1 }, event: { kind: "FutureResult", result_id: 42, outcome } },
+    ];
+    const document = { schema_version: trace.SCHEMA_VERSION, events };
+    const parsed = trace.parseTrace(document);
+    assert.deepEqual(trace.serializeTrace(parsed), document);
+    assert.deepEqual(trace.serializeTrace(trace.parseTraceJson(JSON.stringify(document))), document);
+  }
+  for (const measurement_type of ["", null, 1, true]) {
+    assert.throws(() => trace.createTrace([{ source: { kind: "UserProgram", index: 0 }, event: { kind: "Measurement", qubit: 3, measurement_type } }]));
+  }
+  for (const outcome of [NaN, Infinity, -Infinity, 2n, undefined, { value: [Number.MAX_SAFE_INTEGER + 1] }, { value: [-Number.MAX_SAFE_INTEGER - 1] }, new Date()]) {
+    assert.throws(() => trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "FutureResult", result_id: 42, outcome } }]));
+  }
+  assert.throws(() => trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "FutureResult", result_id: 42 } }]));
+});
+
+
+test("JSON outcomes reject cycles and sparse arrays", () => {
+  const cyclic = {}; cyclic.self = cyclic;
+  for (const outcome of [cyclic, new Array(2)]) {
+    assert.equal(trace.safeParseTrace({ schema_version: trace.SCHEMA_VERSION, events: [{
+      source: { kind: "Runtime", start_time: 0, end_time: 1 },
+      event: { kind: "FutureResult", result_id: 42, outcome },
+    }] }).success, false);
+  }
+  const json = '{"schema_version":"0.2.0","events":[{"source":{"kind":"Runtime","start_time":0,"end_time":1},"event":{"kind":"FutureResult","result_id":42,"outcome":{"__pr\\u006fto__":true}}}]}';
+  assert.deepEqual(trace.parseTraceJson(json).events[0].event.outcome, JSON.parse('{"__proto__":true}'));
 });
