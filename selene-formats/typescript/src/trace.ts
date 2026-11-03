@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import {
-  isLosslessNumber,
+  LosslessNumber,
   parse as parseLosslessJson,
   stringify as stringifyLosslessJson,
 } from "lossless-json";
@@ -389,7 +389,7 @@ export function parseTraceDocument(value: unknown): TraceDocument {
 }
 
 function normalizeLosslessJson(value: unknown): unknown {
-  if (isLosslessNumber(value)) {
+  if (value instanceof LosslessNumber) {
     const converted = value.valueOf();
     if (typeof converted === "bigint") {
       return Number(converted);
@@ -426,7 +426,7 @@ function normalizeTraceJson(value: unknown): unknown {
       if (
         !isObject(payload) ||
         payload.kind !== "OpaquePayload" ||
-        !isLosslessNumber(payload.tag)
+        !(payload.tag instanceof LosslessNumber)
       ) {
         continue;
       }
@@ -460,7 +460,7 @@ function parseTraceJsonValue(json: string): unknown {
   );
   const parsed = parseLosslessJson(protectedJson);
   const restore = (value: unknown): void => {
-    if (isLosslessNumber(value)) return;
+    if (value instanceof LosslessNumber) return;
     if (Array.isArray(value)) { value.forEach(restore); return; }
     if (!isObject(value)) return;
     for (const [key, child] of Object.entries(value)) {

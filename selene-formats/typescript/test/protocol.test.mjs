@@ -503,6 +503,9 @@ test("extension measurement types and JSON outcomes survive round trips", () => 
     { nested: { kind: 1, tag: 42, data: [true, null] } },
     JSON.parse('{"__proto__":{"x":1},"constructor":true}'),
     JSON.parse('{"__proto__":false,"__selene_proto__":1}'),
+    { isLosslessNumber: true, count: 1 },
+    { isLosslessNumber: true, valueOf: 1 },
+    JSON.parse('{"isLosslessNumber":true,"__proto__":true}'),
   ]) {
     const events = [
       { source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "Measurement", qubit: 3, result_id: 42, measurement_type: "com.example/Custom" } },
