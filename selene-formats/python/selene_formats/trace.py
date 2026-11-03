@@ -14,11 +14,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     WithJsonSchema,
-    SerializationInfo,
-    SerializerFunctionWrapHandler,
     field_validator,
-    model_serializer,
-    model_validator,
 )
 from pydantic_core import core_schema
 from typing_extensions import TypeAliasType
@@ -119,7 +115,6 @@ __all__ = [
     "EventRecord",
     "GateEvent",
     "KeyValuePairPayload",
-    "LegacyTrace",
     "MeasurementEvent",
     "MeasurementType",
     "FutureResultValue",
@@ -314,10 +309,6 @@ class Trace(BaseModel):
     schema_version: Literal["0.2.0"]
     events: list[EventRecord] = Field(default_factory=list)
 
-    def as_legacy(self) -> "LegacyTrace":
-        """Return a trace that serializes without a version and with numeric tags."""
-        return LegacyTrace(schema_version=self.schema_version, events=self.events)
-
     def add_runtime_event(self, event: Event, start_time_ns: int, end_time_ns: int):
         self.events.append(
             EventRecord(
@@ -400,47 +391,6 @@ class Trace(BaseModel):
                 for record in self.events
             ],
         )
-
-
-class LegacyTrace(Trace):
-    """A current trace model that reads and writes versionless legacy traces.
-
-    Validation uses the current protocol's bounds. Opaque tags remain integers
-    in JSON, and the internal schema version is omitted from serialized output.
-    Serialization revalidates nested fields, including mutations after construction.
-    """
-
-    schema_version: Literal["0.2.0"] = SCHEMA_VERSION
-
-    @model_validator(mode="before")
-    @classmethod
-    def _read_legacy(cls, value: Any) -> Any:
-        if isinstance(value, Mapping) and "schema_version" not in value:
-            return _upgrade_legacy_trace(value)
-        return value
-
-    @model_serializer(mode="wrap")
-    def _write_legacy(
-        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
-    ) -> dict[str, Any]:
-        if any(
-            isinstance(record.event, (FutureReadEvent, FutureResultEvent))
-            for record in self.events
-        ):
-            raise ValueError(
-                "FutureRead and FutureResult events cannot be serialized as a legacy trace"
-            )
-        current = Trace(schema_version=self.schema_version, events=self.events)
-        Trace.model_validate(current.model_dump(mode="python", warnings=False))
-        document = handler(self)
-        document.pop("schema_version", None)
-        if info.mode == "json":
-            for record in document.get("events", []):
-                event = record.get("event", {})
-                payload = event.get("payload", {})
-                if "tag" in payload:
-                    payload["tag"] = int(payload["tag"], 16)
-        return document
 
 
 class Traces(BaseModel):

@@ -136,7 +136,6 @@ TypeScript users must pass original JSON text to `parseTraceJson` to preserve
 tags above the safe-integer limit. Parsing them with `JSON.parse` first loses
 precision.
 
-Legacy output is available explicitly through compatibility serializers and
-`selene_core.trace.Trace`. It omits `schema_version` and uses numeric opaque
-tags. Serialization rejects traces containing `FutureRead` or `FutureResult`;
-use versioned output for those traces.
+Parsing upgrades legacy measurements to `measurement_type: "Standard"` and
+`result_id: null`. Serialization emits schema 0.2.0, including when input was
+legacy. `selene_core.trace` re-exports the current models and parsing helpers.

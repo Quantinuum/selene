@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   LosslessNumber,
   parse as parseLosslessJson,
-  stringify as stringifyLosslessJson,
 } from "lossless-json";
 
 export const SCHEMA_VERSION = "0.2.0" as const;
@@ -302,7 +301,6 @@ const LegacyTraceSchema = z.object({
 }).refine((value) => !("traces" in value), {
   message: "Versionless trace collections are not supported",
 });
-export type LegacyTrace = z.infer<typeof LegacyTraceSchema>;
 
 function constructorEvents(events: (EventRecordInput | EventRecord)[] = []) {
   return events.map((record) => {
@@ -562,30 +560,6 @@ export function serializeTrace(trace: Trace): TraceInput {
     schema_version: trace.schema_version,
     ...serializeTraceData(trace),
   };
-}
-
-/** Convert a trace to legacy data, retaining opaque tags as bigint values.
- * Use serializeLegacyTraceJson to encode tags as exact JSON integers.
- */
-export function serializeLegacyTrace(trace: Trace): LegacyTrace {
-  if (trace.events.some((record) => (record.event.kind === "FutureRead" || record.event.kind === "FutureResult"))) {
-    throw new RangeError("FutureRead and FutureResult events cannot be serialized as a legacy trace");
-  }
-
-  const validated = TraceSchema.parse(serializeTrace(trace));
-  return { events: validated.events.map((record) => {
-    if ((record.event.kind === "FutureRead" || record.event.kind === "FutureResult")) {
-      throw new RangeError("FutureRead and FutureResult events cannot be serialized as a legacy trace");
-    }
-    return { ...record, event: record.event };
-  }) };
-}
-
-/** Serialize a versionless trace with numeric tags without losing uint64 precision. */
-export function serializeLegacyTraceJson(trace: Trace, space?: string | number): string {
-  const json = stringifyLosslessJson(serializeLegacyTrace(trace), undefined, space);
-  if (json === undefined) throw new TypeError("Trace serialization produced no JSON");
-  return json;
 }
 
 /** Convert a parsed trace collection to its JSON-compatible representation. */

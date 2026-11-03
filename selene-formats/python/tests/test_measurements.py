@@ -93,12 +93,12 @@ def test_measurements_and_results_round_trip_json_and_stream(tmp_path):
     path = tmp_path / "measurements.msgpack.gz"
     write_trace_stream(path, events)
     assert list(iter_trace_stream(path)) == events
-    with pytest.raises(ValueError, match="FutureResult"):
-        trace.as_legacy().model_dump_json()
 
 
-@pytest.mark.parametrize("collection", [False, True])
-def test_previous_schema_measurements_have_unknown_result_ids(collection):
+@pytest.mark.parametrize(
+    "version,collection", [(None, False), ("0.1.0", False), ("0.1.0", True)]
+)
+def test_previous_schema_measurements_have_unknown_result_ids(version, collection):
     data = {
         "events": [
             {
@@ -107,15 +107,23 @@ def test_previous_schema_measurements_have_unknown_result_ids(collection):
             }
         ]
     }
-    document = {
-        "schema_version": "0.1.0",
-        **({"traces": [data]} if collection else data),
-    }
+    document = {**({"traces": [data]} if collection else data)}
+    if version is not None:
+        document["schema_version"] = version
     parsed = parse_trace_document(document)
     events = parsed.traces[0].events if collection else parsed.events
     assert parsed.schema_version == SCHEMA_VERSION
     assert events[0].event.result_id is None
-    assert document["schema_version"] == "0.1.0"
+    assert document.get("schema_version") == version
+    serialized = json.loads(parsed.model_dump_json())
+    assert serialized["schema_version"] == SCHEMA_VERSION
+    records = serialized["traces"][0]["events"] if collection else serialized["events"]
+    assert records[0]["event"] == {
+        "kind": "Measurement",
+        "qubit": 3,
+        "measurement_type": "Standard",
+        "result_id": None,
+    }
 
 
 @pytest.mark.parametrize("result_id", [-1, True, 1.5, 2**53])

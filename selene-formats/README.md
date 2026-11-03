@@ -6,8 +6,8 @@ emulator.
 
 Selene's `extractor.shots[index].get_trace()` output and the language bindings
 use protocol 0.2.0. The bindings provide adapters for reading protocol 0.1.0 and
-versionless legacy traces. `selene_core.trace.Trace` remains a legacy-output
-adapter; use `selene_formats.trace.Trace` for versioned output.
+versionless legacy traces. Both `selene_core.trace.Trace` and
+`selene_formats.trace.Trace` serialize to the current schema.
 
 ## APIs
 

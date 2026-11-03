@@ -11,32 +11,6 @@ function opaqueRecord(tag, data = "Zg==") {
   };
 }
 
-test("legacy serialization preserves uint64 tags and round trips", () => {
-  for (const tag of [0n, 42n, BigInt(Number.MAX_SAFE_INTEGER) + 2n, trace.UINT64_MAX]) {
-    const document = trace.createTrace([opaqueRecord(tag, "-_8=")]);
-    const original = trace.serializeTrace(document);
-    const legacy = trace.serializeLegacyTrace(document);
-    assert.deepEqual(Object.keys(legacy), ["events"]);
-    assert.equal(legacy.events[0].event.payload.tag, tag);
-    const json = trace.serializeLegacyTraceJson(document, 2);
-    assert.ok(json.includes(`"tag": ${tag}`));
-    assert.deepEqual(trace.parseTraceJson(json), document);
-    assert.deepEqual(trace.parseTrace(legacy), document);
-    assert.deepEqual(trace.serializeTrace(document), original);
-  }
-  for (const name of ["minimal.json", "all-event-types.json", "legacy.json"]) {
-    const document = trace.parseTraceJson(readFileSync(new URL(`../../examples/trace/${name}`, import.meta.url), "utf8"));
-    assert.deepEqual(trace.parseTraceJson(trace.serializeLegacyTraceJson(document)), document);
-  }
-});
-
-test("legacy serialization rejects invalid current values", () => {
-  const document = trace.createTrace([opaqueRecord(1n)]);
-  document.events[0].source.index = Number.MAX_SAFE_INTEGER + 1;
-  assert.throws(() => trace.serializeLegacyTrace(document));
-  assert.throws(() => trace.serializeLegacyTraceJson(document));
-});
-
 test("constructors compose wire inputs and normalized opaque events", () => {
   for (const tag of [0n, 0x11A12517n, trace.UINT64_MAX]) {
     const wire = opaqueRecord(`0x${tag.toString(16).toUpperCase()}`);
@@ -454,7 +428,6 @@ test("measurement results validate and round trip", () => {
     assert.equal(parsed.success, valid);
     if (valid) {
       assert.deepEqual(trace.serializeTrace(parsed.data), document);
-      assert.throws(() => trace.serializeLegacyTrace(parsed.data));
     }
   }
 });
@@ -487,7 +460,6 @@ test("FutureRead preserves result identity and requires the current schema", () 
   const document = { schema_version: trace.SCHEMA_VERSION, events: [record] };
   const parsed = trace.parseTrace(document);
   assert.deepEqual(trace.serializeTrace(parsed), document);
-  assert.throws(() => trace.serializeLegacyTrace(parsed));
   assert.equal(trace.safeParseTrace({ ...document, schema_version: "0.1.0" }).success, false);
   assert.equal(trace.safeParseTrace({ events: [record] }).success, false);
   for (const result_id of [-1, true, 0.5, Number.MAX_SAFE_INTEGER + 1]) {

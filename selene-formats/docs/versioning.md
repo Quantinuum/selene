@@ -21,11 +21,6 @@ current in-memory model. Versioned models require the current schema version
 for direct construction and deserialization. Versioned serialization emits that current version,
 including when the input used an older schema.
 
-Legacy output is available through explicit compatibility serializers. It cannot
-represent `FutureRead` or `FutureResult`; serializing a trace containing either
-event as legacy raises an error. Reading older measurements cannot reconstruct
-missing result IDs or measurement types.
-
 Schema `0.2.0` supports additional Selene measurement types and structured future result values.
 New measurement types and result shapes within that contract can be introduced
 without changing the schema version. The bindings preserve unfamiliar types and

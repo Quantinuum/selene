@@ -6,7 +6,13 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from selene_core.trace import Trace, GateEvent, parse_trace, parse_trace_json
+from selene_core.trace import (
+    SCHEMA_VERSION,
+    Trace,
+    GateEvent,
+    parse_trace,
+    parse_trace_json,
+)
 from selene_formats.trace import Trace as VersionedTrace
 
 from selene_sim import Stim, DepolarizingErrorModel, SimpleRuntime, SoftRZRuntime
@@ -25,9 +31,10 @@ from selene_formats.trace_stream import write_trace_stream
 
 @pytest.mark.parametrize("tag", [42, 2**64 - 1])
 @pytest.mark.parametrize("data", [b"", b"\xfb\xff"])
-def test_legacy_trace_metadata_round_trip(tmp_path, tag, data):
+def test_trace_metadata_round_trip(tmp_path, tag, data):
     class DownstreamTrace(BaseModel):
         model_config = ConfigDict(extra="forbid")
+        schema_version: Literal["0.2.0"]
         events: list[dict]
 
     class Shot(BaseModel):
@@ -51,16 +58,16 @@ def test_legacy_trace_metadata_round_trip(tmp_path, tag, data):
         ],
     )
     extractor.try_invoke("TRACE", [str(path)])
-    trace = extractor.shots[0].get_trace().as_legacy()
+    trace = extractor.shots[0].get_trace()
     stringified_trace = trace.model_dump_json(indent=2)
     metadata = (
         f'{{"version": 1, "shots": [{{"index": 0, "trace": {stringified_trace}}}]}}'
     )
 
     document = json.loads(stringified_trace)
-    assert set(document) == {"events"}
-    assert document["events"][0]["event"]["payload"]["tag"] == tag
-    assert type(document["events"][0]["event"]["payload"]["tag"]) is int
+    assert set(document) == {"schema_version", "events"}
+    assert document["events"][0]["event"]["payload"]["tag"] == f"0x{tag:X}"
+    assert document["schema_version"] == SCHEMA_VERSION
     container = TraceContainer.model_validate_json(metadata)
     assert (
         base64.urlsafe_b64decode(
@@ -77,20 +84,23 @@ def test_legacy_trace_metadata_round_trip(tmp_path, tag, data):
     assert TraceContainer.model_validate_json(recovered) == container
 
 
-def test_legacy_trace_constructor_and_helpers():
-    trace = Trace(events=[])
+def test_trace_constructor_and_helpers():
+    trace = Trace(schema_version=SCHEMA_VERSION, events=[])
     trace.add_user_program_event(
         GateEvent(gate_name="ClassicalDelay", params=[42]), index=0
     )
     trace.add_simulator_event(GateEvent(gate_name="Rz", qubits=[0]), 0, 123)
 
-    assert Trace().model_dump_json() == '{"events":[]}'
+    assert Trace(schema_version=SCHEMA_VERSION).model_dump() == {
+        "schema_version": SCHEMA_VERSION,
+        "events": [],
+    }
     assert Trace.model_validate_json(trace.model_dump_json()) == trace
     assert trace.get_user_program_trace().events[0].event.params == [42]
     cleared = trace.clear_simulator_perf_timing()
     assert cleared.get_simulator_trace().events[0].source.duration_ns == 0
     assert trace.get_simulator_trace().events[0].source.duration_ns == 123
-    assert "schema_version" not in cleared.model_dump()
+    assert cleared.model_dump()["schema_version"] == SCHEMA_VERSION
     assert isinstance(trace, VersionedTrace)
     for parsed in [
         parse_trace(trace.model_dump(mode="json")),

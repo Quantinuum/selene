@@ -13,8 +13,6 @@ JSON schema support:
   booleans, nulls, arrays, and objects within the protocol's numeric bounds.
   Parsing and serialization preserve unfamiliar types and supported result
   shapes; interpretation requires type-specific support.
-- Explicit legacy output is supported for traces without `FutureRead` or
-  `FutureResult` events. Collections have no legacy format.
 
 Gzipped MessagePack stream readers accept schema versions `0.1.0` and `0.2.0`.
 Stream writers emit schema `0.2.0` using transport `format_version: 1`.
@@ -32,10 +30,7 @@ documents and upgrades legacy input to the current model. Use
 `trace::parse_trace_document_json` when the input may be either a `Trace` or a
 `Traces` collection.
 
-`trace::serialize_legacy_trace(&trace)` returns a versionless JSON value with
-numeric opaque tags. `trace::serialize_legacy_trace_json(&trace)` returns JSON
-text, preserving the full unsigned 64-bit tag range. Both enforce the current
-validation rules. Collections have no legacy format.
+Use `serde_json::to_string(&trace)` to serialize the current schema.
 
 Gzipped MessagePack trace streams use `selene_formats::trace_stream`:
 

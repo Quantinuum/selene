@@ -14,8 +14,6 @@ JSON schema support:
   bounds. Object keys are strings, and values follow these rules recursively.
   Parsing and serialization preserve unfamiliar types and supported result
   shapes; interpretation requires type-specific support.
-- Explicit legacy output is supported for traces without `FutureRead` or
-  `FutureResult` events. Collections have no legacy format.
 
 `FutureRead` and `FutureResult` describe runtime future reads in general.
 Measurement futures can be linked to their `Measurement` event and qubit through
@@ -55,12 +53,6 @@ strings for opaque tags.
 Pass legacy JSON text directly to `parseTraceJson` when it may contain an
 opaque tag larger than `Number.MAX_SAFE_INTEGER`. Calling `JSON.parse` first
 would lose precision before validation can occur.
-
-Use `serializeLegacyTraceJson(document, 2)` to emit versionless JSON with numeric
-opaque tags, preserving the full unsigned 64-bit range. `serializeLegacyTrace`
-returns legacy data with `bigint` tags; pass it to a lossless JSON encoder rather
-than `JSON.stringify`. Both helpers enforce current validation rules. Collections
-have no legacy format.
 
 From the repository root, build the package with the project-managed tooling:
 

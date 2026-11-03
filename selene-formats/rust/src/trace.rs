@@ -473,54 +473,6 @@ pub fn parse_trace_document_value(mut value: Value) -> Result<TraceDocument, ser
     serde_json::from_value(value)
 }
 
-/// Serialize a trace as a versionless document with numeric opaque tags.
-///
-/// Current protocol validation still applies. Collections have no legacy format.
-pub fn serialize_legacy_trace(trace: &Trace) -> Result<Value, serde_json::Error> {
-    if trace.events.iter().any(|record| {
-        matches!(
-            record.event,
-            Event::FutureRead { .. } | Event::FutureResult { .. }
-        )
-    }) {
-        return Err(<serde_json::Error as serde::ser::Error>::custom(
-            "FutureRead and FutureResult events cannot be serialized as a legacy trace",
-        ));
-    }
-    let mut value = serde_json::to_value(trace)?;
-    let document = value
-        .as_object_mut()
-        .expect("Trace serializes as an object");
-    document.remove("schema_version");
-    if let Some(events) = document.get_mut("events").and_then(Value::as_array_mut) {
-        for record in events {
-            let Some(payload) = record
-                .get_mut("event")
-                .and_then(Value::as_object_mut)
-                .filter(|event| event.get("kind").and_then(Value::as_str) == Some("Custom"))
-                .and_then(|event| event.get_mut("payload"))
-                .and_then(Value::as_object_mut)
-                .filter(|payload| {
-                    payload.get("kind").and_then(Value::as_str) == Some("OpaquePayload")
-                })
-            else {
-                continue;
-            };
-            let hex = payload["tag"]
-                .as_str()
-                .expect("opaque tag serializes as hex");
-            let tag = u64::from_str_radix(&hex[2..], 16).expect("opaque tag fits u64");
-            payload.insert("tag".to_owned(), Value::from(tag));
-        }
-    }
-    Ok(value)
-}
-
-/// Serialize a legacy trace JSON string, preserving the full unsigned tag range.
-pub fn serialize_legacy_trace_json(trace: &Trace) -> Result<String, serde_json::Error> {
-    serde_json::to_string(&serialize_legacy_trace(trace)?)
-}
-
 fn check_previous_events(value: &Value) -> Result<(), serde_json::Error> {
     if let Some(events) = value.get("events").and_then(Value::as_array)
         && events.iter().any(|record| {
@@ -686,14 +638,6 @@ mod tests {
                 .is_err()
             );
         }
-        let trace = Trace {
-            schema_version: Default::default(),
-            events: vec![EventRecord {
-                source: Source::UserProgram { index: 0 },
-                event,
-            }],
-        };
-        assert!(serialize_legacy_trace(&trace).is_err());
     }
 
     #[test]
@@ -737,59 +681,6 @@ mod tests {
                 ..
             }
         ));
-    }
-
-    #[test]
-    fn legacy_serialization_round_trips_examples_and_preserves_tags() {
-        for input in [
-            include_str!("../tests/fixtures/minimal.json"),
-            include_str!("../tests/fixtures/all-event-types.json"),
-            include_str!("../tests/fixtures/legacy.json"),
-        ] {
-            let trace = parse_trace_json(input).unwrap();
-            let original = serde_json::to_value(&trace).unwrap();
-            let legacy = serialize_legacy_trace(&trace).unwrap();
-            assert!(legacy.get("schema_version").is_none());
-            assert_eq!(parse_trace_value(legacy).unwrap(), trace);
-            let json = serialize_legacy_trace_json(&trace).unwrap();
-            assert_eq!(parse_trace_json(&json).unwrap(), trace);
-            assert_eq!(serde_json::to_value(&trace).unwrap(), original);
-        }
-        for tag in [0, 42, MAX_SAFE_INTEGER + 2, u64::MAX] {
-            let trace = Trace {
-                schema_version: SchemaVersion::default(),
-                events: vec![EventRecord {
-                    source: Source::UserProgram { index: 0 },
-                    event: Event::Custom {
-                        payload: CustomPayload::OpaquePayload {
-                            tag,
-                            data: vec![251, 255],
-                        },
-                    },
-                }],
-            };
-            let legacy = serialize_legacy_trace(&trace).unwrap();
-            assert_eq!(
-                legacy["events"][0]["event"]["payload"]["tag"].as_u64(),
-                Some(tag)
-            );
-            assert_eq!(parse_trace_value(legacy).unwrap(), trace);
-        }
-    }
-
-    #[test]
-    fn legacy_serialization_enforces_current_validation() {
-        let trace = Trace {
-            schema_version: SchemaVersion::default(),
-            events: vec![EventRecord {
-                source: Source::UserProgram {
-                    index: MAX_SAFE_INTEGER + 1,
-                },
-                event: Event::Reset { qubit: 0 },
-            }],
-        };
-        assert!(serialize_legacy_trace(&trace).is_err());
-        assert!(serialize_legacy_trace_json(&trace).is_err());
     }
 
     #[test]

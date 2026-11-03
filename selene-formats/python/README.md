@@ -14,8 +14,6 @@ JSON schema support:
   bounds. Object keys are strings, and values follow these rules recursively.
   Parsing and serialization preserve unfamiliar types and supported result
   shapes; interpretation requires type-specific support.
-- Explicit legacy output is supported for traces without `FutureRead` or
-  `FutureResult` events. Collections have no legacy format.
 
 Gzipped MessagePack stream readers accept schema versions `0.1.0` and `0.2.0`.
 Stream writers emit schema `0.2.0` using transport `format_version: 1`.
@@ -39,14 +37,8 @@ from selene_formats.trace import (
 trace = Trace(schema_version=SCHEMA_VERSION, events=[])
 traces = Traces(schema_version=SCHEMA_VERSION, traces=[TraceData(events=[])])
 upgraded = parse_trace_json(versionless_trace_json)
-legacy_json = trace.as_legacy().model_dump_json(indent=2)
+json_text = upgraded.model_dump_json(indent=2)
 ```
-
-`as_legacy()` returns a `LegacyTrace` sharing the current event models and
-validation rules. Its `model_dump()` and `model_dump_json()` omit
-`schema_version` and keep opaque tags numeric. `LegacyTrace` also accepts
-versionless input and defaults its internal version to `0.2.0`. Filtering and
-timing helpers retain legacy serialization. Collections have no legacy format.
 
 For trace streams, use the MessagePack API rather than the JSON document parser:
 
