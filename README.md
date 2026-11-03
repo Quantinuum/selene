@@ -39,9 +39,14 @@ And we offer two example quantum runtimes, including:
 To install Selene, run `pip install selene-sim`. This installs the core interfaces,
 bundled components, and the Selene Python frontend.
 
-To build HUGR inputs, install the HUGR-QIS compiler separately with
-`pip install selene-hugr-qis-compiler`. The compiler is not required when using
-inputs such as LLVM IR, bitcode, or object files.
+To build HUGR inputs, run `pip install 'selene-sim[hugr]'`. This installs HUGR
+and the HUGR-QIS compiler. To build QIR inputs, run
+`pip install 'selene-sim[qir]'`. To support both input formats, run
+`pip install 'selene-sim[hugr,qir]'`.
+
+Neither toolchain is required when using already-lowered QIS LLVM IR, bitcode,
+or object files. Users of the core build planner can install
+`selene-core[hugr]` or `selene-core[qir]` independently.
 
 ## Citation
 
@@ -152,7 +157,6 @@ Selene also supports QIR (Quantum Intermediate Representation) programs. Here's 
 
 ```python
 from selene_sim import build, Quest
-from hugr.qsystem.result import QsysResult
 
 # QIR LLVM IR for a simple Bell state preparation and measurement
 qir_ll = """
@@ -192,11 +196,11 @@ attributes #1 = { "irreversible" }
 runner = build(qir_ll)
 
 # Run multiple shots with Quest simulator
-shots = QsysResult(runner.run_shots(
+shots = [list(shot) for shot in runner.run_shots(
     simulator=Quest(random_seed=42),
     n_qubits=2,
     n_shots=10
-))
+)]
 print(shots)
 
 # You can also load QIR from files:

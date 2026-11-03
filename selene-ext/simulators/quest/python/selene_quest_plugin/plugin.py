@@ -2,7 +2,6 @@ import platform
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, cast
-from hugr.qsystem.result import TaggedResult
 from selene_core import Simulator
 from .state import SeleneQuestState
 
@@ -35,7 +34,7 @@ class QuestPlugin(Simulator):
 
     @staticmethod
     def extract_states_dict(
-        results: Iterable[TaggedResult],
+        results: Iterable[tuple[str, object]],
         cleanup: bool = True,
     ) -> dict[str, SeleneQuestState]:
         """Extract state results from a shot result stream and return them as a
@@ -48,7 +47,7 @@ class QuestPlugin(Simulator):
 
     @staticmethod
     def extract_states(
-        results: Iterable[TaggedResult],
+        results: Iterable[tuple[str, object]],
         cleanup: bool = True,
     ) -> Iterator[tuple[str, SeleneQuestState]]:
         """Extract state results from a shot result stream and return them as a

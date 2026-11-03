@@ -6,7 +6,6 @@ description = "The core interop library for Selene python interfaces"
 license = "Apache-2.0"
 readme = "python/selene_core/README.md"
 dependencies = [
-  "hugr>=0.13.0",
   # required for inspecting object files to find defined and declared symbols
   "lief~=1.0.0",
   # required for inspecting LLVM files to find defined and declared symbols
@@ -20,6 +19,10 @@ dependencies = [
   "typing_extensions>=4",
   "ziglang~=0.16.0",
 ]
+
+[project.optional-dependencies]
+hugr = ["hugr>=0.13.0"]
+qir = ["qir-qis~=0.1.10"]
 
 [project.urls]
 homepage = "https://github.com/quantinuum/selene/selene-core"
