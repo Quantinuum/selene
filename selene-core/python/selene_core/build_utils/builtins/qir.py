@@ -228,8 +228,11 @@ class QIRBitcodeStringToHeliosBitcodeStringStep(Step):
     @classmethod
     def apply(cls, build_ctx: BuildCtx, input_artifact: Artifact) -> Artifact:
         qir_qis = _load_qir_qis()
-        qir_qis.validate_qir(input_artifact.resource)
-        result = qir_qis.qir_to_qis(input_artifact.resource)
+        bitcode = input_artifact.resource
+        if hasattr(bitcode, "bitcode"):  # e.g. a BitcodeString wrapper
+            bitcode = bitcode.bitcode
+        qir_qis.validate_qir(bitcode)
+        result = qir_qis.qir_to_qis(bitcode)
         return cls._make_artifact(result)
 
 

@@ -12,6 +12,13 @@ bc_file:
 - !!python/tuple
   - 0_t1
   - 1
+bc_string:
+- !!python/tuple
+  - 0_t0
+  - 0
+- !!python/tuple
+  - 0_t1
+  - 1
 ll_file:
 - !!python/tuple
   - 0_t0
