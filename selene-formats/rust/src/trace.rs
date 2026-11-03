@@ -129,8 +129,38 @@ impl<'de> Deserialize<'de> for MeasurementType {
     }
 }
 
-/// A JSON value whose numbers obey the protocol's finite, safe-integer bounds.
-pub type JsonValue = Value;
+/// A runtime future result with string, numeric, boolean, null, array, or object values.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum FutureResultValue {
+    String(String),
+    Number(#[serde(with = "safe_numbers")] serde_json::Number),
+    Boolean(bool),
+    Array(Vec<FutureResultValue>),
+    Object(BTreeMap<String, FutureResultValue>),
+    #[default]
+    Null,
+}
+
+impl FutureResultValue {
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Self::Number(value) => value.as_u64(),
+            _ => None,
+        }
+    }
+}
+impl From<u64> for FutureResultValue {
+    fn from(value: u64) -> Self {
+        Self::Number(value.into())
+    }
+}
+impl TryFrom<Value> for FutureResultValue {
+    type Error = serde_json::Error;
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        serde_json::from_value(value)
+    }
+}
 
 /// An event in the Selene trace protocol.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -161,8 +191,7 @@ pub enum Event {
     FutureResult {
         #[serde(with = "json_safe_u64")]
         result_id: u64,
-        #[serde(with = "safe_numbers")]
-        outcome: JsonValue,
+        outcome: FutureResultValue,
     },
     Reset {
         #[serde(with = "json_safe_u64")]
@@ -258,14 +287,9 @@ mod safe_numbers {
         }
     }
 
-    impl Valid for Value {
+    impl Valid for serde_json::Number {
         fn is_valid(&self) -> bool {
-            match self {
-                Value::Number(value) => value.as_f64().is_some_and(|value| value.is_valid()),
-                Value::Array(values) => values.iter().all(Valid::is_valid),
-                Value::Object(values) => values.values().all(Valid::is_valid),
-                _ => true,
-            }
+            self.as_f64().is_some_and(|value| value.is_valid())
         }
     }
 
@@ -581,15 +605,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn string_future_result_values_round_trip_recursively() {
+        for outcome in [
+            serde_json::json!("0"),
+            serde_json::json!("text"),
+            serde_json::json!(["text"]),
+            serde_json::json!({"value": [1, {"nested": "text"}]}),
+        ] {
+            let value = FutureResultValue::try_from(outcome.clone()).unwrap();
+            assert_eq!(serde_json::to_value(value).unwrap(), outcome);
+            let record =
+                serde_json::json!({"kind": "FutureResult", "result_id": 42, "outcome": outcome});
+            let event: Event = serde_json::from_value(record.clone()).unwrap();
+            assert_eq!(serde_json::to_value(event).unwrap(), record);
+        }
+    }
+
+    #[test]
     fn extension_measurements_and_results_preserve_json_values() {
         for outcome in [
             serde_json::json!(null),
             serde_json::json!(true),
             serde_json::json!(-3),
             serde_json::json!(0.25),
-            serde_json::json!("custom"),
             serde_json::json!([1, null, {"value": false}]),
-            serde_json::json!({"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}),
+            serde_json::json!({"kind": 1, "tag": 42, "data": [true, null]}),
         ] {
             let value =
                 serde_json::json!({"kind": "FutureResult", "result_id": 42, "outcome": outcome});
@@ -618,11 +658,7 @@ mod tests {
             serde_json::json!({"nested": [MAX_SAFE_INTEGER + 1]}),
             serde_json::json!({"nested": [-((MAX_SAFE_INTEGER + 1) as i64)]}),
         ] {
-            let event = Event::FutureResult {
-                result_id: 42,
-                outcome: value.clone(),
-            };
-            assert!(serde_json::to_value(event).is_err());
+            assert!(FutureResultValue::try_from(value.clone()).is_err());
             assert!(
                 serde_json::from_value::<Event>(
                     serde_json::json!({"kind": "FutureResult", "result_id": 42, "outcome": value})
@@ -684,7 +720,12 @@ mod tests {
         }
         let event = Event::FutureResult {
             result_id: 42,
-            outcome: serde_json::json!({"invalid": [MAX_SAFE_INTEGER + 1]}),
+            outcome: FutureResultValue::Object(BTreeMap::from([(
+                "invalid".into(),
+                FutureResultValue::Array(vec![FutureResultValue::Number(
+                    (MAX_SAFE_INTEGER + 1).into(),
+                )]),
+            )])),
         };
         assert!(serde_json::to_value(event).is_err());
         let trace = parse_trace_json(r#"{"schema_version":"0.1.0","events":[{"source":{"kind":"Runtime","start_time":0,"end_time":1},"event":{"kind":"Measurement","qubit":3}}]}"#).unwrap();

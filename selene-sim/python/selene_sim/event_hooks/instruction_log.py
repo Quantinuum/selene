@@ -26,7 +26,7 @@ from selene_core.trace import (
     CustomEvent,
 )
 
-from selene_formats.trace import Trace, JsonValue
+from selene_formats.trace import Trace, FutureResultValue
 
 from .event_hook import EventHook
 from .trace_store import ShotTrace, TraceStore
@@ -325,7 +325,7 @@ class FutureRead(Operation):
 @dataclass
 class FutureResult(Operation):
     result_id: int
-    outcome: JsonValue
+    outcome: FutureResultValue
 
     def append_to_circuit(self, circuit: "pytket.Circuit"):
         pass

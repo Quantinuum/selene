@@ -388,7 +388,7 @@ def test_extension_measurements_are_readable_but_not_interpreted_as_standard(tmp
     with pytest.raises(ValueError, match="Unsupported measurement type"):
         list(extractor.shots[0])
 
-    outcome = {"value": [True, None, "unknown"]}
+    outcome = {"value": [True, None, 7]}
     result_path = tmp_path / "result.msgpack.gz"
     write_trace_stream(
         result_path,

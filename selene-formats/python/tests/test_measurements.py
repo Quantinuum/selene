@@ -11,6 +11,7 @@ from selene_formats.trace import (
     EventRecord,
     FutureReadEvent,
     FutureResultEvent,
+    FutureResultValue,
     MeasurementEvent,
     RuntimeSource,
     UserProgramSource,
@@ -32,6 +33,8 @@ from selene_formats.trace_stream import iter_trace_stream, write_trace_stream
         (True, True),
         (1.0, True),
         (None, True),
+        ([True, 0.5, None], True),
+        ({"value": [1, False, {"units": 2}]}, True),
         ("unknown", True),
         ([True, 0.5, None, "value"], True),
         ({"value": [1, False, {"units": "custom"}]}, True),
@@ -225,11 +228,13 @@ def test_open_measurement_types(measurement_type, valid):
         True,
         -3,
         0.25,
-        "custom",
-        [1, None, {"value": False}],
+        "text",
+        "0",
         {"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"},
-        {"nested": {"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}},
-        {"__proto__": {"x": 1}, "constructor": "value"},
+        [1, None, {"value": False}],
+        {"kind": 1, "tag": 42, "data": [True, None]},
+        {"nested": {"kind": 1, "tag": 42, "data": [True, None]}},
+        {"__proto__": {"x": 1}, "constructor": True},
     ],
 )
 def test_extension_values_survive_json_and_streams(tmp_path, outcome):
@@ -264,3 +269,52 @@ def test_outcome_is_required_even_though_null_is_valid():
     with pytest.raises(ValidationError):
         FutureResultEvent.model_validate({"result_id": 42})
     assert FutureResultEvent(result_id=42, outcome=None).model_dump()["outcome"] is None
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    ["0", "text", ["text"], {"value": "text"}, {"value": [1, {"nested": "text"}]}],
+)
+def test_string_values_survive_models_json_and_streams(tmp_path, outcome):
+    import gzip
+    import msgpack
+
+    record = {
+        "source": {"kind": "Runtime", "start_time": 0, "end_time": 0},
+        "event": {"kind": "FutureResult", "result_id": 42, "outcome": outcome},
+    }
+    document = {"schema_version": SCHEMA_VERSION, "events": [record]}
+    assert Draft202012Validator(get_trace_schema()).is_valid(document)
+    assert FutureResultEvent(result_id=42, outcome=outcome).outcome == outcome
+    assert parse_trace(document).events[0].event.outcome == outcome
+    path = tmp_path / "strings.msgpack.gz"
+    objects = [
+        {
+            "format": "selene.trace.msgpack",
+            "format_version": 1,
+            "schema_version": SCHEMA_VERSION,
+        },
+        record,
+        None,
+    ]
+    path.write_bytes(gzip.compress(b"".join(msgpack.packb(value) for value in objects)))
+    assert list(iter_trace_stream(path))[0].event.outcome == outcome
+
+
+def test_non_measurement_future_results_round_trip(tmp_path):
+    value = {"ready": True, "values": [7, None, 0.5]}
+    assert TypeAdapter(FutureResultValue).validate_python(value) == value
+    records = [
+        EventRecord(
+            source=UserProgramSource(index=0), event=FutureReadEvent(result_id=123)
+        ),
+        EventRecord(
+            source=RuntimeSource(start_time=0, end_time=0),
+            event=FutureResultEvent(result_id=123, outcome=value),
+        ),
+    ]
+    trace = Trace(schema_version=SCHEMA_VERSION, events=records)
+    assert parse_trace(json.loads(trace.model_dump_json())) == trace
+    path = tmp_path / "runtime-future.msgpack.gz"
+    write_trace_stream(path, records)
+    assert list(iter_trace_stream(path)) == records

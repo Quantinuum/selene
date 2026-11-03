@@ -119,9 +119,9 @@ const FutureReadEventSchema = z.object({
 export type FutureReadEvent = z.infer<typeof FutureReadEventSchema>;
 export type FutureReadEventInput = z.input<typeof FutureReadEventSchema>;
 
-/** A JSON value whose numbers obey the protocol's finite, safe-integer bounds. */
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-function isJsonValue(value: unknown, ancestors = new Set<object>()): value is JsonValue {
+/** A runtime future result with string, numeric, boolean, null, array, or object values. */
+export type FutureResultValue = string | number | boolean | null | FutureResultValue[] | { [key: string]: FutureResultValue };
+function isFutureResultValue(value: unknown, ancestors = new Set<object>()): value is FutureResultValue {
   if (value === null || typeof value === "string" || typeof value === "boolean") return true;
   if (typeof value === "number") {
     return Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value));
@@ -132,19 +132,19 @@ function isJsonValue(value: unknown, ancestors = new Set<object>()): value is Js
   ancestors.add(value);
   try {
     const children = Array.isArray(value) ? Array.from(value) : Object.values(value);
-    return children.every((child) => isJsonValue(child, ancestors));
+    return children.every((child) => isFutureResultValue(child, ancestors));
   } finally {
     ancestors.delete(value);
   }
 }
 
-function cloneJsonValue(value: JsonValue): JsonValue {
-  if (Array.isArray(value)) return value.map(cloneJsonValue);
+function cloneFutureResultValue(value: FutureResultValue): FutureResultValue {
+  if (Array.isArray(value)) return value.map(cloneFutureResultValue);
   if (value !== null && typeof value === "object") {
-    const result: { [key: string]: JsonValue } = {};
+    const result: { [key: string]: FutureResultValue } = {};
     for (const [key, child] of Object.entries(value)) {
       Object.defineProperty(result, key, {
-        value: cloneJsonValue(child), enumerable: true, configurable: true, writable: true,
+        value: cloneFutureResultValue(child), enumerable: true, configurable: true, writable: true,
       });
     }
     return result;
@@ -152,15 +152,15 @@ function cloneJsonValue(value: JsonValue): JsonValue {
   return value;
 }
 
-const JsonValueSchema: z.ZodType<JsonValue, JsonValue> = z.custom<JsonValue>(
-  (value) => isJsonValue(value),
-  { message: "Expected a JSON value with finite, safe-integer numbers" },
-).transform(cloneJsonValue);
+const FutureResultValueSchema: z.ZodType<FutureResultValue, FutureResultValue> = z.custom<FutureResultValue>(
+  (value) => isFutureResultValue(value),
+  { message: "Expected a future result value with finite, safe-integer numbers" },
+).transform(cloneFutureResultValue);
 
 const FutureResultEventSchema = z.object({
   kind: z.literal("FutureResult"),
   result_id: SafeUIntSchema,
-  outcome: JsonValueSchema,
+  outcome: FutureResultValueSchema,
 });
 export type FutureResultEvent = z.infer<typeof FutureResultEventSchema>;
 export type FutureResultEventInput = z.input<typeof FutureResultEventSchema>;

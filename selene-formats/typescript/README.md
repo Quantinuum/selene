@@ -9,12 +9,17 @@ JSON schema support:
 - Parsing helpers read `0.1.0`, `0.2.0`, and versionless legacy traces, normalizing
   them to the current model.
 - Versioned models and JSON output use `0.2.0`.
-- Measurement types are non-empty strings, and outcomes can be JSON values of
-  any shape within the protocol's numeric bounds. Parsing and serialization
-  preserve unfamiliar types and outcomes; interpretation requires type-specific
-  support.
+- Measurement types are non-empty strings. `FutureResultValue` accepts strings,
+  numbers, booleans, nulls, arrays, and objects within the protocol's numeric
+  bounds. Object keys are strings, and values follow these rules recursively.
+  Parsing and serialization preserve unfamiliar types and supported result
+  shapes; interpretation requires type-specific support.
 - Explicit legacy output is supported for traces without `FutureRead` or
   `FutureResult` events. Collections have no legacy format.
+
+`FutureRead` and `FutureResult` describe runtime future reads in general.
+Measurement futures can be linked to their `Measurement` event and qubit through
+`result_id`. Other runtime futures do not require a measurement or qubit reference.
 
 See [package and schema compatibility](../docs/versioning.md) for support by
 package release.

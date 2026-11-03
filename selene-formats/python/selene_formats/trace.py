@@ -122,7 +122,7 @@ __all__ = [
     "LegacyTrace",
     "MeasurementEvent",
     "MeasurementType",
-    "JsonValue",
+    "FutureResultValue",
     "FutureReadEvent",
     "FutureResultEvent",
     "OpaquePayload",
@@ -190,20 +190,27 @@ class GateEvent(AbstractEvent):
 
 MeasurementType = Annotated[str, Field(strict=True, min_length=1)]
 if TYPE_CHECKING:
-    JsonValue: TypeAlias = (
-        str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+    FutureResultValue: TypeAlias = (
+        str
+        | int
+        | float
+        | bool
+        | None
+        | list["FutureResultValue"]
+        | dict[str, "FutureResultValue"]
     )
 else:
-    JsonValue = TypeAliasType(
-        "JsonValue",
+    FutureResultValue = TypeAliasType(
+        "FutureResultValue",
         Annotated[str, Field(strict=True)]
         | JsonSafeInt
         | JsonSafeFloat
         | StrictBool
         | None
-        | Annotated[list["JsonValue"], Field(strict=True)]
+        | Annotated[list["FutureResultValue"], Field(strict=True)]
         | Annotated[
-            dict[Annotated[str, Field(strict=True)], "JsonValue"], Field(strict=True)
+            dict[Annotated[str, Field(strict=True)], "FutureResultValue"],
+            Field(strict=True),
         ],
     )
 
@@ -223,7 +230,7 @@ class FutureReadEvent(AbstractEvent):
 class FutureResultEvent(AbstractEvent):
     kind: Literal["FutureResult"] = "FutureResult"
     result_id: JsonSafeUInt
-    outcome: JsonValue
+    outcome: FutureResultValue
 
 
 class ResetEvent(AbstractEvent):

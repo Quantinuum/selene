@@ -497,10 +497,11 @@ test("FutureRead preserves result identity and requires the current schema", () 
 
 
 test("extension measurement types and JSON outcomes survive round trips", () => {
-  for (const outcome of [null, true, -3, 0.25, "custom", [1, null, { value: false }],
+  for (const outcome of [null, true, -3, 0.25, "text", "0", [1, null, { value: false }],
     { kind: "OpaquePayload", tag: "arbitrary", data: "literal" },
-    { nested: { kind: "OpaquePayload", tag: "arbitrary", data: "literal" } },
-    JSON.parse('{"__proto__":{"x":1},"constructor":"value"}'),
+    { kind: 1, tag: 42, data: [true, null] },
+    { nested: { kind: 1, tag: 42, data: [true, null] } },
+    JSON.parse('{"__proto__":{"x":1},"constructor":true}'),
     JSON.parse('{"__proto__":false,"__selene_proto__":1}'),
   ]) {
     const events = [
@@ -532,4 +533,28 @@ test("JSON outcomes reject cycles and sparse arrays", () => {
   }
   const json = '{"schema_version":"0.2.0","events":[{"source":{"kind":"Runtime","start_time":0,"end_time":1},"event":{"kind":"FutureResult","result_id":42,"outcome":{"__pr\\u006fto__":true}}}]}';
   assert.deepEqual(trace.parseTraceJson(json).events[0].event.outcome, JSON.parse('{"__proto__":true}'));
+});
+
+
+test("FutureResultValue preserves string values at every depth", () => {
+  for (const outcome of ["0", "text", ["text"], { value: "text" }, { value: [1, { nested: "text" }] }]) {
+    const document = { schema_version: trace.SCHEMA_VERSION, events: [{
+      source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome },
+    }] };
+    const parsed = trace.parseTrace(document);
+    assert.deepEqual(trace.serializeTrace(parsed), document);
+    assert.deepEqual(trace.serializeTrace(trace.parseTraceJson(JSON.stringify(document))), document);
+  }
+});
+
+
+test("non-measurement future reads and results round trip", () => {
+  const records = [
+    { source: { kind: "UserProgram", index: 0 }, event: { kind: "FutureRead", result_id: 123 } },
+    { source: { kind: "Runtime", start_time: 0, end_time: 0 }, event: { kind: "FutureResult", result_id: 123, outcome: { ready: true, values: [7, null, 0.5] } } },
+  ];
+  const document = trace.createTrace(records);
+  assert.deepEqual(trace.serializeTrace(document).events, records);
+  assert.deepEqual(trace.parseTraceJson(JSON.stringify(trace.serializeTrace(document))), document);
 });

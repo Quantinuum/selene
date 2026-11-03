@@ -438,12 +438,76 @@ mod tests {
     use crate::trace::{CustomPayload, Event, GateParameter, Source};
 
     #[test]
-    fn arbitrary_outcome_objects_are_not_decoded_as_opaque_payloads() {
+    fn non_measurement_future_results_round_trip() {
+        let outcome = crate::trace::FutureResultValue::try_from(
+            serde_json::json!({"ready": true, "values": [7, null, 0.5]}),
+        )
+        .unwrap();
+        let records = vec![
+            EventRecord {
+                source: Source::UserProgram { index: 0 },
+                event: Event::FutureRead { result_id: 123 },
+            },
+            EventRecord {
+                source: Source::Runtime {
+                    start_time: 0,
+                    end_time: 0,
+                },
+                event: Event::FutureResult {
+                    result_id: 123,
+                    outcome,
+                },
+            },
+        ];
+        let mut writer = TraceStreamWriter::new(Vec::new());
+        writer.write_events(&records).unwrap();
+        let data = writer.finish().unwrap();
+        assert_eq!(
+            TraceStreamReader::new(data.as_slice())
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>()
+                .unwrap(),
+            records
+        );
+    }
+
+    #[test]
+    fn string_future_result_values_round_trip_in_streams() {
         for outcome in [
-            serde_json::json!({"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}),
-            serde_json::json!({"nested": {"kind": "OpaquePayload", "tag": "arbitrary", "data": "literal"}}),
+            serde_json::json!("text"),
+            serde_json::json!(["text"]),
+            serde_json::json!({"nested": "text"}),
+        ] {
+            let record = serde_json::json!({"source": {"kind": "Runtime", "start_time": 0, "end_time": 0}, "event": {"kind": "FutureResult", "result_id": 42, "outcome": outcome}});
+            let mut bytes = rmp_serde::to_vec_named(&header()).unwrap();
+            bytes.extend(rmp_serde::to_vec_named(&record).unwrap());
+            bytes.push(0xc0);
+            let data = compress(&bytes);
+            let records = TraceStreamReader::new(data.as_slice())
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>()
+                .unwrap();
+            assert_eq!(serde_json::to_value(&records[0]).unwrap(), record);
+            let mut writer = TraceStreamWriter::new(Vec::new());
+            writer.write_events(&records).unwrap();
+            let written = writer.finish().unwrap();
+            assert_eq!(
+                TraceStreamReader::new(written.as_slice())
+                    .unwrap()
+                    .collect::<io::Result<Vec<_>>>()
+                    .unwrap(),
+                records
+            );
+        }
+    }
+
+    #[test]
+    fn structured_future_result_values_round_trip() {
+        for outcome in [
+            serde_json::json!({"kind": 1, "tag": 42, "data": [true, null]}),
+            serde_json::json!({"nested": {"kind": 1, "tag": 42, "data": [true, null]}}),
             serde_json::json!([true, null, {"value": 0.25}]),
-            serde_json::json!({"__proto__": {"x": 1}, "constructor": "value"}),
+            serde_json::json!({"__proto__": {"x": 1}, "constructor": true}),
         ] {
             let events = vec![
                 EventRecord {
@@ -466,7 +530,7 @@ mod tests {
                     },
                     event: Event::FutureResult {
                         result_id: 42,
-                        outcome,
+                        outcome: outcome.try_into().unwrap(),
                     },
                 },
             ];
