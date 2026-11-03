@@ -2049,7 +2049,7 @@ dev = [{ name = "qir-qis", specifier = "~=0.1.10" }]
 
 [[package]]
 name = "selene-formats"
-version = "0.1.2"
+version = "0.2.0"
 source = { editable = "selene-formats" }
 dependencies = [
     { name = "msgpack" },
