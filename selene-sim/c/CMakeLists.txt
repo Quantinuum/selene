@@ -28,6 +28,11 @@ install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+# The public borrow API uses the endpoint and runtime types from selene-core.
+install(DIRECTORY ../../selene-core/c/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
 # Install the interface target (this now works!)
 install(
     TARGETS Selene

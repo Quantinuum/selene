@@ -1,0 +1,18 @@
+[package]
+name = "selene-threaded-runtime"
+rust-version.workspace = true
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+
+[lib]
+name = "selene_threaded_runtime"
+path = "rust/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow.workspace = true
+selene-core = { path = "../../../selene-core" }
+
+[dev-dependencies]
+selene-simple-runtime = { path = "../simple" }

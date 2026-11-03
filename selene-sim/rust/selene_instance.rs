@@ -1,4 +1,7 @@
 use anyhow::Result;
+use parking_lot::Mutex;
+use selene_core::runtime::RuntimeInstruction;
+use std::sync::Arc;
 
 pub mod configuration;
 pub mod metadata;
@@ -15,18 +18,38 @@ use selene_core::encoder::OutputStream;
 pub struct SeleneInstance {
     pub config: Configuration,
     pub emulator: Emulator,
-    pub out_encoder: OutputStream,
-    pub time_cursor: u64,
+    pub out_encoder: Arc<Mutex<OutputStream>>,
     pub shot_number: u64,
-    pub prng: Option<Pcg32>,
+    pub prng: Mutex<Option<Pcg32>>,
+    pub(crate) state_dump_lock: Mutex<()>,
 }
 
 impl SeleneInstance {
+    pub fn time_cursor(&self) -> Result<u64> {
+        self.emulator
+            .runtime
+            .handle_instruction(RuntimeInstruction::GetTimeCursor)?
+            .into_u64()?
+            .ok_or_else(|| anyhow::anyhow!("Runtime returned an unavailable time cursor"))
+    }
+    pub fn set_time_cursor(&self, value: u64) -> Result<()> {
+        self.emulator
+            .runtime
+            .handle_instruction(RuntimeInstruction::SetTimeCursor { time_cursor: value })?
+            .into_unit()
+    }
+
     /// Create a new Selene simulator instance from the provided configuration,
     /// e.g. loaded from a config file.
     pub fn new(config: Configuration) -> Result<Self> {
-        let mut out_encoder = OutputStream::new(config.get_output_writer());
-        let emulator = match Emulator::from_configuration(&config) {
+        let out_encoder = OutputStream::new(config.get_output_writer());
+        let out_encoder = Arc::new(Mutex::new(out_encoder));
+        let output = selene_core::runtime::output::OutputSinkHandle {
+            context: Arc::as_ptr(&out_encoder).cast_mut().cast(),
+            write_fn: Some(print::write_output),
+            flush_fn: Some(print::flush_output),
+        };
+        let emulator = match Emulator::from_configuration(&config, output) {
             Ok(emulator) => emulator,
             Err(e) => {
                 // Note: with the current API design, the out_encoder is locally scoped and owned
@@ -40,7 +63,7 @@ impl SeleneInstance {
                 // Avoiding an API break for now, we write the error to the stream here before returning.
                 eprintln!("Failed to initialize SeleneInstance: {:?}", e);
                 print::print_directly_to_stream(
-                    &mut out_encoder,
+                    &mut out_encoder.lock(),
                     0,
                     "EXIT:INT:Failed during initialization of emulator components",
                     190000u64,
@@ -53,18 +76,21 @@ impl SeleneInstance {
             config,
             emulator,
             out_encoder,
-            time_cursor: 0,
             shot_number: shot_offset,
-            prng: None,
+            prng: Mutex::new(None),
+            state_dump_lock: Mutex::new(()),
         })
     }
 
     /// Upon termination of the simulator instance, we signal to the output stream
     /// that we are closing out gracefully, and flush all remaining data.
     pub fn exit(&mut self) -> Result<()> {
-        self.out_encoder.end_of_stream()?;
-        self.flush_output()?;
-        Ok(())
+        let emulator = self.emulator.exit();
+        let output = self.out_encoder.lock().end_of_stream();
+        let flushed = self.flush_output();
+        emulator?;
+        output?;
+        flushed
     }
 
     /// Start a new shot, with a monatonically increasing shot index.
@@ -102,13 +128,16 @@ impl SeleneInstance {
     /// stored metadata, and informing event hooks that the shot
     /// has ended.
     pub fn shot_end(&mut self) -> Result<()> {
-        // Emit any metrics before plugins are invoked with shot_end.
-        // This ensures that metrics reflect the state of the shot
-        // up to this point.
-        if self.config.event_hooks.provide_metrics {
-            self.write_metrics()?;
-        }
-        self.emulator.shot_end()?;
+        // The emulator collects plugin metrics after the runtime hands back
+        // the endpoint, before ending the simulator and error-model shots.
+        let ended = self.emulator.shot_end();
+        let metrics = if self.config.event_hooks.provide_metrics {
+            self.write_metrics()
+        } else {
+            Ok(())
+        };
+        ended?;
+        metrics?;
         self.write_metadata()?;
         self.print_shot_end()?;
         Ok(())

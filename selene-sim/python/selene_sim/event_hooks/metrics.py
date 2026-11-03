@@ -10,6 +10,11 @@ including:
     - Custom metrics reported by the runtime plugin
     - Custom metrics reported by the error model plugin
     - Custom metrics reported by the simulator plugin
+
+For concurrent programs, user_program:max_allocated is approximate because
+libselene records calls as they return, which can differ from the runtime's
+acceptance order. Counts of individual calls are unaffected. At shot end,
+currently_allocated is the total number of allocations minus frees.
 """
 
 from .event_hook import EventHook

@@ -5,7 +5,6 @@ use selene_core::runtime::{self, BatchOperation};
 #[derive(Default, Debug)]
 struct UserProgramMetrics {
     max_allocated: u64,
-    currently_allocated: u64,
     qalloc_count: u64,
     qfree_count: u64,
     reset_count: u64,
@@ -20,16 +19,21 @@ struct UserProgramMetrics {
 }
 
 impl UserProgramMetrics {
+    fn currently_allocated(&self) -> u64 {
+        // Concurrent calls can reach this hook in a different order from the
+        // runtime. Keep both totals so an early free can't underflow, and a
+        // later allocation still brings the balance back to the right value.
+        self.qalloc_count.saturating_sub(self.qfree_count)
+    }
+
     pub fn update(&mut self, operation: &Operation) {
         match operation {
             Operation::QAlloc(_) => {
                 self.qalloc_count += 1;
-                self.currently_allocated += 1;
-                self.max_allocated = self.max_allocated.max(self.currently_allocated);
+                self.max_allocated = self.max_allocated.max(self.currently_allocated());
             }
             Operation::QFree(_) => {
                 self.qfree_count += 1;
-                self.currently_allocated -= 1;
             }
             Operation::Reset(_) => self.reset_count += 1,
             Operation::MeasureRequest(_) => self.measure_request_count += 1,
@@ -104,7 +108,7 @@ impl UserProgramMetrics {
         )?;
         encoder.add_record(
             Record::new(time_cursor, "METRICS:INT:user_program:currently_allocated")?
-                .add_entry(self.currently_allocated)?,
+                .add_entry(self.currently_allocated())?,
         )
     }
 }
@@ -320,4 +324,44 @@ impl EventHook for HighLevelMetrics {
         self.post_runtime_metrics = PostRuntimeMetrics::default();
     }
     fn on_shot_end(&mut self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allocation_counts_recover_when_a_free_is_recorded_before_its_allocation() {
+        let mut metrics = UserProgramMetrics::default();
+        metrics.update(&Operation::QFree(0));
+        assert_eq!(metrics.currently_allocated(), 0);
+        metrics.update(&Operation::QAlloc(0));
+        assert_eq!(metrics.currently_allocated(), 0);
+
+        // We shouldn't forget the early free by clamping a running counter.
+        // After another allocation there is just one live qubit, not two.
+        metrics.update(&Operation::QAlloc(0));
+        assert_eq!(metrics.currently_allocated(), 1);
+        assert_eq!(metrics.max_allocated, 1);
+        metrics.update(&Operation::QFree(0));
+        assert_eq!(metrics.currently_allocated(), 0);
+        assert_eq!(metrics.qalloc_count, 2);
+        assert_eq!(metrics.qfree_count, 2);
+    }
+
+    #[test]
+    fn peak_allocation_follows_the_order_observed_by_the_hook() {
+        let mut metrics = UserProgramMetrics::default();
+        metrics.update(&Operation::QAlloc(0));
+        // The runtime freed qubit 0 before allocating it again, but we recorded
+        // the second allocation before that free. We therefore see a peak of
+        // two, even though the runtime only had one live qubit at a time. The
+        // final balance and the individual call counts should still agree.
+        metrics.update(&Operation::QAlloc(0));
+        metrics.update(&Operation::QFree(0));
+        assert_eq!(metrics.max_allocated, 2);
+        assert_eq!(metrics.currently_allocated(), 1);
+        assert_eq!(metrics.qalloc_count, 2);
+        assert_eq!(metrics.qfree_count, 1);
+    }
 }

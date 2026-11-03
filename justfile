@@ -50,23 +50,31 @@ generate-selene-core-headers:
       --output selene-core/c/include/selene/core_types.h
 
     cbindgen \
-      --config selene-core/cbindgen/error_model.toml \
+      --config selene-core/cbindgen/operations.toml \
       --crate selene-core \
-      --output selene-core/c/include/selene/error_model.h
+      --output selene-core/c/include/selene/operations.h
 
     cbindgen \
-      --config selene-core/cbindgen/simulator.toml \
+      --config selene-core/cbindgen/runtime/v0_3.toml \
       --crate selene-core \
-      --output selene-core/c/include/selene/simulator.h
+      --output selene-core/c/include/selene/runtime/v0_3.h
 
     cbindgen \
-      --config selene-core/cbindgen/runtime.toml \
+      --config selene-core/cbindgen/error_model/v0_3.toml \
       --crate selene-core \
-      --output selene-core/c/include/selene/runtime.h
+      --output selene-core/c/include/selene/error_model/v0_3.h
 
-generate-headers:
-    just generate-selene-core-headers
-    just generate-selene-sim-headers
+    cbindgen \
+      --config selene-core/cbindgen/simulator/v0_1.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/simulator/v0_1.h
+
+    cbindgen \
+      --config selene-core/cbindgen/runtime/v0_4.toml \
+      --crate selene-core \
+      --output selene-core/c/include/selene/runtime/v0_4.h
+
+generate-headers: generate-selene-core-headers generate-selene-sim-headers
 
 generate-selene-sim-headers:
     cbindgen \

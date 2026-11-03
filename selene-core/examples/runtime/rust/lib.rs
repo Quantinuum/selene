@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
 
 use anyhow::{bail, Result};
+use selene_core::runtime::v0_3::export_runtime_plugin;
 use selene_core::{
-    export_runtime_plugin,
-    runtime::{interface::RuntimeInterfaceFactory, BatchOperation, Operation, RuntimeInterface},
+    runtime::v0_3::{interface::RuntimeInterfaceFactory, BatchOperation, Operation, RuntimeInterface},
     utils::MetricValue,
 };
 
