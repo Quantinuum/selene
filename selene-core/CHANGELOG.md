@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.3...selene-core-v0.3.4) (2026-11-03)
+
+
+### Bug Fixes
+
+* handle BitcodeString wrapper in QIR-QIS conversion ([#273](https://github.com/Quantinuum/selene/issues/273)) ([81b9e5f](https://github.com/Quantinuum/selene/commit/81b9e5fbfa6c4c91efd5342942d4ff0c5e75bd39))
+
 ## [0.3.3](https://github.com/Quantinuum/selene/compare/selene-core-v0.3.2...selene-core-v0.3.3) (2026-10-16)
 
 
