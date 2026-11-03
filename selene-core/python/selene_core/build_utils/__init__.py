@@ -4,7 +4,7 @@ import pathlib
 from .types import ArtifactKind, Artifact, Step, LibDep, BuildCtx  # noqa: F401
 from .planner import BuildPlanner
 from .builtins import register_builtins
-from .utils import invoke_zig  # noqa: F401
+from .utils import compile_object, link_executable  # noqa: F401
 from .symbols import (
     SymbolTable,  # noqa: F401
     get_symbols_from_object,  # noqa: F401
