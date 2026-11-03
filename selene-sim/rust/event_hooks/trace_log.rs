@@ -2,7 +2,8 @@ use super::{EventHook, Operation};
 use selene_core::encoder::{OutputStream, OutputStreamError, Record};
 use selene_core::runtime::BatchOperation;
 use selene_formats::trace::{
-    CustomPayload, Event, EventRecord, GateParameter, MeasurementType, Source,
+    CustomPayload, Event, EventRecord, FutureResultValue, GateParameter, MAX_SAFE_INTEGER,
+    MeasurementType, Source,
 };
 use selene_formats::trace_stream::{
     BatchTiming, MeasurementOperation, TraceStreamEvent, TraceStreamRecord, TraceStreamWriter,
@@ -233,7 +234,11 @@ impl EventHook for TraceLog {
                     },
                     event: Event::FutureResult {
                         result_id,
-                        outcome: outcome.into(),
+                        outcome: if outcome <= MAX_SAFE_INTEGER {
+                            outcome.into()
+                        } else {
+                            FutureResultValue::String(outcome.to_string())
+                        },
                     },
                 },
                 instruction: None,
@@ -406,6 +411,34 @@ mod tests {
                 outcome
             } if outcome.as_u64() == Some(1)
         ));
+    }
+
+    #[test]
+    fn full_width_future_results_survive_writing_and_reading() {
+        let directory = TestDirectory::new();
+        let mut log = TraceLog::new(directory.0.clone());
+        let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        let values = [0, MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, u64::MAX];
+        for value in values {
+            log.on_future_result(42, value);
+        }
+        log.write(0, &mut output).unwrap();
+        let trace = directory.read(0, 0);
+        for (record, value) in trace.events.iter().zip(values) {
+            let expected = if value <= MAX_SAFE_INTEGER {
+                value.into()
+            } else {
+                FutureResultValue::String(value.to_string())
+            };
+            assert_eq!(
+                record.event,
+                Event::FutureResult {
+                    result_id: 42,
+                    outcome: expected,
+                }
+            );
+        }
+        assert_eq!(trace.events.len(), values.len());
     }
 
     #[test]
