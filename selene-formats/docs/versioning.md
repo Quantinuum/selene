@@ -30,7 +30,7 @@ Schema `0.2.0` supports additional Selene measurement types and structured futur
 New measurement types and result shapes within that contract can be introduced
 without changing the schema version. The bindings preserve unfamiliar types and
 outcomes when reading or writing.
-See the [measurement contract](trace/0.2.0.md#measurements-and-future-results).
+See the [measurement contract](traces.md#measurements-and-future-results).
 
 For MessagePack stream headers and transport versions, see
 [trace streams](../README.md#trace-streams).

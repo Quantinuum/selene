@@ -13,8 +13,8 @@ adapter; use `selene_formats.trace.Trace` for versioned output.
 
 | API | Version | Schema | Semantics |
 | --- | --- | --- | --- |
-| Trace documents (`Trace` and `Traces`) | 0.2.0 | [`schemas/trace/0.2.0.schema.json`](schemas/trace/0.2.0.schema.json) | [`docs/trace/0.2.0.md`](docs/trace/0.2.0.md) |
-| Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [`docs/trace/legacy.md`](docs/trace/legacy.md) |
+| Trace documents (`Trace` and `Traces`) | 0.2.0 | [`schemas/trace/0.2.0.schema.json`](schemas/trace/0.2.0.schema.json) | [Trace protocol](docs/traces.md#version-020) |
+| Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [Legacy format](docs/traces.md#legacy-versionless) |
 
 Schemas are also published at their canonical `$id` URLs:
 
