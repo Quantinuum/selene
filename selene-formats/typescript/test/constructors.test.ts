@@ -23,3 +23,9 @@ if (result.success) {
 }
 // @ts-expect-error Schemas are internal to the package.
 trace.TraceSchema;
+
+
+const numericOutcome: trace.FutureResultValue = 1;
+const structuredOutcome: trace.FutureResultValue = { result: [true, null, 0.5] };
+const stringOutcome: trace.FutureResultValue = "text";
+const nestedStringOutcome: trace.FutureResultValue = { result: ["text"] };

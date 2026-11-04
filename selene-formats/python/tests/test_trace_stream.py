@@ -48,7 +48,7 @@ def header():
     return {
         "format": FORMAT,
         "format_version": FORMAT_VERSION,
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
     }
 
 
@@ -241,7 +241,7 @@ def test_failed_producer_cannot_leave_a_valid_stream(tmp_path):
 @pytest.mark.parametrize("compressed", [False, True])
 def test_json_is_not_a_trace_stream(tmp_path, compressed):
     path = tmp_path / "not-a-stream"
-    contents = json.dumps({"schema_version": "0.1.0", "events": []}).encode()
+    contents = json.dumps({"schema_version": "0.2.0", "events": []}).encode()
     path.write_bytes(gzip.compress(contents) if compressed else contents)
     with pytest.raises(ValueError):
         list(iter_trace_stream(path))

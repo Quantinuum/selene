@@ -268,7 +268,7 @@
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
-      "qubit": 0
+      "result_id": 0
     }
   },
   {
@@ -840,7 +840,7 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "FutureRead",
+      "op": "MeasureRequest",
       "qubit": 0
     }
   },
@@ -860,10 +860,18 @@
     }
   },
   {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "FutureResult",
+      "result_id": 0,
+      "outcome": 0
+    }
+  },
+  {
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
-      "qubit": 1
+      "result_id": 1
     }
   },
   {
@@ -877,7 +885,7 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "FutureRead",
+      "op": "MeasureRequest",
       "qubit": 1
     }
   },
@@ -897,10 +905,18 @@
     }
   },
   {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "FutureResult",
+      "result_id": 1,
+      "outcome": 1
+    }
+  },
+  {
     "source": "Source.USER",
     "operation": {
       "op": "FutureRead",
-      "qubit": 2
+      "result_id": 2
     }
   },
   {
@@ -914,7 +930,7 @@
   {
     "source": "Source.OPTIMISER",
     "operation": {
-      "op": "FutureRead",
+      "op": "MeasureRequest",
       "qubit": 2
     }
   },
@@ -931,6 +947,14 @@
       "op": "MeasureRequest",
       "qubit": 2,
       "duration_ns": 0
+    }
+  },
+  {
+    "source": "Source.OPTIMISER",
+    "operation": {
+      "op": "FutureResult",
+      "result_id": 2,
+      "outcome": 1
     }
   }
 ]

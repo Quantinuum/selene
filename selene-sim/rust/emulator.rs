@@ -238,14 +238,14 @@ impl Emulator {
     pub fn user_issued_lazy_measure(&mut self, q0: u64) -> Result<u64> {
         let result_id = self.runtime.measure(q0)?;
         self.event_hooks
-            .on_user_call(&Operation::MeasureRequest(q0));
+            .on_user_call(&Operation::MeasureRequest(q0, result_id));
         self.process_runtime()?;
         Ok(result_id)
     }
     pub fn user_issued_lazy_measure_leaked(&mut self, q0: u64) -> Result<u64> {
         let result_id = self.runtime.measure_leaked(q0)?;
         self.event_hooks
-            .on_user_call(&Operation::MeasureLeakedRequest(q0));
+            .on_user_call(&Operation::MeasureLeakedRequest(q0, result_id));
         self.process_runtime()?;
         Ok(result_id)
     }
@@ -264,8 +264,8 @@ impl Emulator {
     pub fn user_issued_read_future_bool(&mut self, result_id: u64) -> Result<bool> {
         self.event_hooks
             .on_user_call(&Operation::FutureRead(result_id));
-        match self.runtime.get_bool_result(result_id)? {
-            Some(value) => Ok(value),
+        let value = match self.runtime.get_bool_result(result_id)? {
+            Some(value) => value,
             None => {
                 self.runtime.force_result(result_id)?;
                 self.process_runtime()?;
@@ -274,15 +274,18 @@ impl Emulator {
                         "Future bool result not available after attempting to force it."
                     ));
                 };
-                Ok(result)
+                result
             }
-        }
+        };
+        self.event_hooks
+            .on_future_result(result_id, u64::from(value));
+        Ok(value)
     }
     pub fn user_issued_read_future_u64(&mut self, result_id: u64) -> Result<u64> {
         self.event_hooks
             .on_user_call(&Operation::FutureRead(result_id));
-        match self.runtime.get_u64_result(result_id)? {
-            Some(value) => Ok(value),
+        let value = match self.runtime.get_u64_result(result_id)? {
+            Some(value) => value,
             None => {
                 self.runtime.force_result(result_id)?;
                 self.process_runtime()?;
@@ -291,9 +294,11 @@ impl Emulator {
                         "Future u64 result not available after attempting to force it."
                     ));
                 };
-                Ok(result)
+                result
             }
-        }
+        };
+        self.event_hooks.on_future_result(result_id, value);
+        Ok(value)
     }
     pub fn custom_runtime_call(&mut self, tag: u64, data: &[u8]) -> Result<u64> {
         self.event_hooks

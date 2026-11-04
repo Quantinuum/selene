@@ -2,7 +2,7 @@ from textwrap import dedent
 import json
 
 from selene_sim.build import build
-from selene_sim.backends import Quest, SoftRZRuntime
+from selene_sim.backends import Quest, QuantumReplay, SoftRZRuntime
 from selene_sim.event_hooks import MetricStore, CircuitExtractor, MultiEventHook
 
 
@@ -52,7 +52,12 @@ def test_batching_behaviour(snapshot, compiled_guppy):
     }
 
     runner = build(llvm_file)
-    simulator = Quest(random_seed=561278)
+    # Fix measurement outcomes so snapshots are independent of platform RNGs.
+    simulator = QuantumReplay(
+        simulator=Quest(random_seed=561278),
+        measurements=[[False, True, False, True, False, False, False, False]],
+        resume_with_measurement=False,
+    )
 
     runtimes = {n: SoftRZRuntime(max_batch_size=n, **defaults) for n in (1, 2, 8)}
     metrics = {}

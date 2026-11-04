@@ -17,13 +17,16 @@ from typing import Any, Callable
 import math
 
 from selene_core.trace import (
-    Trace,
     GateEvent,
     MeasurementEvent,
+    FutureReadEvent,
+    FutureResultEvent,
     ResetEvent,
     OpaquePayload,
     CustomEvent,
 )
+
+from selene_formats.trace import Trace, FutureResultValue
 
 from .event_hook import EventHook
 from .trace_store import ShotTrace, TraceStore
@@ -306,19 +309,37 @@ class MeasureLeakedRequest(Operation):
 
 @dataclass
 class FutureRead(Operation):
-    qubit: int
+    result_id: int
 
     def append_to_circuit(self, circuit: "pytket.Circuit"):
-        # only use on the request to prevent duplicate reads
-        # becoming duplicate operations
         pass
 
     def to_dict(self) -> dict:
-        return {"op": "FutureRead", "qubit": self.qubit}
+        return {"op": "FutureRead", "result_id": self.result_id}
 
     @staticmethod
     def from_iterator(it: Iterator):
-        return FutureRead(qubit=next(it))
+        return FutureRead(result_id=next(it))
+
+
+@dataclass
+class FutureResult(Operation):
+    result_id: int
+    outcome: FutureResultValue
+
+    def append_to_circuit(self, circuit: "pytket.Circuit"):
+        pass
+
+    def to_dict(self) -> dict:
+        return {
+            "op": "FutureResult",
+            "result_id": self.result_id,
+            "outcome": self.outcome,
+        }
+
+    @staticmethod
+    def from_iterator(it: Iterator):
+        return FutureResult(next(it), next(it))
 
 
 @dataclass
@@ -537,13 +558,24 @@ class ShotInstructions:
                             f"No circuit instruction mapping for trace gate {name!r}"
                         )
                     operation = gates[name](*qubits, *params)
-                case MeasurementEvent(qubit=qubit):
+                case FutureReadEvent(result_id=result_id):
+                    operation = FutureRead(result_id)
+                case FutureResultEvent(
+                    result_id=result_id,
+                    outcome=outcome,
+                ):
+                    operation = FutureResult(result_id, outcome)
+                case MeasurementEvent(qubit=qubit, measurement_type=measurement_type):
+                    if measurement_type not in ("Standard", "Leaked"):
+                        raise ValueError(
+                            f"Unsupported measurement type {measurement_type!r} for circuit extraction"
+                        )
                     if record.instruction == "FutureRead":
                         operation = FutureRead(qubit)
                     elif record.instruction == "MeasureLeakedRequest":
                         operation = MeasureLeakedRequest(qubit)
-                    elif source == Source.OPTIMISER:
-                        operation = FutureRead(qubit)
+                    elif measurement_type == "Leaked":
+                        operation = MeasureLeakedRequest(qubit)
                     else:
                         operation = MeasureRequest(qubit)
                 case ResetEvent(qubit=qubit):
@@ -583,7 +615,11 @@ class ShotInstructions:
         return self._get_list_of_dicts(Source.OPTIMISER)
 
     def get_error_model_input(self) -> list[dict[Any, Any]]:
-        return self.get_optimiser_output()
+        return [
+            operation
+            for operation in self.get_optimiser_output()
+            if operation["op"] != "FutureResult"
+        ]
 
     def get_error_model_output(self) -> list[dict[Any, Any]]:
         return self._get_list_of_dicts(Source.ERROR_MODEL)

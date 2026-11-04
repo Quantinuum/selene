@@ -1,13 +1,12 @@
-/** TypeScript bindings for version 0.1.0 of the Selene trace protocol. */
+/** TypeScript bindings for version 0.2.0 of the Selene trace protocol. */
 
 import { z } from "zod";
 import {
-  isLosslessNumber,
+  LosslessNumber,
   parse as parseLosslessJson,
-  stringify as stringifyLosslessJson,
 } from "lossless-json";
 
-export const SCHEMA_VERSION = "0.1.0" as const;
+export const SCHEMA_VERSION = "0.2.0" as const;
 const SchemaVersionSchema = z.literal(SCHEMA_VERSION);
 export type SchemaVersion = z.infer<typeof SchemaVersionSchema>;
 
@@ -100,12 +99,71 @@ const GateEventSchema = z.object({
 export type GateEvent = z.infer<typeof GateEventSchema>;
 export type GateEventInput = z.input<typeof GateEventSchema>;
 
+const MeasurementTypeSchema = z.string().min(1);
+export type MeasurementType = z.infer<typeof MeasurementTypeSchema>;
+
 const MeasurementEventSchema = z.object({
   kind: z.literal("Measurement"),
   qubit: SafeUIntSchema,
+  measurement_type: MeasurementTypeSchema.default("Standard"),
+  result_id: SafeUIntSchema.nullable().default(null),
 });
 export type MeasurementEvent = z.infer<typeof MeasurementEventSchema>;
 export type MeasurementEventInput = z.input<typeof MeasurementEventSchema>;
+
+const FutureReadEventSchema = z.object({
+  kind: z.literal("FutureRead"),
+  result_id: SafeUIntSchema,
+});
+export type FutureReadEvent = z.infer<typeof FutureReadEventSchema>;
+export type FutureReadEventInput = z.input<typeof FutureReadEventSchema>;
+
+/** A runtime future result with string, numeric, boolean, null, array, or object values. */
+export type FutureResultValue = string | number | boolean | null | FutureResultValue[] | { [key: string]: FutureResultValue };
+function cloneFutureResultValue(value: unknown, ancestors = new Set<object>()): FutureResultValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value))) return value;
+  if (typeof value !== "object" || ancestors.has(value)) throw new TypeError("Invalid future result value");
+  const array = Array.isArray(value);
+  if (!array && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new TypeError("Expected a plain object");
+  if (Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError("Unexpected symbol properties");
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      const result: FutureResultValue[] = [];
+      for (let i = 0; i < value.length; i++) result[i] = cloneFutureResultValue(value[i], ancestors);
+      return result;
+    }
+    const result: { [key: string]: FutureResultValue } = {};
+    for (const [key, child] of Object.entries(value)) {
+      Object.defineProperty(result, key, {
+        value: cloneFutureResultValue(child, ancestors), enumerable: true, configurable: true, writable: true,
+      });
+    }
+    return result;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+const FutureResultValueSchema: z.ZodType<FutureResultValue, FutureResultValue> = z.custom<FutureResultValue>().transform(
+  (value, context) => {
+    try {
+      return cloneFutureResultValue(value);
+    } catch {
+      context.addIssue({ code: "custom", message: "Expected a future result value with finite, safe-integer numbers" });
+      return z.NEVER;
+    }
+  },
+);
+
+const FutureResultEventSchema = z.object({
+  kind: z.literal("FutureResult"),
+  result_id: SafeUIntSchema,
+  outcome: FutureResultValueSchema,
+});
+export type FutureResultEvent = z.infer<typeof FutureResultEventSchema>;
+export type FutureResultEventInput = z.input<typeof FutureResultEventSchema>;
 
 const ResetEventSchema = z.object({
   kind: z.literal("Reset"),
@@ -164,6 +222,8 @@ export type CustomEventInput = z.input<typeof CustomEventSchema>;
 const EventSchema = z.discriminatedUnion("kind", [
   GateEventSchema,
   MeasurementEventSchema,
+  FutureReadEventSchema,
+  FutureResultEventSchema,
   ResetEventSchema,
   CustomEventSchema,
 ]);
@@ -242,7 +302,6 @@ const LegacyTraceSchema = z.object({
 }).refine((value) => !("traces" in value), {
   message: "Versionless trace collections are not supported",
 });
-export type LegacyTrace = z.infer<typeof LegacyTraceSchema>;
 
 function constructorEvents(events: (EventRecordInput | EventRecord)[] = []) {
   return events.map((record) => {
@@ -268,6 +327,18 @@ export function createTrace(events: (EventRecordInput | EventRecord)[] = []): Tr
     schema_version: SCHEMA_VERSION,
     events: constructorEvents(events),
   });
+}
+
+/** Return a trace without custom events, preserving the remaining event order. */
+export function stripCustomEvents(trace: Trace): Trace {
+  return { ...trace, events: trace.events.filter(({ event }) => event.kind !== "Custom") };
+}
+
+/** Return a trace without opaque custom events, retaining structured metadata. */
+export function stripOpaqueCustomEvents(trace: Trace): Trace {
+  return { ...trace, events: trace.events.filter(({ event }) =>
+    event.kind !== "Custom" || event.payload.kind !== "OpaquePayload",
+  ) };
 }
 
 /** Create unversioned trace data from wire inputs or normalized events. */
@@ -296,12 +367,28 @@ export function upgradeLegacyTrace(value: unknown): Trace {
   };
 }
 
+function upgradeVersion(value: unknown): unknown {
+  if (isObject(value) && value.schema_version === "0.1.0") {
+    const documents = Array.isArray(value.traces) ? value.traces : [value];
+    for (const document of documents) {
+      if (!isObject(document) || !Array.isArray(document.events)) continue;
+      for (const record of document.events) {
+        if (isObject(record) && isObject(record.event) && (record.event.kind === "FutureRead" || record.event.kind === "FutureResult")) {
+          throw new z.ZodError([{ code: "custom", path: ["events"], message: "FutureRead and FutureResult require trace schema 0.2.0" }]);
+        }
+      }
+    }
+    return { ...value, schema_version: SCHEMA_VERSION };
+  }
+  return value;
+}
+
 /** Parse a JSON-compatible current or versionless legacy trace value. */
 export function parseTrace(value: unknown): Trace {
   if (isObject(value) && !("schema_version" in value)) {
     return upgradeLegacyTrace(value);
   }
-  return TraceSchema.parse(value);
+  return TraceSchema.parse(upgradeVersion(value));
 }
 
 /** Parse either current trace-document shape, or a versionless legacy trace. */
@@ -309,11 +396,11 @@ export function parseTraceDocument(value: unknown): TraceDocument {
   if (isObject(value) && !("schema_version" in value)) {
     return upgradeLegacyTrace(value);
   }
-  return TraceDocumentSchema.parse(value);
+  return TraceDocumentSchema.parse(upgradeVersion(value));
 }
 
 function normalizeLosslessJson(value: unknown): unknown {
-  if (isLosslessNumber(value)) {
+  if (value instanceof LosslessNumber) {
     const converted = value.valueOf();
     if (typeof converted === "bigint") {
       return Number(converted);
@@ -350,7 +437,7 @@ function normalizeTraceJson(value: unknown): unknown {
       if (
         !isObject(payload) ||
         payload.kind !== "OpaquePayload" ||
-        !isLosslessNumber(payload.tag)
+        !(payload.tag instanceof LosslessNumber)
       ) {
         continue;
       }
@@ -368,15 +455,46 @@ function normalizeTraceJson(value: unknown): unknown {
   return normalizeLosslessJson(value);
 }
 
+function parseTraceJsonValue(json: string): unknown {
+  // Protect object keys from the lossless parser's property-assignment semantics.
+  const stringTokens = /"(?:[^"\\]|\\.)*"\s*:?/g;
+  const keys = new Set<string>();
+  for (const match of json.matchAll(stringTokens)) {
+    if (match[0].endsWith(":")) keys.add(JSON.parse(match[0].slice(0, -1)) as string);
+  }
+  if (!keys.has("__proto__")) return parseLosslessJson(json);
+  let escapedKey = "__selene_proto__";
+  while (keys.has(escapedKey)) escapedKey += "_";
+  const protectedJson = json.replace(stringTokens, (token) =>
+    token.endsWith(":") && JSON.parse(token.slice(0, -1)) === "__proto__"
+      ? `${JSON.stringify(escapedKey)}:` : token,
+  );
+  const parsed = parseLosslessJson(protectedJson);
+  const restore = (value: unknown): void => {
+    if (value instanceof LosslessNumber) return;
+    if (Array.isArray(value)) { value.forEach(restore); return; }
+    if (!isObject(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      restore(child);
+      if (key === escapedKey) {
+        Object.defineProperty(value, "__proto__", { value: child, enumerable: true, configurable: true, writable: true });
+        delete value[key];
+      }
+    }
+  };
+  restore(parsed);
+  return parsed;
+}
+
 /** Parse trace JSON while preserving a legacy numeric opaque-payload tag. */
 export function parseTraceJson(json: string): Trace {
-  const parsed = parseLosslessJson(json);
+  const parsed = parseTraceJsonValue(json);
   return parseTrace(normalizeTraceJson(parsed));
 }
 
 /** Parse trace-document JSON while preserving a legacy numeric opaque tag. */
 export function parseTraceDocumentJson(json: string): TraceDocument {
-  const parsed = parseLosslessJson(json);
+  const parsed = parseTraceJsonValue(json);
   return parseTraceDocument(normalizeTraceJson(parsed));
 }
 
@@ -415,7 +533,8 @@ export function safeParseTraceDocument(
 
 function serializeCustomPayload(payload: CustomPayload): CustomPayloadInput {
   if (payload.kind === "OpaquePayload") {
-    return { ...payload, tag: `0x${payload.tag.toString(16).toUpperCase()}` };
+    const tag = UInt64BigIntSchema.parse(payload.tag);
+    return { ...payload, tag: `0x${tag.toString(16).toUpperCase()}` };
   }
 
   return payload;
@@ -425,6 +544,8 @@ function serializeEvent(event: Event): EventInput {
   switch (event.kind) {
     case "Gate":
       return event;
+    case "FutureRead":
+    case "FutureResult":
     case "Measurement":
     case "Reset":
       return event;
@@ -437,8 +558,7 @@ function serializeSource(source: Source): SourceInput {
   return source;
 }
 
-/** Convert parsed trace data to its JSON-compatible representation. */
-export function serializeTraceData(trace: TraceData): TraceDataInput {
+function encodeTraceData(trace: TraceData): TraceDataInput {
   return {
     events: trace.events.map(({ source, event }) => ({
       source: serializeSource(source),
@@ -447,33 +567,24 @@ export function serializeTraceData(trace: TraceData): TraceDataInput {
   };
 }
 
+/** Convert parsed trace data to its validated JSON-compatible representation. */
+export function serializeTraceData(trace: TraceData): TraceDataInput {
+  const validated = TraceDataSchema.parse(encodeTraceData(trace));
+  return encodeTraceData(validated);
+}
+
 /** Convert a parsed trace to its JSON-compatible representation. */
 export function serializeTrace(trace: Trace): TraceInput {
   return {
-    schema_version: trace.schema_version,
+    schema_version: SchemaVersionSchema.parse(trace.schema_version),
     ...serializeTraceData(trace),
   };
-}
-
-/** Convert a trace to legacy data, retaining opaque tags as bigint values.
- * Use serializeLegacyTraceJson to encode tags as exact JSON integers.
- */
-export function serializeLegacyTrace(trace: Trace): LegacyTrace {
-  const validated = TraceSchema.parse(serializeTrace(trace));
-  return { events: validated.events };
-}
-
-/** Serialize a versionless trace with numeric tags without losing uint64 precision. */
-export function serializeLegacyTraceJson(trace: Trace, space?: string | number): string {
-  const json = stringifyLosslessJson(serializeLegacyTrace(trace), undefined, space);
-  if (json === undefined) throw new TypeError("Trace serialization produced no JSON");
-  return json;
 }
 
 /** Convert a parsed trace collection to its JSON-compatible representation. */
 export function serializeTraces(traces: Traces): TracesInput {
   return {
-    schema_version: traces.schema_version,
+    schema_version: SchemaVersionSchema.parse(traces.schema_version),
     traces: traces.traces.map(serializeTraceData),
   };
 }
