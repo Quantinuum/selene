@@ -12,9 +12,11 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     TypeAdapter,
     WithJsonSchema,
     field_validator,
+    model_serializer,
 )
 from pydantic_core import core_schema
 from typing_extensions import TypeAliasType
@@ -293,6 +295,9 @@ class EventRecord(BaseModel):
     event: Event
 
 
+_EVENT_RECORDS_ADAPTER = TypeAdapter(list[EventRecord])
+
+
 class TraceData(BaseModel):
     """The unversioned contents of one emulation trace."""
 
@@ -308,6 +313,18 @@ class Trace(BaseModel):
 
     schema_version: Literal["0.2.0"]
     events: list[EventRecord] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        type(self).model_validate(
+            {
+                "schema_version": self.schema_version,
+                "events": _EVENT_RECORDS_ADAPTER.dump_python(
+                    self.events, warnings=False
+                ),
+            }
+        )
+        return handler(self)
 
     def add_runtime_event(self, event: Event, start_time_ns: int, end_time_ns: int):
         self.events.append(

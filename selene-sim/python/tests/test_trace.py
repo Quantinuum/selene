@@ -112,9 +112,17 @@ def test_trace_constructor_and_helpers():
 
 def test_selene_trace_retains_strict_validation():
     from pydantic import ValidationError
+    from pydantic_core import PydanticSerializationError
 
     with pytest.raises(ValidationError):
         GateEvent(gate_name="ClassicalDelay", params=[2**60])
+
+    trace = Trace(schema_version=SCHEMA_VERSION)
+    gate = GateEvent(gate_name="ClassicalDelay", params=[0])
+    trace.add_user_program_event(gate, index=0)
+    gate.params.append(2**53)
+    with pytest.raises(PydanticSerializationError, match="ValidationError"):
+        trace.model_dump_json()
 
 
 @pytest.mark.parametrize("runtime", [SimpleRuntime, SoftRZRuntime])
