@@ -46,6 +46,11 @@ use `serializeTrace` or `serializeTraceDocument` before passing a document to
 The `safeParseTrace` and `safeParseTraceDocument` helpers return a `ParseResult<T>`: either
 `{ success: true, data: T }` or `{ success: false, error: Error }`.
 
+`trace.stripCustomEvents(document)` returns a new trace without any custom events.
+`trace.stripOpaqueCustomEvents(document)` removes only opaque payloads, retaining
+structured key-value metadata. Both preserve the remaining event order and
+leave the original trace unchanged; retained event records are shared.
+
 The `createTrace`, `createTraceData`, and `createTraces` constructors accept
 both wire inputs and normalized values. Wire parsers require hexadecimal
 strings for opaque tags.

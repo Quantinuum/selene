@@ -30,6 +30,41 @@ pub struct Trace {
     pub events: Vec<EventRecord>,
 }
 
+impl Trace {
+    /// Return a trace without custom events, preserving the remaining event order.
+    pub fn strip_custom_events(&self) -> Self {
+        Self {
+            schema_version: self.schema_version,
+            events: self
+                .events
+                .iter()
+                .filter(|record| !matches!(record.event, Event::Custom { .. }))
+                .cloned()
+                .collect(),
+        }
+    }
+
+    /// Return a trace without opaque custom events, retaining structured metadata.
+    pub fn strip_opaque_custom_events(&self) -> Self {
+        Self {
+            schema_version: self.schema_version,
+            events: self
+                .events
+                .iter()
+                .filter(|record| {
+                    !matches!(
+                        record.event,
+                        Event::Custom {
+                            payload: CustomPayload::OpaquePayload { .. }
+                        }
+                    )
+                })
+                .cloned()
+                .collect(),
+        }
+    }
+}
+
 /// The unversioned contents of one emulation trace.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -555,6 +590,34 @@ fn upgrade_legacy_value(value: &mut Value) -> Result<(), serde_json::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn custom_event_filters_preserve_other_events_and_the_original() {
+        let trace = parse_trace_value(serde_json::json!({
+            "schema_version": SCHEMA_VERSION,
+            "events": [
+                {"source": {"kind": "UserProgram", "index": 0}, "event": {"kind": "Gate", "gate_name": "H", "qubits": [0]}},
+                {"source": {"kind": "UserProgram", "index": 1}, "event": {"kind": "Custom", "payload": {"kind": "OpaquePayload", "tag": "0x1", "data": ""}}},
+                {"source": {"kind": "UserProgram", "index": 2}, "event": {"kind": "FutureRead", "result_id": 42}},
+                {"source": {"kind": "UserProgram", "index": 3}, "event": {"kind": "Custom", "payload": {"kind": "KeyValuePairPayload", "data": {"name": "test"}}}},
+                {"source": {"kind": "Runtime", "start_time": 5, "end_time": 5}, "event": {"kind": "FutureResult", "result_id": 42, "outcome": 1}}
+            ]
+        })).unwrap();
+        let original = trace.clone();
+        let without_custom = trace.strip_custom_events();
+        let without_opaque = trace.strip_opaque_custom_events();
+        assert_eq!(without_custom.schema_version, trace.schema_version);
+        assert_eq!(without_opaque.schema_version, trace.schema_version);
+        assert_eq!(
+            without_custom.events,
+            [0, 2, 4].map(|i| trace.events[i].clone())
+        );
+        assert_eq!(
+            without_opaque.events,
+            [0, 2, 3, 4].map(|i| trace.events[i].clone())
+        );
+        assert_eq!(trace, original);
+    }
 
     #[test]
     fn string_future_result_values_round_trip_recursively() {

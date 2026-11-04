@@ -11,6 +11,26 @@ function opaqueRecord(tag, data = "Zg==") {
   };
 }
 
+test("custom event filters preserve other events and the original", () => {
+  const document = trace.createTrace([
+    { source: { kind: "UserProgram", index: 0 }, event: { kind: "Gate", gate_name: "H", qubits: [0] } },
+    opaqueRecord(1n),
+    { source: { kind: "UserProgram", index: 2 }, event: { kind: "FutureRead", result_id: 42 } },
+    { source: { kind: "UserProgram", index: 3 }, event: { kind: "Custom", payload: { kind: "KeyValuePairPayload", data: { name: "test" } } } },
+    { source: { kind: "Runtime", start_time: 5, end_time: 5 }, event: { kind: "FutureResult", result_id: 42, outcome: 1 } },
+  ]);
+  const original = structuredClone(document);
+  assert.deepEqual(trace.stripCustomEvents(document), {
+    schema_version: document.schema_version,
+    events: [0, 2, 4].map(i => document.events[i]),
+  });
+  assert.deepEqual(trace.stripOpaqueCustomEvents(document), {
+    schema_version: document.schema_version,
+    events: [0, 2, 3, 4].map(i => document.events[i]),
+  });
+  assert.deepEqual(document, original);
+});
+
 test("serializers reject invalid mutations to future outcomes", () => {
   const cyclic = {}; cyclic.self = cyclic;
   const serializers = [

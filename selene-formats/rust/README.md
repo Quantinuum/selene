@@ -32,6 +32,11 @@ documents and upgrades legacy input to the current model. Use
 
 Use `serde_json::to_string(&trace)` to serialize the current schema.
 
+`trace.strip_custom_events()` returns a new trace without any custom events.
+`trace.strip_opaque_custom_events()` removes only opaque payloads, retaining
+structured key-value metadata. Both preserve the remaining event order and
+leave the original trace unchanged.
+
 Gzipped MessagePack trace streams use `selene_formats::trace_stream`:
 
 ```rust

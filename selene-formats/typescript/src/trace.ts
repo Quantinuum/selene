@@ -328,6 +328,18 @@ export function createTrace(events: (EventRecordInput | EventRecord)[] = []): Tr
   });
 }
 
+/** Return a trace without custom events, preserving the remaining event order. */
+export function stripCustomEvents(trace: Trace): Trace {
+  return { ...trace, events: trace.events.filter(({ event }) => event.kind !== "Custom") };
+}
+
+/** Return a trace without opaque custom events, retaining structured metadata. */
+export function stripOpaqueCustomEvents(trace: Trace): Trace {
+  return { ...trace, events: trace.events.filter(({ event }) =>
+    event.kind !== "Custom" || event.payload.kind !== "OpaquePayload",
+  ) };
+}
+
 /** Create unversioned trace data from wire inputs or normalized events. */
 export function createTraceData(events: (EventRecordInput | EventRecord)[] = []): TraceData {
   return TraceDataSchema.parse({ events: constructorEvents(events) });
