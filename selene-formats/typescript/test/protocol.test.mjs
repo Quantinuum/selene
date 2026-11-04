@@ -65,6 +65,41 @@ test("serializers revalidate event fields and document versions", () => {
   assert.throws(() => trace.serializeTraces({ schema_version: "0.1.0", traces: [] }));
 });
 
+test("serializers use validated outcome copies without hidden toJSON methods", () => {
+  const serializers = [
+    trace.serializeTrace,
+    (document) => ({ schema_version: document.schema_version, ...trace.serializeTraceData(document) }),
+    trace.serializeTraceDocument,
+    (document) => trace.serializeTraces({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+    (document) => trace.serializeTraceDocument({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+  ];
+  for (const target of ["root", "object", "array"]) {
+    const document = trace.createTrace([
+      opaqueRecord(trace.UINT64_MAX),
+      { source: { kind: "Runtime", start_time: 0, end_time: 0 },
+        event: { kind: "FutureResult", result_id: 42, outcome: { object: { value: 1 }, array: [1] } } },
+    ]);
+    const expected = JSON.parse(JSON.stringify(trace.serializeTrace(document)));
+    const outcome = document.events[1].event.outcome;
+    const original = target === "root" ? outcome : outcome[target];
+    let calls = 0;
+    const toJSON = () => { calls++; return { value: 2 ** 53 }; };
+    Object.defineProperty(original, "toJSON", { value: toJSON });
+    for (const serialize of serializers) {
+      const serialized = serialize(document);
+      const json = JSON.stringify(serialized);
+      assert.deepEqual(JSON.parse(json), "traces" in serialized
+        ? { schema_version: expected.schema_version, traces: [{ events: expected.events }] }
+        : expected);
+      assert.deepEqual(trace.parseTraceDocumentJson(json), "traces" in serialized
+        ? { schema_version: document.schema_version, traces: [{ events: document.events }] }
+        : document);
+    }
+    assert.equal(calls, 0);
+    assert.equal(original.toJSON, toJSON);
+  }
+});
+
 test("constructors compose wire inputs and normalized opaque events", () => {
   for (const tag of [0n, 0x11A12517n, trace.UINT64_MAX]) {
     const wire = opaqueRecord(`0x${tag.toString(16).toUpperCase()}`);

@@ -556,16 +556,19 @@ function serializeSource(source: Source): SourceInput {
   return source;
 }
 
-/** Convert parsed trace data to its JSON-compatible representation. */
-export function serializeTraceData(trace: TraceData): TraceDataInput {
-  const serialized = {
+function encodeTraceData(trace: TraceData): TraceDataInput {
+  return {
     events: trace.events.map(({ source, event }) => ({
       source: serializeSource(source),
       event: serializeEvent(event),
     })),
   };
-  TraceDataSchema.parse(serialized);
-  return serialized;
+}
+
+/** Convert parsed trace data to its validated JSON-compatible representation. */
+export function serializeTraceData(trace: TraceData): TraceDataInput {
+  const validated = TraceDataSchema.parse(encodeTraceData(trace));
+  return encodeTraceData(validated);
 }
 
 /** Convert a parsed trace to its JSON-compatible representation. */
