@@ -120,41 +120,42 @@ export type FutureReadEventInput = z.input<typeof FutureReadEventSchema>;
 
 /** A runtime future result with string, numeric, boolean, null, array, or object values. */
 export type FutureResultValue = string | number | boolean | null | FutureResultValue[] | { [key: string]: FutureResultValue };
-function isFutureResultValue(value: unknown, ancestors = new Set<object>()): value is FutureResultValue {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
-  if (typeof value === "number") {
-    return Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value));
-  }
-  if (typeof value !== "object" || ancestors.has(value)) return false;
-  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
-  if (Object.getOwnPropertySymbols(value).length !== 0) return false;
+function cloneFutureResultValue(value: unknown, ancestors = new Set<object>()): FutureResultValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value))) return value;
+  if (typeof value !== "object" || ancestors.has(value)) throw new TypeError("Invalid future result value");
+  const array = Array.isArray(value);
+  if (!array && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new TypeError("Expected a plain object");
+  if (Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError("Unexpected symbol properties");
   ancestors.add(value);
   try {
-    const children = Array.isArray(value) ? Array.from(value) : Object.values(value);
-    return children.every((child) => isFutureResultValue(child, ancestors));
+    if (Array.isArray(value)) {
+      const result: FutureResultValue[] = [];
+      for (let i = 0; i < value.length; i++) result[i] = cloneFutureResultValue(value[i], ancestors);
+      return result;
+    }
+    const result: { [key: string]: FutureResultValue } = {};
+    for (const [key, child] of Object.entries(value)) {
+      Object.defineProperty(result, key, {
+        value: cloneFutureResultValue(child, ancestors), enumerable: true, configurable: true, writable: true,
+      });
+    }
+    return result;
   } finally {
     ancestors.delete(value);
   }
 }
 
-function cloneFutureResultValue(value: FutureResultValue): FutureResultValue {
-  if (Array.isArray(value)) return value.map(cloneFutureResultValue);
-  if (value !== null && typeof value === "object") {
-    const result: { [key: string]: FutureResultValue } = {};
-    for (const [key, child] of Object.entries(value)) {
-      Object.defineProperty(result, key, {
-        value: cloneFutureResultValue(child), enumerable: true, configurable: true, writable: true,
-      });
+const FutureResultValueSchema: z.ZodType<FutureResultValue, FutureResultValue> = z.custom<FutureResultValue>().transform(
+  (value, context) => {
+    try {
+      return cloneFutureResultValue(value);
+    } catch {
+      context.addIssue({ code: "custom", message: "Expected a future result value with finite, safe-integer numbers" });
+      return z.NEVER;
     }
-    return result;
-  }
-  return value;
-}
-
-const FutureResultValueSchema: z.ZodType<FutureResultValue, FutureResultValue> = z.custom<FutureResultValue>(
-  (value) => isFutureResultValue(value),
-  { message: "Expected a future result value with finite, safe-integer numbers" },
-).transform(cloneFutureResultValue);
+  },
+);
 
 const FutureResultEventSchema = z.object({
   kind: z.literal("FutureResult"),
@@ -532,7 +533,8 @@ export function safeParseTraceDocument(
 
 function serializeCustomPayload(payload: CustomPayload): CustomPayloadInput {
   if (payload.kind === "OpaquePayload") {
-    return { ...payload, tag: `0x${payload.tag.toString(16).toUpperCase()}` };
+    const tag = UInt64BigIntSchema.parse(payload.tag);
+    return { ...payload, tag: `0x${tag.toString(16).toUpperCase()}` };
   }
 
   return payload;

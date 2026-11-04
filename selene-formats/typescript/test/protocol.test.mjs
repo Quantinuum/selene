@@ -65,6 +65,69 @@ test("serializers revalidate event fields and document versions", () => {
   assert.throws(() => trace.serializeTraces({ schema_version: "0.1.0", traces: [] }));
 });
 
+test("serializers reject non-bigint and out-of-range normalized opaque tags", () => {
+  let calls = 0;
+  const serializers = [
+    trace.serializeTrace, trace.serializeTraceData, trace.serializeTraceDocument,
+    (document) => trace.serializeTraces({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+    (document) => trace.serializeTraceDocument({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+  ];
+  for (const tag of [0, 42, 2 ** 53, "0x1", "1", null, undefined, true, Object(1n),
+    { toString() { calls++; return "1"; } }, -1n, trace.UINT64_MAX + 1n]) {
+    const document = trace.createTrace([opaqueRecord(1n)]);
+    document.events[0].event.payload.tag = tag;
+    for (const serialize of serializers) assert.throws(() => serialize(document));
+  }
+  assert.equal(calls, 0);
+});
+
+test("outcome arrays are copied without subclass or map hooks", () => {
+  let calls = 0;
+  class UnsafeArray extends Array {
+    toJSON() { calls++; return [2 ** 53]; }
+  }
+  class SpeciesArray extends Array {
+    static get [Symbol.species]() { calls++; return UnsafeArray; }
+  }
+  const overriddenMap = [1];
+  Object.defineProperty(overriddenMap, "map", { value: () => { calls++; return [2 ** 53]; } });
+  for (const array of [UnsafeArray.of(1), SpeciesArray.of(1), overriddenMap]) {
+    const record = { source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome: { nested: array } } };
+    const document = trace.createTrace([record]);
+    assert.equal(Object.getPrototypeOf(document.events[0].event.outcome.nested), Array.prototype);
+    document.events[0].event.outcome.nested = array;
+    const data = { events: document.events };
+    for (const serialized of [trace.serializeTrace(document), trace.serializeTraceData(data),
+      trace.serializeTraceDocument(document),
+      trace.serializeTraces({ schema_version: document.schema_version, traces: [data] }),
+      trace.serializeTraceDocument({ schema_version: document.schema_version, traces: [data] })]) {
+      const events = "traces" in serialized ? serialized.traces[0].events : serialized.events;
+      assert.equal(Object.getPrototypeOf(events[0].event.outcome.nested), Array.prototype);
+      assert.deepEqual(JSON.parse(JSON.stringify(events))[0].event.outcome, { nested: [1] });
+    }
+  }
+  assert.equal(calls, 0);
+  class HidingArray extends Array {
+    *[Symbol.iterator]() { yield 1; }
+  }
+  const outcome = HidingArray.of(2 ** 53);
+  assert.throws(() => trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 0 },
+    event: { kind: "FutureResult", result_id: 42, outcome } }]));
+});
+
+test("outcome accessors are read once while copying and validating", () => {
+  const document = trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 0 },
+    event: { kind: "FutureResult", result_id: 42, outcome: {} } }]);
+  let reads = 0;
+  Object.defineProperty(document.events[0].event.outcome, "value", {
+    enumerable: true, get() { return ++reads === 1 ? 1 : 2 ** 53; },
+  });
+  const serialized = trace.serializeTrace(document);
+  assert.deepEqual(serialized.events[0].event.outcome, { value: 1 });
+  assert.equal(reads, 1);
+});
+
 test("serializers use validated outcome copies without hidden toJSON methods", () => {
   const serializers = [
     trace.serializeTrace,
