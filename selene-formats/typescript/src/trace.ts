@@ -546,18 +546,20 @@ function serializeSource(source: Source): SourceInput {
 
 /** Convert parsed trace data to its JSON-compatible representation. */
 export function serializeTraceData(trace: TraceData): TraceDataInput {
-  return {
+  const serialized = {
     events: trace.events.map(({ source, event }) => ({
       source: serializeSource(source),
       event: serializeEvent(event),
     })),
   };
+  TraceDataSchema.parse(serialized);
+  return serialized;
 }
 
 /** Convert a parsed trace to its JSON-compatible representation. */
 export function serializeTrace(trace: Trace): TraceInput {
   return {
-    schema_version: trace.schema_version,
+    schema_version: SchemaVersionSchema.parse(trace.schema_version),
     ...serializeTraceData(trace),
   };
 }
@@ -565,7 +567,7 @@ export function serializeTrace(trace: Trace): TraceInput {
 /** Convert a parsed trace collection to its JSON-compatible representation. */
 export function serializeTraces(traces: Traces): TracesInput {
   return {
-    schema_version: traces.schema_version,
+    schema_version: SchemaVersionSchema.parse(traces.schema_version),
     traces: traces.traces.map(serializeTraceData),
   };
 }

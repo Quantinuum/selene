@@ -316,7 +316,7 @@ class Trace(BaseModel):
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        type(self).model_validate(
+        Trace.model_validate(
             {
                 "schema_version": self.schema_version,
                 "events": _EVENT_RECORDS_ADAPTER.dump_python(

@@ -11,6 +11,40 @@ function opaqueRecord(tag, data = "Zg==") {
   };
 }
 
+test("serializers reject invalid mutations to future outcomes", () => {
+  const cyclic = {}; cyclic.self = cyclic;
+  const serializers = [
+    trace.serializeTrace,
+    trace.serializeTraceData,
+    trace.serializeTraceDocument,
+    (document) => trace.serializeTraces({ schema_version: trace.SCHEMA_VERSION, traces: [{ events: document.events }] }),
+    (document) => trace.serializeTraceDocument({ schema_version: trace.SCHEMA_VERSION, traces: [{ events: document.events }] }),
+  ];
+  for (const outcome of [NaN, Infinity, 2 ** 53, -(2 ** 53), undefined, cyclic]) {
+    const document = trace.createTrace([{
+      source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome: { value: 1 } },
+    }]);
+    document.events[0].event.outcome.value = outcome;
+    for (const serialize of serializers) assert.throws(() => serialize(document));
+  }
+});
+
+test("serializers revalidate event fields and document versions", () => {
+  for (const mutate of [
+    (document) => { document.events[0].source.index = -1; },
+    (document) => { document.events[0].event.payload.tag = trace.UINT64_MAX + 1n; },
+  ]) {
+    const document = trace.createTrace([opaqueRecord(42n)]);
+    mutate(document);
+    assert.throws(() => trace.serializeTrace(document));
+  }
+  const document = trace.createTrace();
+  document.schema_version = "0.1.0";
+  assert.throws(() => trace.serializeTrace(document));
+  assert.throws(() => trace.serializeTraces({ schema_version: "0.1.0", traces: [] }));
+});
+
 test("constructors compose wire inputs and normalized opaque events", () => {
   for (const tag of [0n, 0x11A12517n, trace.UINT64_MAX]) {
     const wire = opaqueRecord(`0x${tag.toString(16).toUpperCase()}`);
