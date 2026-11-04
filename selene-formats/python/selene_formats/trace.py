@@ -306,6 +306,9 @@ class TraceData(BaseModel):
     events: list[EventRecord] = Field(default_factory=list)
 
 
+_TRACE_DATA_LIST_ADAPTER = TypeAdapter(list[TraceData])
+
+
 class Trace(BaseModel):
     """A serializable Selene trace conforming to protocol version 0.2.0."""
 
@@ -417,6 +420,18 @@ class Traces(BaseModel):
 
     schema_version: Literal["0.2.0"]
     traces: list[TraceData]
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        Traces.model_validate(
+            {
+                "schema_version": self.schema_version,
+                "traces": _TRACE_DATA_LIST_ADAPTER.dump_python(
+                    self.traces, warnings=False
+                ),
+            }
+        )
+        return handler(self)
 
 
 TraceDocument = Trace | Traces
