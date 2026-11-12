@@ -40,6 +40,8 @@ fn main() {
             );
         }
         "macos" => {
+            // Reserve space for dependency paths rewritten during wheel repair.
+            println!("cargo:rustc-link-arg-cdylib=-Wl,-headerpad_max_install_names");
             println!(
                 "cargo:rustc-link-arg=-Wl,-rpath,@loader_path/../../../selene_base_qis_plugin/_dist/lib"
             );
