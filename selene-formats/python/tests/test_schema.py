@@ -305,3 +305,25 @@ def test_current_examples_conform_to_the_current_schema(example_name: str):
 def test_legacy_schema_rejects_versioned_traces_and_collections(document):
     with pytest.raises(ValidationError):
         Draft202012Validator(get_legacy_trace_schema()).validate(document)
+
+
+@pytest.mark.parametrize("collection", [False, True])
+@pytest.mark.parametrize(
+    "shot,valid",
+    [
+        (0, True),
+        (2**53 - 1, True),
+        (-1, False),
+        (2**53, False),
+        (1.5, False),
+        (True, False),
+        ("7", False),
+    ],
+)
+def test_shot_schema_bounds(collection, shot, valid):
+    data = {"events": [], "shot": shot}
+    document = {
+        "schema_version": "0.2.0",
+        **({"traces": [data]} if collection else data),
+    }
+    assert Draft202012Validator(get_trace_schema()).is_valid(document) == valid

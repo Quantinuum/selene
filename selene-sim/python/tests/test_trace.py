@@ -213,6 +213,20 @@ def test_ghz_trace(compiled_guppy, snapshot, seed_mode):
     trace = trace.clear_simulator_perf_timing()
     snapshot.assert_match(trace.model_dump_json(indent=2), "trace.json")
 
+    numbered = CircuitExtractor()
+    for result in runner.run_shots(
+        simulator=simulator,
+        runtime=SimpleRuntime(),
+        n_qubits=10,
+        n_shots=3,
+        n_processes=2,
+        shot_offset=7,
+        shot_increment=3,
+        event_hook=numbered,
+    ):
+        list(result)
+    assert [shot.get_trace().shot for shot in numbered.shots] == [7, 10, 13]
+
 
 @pytest.mark.parametrize("runtime", [SimpleRuntime, SoftRZRuntime])
 @pytest.mark.parametrize(

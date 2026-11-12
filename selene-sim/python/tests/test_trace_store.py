@@ -183,6 +183,7 @@ def test_interactive_trace_store():
     # events, not repeated copies of the whole shot, and the stored trace should
     # grow in place as we make more calls.
     assert first_trace is store.shots[0]
+    assert first_trace.get_trace().shot == 0
     assert [
         record.source.index
         for record in first_trace.iter_events()
@@ -197,6 +198,9 @@ def test_interactive_trace_store():
     assert len(store.shots) == 2
     assert list(store.shots[1].iter_events()) == []
     assert store.shots[0] is first_trace
+    q = stack.qalloc()
+    stack.qfree(q)
+    assert store.shots[1].get_trace().shot == 1
     stack.delete_run_directory()
 
 
@@ -402,3 +406,32 @@ def test_extension_measurements_are_readable_but_not_interpreted_as_standard(tmp
     results.on_new_shot()
     results.try_invoke("TRACE", [str(result_path)])
     assert next(iter(results.shots[0])).operation == FutureResult(42, outcome)
+
+
+@pytest.mark.parametrize("shot", [None, 0, 17, 2**53 - 1, 2**53, 2**64 - 1])
+def test_trace_materializes_stream_shot(tmp_path, shot):
+    store = TraceStore()
+    store.on_new_shot()
+    for index in range(2):
+        path = tmp_path / f"fragment-{index}.msgpack.gz"
+        write_trace_stream(path, [], shot=shot)
+        store.try_invoke("TRACE", [str(path)])
+    trace = store.shots[0]
+    assert trace.shot == shot
+    if shot is not None and shot >= 2**53:
+        with pytest.raises(ValueError, match="shot.*cannot be represented"):
+            trace.get_trace()
+    else:
+        assert trace.get_trace().shot == shot
+        assert trace.get_trace().events == []
+
+
+def test_trace_rejects_mixed_shots(tmp_path):
+    store = TraceStore()
+    store.on_new_shot()
+    for shot in [7, 8]:
+        path = tmp_path / f"{shot}.msgpack.gz"
+        write_trace_stream(path, [], shot=shot)
+        store.try_invoke("TRACE", [str(path)])
+    with pytest.raises(ValueError, match="inconsistent shot"):
+        store.shots[0].get_trace()

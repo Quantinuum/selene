@@ -12,6 +12,12 @@ A `Trace` contains an ordered `events` array. A `Traces` collection contains a
 `schema_version`; collection members inherit it. Attach that version when
 extracting a member as a standalone trace. Collections may be empty.
 
+Both `Trace` and `TraceData` have an optional `shot` field identifying the
+emulation shot. When present, its integer value lies between `0` and
+`9007199254740991`, inclusive. Selene uses the configured shot offset and
+increment, so the value can differ from the trace's position in a collection.
+Bindings omit the field when its value is unknown. Filtering preserves it.
+
 | Source | Fields |
 | --- | --- |
 | `UserProgram` | `index`: zero-based event index within this source |

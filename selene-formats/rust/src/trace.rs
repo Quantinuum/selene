@@ -28,6 +28,12 @@ pub struct Trace {
     pub schema_version: SchemaVersion,
     #[serde(default)]
     pub events: Vec<EventRecord>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "optional_json_safe_u64"
+    )]
+    pub shot: Option<u64>,
 }
 
 impl Trace {
@@ -35,6 +41,7 @@ impl Trace {
     pub fn strip_custom_events(&self) -> Self {
         Self {
             schema_version: self.schema_version,
+            shot: self.shot,
             events: self
                 .events
                 .iter()
@@ -48,6 +55,7 @@ impl Trace {
     pub fn strip_opaque_custom_events(&self) -> Self {
         Self {
             schema_version: self.schema_version,
+            shot: self.shot,
             events: self
                 .events
                 .iter()
@@ -71,6 +79,12 @@ impl Trace {
 pub struct TraceData {
     #[serde(default)]
     pub events: Vec<EventRecord>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "optional_json_safe_u64"
+    )]
+    pub shot: Option<u64>,
 }
 
 /// A versioned collection of trace data.
@@ -1058,5 +1072,53 @@ mod tests {
                 }
             }
         ));
+    }
+
+    #[test]
+    fn shot_round_trips_and_survives_filters() {
+        for shot in [0, 17, MAX_SAFE_INTEGER] {
+            let document =
+                serde_json::json!({"schema_version": SCHEMA_VERSION, "shot": shot, "events": []});
+            let trace = parse_trace_value(document.clone()).unwrap();
+            assert_eq!(trace.shot, Some(shot));
+            assert_eq!(serde_json::to_value(&trace).unwrap(), document);
+            assert_eq!(trace.strip_custom_events().shot, Some(shot));
+            assert_eq!(trace.strip_opaque_custom_events().shot, Some(shot));
+            let collection = serde_json::json!({"schema_version": SCHEMA_VERSION, "traces": [{"shot": shot, "events": []}]});
+            let parsed = parse_trace_document_value(collection.clone()).unwrap();
+            assert_eq!(serde_json::to_value(parsed).unwrap(), collection);
+        }
+        let trace =
+            parse_trace_value(serde_json::json!({"schema_version": SCHEMA_VERSION})).unwrap();
+        assert_eq!(trace.shot, None);
+        assert!(serde_json::to_value(trace).unwrap().get("shot").is_none());
+    }
+
+    #[test]
+    fn shot_rejects_invalid_values_and_mutations() {
+        for shot in [
+            serde_json::json!(-1),
+            serde_json::json!(MAX_SAFE_INTEGER + 1),
+            serde_json::json!(1.5),
+            serde_json::json!(true),
+            serde_json::json!("7"),
+        ] {
+            assert!(
+                parse_trace_value(
+                    serde_json::json!({"schema_version": SCHEMA_VERSION, "shot": shot})
+                )
+                .is_err()
+            );
+            assert!(parse_trace_document_value(serde_json::json!({"schema_version": SCHEMA_VERSION, "traces": [{"shot": shot}]})).is_err());
+        }
+        let mut trace =
+            parse_trace_value(serde_json::json!({"schema_version": SCHEMA_VERSION})).unwrap();
+        trace.shot = Some(MAX_SAFE_INTEGER + 1);
+        assert!(serde_json::to_value(trace).is_err());
+        let data = TraceData {
+            events: vec![],
+            shot: Some(u64::MAX),
+        };
+        assert!(serde_json::to_value(data).is_err());
     }
 }

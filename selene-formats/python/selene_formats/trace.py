@@ -303,7 +303,22 @@ class TraceData(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    shot: JsonSafeUInt | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     events: list[EventRecord] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        TraceData.model_validate(
+            {
+                "shot": self.shot,
+                "events": _EVENT_RECORDS_ADAPTER.dump_python(
+                    self.events, warnings=False
+                ),
+            }
+        )
+        return handler(self)
 
 
 _TRACE_DATA_LIST_ADAPTER = TypeAdapter(list[TraceData])
@@ -315,6 +330,9 @@ class Trace(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["0.2.0"]
+    shot: JsonSafeUInt | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     events: list[EventRecord] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
@@ -322,6 +340,7 @@ class Trace(BaseModel):
         Trace.model_validate(
             {
                 "schema_version": self.schema_version,
+                "shot": self.shot,
                 "events": _EVENT_RECORDS_ADAPTER.dump_python(
                     self.events, warnings=False
                 ),
@@ -367,6 +386,7 @@ class Trace(BaseModel):
     def filter(self, predicate: Callable[[EventRecord], bool]) -> "Trace":
         return type(self)(
             schema_version=SCHEMA_VERSION,
+            shot=self.shot,
             events=list(filter(predicate, self.events)),
         )
 
@@ -399,6 +419,7 @@ class Trace(BaseModel):
         """Return a copy with simulator event durations set to zero."""
         return type(self)(
             schema_version=SCHEMA_VERSION,
+            shot=self.shot,
             events=[
                 EventRecord(
                     source=(

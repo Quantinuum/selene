@@ -18,8 +18,8 @@ from selene_argreader_plugin.trace_pass import ARGREADER_LOGGING_TAG
 # a clear example of what's what for testing purposes.
 
 
-def test_argreader_trace_pass_preserves_schema_version():
-    trace = Trace(schema_version=SCHEMA_VERSION)
+def test_argreader_trace_pass_preserves_trace_metadata():
+    trace = Trace(schema_version=SCHEMA_VERSION, shot=17)
     trace.add_user_program_event(
         CustomEvent(
             payload=OpaquePayload(
@@ -31,6 +31,7 @@ def test_argreader_trace_pass_preserves_schema_version():
     )
     processed = argreader_trace_pass(trace)
     assert processed.model_dump()["schema_version"] == SCHEMA_VERSION
+    assert processed.shot == 17
     assert processed.events[0].event.payload.data == {
         "type": "ArgumentRead",
         "key": "input_u64",

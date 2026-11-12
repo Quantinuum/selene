@@ -224,6 +224,7 @@
       "description": "A serializable Selene trace conforming to protocol version 0.2.0.",
       "properties": {
         "schema_version": { "const": "0.2.0", "title": "Schema Version", "type": "string" },
+        "shot": { "anyOf": [{ "maximum": 9007199254740991, "minimum": 0, "type": "integer" }, { "type": "null" }], "default": null, "title": "Shot" },
         "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
       },
       "required": ["schema_version"],
@@ -234,6 +235,7 @@
       "additionalProperties": false,
       "description": "The unversioned contents of one emulation trace.",
       "properties": {
+        "shot": { "anyOf": [{ "maximum": 9007199254740991, "minimum": 0, "type": "integer" }, { "type": "null" }], "default": null, "title": "Shot" },
         "events": { "items": { "$ref": "#/$defs/EventRecord" }, "title": "Events", "type": "array" }
       },
       "title": "TraceData",

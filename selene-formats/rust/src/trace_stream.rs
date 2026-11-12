@@ -199,6 +199,7 @@ fn invalid(error: impl std::fmt::Display) -> io::Error {
 pub struct TraceStreamWriter<W: Write> {
     writer: BufWriter<GzEncoder<W>>,
     header_written: bool,
+    shot: Option<u64>,
     failed: bool,
 }
 
@@ -207,7 +208,16 @@ impl<W: Write> TraceStreamWriter<W> {
         Self {
             writer: BufWriter::new(GzEncoder::new(writer, Compression::fast())),
             header_written: false,
+            shot: None,
             failed: false,
+        }
+    }
+
+    /// Create a stream whose header identifies the emulation shot.
+    pub fn with_shot(writer: W, shot: u64) -> Self {
+        Self {
+            shot: Some(shot),
+            ..Self::new(writer)
         }
     }
 
@@ -234,7 +244,11 @@ impl<W: Write> TraceStreamWriter<W> {
         // a caller that ignores the error mustn't be able to finish this stream.
         self.failed = true;
         if !self.header_written {
-            rmp_serde::encode::write_named(&mut self.writer, &header()).map_err(invalid)?;
+            let mut metadata = header();
+            if let Some(shot) = self.shot {
+                metadata["shot"] = shot.into();
+            }
+            rmp_serde::encode::write_named(&mut self.writer, &metadata).map_err(invalid)?;
             self.header_written = true;
         }
         for record in records {
@@ -343,6 +357,7 @@ pub struct TraceStreamRecordReader<R: Read> {
     record_number: usize,
     done: bool,
     previous_schema: bool,
+    shot: Option<u64>,
 }
 
 impl<R: Read> TraceStreamRecordReader<R> {
@@ -352,10 +367,18 @@ impl<R: Read> TraceStreamRecordReader<R> {
             record_number: 0,
             done: false,
             previous_schema: false,
+            shot: None,
         };
         let value = rmpv::decode::read_value(&mut result.reader)
             .map_err(|error| invalid(format!("Trace stream header: {error}")))?;
-        let actual = model_value(value)?;
+        let mut actual = model_value(value)?;
+        if let Some(number) = actual.as_object_mut().and_then(|map| map.remove("shot")) {
+            result.shot = Some(
+                number
+                    .as_u64()
+                    .ok_or_else(|| invalid("Invalid shot in trace stream header"))?,
+            );
+        }
         let mut previous = header();
         previous["schema_version"] = "0.1.0".into();
         if actual != header() && actual != previous {
@@ -363,6 +386,10 @@ impl<R: Read> TraceStreamRecordReader<R> {
         }
         result.previous_schema = actual == previous;
         Ok(result)
+    }
+
+    pub fn shot(&self) -> Option<u64> {
+        self.shot
     }
 }
 
@@ -415,6 +442,10 @@ pub struct TraceStreamReader<R: Read>(TraceStreamRecordReader<R>);
 impl<R: Read> TraceStreamReader<R> {
     pub fn new(reader: R) -> io::Result<Self> {
         Ok(Self(TraceStreamRecordReader::new(reader)?))
+    }
+
+    pub fn shot(&self) -> Option<u64> {
+        self.0.shot()
     }
 }
 
@@ -826,5 +857,43 @@ mod tests {
         let mut writer = TraceStreamWriter::new(Broken);
         writer.write_events(&[event()]).unwrap();
         assert!(writer.finish().is_err());
+    }
+
+    #[test]
+    fn shot_metadata_preserves_full_uint64_range() {
+        for shot in [0, 17, MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, u64::MAX] {
+            let mut writer = TraceStreamWriter::with_shot(Vec::new(), shot);
+            writer.write_events(&[event()]).unwrap();
+            let bytes = writer.finish().unwrap();
+            let reader = TraceStreamReader::new(bytes.as_slice()).unwrap();
+            assert_eq!(reader.shot(), Some(shot));
+            assert_eq!(
+                reader.collect::<io::Result<Vec<_>>>().unwrap(),
+                vec![event()]
+            );
+        }
+        let bytes = TraceStreamWriter::new(Vec::new()).finish().unwrap();
+        assert_eq!(
+            TraceStreamRecordReader::new(bytes.as_slice())
+                .unwrap()
+                .shot(),
+            None
+        );
+    }
+
+    #[test]
+    fn invalid_shot_headers_are_rejected() {
+        for shot in [
+            serde_json::json!(-1),
+            serde_json::json!(1.0),
+            serde_json::json!(true),
+            serde_json::json!("7"),
+            serde_json::Value::Null,
+        ] {
+            let mut metadata = header();
+            metadata["shot"] = shot;
+            let bytes = compress(&rmp_serde::to_vec_named(&metadata).unwrap());
+            assert!(TraceStreamReader::new(bytes.as_slice()).is_err());
+        }
     }
 }

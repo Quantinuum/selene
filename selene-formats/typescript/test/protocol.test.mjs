@@ -685,3 +685,34 @@ test("non-measurement future reads and results round trip", () => {
   assert.deepEqual(trace.serializeTrace(document).events, records);
   assert.deepEqual(trace.parseTraceJson(JSON.stringify(trace.serializeTrace(document))), document);
 });
+
+test("shot survives constructors, serialization and filtering", () => {
+  for (const shot of [0, 17, Number.MAX_SAFE_INTEGER]) {
+    const document = trace.createTrace([], shot);
+    assert.equal(trace.parseTraceJson(JSON.stringify(trace.serializeTrace(document))).shot, shot);
+    assert.equal(trace.stripCustomEvents(document).shot, shot);
+    assert.equal(trace.stripOpaqueCustomEvents(document).shot, shot);
+    const data = trace.createTraceData([], shot);
+    const collection = trace.createTraces([data]);
+    assert.equal(trace.serializeTraceData(data).shot, shot);
+    assert.equal(trace.parseTraceDocumentJson(JSON.stringify(trace.serializeTraces(collection))).traces[0].shot, shot);
+  }
+  assert.equal(Object.hasOwn(trace.serializeTrace(trace.createTrace()), "shot"), false);
+  assert.equal(Object.hasOwn(trace.serializeTraceData(trace.createTraceData()), "shot"), false);
+});
+
+test("shot rejects invalid values during construction, parsing and serialization", () => {
+  for (const shot of [-1, 2 ** 53, 1.5, true, "7", NaN, Infinity]) {
+    assert.throws(() => trace.createTrace([], shot));
+    assert.throws(() => trace.createTraceData([], shot));
+    assert.throws(() => trace.parseTrace({ schema_version: trace.SCHEMA_VERSION, shot }));
+    assert.throws(() => trace.createTraces([{ shot }]));
+    const document = trace.createTrace();
+    document.shot = shot;
+    assert.throws(() => trace.serializeTrace(document));
+    const data = trace.createTraceData();
+    data.shot = shot;
+    assert.throws(() => trace.serializeTraceData(data));
+    assert.throws(() => trace.serializeTraces({ schema_version: trace.SCHEMA_VERSION, traces: [data] }));
+  }
+});

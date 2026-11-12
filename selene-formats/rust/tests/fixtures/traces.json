@@ -2,9 +2,11 @@
   "schema_version": "0.2.0",
   "traces": [
     {
+      "shot": 7,
       "events": []
     },
     {
+      "shot": 10,
       "events": [
         {
           "source": {

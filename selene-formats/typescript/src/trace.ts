@@ -238,12 +238,14 @@ export type EventRecord = z.infer<typeof EventRecordSchema>;
 export type EventRecordInput = z.input<typeof EventRecordSchema>;
 
 const TraceDataSchema = z.object({
+  shot: SafeUIntSchema.nullish(),
   events: z.array(EventRecordSchema).default([]),
 }).strict();
 export type TraceData = z.infer<typeof TraceDataSchema>;
 export type TraceDataInput = z.input<typeof TraceDataSchema>;
 
 const TraceSchema = z.object({
+  shot: SafeUIntSchema.nullish(),
   schema_version: SchemaVersionSchema,
   events: z.array(EventRecordSchema).default([]),
 }).strict();
@@ -322,9 +324,13 @@ function constructorEvents(events: (EventRecordInput | EventRecord)[] = []) {
 }
 
 /** Create a versioned trace from wire inputs or normalized events. */
-export function createTrace(events: (EventRecordInput | EventRecord)[] = []): Trace {
+export function createTrace(
+  events: (EventRecordInput | EventRecord)[] = [],
+  shot?: number,
+): Trace {
   return TraceSchema.parse({
     schema_version: SCHEMA_VERSION,
+    ...(shot === undefined ? {} : { shot }),
     events: constructorEvents(events),
   });
 }
@@ -342,8 +348,14 @@ export function stripOpaqueCustomEvents(trace: Trace): Trace {
 }
 
 /** Create unversioned trace data from wire inputs or normalized events. */
-export function createTraceData(events: (EventRecordInput | EventRecord)[] = []): TraceData {
-  return TraceDataSchema.parse({ events: constructorEvents(events) });
+export function createTraceData(
+  events: (EventRecordInput | EventRecord)[] = [],
+  shot?: number,
+): TraceData {
+  return TraceDataSchema.parse({
+    ...(shot === undefined ? {} : { shot }),
+    events: constructorEvents(events),
+  });
 }
 
 /** Create a versioned collection from wire inputs or normalized trace data. */
@@ -560,6 +572,7 @@ function serializeSource(source: Source): SourceInput {
 
 function encodeTraceData(trace: TraceData): TraceDataInput {
   return {
+    ...(trace.shot == null ? {} : { shot: trace.shot }),
     events: trace.events.map(({ source, event }) => ({
       source: serializeSource(source),
       event: serializeEvent(event),

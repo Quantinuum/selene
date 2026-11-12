@@ -29,3 +29,9 @@ const numericOutcome: trace.FutureResultValue = 1;
 const structuredOutcome: trace.FutureResultValue = { result: [true, null, 0.5] };
 const stringOutcome: trace.FutureResultValue = "text";
 const nestedStringOutcome: trace.FutureResultValue = { result: ["text"] };
+
+const numberedData: trace.TraceData = trace.createTraceData(wireEvents, 7);
+const numberedTrace: trace.Trace = trace.createTrace(wireEvents, 7);
+trace.createTraces([{ events: numberedData.events, shot: numberedTrace.shot }]);
+// @ts-expect-error Shot identity is numeric.
+trace.createTrace([], "7");

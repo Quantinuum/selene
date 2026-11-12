@@ -49,7 +49,7 @@ it is designed to be read and written in a sequential manner.
 After gzip decompression, the stream consists of consecutive MessagePack objects:
 
 1. A map with `format: "selene.trace.msgpack"`, `format_version: 1`, and
-   `schema_version: "0.2.0"`.
+   `schema_version: "0.2.0"`, optionally with `shot` as a native uint64.
 2. Zero or more record maps.
 3. A single MessagePack nil (`0xc0`) marking successful completion.
 
@@ -97,4 +97,11 @@ garbage-collected. Once you're finished reading traces and state dumps, call
 `stack.delete_run_directory()` to close the stack and remove its files. If the
 stack has already been collected, remove the directory yourself using the path
 you saved from `stack.configuration_path.parent`.
+`TraceStreamWriter::with_shot` and Python's `write_trace_stream(..., shot=...)`
+include shot identity in the header. Rust readers expose it through `shot()`;
+Python's `read_trace_stream_header(path).shot` reads it without materialising
+events. `ShotTrace.shot` retains the full uint64 value, while `get_trace()`
+requires it to fit the public JSON schema's safe-integer range. All stream
+fragments belonging to a shot must agree on its identity.
+
 The conventional suffix is `.msgpack.gz`.
