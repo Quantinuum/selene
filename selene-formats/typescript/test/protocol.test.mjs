@@ -81,6 +81,47 @@ test("serializers reject non-bigint and out-of-range normalized opaque tags", ()
   assert.equal(calls, 0);
 });
 
+test("collection arrays are copied without subclass or map hooks", () => {
+  let calls = 0;
+  const valid = [{ events: [], shot: 7 }, { events: [], shot: 10 }];
+  const unsafe = [{ events: [], shot: 2 ** 53 }];
+  class UnsafeArray extends Array {
+    toJSON() { calls++; return unsafe; }
+  }
+  class SpeciesArray extends Array {
+    static get [Symbol.species]() { calls++; return UnsafeArray; }
+  }
+  class HidingArray extends Array {
+    *[Symbol.iterator]() { calls++; yield* valid; }
+  }
+  const overriddenMap = [...valid];
+  Object.defineProperty(overriddenMap, "map", { value: () => { calls++; return unsafe; } });
+  const serializers = [trace.serializeTraces, trace.serializeTraceDocument];
+  for (const array of [UnsafeArray.of(...valid), SpeciesArray.of(...valid),
+    HidingArray.of(...valid), overriddenMap]) {
+    for (const serialize of serializers) {
+      const serialized = serialize({ schema_version: trace.SCHEMA_VERSION, traces: array });
+      assert.equal(Object.getPrototypeOf(serialized.traces), Array.prototype);
+      assert.deepEqual(JSON.parse(JSON.stringify(serialized)), {
+        schema_version: trace.SCHEMA_VERSION, traces: valid,
+      });
+    }
+  }
+  const hiddenInvalid = [...unsafe];
+  Object.defineProperty(hiddenInvalid, "map", { value: () => { calls++; return valid; } });
+  for (const array of [HidingArray.of(...unsafe), hiddenInvalid]) {
+    for (const serialize of serializers) {
+      assert.throws(() => serialize({ schema_version: trace.SCHEMA_VERSION, traces: array }));
+    }
+  }
+  assert.equal(calls, 0);
+  for (const traces of [null, undefined, {}, { length: 0 }]) {
+    for (const serialize of serializers) {
+      assert.throws(() => serialize({ schema_version: trace.SCHEMA_VERSION, traces }));
+    }
+  }
+});
+
 test("outcome arrays are copied without subclass or map hooks", () => {
   let calls = 0;
   class UnsafeArray extends Array {

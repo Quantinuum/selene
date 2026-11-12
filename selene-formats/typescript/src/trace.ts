@@ -596,9 +596,14 @@ export function serializeTrace(trace: Trace): TraceInput {
 
 /** Convert a parsed trace collection to its JSON-compatible representation. */
 export function serializeTraces(traces: Traces): TracesInput {
+  const schema_version = SchemaVersionSchema.parse(traces.schema_version);
+  const input = traces.traces;
+  if (!Array.isArray(input)) throw new TypeError("Expected traces to be an array");
+  const serialized: TraceDataInput[] = [];
+  for (let i = 0; i < input.length; i++) serialized.push(serializeTraceData(input[i]));
   return {
-    schema_version: SchemaVersionSchema.parse(traces.schema_version),
-    traces: traces.traces.map(serializeTraceData),
+    schema_version,
+    traces: serialized,
   };
 }
 
