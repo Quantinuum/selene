@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - 0.3-series
+      - 0.4-series
   push:
     branches:
       - main
       - 0.3-series
+      - 0.4-series
     tags:
       - "selene-core-v*"
       - "selene-sim-v*"

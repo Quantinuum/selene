@@ -5,6 +5,7 @@ on:
     branches:
     - main
     - 0.3-series
+    - 0.4-series
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}

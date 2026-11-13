@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - 0.3-series
+      - 0.4-series
 
 permissions:
   contents: write
