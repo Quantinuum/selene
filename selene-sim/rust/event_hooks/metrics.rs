@@ -32,8 +32,8 @@ impl UserProgramMetrics {
                 self.currently_allocated -= 1;
             }
             Operation::Reset(_) => self.reset_count += 1,
-            Operation::MeasureRequest(_) => self.measure_request_count += 1,
-            Operation::MeasureLeakedRequest(_) => self.measure_leaked_request_count += 1,
+            Operation::MeasureRequest(..) => self.measure_request_count += 1,
+            Operation::MeasureLeakedRequest(..) => self.measure_leaked_request_count += 1,
             Operation::FutureRead(_) => self.future_read_count += 1,
             Operation::RXY(..) => self.rxy_count += 1,
             Operation::RZ(..) => self.rz_count += 1,

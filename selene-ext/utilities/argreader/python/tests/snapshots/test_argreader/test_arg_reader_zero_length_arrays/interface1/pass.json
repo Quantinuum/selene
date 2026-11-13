@@ -1,4 +1,6 @@
 {
+  "schema_version": "0.2.0",
+  "shot": 0,
   "events": [
     {
       "source": {

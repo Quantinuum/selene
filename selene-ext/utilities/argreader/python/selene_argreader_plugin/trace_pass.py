@@ -26,4 +26,8 @@ def argreader_trace_pass(selene_trace: trace.Trace) -> trace.Trace:
             new_records.append(replacement)
         else:
             new_records.append(record)
-    return trace.Trace(events=new_records)
+    return trace.Trace(
+        schema_version=selene_trace.schema_version,
+        shot=selene_trace.shot,
+        events=new_records,
+    )

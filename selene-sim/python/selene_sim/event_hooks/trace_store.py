@@ -3,12 +3,13 @@
 from collections.abc import Iterator
 from pathlib import Path
 
-from selene_core.trace import SCHEMA_VERSION, EventRecord, Trace
+from selene_formats.trace import SCHEMA_VERSION, MAX_SAFE_INTEGER, EventRecord, Trace
 from selene_formats.trace_stream import (
     TraceStreamEvent,
     UIntInstructionRecord,
     TraceStreamRecord,
     iter_trace_stream_records,
+    read_trace_stream_header,
 )
 
 from .event_hook import EventHook
@@ -29,9 +30,31 @@ class ShotTrace:
             if isinstance(record, (TraceStreamEvent, UIntInstructionRecord)):
                 yield record.as_event()
 
+    @property
+    def shot(self) -> int | None:
+        """Read the shot identity from the available stream headers."""
+        numbers = {
+            number
+            for path in self._files
+            if (number := read_trace_stream_header(path).shot) is not None
+        }
+        if len(numbers) > 1:
+            raise ValueError("Trace streams contain inconsistent shot numbers")
+        return next(iter(numbers), None)
+
     def get_trace(self) -> Trace:
         """Materialise a trace without keeping an implicit in-memory cache."""
-        return Trace(schema_version=SCHEMA_VERSION, events=list(self.iter_events()))
+        shot = self.shot
+        if shot is not None and shot > MAX_SAFE_INTEGER:
+            raise ValueError(
+                f"shot {shot} cannot be represented in trace schema "
+                f"{SCHEMA_VERSION}; use the stream metadata instead"
+            )
+        return Trace(
+            schema_version=SCHEMA_VERSION,
+            shot=shot,
+            events=list(self.iter_events()),
+        )
 
 
 class TraceStore(EventHook):

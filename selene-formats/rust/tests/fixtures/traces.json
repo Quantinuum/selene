@@ -1,10 +1,12 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "traces": [
     {
+      "shot": 7,
       "events": []
     },
     {
+      "shot": 10,
       "events": [
         {
           "source": {
@@ -13,7 +15,9 @@
           },
           "event": {
             "kind": "Measurement",
-            "qubit": 0
+            "qubit": 0,
+            "measurement_type": "Standard",
+            "result_id": 0
           }
         }
       ]

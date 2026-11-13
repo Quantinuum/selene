@@ -11,30 +11,197 @@ function opaqueRecord(tag, data = "Zg==") {
   };
 }
 
-test("legacy serialization preserves uint64 tags and round trips", () => {
-  for (const tag of [0n, 42n, BigInt(Number.MAX_SAFE_INTEGER) + 2n, trace.UINT64_MAX]) {
-    const document = trace.createTrace([opaqueRecord(tag, "-_8=")]);
-    const original = trace.serializeTrace(document);
-    const legacy = trace.serializeLegacyTrace(document);
-    assert.deepEqual(Object.keys(legacy), ["events"]);
-    assert.equal(legacy.events[0].event.payload.tag, tag);
-    const json = trace.serializeLegacyTraceJson(document, 2);
-    assert.ok(json.includes(`"tag": ${tag}`));
-    assert.deepEqual(trace.parseTraceJson(json), document);
-    assert.deepEqual(trace.parseTrace(legacy), document);
-    assert.deepEqual(trace.serializeTrace(document), original);
-  }
-  for (const name of ["minimal.json", "all-event-types.json", "legacy.json"]) {
-    const document = trace.parseTraceJson(readFileSync(new URL(`../../examples/trace/${name}`, import.meta.url), "utf8"));
-    assert.deepEqual(trace.parseTraceJson(trace.serializeLegacyTraceJson(document)), document);
+test("custom event filters preserve other events and the original", () => {
+  const document = trace.createTrace([
+    { source: { kind: "UserProgram", index: 0 }, event: { kind: "Gate", gate_name: "H", qubits: [0] } },
+    opaqueRecord(1n),
+    { source: { kind: "UserProgram", index: 2 }, event: { kind: "FutureRead", result_id: 42 } },
+    { source: { kind: "UserProgram", index: 3 }, event: { kind: "Custom", payload: { kind: "KeyValuePairPayload", data: { name: "test" } } } },
+    { source: { kind: "Runtime", start_time: 5, end_time: 5 }, event: { kind: "FutureResult", result_id: 42, outcome: 1 } },
+  ]);
+  const original = structuredClone(document);
+  assert.deepEqual(trace.stripCustomEvents(document), {
+    schema_version: document.schema_version,
+    events: [0, 2, 4].map(i => document.events[i]),
+  });
+  assert.deepEqual(trace.stripOpaqueCustomEvents(document), {
+    schema_version: document.schema_version,
+    events: [0, 2, 3, 4].map(i => document.events[i]),
+  });
+  assert.deepEqual(document, original);
+});
+
+test("serializers reject invalid mutations to future outcomes", () => {
+  const cyclic = {}; cyclic.self = cyclic;
+  const serializers = [
+    trace.serializeTrace,
+    trace.serializeTraceData,
+    trace.serializeTraceDocument,
+    (document) => trace.serializeTraces({ schema_version: trace.SCHEMA_VERSION, traces: [{ events: document.events }] }),
+    (document) => trace.serializeTraceDocument({ schema_version: trace.SCHEMA_VERSION, traces: [{ events: document.events }] }),
+  ];
+  for (const outcome of [NaN, Infinity, 2 ** 53, -(2 ** 53), undefined, cyclic]) {
+    const document = trace.createTrace([{
+      source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome: { value: 1 } },
+    }]);
+    document.events[0].event.outcome.value = outcome;
+    for (const serialize of serializers) assert.throws(() => serialize(document));
   }
 });
 
-test("legacy serialization rejects invalid current values", () => {
-  const document = trace.createTrace([opaqueRecord(1n)]);
-  document.events[0].source.index = Number.MAX_SAFE_INTEGER + 1;
-  assert.throws(() => trace.serializeLegacyTrace(document));
-  assert.throws(() => trace.serializeLegacyTraceJson(document));
+test("serializers revalidate event fields and document versions", () => {
+  for (const mutate of [
+    (document) => { document.events[0].source.index = -1; },
+    (document) => { document.events[0].event.payload.tag = trace.UINT64_MAX + 1n; },
+  ]) {
+    const document = trace.createTrace([opaqueRecord(42n)]);
+    mutate(document);
+    assert.throws(() => trace.serializeTrace(document));
+  }
+  const document = trace.createTrace();
+  document.schema_version = "0.1.0";
+  assert.throws(() => trace.serializeTrace(document));
+  assert.throws(() => trace.serializeTraces({ schema_version: "0.1.0", traces: [] }));
+});
+
+test("serializers reject non-bigint and out-of-range normalized opaque tags", () => {
+  let calls = 0;
+  const serializers = [
+    trace.serializeTrace, trace.serializeTraceData, trace.serializeTraceDocument,
+    (document) => trace.serializeTraces({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+    (document) => trace.serializeTraceDocument({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+  ];
+  for (const tag of [0, 42, 2 ** 53, "0x1", "1", null, undefined, true, Object(1n),
+    { toString() { calls++; return "1"; } }, -1n, trace.UINT64_MAX + 1n]) {
+    const document = trace.createTrace([opaqueRecord(1n)]);
+    document.events[0].event.payload.tag = tag;
+    for (const serialize of serializers) assert.throws(() => serialize(document));
+  }
+  assert.equal(calls, 0);
+});
+
+test("collection arrays are copied without subclass or map hooks", () => {
+  let calls = 0;
+  const valid = [{ events: [], shot: 7 }, { events: [], shot: 10 }];
+  const unsafe = [{ events: [], shot: 2 ** 53 }];
+  class UnsafeArray extends Array {
+    toJSON() { calls++; return unsafe; }
+  }
+  class SpeciesArray extends Array {
+    static get [Symbol.species]() { calls++; return UnsafeArray; }
+  }
+  class HidingArray extends Array {
+    *[Symbol.iterator]() { calls++; yield* valid; }
+  }
+  const overriddenMap = [...valid];
+  Object.defineProperty(overriddenMap, "map", { value: () => { calls++; return unsafe; } });
+  const serializers = [trace.serializeTraces, trace.serializeTraceDocument];
+  for (const array of [UnsafeArray.of(...valid), SpeciesArray.of(...valid),
+    HidingArray.of(...valid), overriddenMap]) {
+    for (const serialize of serializers) {
+      const serialized = serialize({ schema_version: trace.SCHEMA_VERSION, traces: array });
+      assert.equal(Object.getPrototypeOf(serialized.traces), Array.prototype);
+      assert.deepEqual(JSON.parse(JSON.stringify(serialized)), {
+        schema_version: trace.SCHEMA_VERSION, traces: valid,
+      });
+    }
+  }
+  const hiddenInvalid = [...unsafe];
+  Object.defineProperty(hiddenInvalid, "map", { value: () => { calls++; return valid; } });
+  for (const array of [HidingArray.of(...unsafe), hiddenInvalid]) {
+    for (const serialize of serializers) {
+      assert.throws(() => serialize({ schema_version: trace.SCHEMA_VERSION, traces: array }));
+    }
+  }
+  assert.equal(calls, 0);
+  for (const traces of [null, undefined, {}, { length: 0 }]) {
+    for (const serialize of serializers) {
+      assert.throws(() => serialize({ schema_version: trace.SCHEMA_VERSION, traces }));
+    }
+  }
+});
+
+test("outcome arrays are copied without subclass or map hooks", () => {
+  let calls = 0;
+  class UnsafeArray extends Array {
+    toJSON() { calls++; return [2 ** 53]; }
+  }
+  class SpeciesArray extends Array {
+    static get [Symbol.species]() { calls++; return UnsafeArray; }
+  }
+  const overriddenMap = [1];
+  Object.defineProperty(overriddenMap, "map", { value: () => { calls++; return [2 ** 53]; } });
+  for (const array of [UnsafeArray.of(1), SpeciesArray.of(1), overriddenMap]) {
+    const record = { source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome: { nested: array } } };
+    const document = trace.createTrace([record]);
+    assert.equal(Object.getPrototypeOf(document.events[0].event.outcome.nested), Array.prototype);
+    document.events[0].event.outcome.nested = array;
+    const data = { events: document.events };
+    for (const serialized of [trace.serializeTrace(document), trace.serializeTraceData(data),
+      trace.serializeTraceDocument(document),
+      trace.serializeTraces({ schema_version: document.schema_version, traces: [data] }),
+      trace.serializeTraceDocument({ schema_version: document.schema_version, traces: [data] })]) {
+      const events = "traces" in serialized ? serialized.traces[0].events : serialized.events;
+      assert.equal(Object.getPrototypeOf(events[0].event.outcome.nested), Array.prototype);
+      assert.deepEqual(JSON.parse(JSON.stringify(events))[0].event.outcome, { nested: [1] });
+    }
+  }
+  assert.equal(calls, 0);
+  class HidingArray extends Array {
+    *[Symbol.iterator]() { yield 1; }
+  }
+  const outcome = HidingArray.of(2 ** 53);
+  assert.throws(() => trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 0 },
+    event: { kind: "FutureResult", result_id: 42, outcome } }]));
+});
+
+test("outcome accessors are read once while copying and validating", () => {
+  const document = trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 0 },
+    event: { kind: "FutureResult", result_id: 42, outcome: {} } }]);
+  let reads = 0;
+  Object.defineProperty(document.events[0].event.outcome, "value", {
+    enumerable: true, get() { return ++reads === 1 ? 1 : 2 ** 53; },
+  });
+  const serialized = trace.serializeTrace(document);
+  assert.deepEqual(serialized.events[0].event.outcome, { value: 1 });
+  assert.equal(reads, 1);
+});
+
+test("serializers use validated outcome copies without hidden toJSON methods", () => {
+  const serializers = [
+    trace.serializeTrace,
+    (document) => ({ schema_version: document.schema_version, ...trace.serializeTraceData(document) }),
+    trace.serializeTraceDocument,
+    (document) => trace.serializeTraces({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+    (document) => trace.serializeTraceDocument({ schema_version: document.schema_version, traces: [{ events: document.events }] }),
+  ];
+  for (const target of ["root", "object", "array"]) {
+    const document = trace.createTrace([
+      opaqueRecord(trace.UINT64_MAX),
+      { source: { kind: "Runtime", start_time: 0, end_time: 0 },
+        event: { kind: "FutureResult", result_id: 42, outcome: { object: { value: 1 }, array: [1] } } },
+    ]);
+    const expected = JSON.parse(JSON.stringify(trace.serializeTrace(document)));
+    const outcome = document.events[1].event.outcome;
+    const original = target === "root" ? outcome : outcome[target];
+    let calls = 0;
+    const toJSON = () => { calls++; return { value: 2 ** 53 }; };
+    Object.defineProperty(original, "toJSON", { value: toJSON });
+    for (const serialize of serializers) {
+      const serialized = serialize(document);
+      const json = JSON.stringify(serialized);
+      assert.deepEqual(JSON.parse(json), "traces" in serialized
+        ? { schema_version: expected.schema_version, traces: [{ events: expected.events }] }
+        : expected);
+      assert.deepEqual(trace.parseTraceDocumentJson(json), "traces" in serialized
+        ? { schema_version: document.schema_version, traces: [{ events: document.events }] }
+        : document);
+    }
+    assert.equal(calls, 0);
+    assert.equal(original.toJSON, toJSON);
+  }
 });
 
 test("constructors compose wire inputs and normalized opaque events", () => {
@@ -65,7 +232,7 @@ test("constructors validate normalized tags and other event fields", () => {
     assert.throws(() => trace.createTraceData([record]));
     assert.throws(() => trace.createTraces([{ events: [record] }]));
   }
-  assert.throws(() => trace.createTraces([{ events: [], schema_version: "0.1.0" }]));
+  assert.throws(() => trace.createTraces([{ events: [], schema_version: "0.2.0" }]));
   assert.throws(() => trace.createTraces([{ events: null }]));
 });
 
@@ -80,7 +247,7 @@ test("invalid tag strings return safe parse failures without throwing", () => {
 test("Base64 schemas and parsers require zero pad bits with optional padding", () => {
   for (const legacy of [false, true]) {
     const schema = JSON.parse(readFileSync(
-      new URL(`../../schemas/trace/${legacy ? "legacy" : "0.1.0"}.schema.json`, import.meta.url), "utf8",
+      new URL(`../../schemas/trace/${legacy ? "legacy" : "0.2.0"}.schema.json`, import.meta.url), "utf8",
     ));
     const pattern = new RegExp(schema.$defs.OpaquePayload.properties.data.pattern);
     for (const [data, valid] of [
@@ -139,7 +306,7 @@ test("createTraces versions unversioned trace data once", () => {
 });
 
 test("shared protocol examples identify the current protocol version", () => {
-  for (const exampleName of ["minimal.json", "all-event-types.json"]) {
+  for (const exampleName of ["minimal.json", "all-event-types.json", "measurement-results.json"]) {
     const exampleUrl = new URL(
       `../../examples/trace/${exampleName}`,
       import.meta.url,
@@ -318,7 +485,7 @@ test("versionless legacy traces are upgraded", () => {
     events: [
       {
         source: { kind: "UserProgram", index: 0 },
-        event: { kind: "Measurement", qubit: 1 },
+        event: { kind: "Measurement", qubit: 1, measurement_type: "Standard", result_id: null },
       },
     ],
   });
@@ -402,7 +569,7 @@ for (const parser of [trace.parseTraceJson, trace.parseTraceDocumentJson]) {
 
 test("the JSON Schema uint64 pattern enforces the bound in JavaScript", () => {
   const schema = JSON.parse(readFileSync(
-    new URL("../../schemas/trace/0.1.0.schema.json", import.meta.url), "utf8",
+    new URL("../../schemas/trace/0.2.0.schema.json", import.meta.url), "utf8",
   ));
   const pattern = new RegExp(schema.$defs.OpaquePayload.properties.tag.pattern);
   for (const [tag, valid] of [
@@ -438,5 +605,155 @@ test("safe parse failures provide standard errors", () => {
     assert.equal(result.success, false);
     assert.ok(result.error instanceof Error);
     assert.ok(result.error.message.length > 0);
+  }
+});
+
+
+test("measurement results validate and round trip", () => {
+  for (const [outcome, valid] of [
+    [0, true], [1, true], [2, true], [3, true], [-1, true], [true, true],
+  ]) {
+    const event = { kind: "FutureResult", result_id: 42, outcome };
+    const document = { schema_version: trace.SCHEMA_VERSION, events: [{
+      source: { kind: "Runtime", start_time: 5, end_time: 5 }, event,
+    }] };
+    const parsed = trace.safeParseTrace(document);
+    assert.equal(parsed.success, valid);
+    if (valid) {
+      assert.deepEqual(trace.serializeTrace(parsed.data), document);
+    }
+  }
+});
+
+test("previous schema measurements have unknown result IDs", () => {
+  const document = { schema_version: "0.1.0", events: [{
+    source: { kind: "Runtime", start_time: 0, end_time: 1 },
+    event: { kind: "Measurement", qubit: 3 },
+  }] };
+  const parsed = trace.parseTrace(document);
+  assert.equal(parsed.schema_version, trace.SCHEMA_VERSION);
+  assert.equal(parsed.events[0].event.result_id, null);
+  assert.equal(document.schema_version, "0.1.0");
+});
+
+test("FutureResult requires the current schema", () => {
+  for (const version of [undefined, "0.1.0"]) {
+    const document = { events: [{
+      source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome: 0 },
+    }] };
+    if (version !== undefined) document.schema_version = version;
+    assert.equal(trace.safeParseTrace(document).success, false);
+  }
+});
+
+
+test("FutureRead preserves result identity and requires the current schema", () => {
+  const record = { source: { kind: "UserProgram", index: 0 }, event: { kind: "FutureRead", result_id: 42 } };
+  const document = { schema_version: trace.SCHEMA_VERSION, events: [record] };
+  const parsed = trace.parseTrace(document);
+  assert.deepEqual(trace.serializeTrace(parsed), document);
+  assert.equal(trace.safeParseTrace({ ...document, schema_version: "0.1.0" }).success, false);
+  assert.equal(trace.safeParseTrace({ events: [record] }).success, false);
+  for (const result_id of [-1, true, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(trace.safeParseTrace({ ...document, events: [{ ...record, event: { kind: "FutureRead", result_id } }] }).success, false);
+  }
+});
+
+
+test("extension measurement types and JSON outcomes survive round trips", () => {
+  for (const outcome of [null, true, -3, 0.25, "text", "0", [1, null, { value: false }],
+    { kind: "OpaquePayload", tag: "arbitrary", data: "literal" },
+    { kind: 1, tag: 42, data: [true, null] },
+    { nested: { kind: 1, tag: 42, data: [true, null] } },
+    JSON.parse('{"__proto__":{"x":1},"constructor":true}'),
+    JSON.parse('{"__proto__":false,"__selene_proto__":1}'),
+    { isLosslessNumber: true, count: 1 },
+    { isLosslessNumber: true, valueOf: 1 },
+    JSON.parse('{"isLosslessNumber":true,"__proto__":true}'),
+  ]) {
+    const events = [
+      { source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "Measurement", qubit: 3, result_id: 42, measurement_type: "com.example/Custom" } },
+      { source: { kind: "Runtime", start_time: 1, end_time: 1 }, event: { kind: "FutureResult", result_id: 42, outcome } },
+    ];
+    const document = { schema_version: trace.SCHEMA_VERSION, events };
+    const parsed = trace.parseTrace(document);
+    assert.deepEqual(trace.serializeTrace(parsed), document);
+    assert.deepEqual(trace.serializeTrace(trace.parseTraceJson(JSON.stringify(document))), document);
+  }
+  for (const measurement_type of ["", null, 1, true]) {
+    assert.throws(() => trace.createTrace([{ source: { kind: "UserProgram", index: 0 }, event: { kind: "Measurement", qubit: 3, measurement_type } }]));
+  }
+  for (const outcome of [NaN, Infinity, -Infinity, 2n, undefined, { value: [Number.MAX_SAFE_INTEGER + 1] }, { value: [-Number.MAX_SAFE_INTEGER - 1] }, new Date()]) {
+    assert.throws(() => trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "FutureResult", result_id: 42, outcome } }]));
+  }
+  assert.throws(() => trace.createTrace([{ source: { kind: "Runtime", start_time: 0, end_time: 1 }, event: { kind: "FutureResult", result_id: 42 } }]));
+});
+
+
+test("JSON outcomes reject cycles and sparse arrays", () => {
+  const cyclic = {}; cyclic.self = cyclic;
+  for (const outcome of [cyclic, new Array(2)]) {
+    assert.equal(trace.safeParseTrace({ schema_version: trace.SCHEMA_VERSION, events: [{
+      source: { kind: "Runtime", start_time: 0, end_time: 1 },
+      event: { kind: "FutureResult", result_id: 42, outcome },
+    }] }).success, false);
+  }
+  const json = '{"schema_version":"0.2.0","events":[{"source":{"kind":"Runtime","start_time":0,"end_time":1},"event":{"kind":"FutureResult","result_id":42,"outcome":{"__pr\\u006fto__":true}}}]}';
+  assert.deepEqual(trace.parseTraceJson(json).events[0].event.outcome, JSON.parse('{"__proto__":true}'));
+});
+
+
+test("FutureResultValue preserves string values at every depth", () => {
+  for (const outcome of ["0", "text", ["text"], { value: "text" }, { value: [1, { nested: "text" }] }]) {
+    const document = { schema_version: trace.SCHEMA_VERSION, events: [{
+      source: { kind: "Runtime", start_time: 0, end_time: 0 },
+      event: { kind: "FutureResult", result_id: 42, outcome },
+    }] };
+    const parsed = trace.parseTrace(document);
+    assert.deepEqual(trace.serializeTrace(parsed), document);
+    assert.deepEqual(trace.serializeTrace(trace.parseTraceJson(JSON.stringify(document))), document);
+  }
+});
+
+
+test("non-measurement future reads and results round trip", () => {
+  const records = [
+    { source: { kind: "UserProgram", index: 0 }, event: { kind: "FutureRead", result_id: 123 } },
+    { source: { kind: "Runtime", start_time: 0, end_time: 0 }, event: { kind: "FutureResult", result_id: 123, outcome: { ready: true, values: [7, null, 0.5] } } },
+  ];
+  const document = trace.createTrace(records);
+  assert.deepEqual(trace.serializeTrace(document).events, records);
+  assert.deepEqual(trace.parseTraceJson(JSON.stringify(trace.serializeTrace(document))), document);
+});
+
+test("shot survives constructors, serialization and filtering", () => {
+  for (const shot of [0, 17, Number.MAX_SAFE_INTEGER]) {
+    const document = trace.createTrace([], shot);
+    assert.equal(trace.parseTraceJson(JSON.stringify(trace.serializeTrace(document))).shot, shot);
+    assert.equal(trace.stripCustomEvents(document).shot, shot);
+    assert.equal(trace.stripOpaqueCustomEvents(document).shot, shot);
+    const data = trace.createTraceData([], shot);
+    const collection = trace.createTraces([data]);
+    assert.equal(trace.serializeTraceData(data).shot, shot);
+    assert.equal(trace.parseTraceDocumentJson(JSON.stringify(trace.serializeTraces(collection))).traces[0].shot, shot);
+  }
+  assert.equal(Object.hasOwn(trace.serializeTrace(trace.createTrace()), "shot"), false);
+  assert.equal(Object.hasOwn(trace.serializeTraceData(trace.createTraceData()), "shot"), false);
+});
+
+test("shot rejects invalid values during construction, parsing and serialization", () => {
+  for (const shot of [-1, 2 ** 53, 1.5, true, "7", NaN, Infinity]) {
+    assert.throws(() => trace.createTrace([], shot));
+    assert.throws(() => trace.createTraceData([], shot));
+    assert.throws(() => trace.parseTrace({ schema_version: trace.SCHEMA_VERSION, shot }));
+    assert.throws(() => trace.createTraces([{ shot }]));
+    const document = trace.createTrace();
+    document.shot = shot;
+    assert.throws(() => trace.serializeTrace(document));
+    const data = trace.createTraceData();
+    data.shot = shot;
+    assert.throws(() => trace.serializeTraceData(data));
+    assert.throws(() => trace.serializeTraces({ schema_version: trace.SCHEMA_VERSION, traces: [data] }));
   }
 });

@@ -4,7 +4,7 @@ Objects are concatenated without separators: a header, records, and a final
 nil. Exhaust the reader to validate the end marker and gzip checksum.
 """
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 import gzip
 from pathlib import Path
 from typing import Annotated, Literal
@@ -76,6 +76,28 @@ TraceStreamRecord = TraceStreamEvent | BatchStartRecord | UIntInstructionRecord
 _record_adapter: TypeAdapter[TraceStreamRecord] = TypeAdapter(TraceStreamRecord)
 
 
+class TraceStreamHeader(BaseModel):
+    """Stream metadata; shot numbers retain the full unsigned 64-bit range."""
+
+    model_config = ConfigDict(extra="forbid")
+    format: Literal["selene.trace.msgpack"] = "selene.trace.msgpack"
+    format_version: Literal[1] = 1
+    schema_version: Literal["0.1.0", "0.2.0"] = SCHEMA_VERSION
+    shot: Annotated[int, Field(strict=True, ge=0, le=2**64 - 1)] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_header(cls, value):
+        if (
+            not isinstance(value, dict)
+            or not {"format", "format_version", "schema_version"} <= value.keys()
+            or type(value.get("format_version")) is not int
+            or ("shot" in value and type(value["shot"]) is not int)
+        ):
+            raise ValueError("Unsupported or incomplete trace stream header")
+        return value
+
+
 def _header() -> dict:
     return {
         "format": FORMAT,
@@ -95,8 +117,9 @@ def _unique_map(pairs: list[tuple]) -> dict:
     return result
 
 
-def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
-    """Read lazily without caching records or accepting JSON document formats."""
+def _iter_trace_stream(
+    path: str | Path,
+) -> Generator[TraceStreamHeader | TraceStreamRecord, None, None]:
     path = Path(path)
     record_number = 0
     try:
@@ -106,12 +129,8 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
             )
             missing = object()
             header = next(unpacker, missing)
-            if (
-                not isinstance(header, dict)
-                or header != _header()
-                or type(header.get("format_version")) is not int
-            ):
-                raise ValueError("Unsupported or incomplete trace stream header")
+            metadata = TraceStreamHeader.model_validate(header)
+            yield metadata
             while True:
                 record_number += 1
                 item = next(unpacker, missing)
@@ -138,7 +157,16 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
                         raise ValueError(
                             "OpaquePayload requires a native integer tag and binary data"
                         )
-                yield _record_adapter.validate_python(item)
+                record = _record_adapter.validate_python(item)
+                if (
+                    metadata.schema_version == "0.1.0"
+                    and isinstance(record, TraceStreamEvent)
+                    and record.event.kind in ("FutureRead", "FutureResult")
+                ):
+                    raise ValueError(
+                        "FutureRead and FutureResult require trace schema 0.2.0"
+                    )
+                yield record
     except FileNotFoundError as error:
         raise ValueError(
             f"Trace stream {str(path)!r} is no longer available. Its run directory "
@@ -158,6 +186,24 @@ def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
         ) from error
 
 
+def read_trace_stream_header(path: str | Path) -> TraceStreamHeader:
+    """Read only the metadata; this does not validate the rest of the stream."""
+    stream = _iter_trace_stream(path)
+    try:
+        metadata = next(stream)
+        assert isinstance(metadata, TraceStreamHeader)
+        return metadata
+    finally:
+        stream.close()
+
+
+def iter_trace_stream_records(path: str | Path) -> Iterator[TraceStreamRecord]:
+    """Read lazily without caching records or accepting JSON document formats."""
+    for record in _iter_trace_stream(path):
+        if not isinstance(record, TraceStreamHeader):
+            yield record
+
+
 def iter_trace_stream(path: str | Path) -> Iterator[EventRecord]:
     for record in iter_trace_stream_records(path):
         if isinstance(record, (TraceStreamEvent, UIntInstructionRecord)):
@@ -167,17 +213,24 @@ def iter_trace_stream(path: str | Path) -> Iterator[EventRecord]:
 def write_trace_stream(
     path: str | Path,
     events: Iterable[EventRecord | BatchStartRecord | UIntInstructionRecord],
+    *,
+    shot: int | None = None,
 ) -> None:
     """Write incrementally to a new file; publish it only after this succeeds.
 
     If producing or writing a record fails, the caller owns removal of the
     partial output. There will be no successful-completion marker in it.
     """
+    metadata = _header()
+    if shot is not None:
+        metadata["shot"] = shot
+    TraceStreamHeader.model_validate(metadata)
     packer = msgpack.Packer(use_bin_type=True)
     with gzip.open(path, "xb", compresslevel=1) as output:
-        output.write(packer.pack(_header()))
+        output.write(packer.pack(metadata))
         for event in events:
-            output.write(
-                packer.pack(event.model_dump(mode="python", exclude_none=True))
-            )
+            record = event.model_dump(mode="python")
+            if isinstance(event, TraceStreamEvent) and event.instruction is None:
+                record.pop("instruction", None)
+            output.write(packer.pack(record))
         output.write(packer.pack(None))

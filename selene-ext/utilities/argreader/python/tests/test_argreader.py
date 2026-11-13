@@ -9,7 +9,7 @@ from selene_sim.event_hooks import CircuitExtractor
 from selene_argreader_plugin import ArgReaderPlugin, ArgProvider, argreader_trace_pass
 from selene_helios_qis_plugin import HeliosInterface
 from selene_sol_qis_plugin import SolInterface
-from selene_core.trace import CustomEvent, OpaquePayload, Trace
+from selene_core.trace import SCHEMA_VERSION, CustomEvent, OpaquePayload, Trace
 from selene_argreader_plugin.trace_pass import ARGREADER_LOGGING_TAG
 
 # Note to avoid confusion:
@@ -18,8 +18,8 @@ from selene_argreader_plugin.trace_pass import ARGREADER_LOGGING_TAG
 # a clear example of what's what for testing purposes.
 
 
-def test_argreader_trace_pass_preserves_legacy_format():
-    trace = Trace()
+def test_argreader_trace_pass_preserves_trace_metadata():
+    trace = Trace(schema_version=SCHEMA_VERSION, shot=17)
     trace.add_user_program_event(
         CustomEvent(
             payload=OpaquePayload(
@@ -30,7 +30,8 @@ def test_argreader_trace_pass_preserves_legacy_format():
         index=0,
     )
     processed = argreader_trace_pass(trace)
-    assert "schema_version" not in processed.model_dump()
+    assert processed.model_dump()["schema_version"] == SCHEMA_VERSION
+    assert processed.shot == 17
     assert processed.events[0].event.payload.data == {
         "type": "ArgumentRead",
         "key": "input_u64",

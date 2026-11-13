@@ -1,7 +1,10 @@
 use super::{EventHook, Operation};
 use selene_core::encoder::{OutputStream, OutputStreamError, Record};
 use selene_core::runtime::BatchOperation;
-use selene_formats::trace::{CustomPayload, Event, EventRecord, GateParameter, Source};
+use selene_formats::trace::{
+    CustomPayload, Event, EventRecord, FutureResultValue, GateParameter, MAX_SAFE_INTEGER,
+    MeasurementType, Source,
+};
 use selene_formats::trace_stream::{
     BatchTiming, MeasurementOperation, TraceStreamEvent, TraceStreamRecord, TraceStreamWriter,
     UIntInstruction, UIntInstructionRecord,
@@ -19,6 +22,8 @@ pub struct TraceLog {
     simulator_index: u64,
     active: Option<(PathBuf, TraceStreamWriter<File>)>,
     failure: Option<String>,
+    runtime_frontier: u64,
+    published: bool,
 }
 
 impl TraceLog {
@@ -33,6 +38,8 @@ impl TraceLog {
             simulator_index: 0,
             active: None,
             failure: None,
+            runtime_frontier: 0,
+            published: false,
         }
     }
 
@@ -59,9 +66,19 @@ impl TraceLog {
                 gate("Rpp", vec![*q0, *q1], vec![number(*theta), number(*phi)])
             }
             Operation::Reset(q) => Event::Reset { qubit: *q },
-            Operation::MeasureRequest(q)
-            | Operation::FutureRead(q)
-            | Operation::MeasureLeakedRequest(q) => Event::Measurement { qubit: *q },
+            Operation::MeasureRequest(q, result_id) => Event::Measurement {
+                qubit: *q,
+                result_id: Some(*result_id),
+                measurement_type: MeasurementType::Standard,
+            },
+            Operation::MeasureLeakedRequest(q, result_id) => Event::Measurement {
+                qubit: *q,
+                result_id: Some(*result_id),
+                measurement_type: MeasurementType::Leaked,
+            },
+            Operation::FutureRead(result_id) => Event::FutureRead {
+                result_id: *result_id,
+            },
             Operation::Custom(tag, data) => Event::Custom {
                 payload: CustomPayload::OpaquePayload {
                     tag: *tag,
@@ -104,10 +121,7 @@ impl TraceLog {
         }
         if let Some(event) = Self::event(operation) {
             let instruction = match operation {
-                Operation::FutureRead(_) if matches!(source, Source::UserProgram { .. }) => {
-                    Some(MeasurementOperation::FutureRead)
-                }
-                Operation::MeasureLeakedRequest(_) => {
+                Operation::MeasureLeakedRequest(..) => {
                     Some(MeasurementOperation::MeasureLeakedRequest)
                 }
                 _ => None,
@@ -128,7 +142,7 @@ impl TraceLog {
     }
 
     fn drain_to_file(&mut self) -> Result<(), OutputStreamError> {
-        if self.pending.is_empty() {
+        if self.pending.is_empty() && (self.active.is_some() || self.published) {
             return Ok(());
         }
         if self.active.is_none() {
@@ -144,7 +158,7 @@ impl TraceLog {
                     Err(error) => return Err(OutputStreamError::IoError(error)),
                 }
             };
-            self.active = Some((path, TraceStreamWriter::new(file)));
+            self.active = Some((path, TraceStreamWriter::with_shot(file, self.shot)));
         }
         let (_, writer) = self.active.as_mut().unwrap();
         writer
@@ -192,6 +206,7 @@ impl EventHook for TraceLog {
                 (start, start + u64::from(timing.duration()))
             })
             .unwrap_or((0, 0));
+        self.runtime_frontier = self.runtime_frontier.max(end_time);
         // Batch boundaries are transport metadata, not trace events. This
         // preserves the instruction view without changing the public trace.
         self.pending.push(TraceStreamRecord::BatchStart {
@@ -209,6 +224,27 @@ impl EventHook for TraceLog {
                 },
             );
         }
+    }
+
+    fn on_future_result(&mut self, result_id: u64, outcome: u64) {
+        self.pending
+            .push(TraceStreamRecord::Event(TraceStreamEvent {
+                record: EventRecord {
+                    source: Source::Runtime {
+                        start_time: self.runtime_frontier,
+                        end_time: self.runtime_frontier,
+                    },
+                    event: Event::FutureResult {
+                        result_id,
+                        outcome: if outcome <= MAX_SAFE_INTEGER {
+                            outcome.into()
+                        } else {
+                            FutureResultValue::String(outcome.to_string())
+                        },
+                    },
+                },
+                instruction: None,
+            }));
     }
 
     fn on_error_model_output(&mut self, operation: &Operation) {
@@ -258,6 +294,7 @@ impl EventHook for TraceLog {
             ));
             return Err(error);
         }
+        self.published = true;
         Ok(())
     }
 
@@ -269,6 +306,8 @@ impl EventHook for TraceLog {
         self.user_index = 0;
         self.error_index = 0;
         self.simulator_index = 0;
+        self.runtime_frontier = 0;
+        self.published = false;
     }
 }
 
@@ -289,12 +328,11 @@ mod tests {
         }
         fn read(&self, shot: u64, index: u64) -> Trace {
             let file = File::open(self.0.join(format!("trace-{shot}-{index}.msgpack.gz"))).unwrap();
+            let reader = TraceStreamReader::new(file).unwrap();
             Trace {
+                shot: reader.shot(),
                 schema_version: Default::default(),
-                events: TraceStreamReader::new(file)
-                    .unwrap()
-                    .collect::<Result<_, _>>()
-                    .unwrap(),
+                events: reader.collect::<Result<_, _>>().unwrap(),
             }
         }
     }
@@ -302,6 +340,116 @@ mod tests {
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.0).unwrap();
         }
+    }
+
+    #[test]
+    fn future_results_keep_identity_and_execution_frontier_across_flushes() {
+        use selene_core::runtime::Operation as RuntimeOperation;
+        let directory = TestDirectory::new();
+        let mut log = TraceLog::new(directory.0.clone());
+        let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        log.on_user_call(&Operation::MeasureLeakedRequest(3, 42));
+        log.on_runtime_batch(&BatchOperation::runtime(
+            vec![RuntimeOperation::MeasureLeaked {
+                qubit_id: 3,
+                result_id: 42,
+            }],
+            10.into(),
+            5.into(),
+        ));
+        log.write(0, &mut output).unwrap();
+        log.on_future_result(42, 2);
+        log.write(0, &mut output).unwrap();
+        let measurement = directory.read(0, 0);
+        assert!(measurement.events.iter().all(|record| matches!(
+            record.event,
+            Event::Measurement {
+                qubit: 3,
+                result_id: Some(42),
+                measurement_type: MeasurementType::Leaked
+            }
+        )));
+        let result = directory.read(0, 1);
+        assert_eq!(
+            result.events[0].source,
+            Source::Runtime {
+                start_time: 15,
+                end_time: 15
+            }
+        );
+        assert!(matches!(
+            &result.events[0].event,
+            Event::FutureResult {
+                result_id: 42,
+                outcome
+            } if outcome.as_u64() == Some(2)
+        ));
+        // A later read is placed after intervening execution, not at measurement completion.
+        log.on_runtime_batch(&BatchOperation::runtime(vec![], 20.into(), 7.into()));
+        log.on_runtime_batch(&BatchOperation::runtime(vec![], 1.into(), 2.into()));
+        log.on_future_result(42, 2);
+        log.write(0, &mut output).unwrap();
+        assert_eq!(
+            directory.read(0, 2).events[0].source,
+            Source::Runtime {
+                start_time: 27,
+                end_time: 27
+            }
+        );
+        log.on_shot_start(1);
+        log.on_future_result(42, 1);
+        log.write(0, &mut output).unwrap();
+        let result = directory.read(1, 3);
+        assert_eq!(
+            result.events[0].source,
+            Source::Runtime {
+                start_time: 0,
+                end_time: 0
+            }
+        );
+        assert!(matches!(
+            &result.events[0].event,
+            Event::FutureResult {
+                result_id: 42,
+                outcome
+            } if outcome.as_u64() == Some(1)
+        ));
+    }
+
+    #[test]
+    fn full_width_future_results_survive_writing_and_reading() {
+        let directory = TestDirectory::new();
+        let mut log = TraceLog::new(directory.0.clone());
+        let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        let values = [0, MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, u64::MAX];
+        for value in values {
+            log.on_future_result(42, value);
+        }
+        log.write(0, &mut output).unwrap();
+        let trace = directory.read(0, 0);
+        for (record, value) in trace.events.iter().zip(values) {
+            let expected = if value <= MAX_SAFE_INTEGER {
+                value.into()
+            } else {
+                FutureResultValue::String(value.to_string())
+            };
+            assert_eq!(
+                record.event,
+                Event::FutureResult {
+                    result_id: 42,
+                    outcome: expected,
+                }
+            );
+        }
+        assert_eq!(trace.events.len(), values.len());
+    }
+
+    #[test]
+    fn future_read_is_not_a_measurement() {
+        assert!(matches!(
+            TraceLog::event(&Operation::FutureRead(42)),
+            Some(Event::FutureRead { result_id: 42 })
+        ));
     }
 
     #[test]
@@ -478,5 +626,36 @@ mod tests {
         assert!(log.write(0, &mut output).is_err());
         assert!(log.write(0, &mut output).is_err());
         assert!(output.try_read(usize::MAX).unwrap().is_empty());
+    }
+
+    #[test]
+    fn shot_metadata_survives_flushes_and_shot_changes() {
+        let directory = TestDirectory::new();
+        let mut log = TraceLog::new(directory.0.clone());
+        let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        log.on_shot_start(7);
+        for index in 0..2 {
+            log.on_user_call(&Operation::Reset(0));
+            log.write(0, &mut output).unwrap();
+            assert_eq!(directory.read(7, index).shot, Some(7));
+        }
+        log.on_shot_start(19);
+        log.on_user_call(&Operation::Reset(0));
+        log.write(0, &mut output).unwrap();
+        assert_eq!(directory.read(19, 2).shot, Some(19));
+    }
+
+    #[test]
+    fn empty_shot_publishes_its_identity_once() {
+        let directory = TestDirectory::new();
+        let mut log = TraceLog::new(directory.0.clone());
+        let mut output = OutputStream::new(OutputWriter::Internal(InternalBuffer::default()));
+        log.on_shot_start(23);
+        log.write(0, &mut output).unwrap();
+        let trace = directory.read(23, 0);
+        assert_eq!(trace.shot, Some(23));
+        assert!(trace.events.is_empty());
+        log.write(0, &mut output).unwrap();
+        assert_eq!(log.file_index, 1);
     }
 }

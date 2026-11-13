@@ -321,6 +321,10 @@ impl RuntimeInterface for SoftRZRuntime {
                 if let Operation::Measure {
                     result_id: measure_result_id,
                     ..
+                }
+                | Operation::MeasureLeaked {
+                    result_id: measure_result_id,
+                    ..
                 } = op
                     && result_id == *measure_result_id
                 {

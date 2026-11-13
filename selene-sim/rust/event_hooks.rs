@@ -18,8 +18,8 @@ pub enum Operation {
     RZ(u64, f64),
     RPP(u64, u64, f64, f64),
     Reset(u64),
-    MeasureRequest(u64),
-    MeasureLeakedRequest(u64),
+    MeasureRequest(u64, u64),
+    MeasureLeakedRequest(u64, u64),
     FutureRead(u64),
     GlobalBarrier(u64),
     LocalBarrier(Vec<u64>, u64),
@@ -51,12 +51,14 @@ impl Operation {
             selene_core::runtime::Operation::RZGate { qubit_id, theta } => {
                 Operation::RZ(*qubit_id, *theta)
             }
-            selene_core::runtime::Operation::Measure { qubit_id, .. } => {
-                Operation::FutureRead(*qubit_id)
-            }
-            selene_core::runtime::Operation::MeasureLeaked { qubit_id, .. } => {
-                Operation::FutureRead(*qubit_id)
-            }
+            selene_core::runtime::Operation::Measure {
+                qubit_id,
+                result_id,
+            } => Operation::MeasureRequest(*qubit_id, *result_id),
+            selene_core::runtime::Operation::MeasureLeaked {
+                qubit_id,
+                result_id,
+            } => Operation::MeasureLeakedRequest(*qubit_id, *result_id),
             selene_core::runtime::Operation::Custom { custom_tag, data } => {
                 Operation::Custom(*custom_tag as u64, data.to_vec())
             }
@@ -89,12 +91,14 @@ impl Operation {
             selene_core::runtime::Operation::RZGate { qubit_id, theta } => {
                 Operation::RZ(*qubit_id, *theta)
             }
-            selene_core::runtime::Operation::Measure { qubit_id, .. } => {
-                Operation::MeasureRequest(*qubit_id)
-            }
-            selene_core::runtime::Operation::MeasureLeaked { qubit_id, .. } => {
-                Operation::MeasureLeakedRequest(*qubit_id)
-            }
+            selene_core::runtime::Operation::Measure {
+                qubit_id,
+                result_id,
+            } => Operation::MeasureRequest(*qubit_id, *result_id),
+            selene_core::runtime::Operation::MeasureLeaked {
+                qubit_id,
+                result_id,
+            } => Operation::MeasureLeakedRequest(*qubit_id, *result_id),
             selene_core::runtime::Operation::Custom { custom_tag, data } => {
                 Operation::Custom(*custom_tag as u64, data.to_vec())
             }
@@ -112,6 +116,7 @@ pub trait EventHook {
     fn on_error_model_output(&mut self, _: &Operation) {}
     fn on_simulator_call(&mut self, _: &Operation, _: u64) {}
     fn on_runtime_results(&mut self, _: &BatchResult) {}
+    fn on_future_result(&mut self, _result_id: u64, _outcome: u64) {}
     fn drain_pending(&mut self) -> Result<(), OutputStreamError> {
         Ok(())
     }
@@ -161,6 +166,11 @@ impl EventHook for MultiEventHook {
     fn on_simulator_call(&mut self, operation: &Operation, duration_ns: u64) {
         for hook in self.hooks.iter_mut() {
             hook.on_simulator_call(operation, duration_ns);
+        }
+    }
+    fn on_future_result(&mut self, result_id: u64, outcome: u64) {
+        for hook in &mut self.hooks {
+            hook.on_future_result(result_id, outcome);
         }
     }
     fn on_runtime_results(&mut self, results: &BatchResult) {
@@ -224,6 +234,9 @@ impl SharedEventHook {
         self.with_hooks(|hooks| hooks.on_simulator_call(operation, duration_ns));
     }
 
+    pub fn on_future_result(&self, result_id: u64, outcome: u64) {
+        self.with_hooks(|hooks| hooks.on_future_result(result_id, outcome));
+    }
     pub fn on_runtime_results(&self, results: &BatchResult) {
         self.with_hooks(|hooks| hooks.on_runtime_results(results));
     }

@@ -199,6 +199,7 @@ fn invalid(error: impl std::fmt::Display) -> io::Error {
 pub struct TraceStreamWriter<W: Write> {
     writer: BufWriter<GzEncoder<W>>,
     header_written: bool,
+    shot: Option<u64>,
     failed: bool,
 }
 
@@ -207,7 +208,16 @@ impl<W: Write> TraceStreamWriter<W> {
         Self {
             writer: BufWriter::new(GzEncoder::new(writer, Compression::fast())),
             header_written: false,
+            shot: None,
             failed: false,
+        }
+    }
+
+    /// Create a stream whose header identifies the emulation shot.
+    pub fn with_shot(writer: W, shot: u64) -> Self {
+        Self {
+            shot: Some(shot),
+            ..Self::new(writer)
         }
     }
 
@@ -234,7 +244,11 @@ impl<W: Write> TraceStreamWriter<W> {
         // a caller that ignores the error mustn't be able to finish this stream.
         self.failed = true;
         if !self.header_written {
-            rmp_serde::encode::write_named(&mut self.writer, &header()).map_err(invalid)?;
+            let mut metadata = header();
+            if let Some(shot) = self.shot {
+                metadata["shot"] = shot.into();
+            }
+            rmp_serde::encode::write_named(&mut self.writer, &metadata).map_err(invalid)?;
             self.header_written = true;
         }
         for record in records {
@@ -262,6 +276,41 @@ impl<W: Write> TraceStreamWriter<W> {
 /// deserializer's is_human_readable flag. Adapt the two JSON-specific fields here
 /// rather than relaxing their validation for ordinary JSON documents. No JSON
 /// text is produced or parsed in this path.
+fn record_value(mut value: rmpv::Value) -> io::Result<serde_json::Value> {
+    use rmpv::Value as V;
+    fn field<'a>(fields: &'a mut [(V, V)], name: &str) -> Option<&'a mut V> {
+        fields
+            .iter_mut()
+            .find(|(key, _)| key.as_str() == Some(name))
+            .map(|(_, value)| value)
+    }
+    if let V::Map(fields) = &mut value
+        && let Some(V::Map(event)) = field(fields, "event")
+        && field(event, "kind").and_then(|value| value.as_str()) == Some("Custom")
+        && let Some(V::Map(payload)) = field(event, "payload")
+        && field(payload, "kind").and_then(|value| value.as_str()) == Some("OpaquePayload")
+    {
+        for (key, value) in payload {
+            match key.as_str() {
+                Some("tag") => {
+                    let tag = value
+                        .as_u64()
+                        .ok_or_else(|| invalid("OpaquePayload.tag must be uint64"))?;
+                    *value = format!("0x{tag:X}").into();
+                }
+                Some("data") => {
+                    let V::Binary(bytes) = value else {
+                        return Err(invalid("OpaquePayload.data must be binary"));
+                    };
+                    *value = URL_SAFE.encode(bytes).into();
+                }
+                _ => {}
+            }
+        }
+    }
+    model_value(value)
+}
+
 fn model_value(value: rmpv::Value) -> io::Result<serde_json::Value> {
     use rmpv::Value as V;
     Ok(match value {
@@ -286,29 +335,7 @@ fn model_value(value: rmpv::Value) -> io::Result<serde_json::Value> {
             .map(model_value)
             .collect::<io::Result<Vec<_>>>()?
             .into(),
-        V::Map(mut fields) => {
-            let opaque = fields.iter().any(|(key, value)| {
-                key.as_str() == Some("kind") && value.as_str() == Some("OpaquePayload")
-            });
-            if opaque {
-                for (key, value) in &mut fields {
-                    match key.as_str() {
-                        Some("tag") => {
-                            let tag = value
-                                .as_u64()
-                                .ok_or_else(|| invalid("OpaquePayload.tag must be uint64"))?;
-                            *value = format!("0x{tag:X}").into();
-                        }
-                        Some("data") => {
-                            let V::Binary(bytes) = value else {
-                                return Err(invalid("OpaquePayload.data must be binary"));
-                            };
-                            *value = URL_SAFE.encode(bytes).into();
-                        }
-                        _ => {}
-                    }
-                }
-            }
+        V::Map(fields) => {
             let mut map = serde_json::Map::new();
             for (key, value) in fields {
                 let key = key
@@ -329,6 +356,8 @@ pub struct TraceStreamRecordReader<R: Read> {
     reader: BufReader<MultiGzDecoder<R>>,
     record_number: usize,
     done: bool,
+    previous_schema: bool,
+    shot: Option<u64>,
 }
 
 impl<R: Read> TraceStreamRecordReader<R> {
@@ -337,13 +366,30 @@ impl<R: Read> TraceStreamRecordReader<R> {
             reader: BufReader::new(MultiGzDecoder::new(reader)),
             record_number: 0,
             done: false,
+            previous_schema: false,
+            shot: None,
         };
         let value = rmpv::decode::read_value(&mut result.reader)
             .map_err(|error| invalid(format!("Trace stream header: {error}")))?;
-        if model_value(value)? != header() {
+        let mut actual = model_value(value)?;
+        if let Some(number) = actual.as_object_mut().and_then(|map| map.remove("shot")) {
+            result.shot = Some(
+                number
+                    .as_u64()
+                    .ok_or_else(|| invalid("Invalid shot in trace stream header"))?,
+            );
+        }
+        let mut previous = header();
+        previous["schema_version"] = "0.1.0".into();
+        if actual != header() && actual != previous {
             return Err(invalid("Unsupported trace stream header"));
         }
+        result.previous_schema = actual == previous;
         Ok(result)
+    }
+
+    pub fn shot(&self) -> Option<u64> {
+        self.shot
     }
 }
 
@@ -363,7 +409,15 @@ impl<R: Read> Iterator for TraceStreamRecordReader<R> {
                 }
                 return Ok(None);
             }
-            let record = serde_json::from_value(model_value(value)?).map_err(invalid)?;
+            let record: TraceStreamRecord =
+                serde_json::from_value(record_value(value)?).map_err(invalid)?;
+            if self.previous_schema
+                && matches!(&record, TraceStreamRecord::Event(event) if matches!(event.record.event, Event::FutureRead { .. } | Event::FutureResult { .. }))
+            {
+                return Err(invalid(
+                    "FutureRead and FutureResult require trace schema 0.2.0",
+                ));
+            }
             Ok(Some(record))
         })();
         match result {
@@ -389,6 +443,10 @@ impl<R: Read> TraceStreamReader<R> {
     pub fn new(reader: R) -> io::Result<Self> {
         Ok(Self(TraceStreamRecordReader::new(reader)?))
     }
+
+    pub fn shot(&self) -> Option<u64> {
+        self.0.shot()
+    }
 }
 
 impl<R: Read> Iterator for TraceStreamReader<R> {
@@ -409,6 +467,138 @@ impl<R: Read> Iterator for TraceStreamReader<R> {
 mod tests {
     use super::*;
     use crate::trace::{CustomPayload, Event, GateParameter, Source};
+
+    #[test]
+    fn non_measurement_future_results_round_trip() {
+        let outcome = crate::trace::FutureResultValue::try_from(
+            serde_json::json!({"ready": true, "values": [7, null, 0.5]}),
+        )
+        .unwrap();
+        let records = vec![
+            EventRecord {
+                source: Source::UserProgram { index: 0 },
+                event: Event::FutureRead { result_id: 123 },
+            },
+            EventRecord {
+                source: Source::Runtime {
+                    start_time: 0,
+                    end_time: 0,
+                },
+                event: Event::FutureResult {
+                    result_id: 123,
+                    outcome,
+                },
+            },
+        ];
+        let mut writer = TraceStreamWriter::new(Vec::new());
+        writer.write_events(&records).unwrap();
+        let data = writer.finish().unwrap();
+        assert_eq!(
+            TraceStreamReader::new(data.as_slice())
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>()
+                .unwrap(),
+            records
+        );
+    }
+
+    #[test]
+    fn string_future_result_values_round_trip_in_streams() {
+        for outcome in [
+            serde_json::json!("text"),
+            serde_json::json!(["text"]),
+            serde_json::json!({"nested": "text"}),
+        ] {
+            let record = serde_json::json!({"source": {"kind": "Runtime", "start_time": 0, "end_time": 0}, "event": {"kind": "FutureResult", "result_id": 42, "outcome": outcome}});
+            let mut bytes = rmp_serde::to_vec_named(&header()).unwrap();
+            bytes.extend(rmp_serde::to_vec_named(&record).unwrap());
+            bytes.push(0xc0);
+            let data = compress(&bytes);
+            let records = TraceStreamReader::new(data.as_slice())
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>()
+                .unwrap();
+            assert_eq!(serde_json::to_value(&records[0]).unwrap(), record);
+            let mut writer = TraceStreamWriter::new(Vec::new());
+            writer.write_events(&records).unwrap();
+            let written = writer.finish().unwrap();
+            assert_eq!(
+                TraceStreamReader::new(written.as_slice())
+                    .unwrap()
+                    .collect::<io::Result<Vec<_>>>()
+                    .unwrap(),
+                records
+            );
+        }
+    }
+
+    #[test]
+    fn structured_future_result_values_round_trip() {
+        for outcome in [
+            serde_json::json!({"kind": 1, "tag": 42, "data": [true, null]}),
+            serde_json::json!({"nested": {"kind": 1, "tag": 42, "data": [true, null]}}),
+            serde_json::json!([true, null, {"value": 0.25}]),
+            serde_json::json!({"__proto__": {"x": 1}, "constructor": true}),
+        ] {
+            let events = vec![
+                EventRecord {
+                    source: Source::Runtime {
+                        start_time: 0,
+                        end_time: 1,
+                    },
+                    event: Event::Measurement {
+                        qubit: 3,
+                        result_id: Some(42),
+                        measurement_type: crate::trace::MeasurementType::Other(
+                            "com.example/Custom".into(),
+                        ),
+                    },
+                },
+                EventRecord {
+                    source: Source::Runtime {
+                        start_time: 1,
+                        end_time: 1,
+                    },
+                    event: Event::FutureResult {
+                        result_id: 42,
+                        outcome: outcome.try_into().unwrap(),
+                    },
+                },
+            ];
+            let mut writer = TraceStreamWriter::new(Vec::new());
+            writer.write_events(&events).unwrap();
+            let data = writer.finish().unwrap();
+            assert_eq!(
+                TraceStreamReader::new(data.as_slice())
+                    .unwrap()
+                    .collect::<io::Result<Vec<_>>>()
+                    .unwrap(),
+                events
+            );
+        }
+    }
+
+    #[test]
+    fn previous_schema_reads_measurements_but_rejects_future_events() {
+        for kind in ["Measurement", "FutureRead", "FutureResult"] {
+            let mut previous = header();
+            previous["schema_version"] = "0.1.0".into();
+            let event = match kind {
+                "FutureRead" => serde_json::json!({"kind": kind, "result_id": 42}),
+                "FutureResult" => serde_json::json!({"kind": kind, "result_id": 42, "outcome": 0}),
+                _ => serde_json::json!({"kind": kind, "qubit": 3}),
+            };
+            let record = serde_json::json!({"source": {"kind": "Runtime", "start_time": 0, "end_time": 0}, "event": event});
+            let mut bytes = rmp_serde::to_vec_named(&previous).unwrap();
+            bytes.extend(rmp_serde::to_vec_named(&record).unwrap());
+            bytes.push(0xc0);
+            let data = compress(&bytes);
+            let records = TraceStreamReader::new(data.as_slice())
+                .unwrap()
+                .collect::<io::Result<Vec<_>>>();
+            assert_eq!(records.is_err(), kind != "Measurement");
+        }
+    }
 
     #[test]
     fn event_reader_rejects_unsafe_instruction_qubits() {
@@ -667,5 +857,43 @@ mod tests {
         let mut writer = TraceStreamWriter::new(Broken);
         writer.write_events(&[event()]).unwrap();
         assert!(writer.finish().is_err());
+    }
+
+    #[test]
+    fn shot_metadata_preserves_full_uint64_range() {
+        for shot in [0, 17, MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, u64::MAX] {
+            let mut writer = TraceStreamWriter::with_shot(Vec::new(), shot);
+            writer.write_events(&[event()]).unwrap();
+            let bytes = writer.finish().unwrap();
+            let reader = TraceStreamReader::new(bytes.as_slice()).unwrap();
+            assert_eq!(reader.shot(), Some(shot));
+            assert_eq!(
+                reader.collect::<io::Result<Vec<_>>>().unwrap(),
+                vec![event()]
+            );
+        }
+        let bytes = TraceStreamWriter::new(Vec::new()).finish().unwrap();
+        assert_eq!(
+            TraceStreamRecordReader::new(bytes.as_slice())
+                .unwrap()
+                .shot(),
+            None
+        );
+    }
+
+    #[test]
+    fn invalid_shot_headers_are_rejected() {
+        for shot in [
+            serde_json::json!(-1),
+            serde_json::json!(1.0),
+            serde_json::json!(true),
+            serde_json::json!("7"),
+            serde_json::Value::Null,
+        ] {
+            let mut metadata = header();
+            metadata["shot"] = shot;
+            let bytes = compress(&rmp_serde::to_vec_named(&metadata).unwrap());
+            assert!(TraceStreamReader::new(bytes.as_slice()).is_err());
+        }
     }
 }

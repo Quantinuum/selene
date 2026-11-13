@@ -4,24 +4,25 @@
 models for Selene's public serialized traces. It has no dependency on the
 emulator.
 
-Selene's `extractor.shots[index].get_trace()` output uses the versionless legacy format and
-`selene_core.trace` models, which use the Python binding's `LegacyTrace` wrapper.
-The language bindings use protocol 0.1.0 and provide adapters for reading and
-serializing legacy traces with the current validation rules.
+Selene's `extractor.shots[index].get_trace()` output and the language bindings
+use protocol 0.2.0. The bindings provide adapters for reading protocol 0.1.0 and
+versionless legacy traces. Both `selene_core.trace.Trace` and
+`selene_formats.trace.Trace` serialize to the current schema.
 
 ## APIs
 
 | API | Version | Schema | Semantics |
 | --- | --- | --- | --- |
-| Trace documents (`Trace` and `Traces`) | 0.1.0 | [`schemas/trace/0.1.0.schema.json`](schemas/trace/0.1.0.schema.json) | [`docs/trace/0.1.0.md`](docs/trace/0.1.0.md) |
-| Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [`docs/trace/legacy.md`](docs/trace/legacy.md) |
+| Trace documents (`Trace` and `Traces`) | 0.2.0 | [`schemas/trace/0.2.0.schema.json`](schemas/trace/0.2.0.schema.json) | [Trace protocol](docs/traces.md#version-020) |
+| Trace (legacy input) | versionless | [`schemas/trace/legacy.schema.json`](schemas/trace/legacy.schema.json) | [Legacy format](docs/traces.md#legacy-versionless) |
 
 Schemas are also published at their canonical `$id` URLs:
 
-* [Trace documents 0.1.0](https://quantinuum.github.io/selene/schemas/trace/0.1.0.schema.json)
+* [Trace documents 0.2.0](https://quantinuum.github.io/selene/schemas/trace/0.2.0.schema.json)
 * [Trace (legacy input)](https://quantinuum.github.io/selene/schemas/trace/legacy.schema.json)
 
-Protocol-wide versioning is described in [`docs/versioning.md`](docs/versioning.md).
+See [versioning and package compatibility](docs/versioning.md) for the schema
+versions each binding release can read and write.
 
 ## Bindings
 
@@ -48,7 +49,7 @@ it is designed to be read and written in a sequential manner.
 After gzip decompression, the stream consists of consecutive MessagePack objects:
 
 1. A map with `format: "selene.trace.msgpack"`, `format_version: 1`, and
-   `schema_version: "0.1.0"`.
+   `schema_version: "0.2.0"`, optionally with `shot` as a native uint64.
 2. Zero or more record maps.
 3. A single MessagePack nil (`0xc0`) marking successful completion.
 
@@ -64,8 +65,9 @@ of hex strings or base64 as used in the JSON format.
 An event may also contain `instruction: "FutureRead"` or
 `instruction: "MeasureLeakedRequest"`. Batch boundaries are separate maps of the
 form `{"batch_start": {"start_time": 0, "end_time": 0}}`. These are instruction
-metadata, not additional trace events. Event-only readers omit boundaries and
-annotations, so materialising a trace doesn't add gates or change snapshots.
+metadata, not additional trace events. Event-only readers omit boundaries and annotations. Measurements expose their
+`measurement_type` and `result_id` directly, and user read attempts appear as `FutureRead` events. Successful reads produce
+Runtime `FutureResult` events.
 
 Barriers and classical delays use records with `source`, `uint_instruction`,
 `value` and `qubits` fields. `uint_instruction` is `GlobalBarrier`, `LocalBarrier`
@@ -95,4 +97,11 @@ garbage-collected. Once you're finished reading traces and state dumps, call
 `stack.delete_run_directory()` to close the stack and remove its files. If the
 stack has already been collected, remove the directory yourself using the path
 you saved from `stack.configuration_path.parent`.
+`TraceStreamWriter::with_shot` and Python's `write_trace_stream(..., shot=...)`
+include shot identity in the header. Rust readers expose it through `shot()`;
+Python's `read_trace_stream_header(path).shot` reads it without materialising
+events. `ShotTrace.shot` retains the full uint64 value, while `get_trace()`
+requires it to fit the public JSON schema's safe-integer range. All stream
+fragments belonging to a shot must agree on its identity.
+
 The conventional suffix is `.msgpack.gz`.

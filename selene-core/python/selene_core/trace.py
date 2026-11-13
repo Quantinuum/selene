@@ -1,9 +1,4 @@
-"""Selene trace models with strict validation and legacy serialization.
-
-Use :mod:`selene_formats.trace` for versioned trace output.
-"""
-
-from typing import Any
+"""Selene trace models and parsers for schema 0.2.0 output."""
 
 from selene_formats.trace import (
     SCHEMA_VERSION,
@@ -16,27 +11,21 @@ from selene_formats.trace import (
     GateEvent,
     KeyValuePairPayload,
     MeasurementEvent,
+    MeasurementType,
+    FutureResultValue,
+    FutureReadEvent,
+    FutureResultEvent,
     OpaquePayload,
     PredicateResult,
     ResetEvent,
     RuntimeSource,
     SimulatorSource,
     Source,
-    LegacyTrace as Trace,
+    Trace,
     UserProgramSource,
-    parse_trace as _parse_trace,
-    parse_trace_json as _parse_trace_json,
+    parse_trace,
+    parse_trace_json,
 )
-
-
-def parse_trace(value: Any) -> Trace:
-    """Read current or legacy trace data and retain legacy serialization."""
-    return _parse_trace(value).as_legacy()
-
-
-def parse_trace_json(data: str | bytes | bytearray) -> Trace:
-    """Read current or legacy trace JSON and retain legacy serialization."""
-    return _parse_trace_json(data).as_legacy()
 
 
 __all__ = [
@@ -50,6 +39,10 @@ __all__ = [
     "GateEvent",
     "KeyValuePairPayload",
     "MeasurementEvent",
+    "MeasurementType",
+    "FutureResultValue",
+    "FutureReadEvent",
+    "FutureResultEvent",
     "OpaquePayload",
     "PredicateResult",
     "ResetEvent",

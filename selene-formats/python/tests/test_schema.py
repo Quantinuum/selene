@@ -16,7 +16,7 @@ from selene_formats.trace import (
 
 
 def test_checked_in_schema_matches_the_python_model_with_required_discriminators():
-    schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.1.0.schema.json"
+    schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.2.0.schema.json"
     checked_in_schema = json.loads(schema_path.read_text())
     checked_in_schema.pop("$schema")
     checked_in_schema.pop("$id")
@@ -31,7 +31,7 @@ def test_checked_in_schema_matches_the_python_model_with_required_discriminators
 
 
 def test_installed_schema_matches_the_canonical_schema():
-    schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.1.0.schema.json"
+    schema_path = Path(__file__).parents[2] / "schemas" / "trace" / "0.2.0.schema.json"
 
     assert get_trace_schema() == json.loads(schema_path.read_text())
 
@@ -47,7 +47,7 @@ def test_packaged_rust_fixtures_match_shared_examples():
 @pytest.mark.parametrize("result", [True, False, 0, 1, 0.0, 1.0, "true", "false", None])
 def test_predicate_result_requires_a_json_boolean(result):
     document = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "events": [
             {
                 "source": {"kind": "UserProgram", "index": 0},
@@ -121,7 +121,7 @@ def test_uint64_pattern_enforces_range_without_a_format_checker():
 )
 def test_base64url_schema_validation_without_a_format_checker(data, valid):
     document = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "events": [
             {
                 "source": {"kind": "UserProgram", "index": 0},
@@ -245,7 +245,7 @@ def test_numeric_values_agree_between_schema_and_python(value, valid, legacy):
         },
     ]:
         document = {
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "events": [
                 {
                     "source": {"kind": "UserProgram", "index": 0},
@@ -283,7 +283,8 @@ def test_legacy_example_conforms_to_the_legacy_schema():
 
 
 @pytest.mark.parametrize(
-    "example_name", ["minimal.json", "all-event-types.json", "traces.json"]
+    "example_name",
+    ["minimal.json", "all-event-types.json", "measurement-results.json", "traces.json"],
 )
 def test_current_examples_conform_to_the_current_schema(example_name: str):
     schema = get_trace_schema()
@@ -296,7 +297,7 @@ def test_current_examples_conform_to_the_current_schema(example_name: str):
 @pytest.mark.parametrize(
     "document",
     [
-        {"schema_version": "0.1.0", "events": []},
+        {"schema_version": "0.2.0", "events": []},
         {"traces": []},
         {"events": [], "traces": []},
     ],
@@ -304,3 +305,25 @@ def test_current_examples_conform_to_the_current_schema(example_name: str):
 def test_legacy_schema_rejects_versioned_traces_and_collections(document):
     with pytest.raises(ValidationError):
         Draft202012Validator(get_legacy_trace_schema()).validate(document)
+
+
+@pytest.mark.parametrize("collection", [False, True])
+@pytest.mark.parametrize(
+    "shot,valid",
+    [
+        (0, True),
+        (2**53 - 1, True),
+        (-1, False),
+        (2**53, False),
+        (1.5, False),
+        (True, False),
+        ("7", False),
+    ],
+)
+def test_shot_schema_bounds(collection, shot, valid):
+    data = {"events": [], "shot": shot}
+    document = {
+        "schema_version": "0.2.0",
+        **({"traces": [data]} if collection else data),
+    }
+    assert Draft202012Validator(get_trace_schema()).is_valid(document) == valid

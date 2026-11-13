@@ -5,24 +5,23 @@ import json
 import math
 import re
 from collections.abc import Callable, Mapping
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     TypeAdapter,
     WithJsonSchema,
-    SerializationInfo,
-    SerializerFunctionWrapHandler,
     field_validator,
     model_serializer,
-    model_validator,
 )
 from pydantic_core import core_schema
+from typing_extensions import TypeAliasType
 
-SCHEMA_VERSION: Literal["0.1.0"] = "0.1.0"
+SCHEMA_VERSION: Literal["0.2.0"] = "0.2.0"
 MAX_UINT64 = 2**64 - 1
 MAX_SAFE_INTEGER = 2**53 - 1
 # Final-character sets enforce zero unused bits for one- and two-byte tails.
@@ -118,8 +117,11 @@ __all__ = [
     "EventRecord",
     "GateEvent",
     "KeyValuePairPayload",
-    "LegacyTrace",
     "MeasurementEvent",
+    "MeasurementType",
+    "FutureResultValue",
+    "FutureReadEvent",
+    "FutureResultEvent",
     "OpaquePayload",
     "PredicateResult",
     "ResetEvent",
@@ -183,9 +185,49 @@ class GateEvent(AbstractEvent):
     predicates: list[PredicateResult] = Field(default_factory=list)
 
 
+MeasurementType = Annotated[str, Field(strict=True, min_length=1)]
+if TYPE_CHECKING:
+    FutureResultValue: TypeAlias = (
+        str
+        | int
+        | float
+        | bool
+        | None
+        | list["FutureResultValue"]
+        | dict[str, "FutureResultValue"]
+    )
+else:
+    FutureResultValue = TypeAliasType(
+        "FutureResultValue",
+        Annotated[str, Field(strict=True)]
+        | JsonSafeInt
+        | JsonSafeFloat
+        | StrictBool
+        | None
+        | Annotated[list["FutureResultValue"], Field(strict=True)]
+        | Annotated[
+            dict[Annotated[str, Field(strict=True)], "FutureResultValue"],
+            Field(strict=True),
+        ],
+    )
+
+
 class MeasurementEvent(AbstractEvent):
     kind: Literal["Measurement"] = "Measurement"
     qubit: JsonSafeUInt
+    measurement_type: MeasurementType = "Standard"
+    result_id: JsonSafeUInt | None = None
+
+
+class FutureReadEvent(AbstractEvent):
+    kind: Literal["FutureRead"] = "FutureRead"
+    result_id: JsonSafeUInt
+
+
+class FutureResultEvent(AbstractEvent):
+    kind: Literal["FutureResult"] = "FutureResult"
+    result_id: JsonSafeUInt
+    outcome: FutureResultValue
 
 
 class ResetEvent(AbstractEvent):
@@ -234,7 +276,12 @@ class CustomEvent(AbstractEvent):
 
 
 Event = Annotated[
-    GateEvent | MeasurementEvent | ResetEvent | CustomEvent,
+    GateEvent
+    | MeasurementEvent
+    | FutureReadEvent
+    | FutureResultEvent
+    | ResetEvent
+    | CustomEvent,
     Field(discriminator="kind"),
 ]
 Source = Annotated[
@@ -248,25 +295,58 @@ class EventRecord(BaseModel):
     event: Event
 
 
+_EVENT_RECORDS_ADAPTER = TypeAdapter(list[EventRecord])
+
+
 class TraceData(BaseModel):
     """The unversioned contents of one emulation trace."""
 
     model_config = ConfigDict(extra="forbid")
 
+    shot: JsonSafeUInt | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     events: list[EventRecord] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        TraceData.model_validate(
+            {
+                "shot": self.shot,
+                "events": _EVENT_RECORDS_ADAPTER.dump_python(
+                    self.events, warnings=False
+                ),
+            }
+        )
+        return handler(self)
+
+
+_TRACE_DATA_LIST_ADAPTER = TypeAdapter(list[TraceData])
 
 
 class Trace(BaseModel):
-    """A serializable Selene trace conforming to protocol version 0.1.0."""
+    """A serializable Selene trace conforming to protocol version 0.2.0."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["0.1.0"]
+    schema_version: Literal["0.2.0"]
+    shot: JsonSafeUInt | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     events: list[EventRecord] = Field(default_factory=list)
 
-    def as_legacy(self) -> "LegacyTrace":
-        """Return a trace that serializes without a version and with numeric tags."""
-        return LegacyTrace(schema_version=self.schema_version, events=self.events)
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        Trace.model_validate(
+            {
+                "schema_version": self.schema_version,
+                "shot": self.shot,
+                "events": _EVENT_RECORDS_ADAPTER.dump_python(
+                    self.events, warnings=False
+                ),
+            }
+        )
+        return handler(self)
 
     def add_runtime_event(self, event: Event, start_time_ns: int, end_time_ns: int):
         self.events.append(
@@ -306,6 +386,7 @@ class Trace(BaseModel):
     def filter(self, predicate: Callable[[EventRecord], bool]) -> "Trace":
         return type(self)(
             schema_version=SCHEMA_VERSION,
+            shot=self.shot,
             events=list(filter(predicate, self.events)),
         )
 
@@ -338,6 +419,7 @@ class Trace(BaseModel):
         """Return a copy with simulator event durations set to zero."""
         return type(self)(
             schema_version=SCHEMA_VERSION,
+            shot=self.shot,
             events=[
                 EventRecord(
                     source=(
@@ -352,47 +434,25 @@ class Trace(BaseModel):
         )
 
 
-class LegacyTrace(Trace):
-    """A current trace model that reads and writes versionless legacy traces.
-
-    Validation uses the current protocol's bounds. Opaque tags remain integers
-    in JSON, and the internal schema version is omitted from serialized output.
-    Serialization revalidates nested fields, including mutations after construction.
-    """
-
-    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
-
-    @model_validator(mode="before")
-    @classmethod
-    def _read_legacy(cls, value: Any) -> Any:
-        if isinstance(value, Mapping) and "schema_version" not in value:
-            return _upgrade_legacy_trace(value)
-        return value
-
-    @model_serializer(mode="wrap")
-    def _write_legacy(
-        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
-    ) -> dict[str, Any]:
-        current = Trace(schema_version=self.schema_version, events=self.events)
-        Trace.model_validate(current.model_dump(mode="python", warnings=False))
-        document = handler(self)
-        document.pop("schema_version", None)
-        if info.mode == "json":
-            for record in document.get("events", []):
-                event = record.get("event", {})
-                payload = event.get("payload", {})
-                if "tag" in payload:
-                    payload["tag"] = int(payload["tag"], 16)
-        return document
-
-
 class Traces(BaseModel):
     """A versioned collection of trace data."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["0.1.0"]
+    schema_version: Literal["0.2.0"]
     traces: list[TraceData]
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        Traces.model_validate(
+            {
+                "schema_version": self.schema_version,
+                "traces": _TRACE_DATA_LIST_ADAPTER.dump_python(
+                    self.traces, warnings=False
+                ),
+            }
+        )
+        return handler(self)
 
 
 TraceDocument = Trace | Traces
@@ -403,6 +463,7 @@ def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
     upgraded = copy.deepcopy(dict(value))
     if "traces" in upgraded:
         raise ValueError("versionless trace collections are not supported")
+    _check_previous_events(upgraded)
     upgraded["schema_version"] = SCHEMA_VERSION
 
     for record in upgraded.get("events", []):
@@ -432,6 +493,34 @@ def _upgrade_legacy_trace(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _check_previous_events(document: Mapping[str, Any]) -> None:
+    documents = document.get("traces", [document])
+    if not isinstance(documents, list):
+        return
+    for trace in documents:
+        if not isinstance(trace, Mapping) or not isinstance(
+            trace.get("events", []), list
+        ):
+            continue
+        for record in trace.get("events", []):
+            if (
+                isinstance(record, Mapping)
+                and isinstance(record.get("event"), Mapping)
+                and record["event"].get("kind") in ("FutureRead", "FutureResult")
+            ):
+                raise ValueError(
+                    "FutureRead and FutureResult require trace schema 0.2.0"
+                )
+
+
+def _upgrade_version(document: dict[str, Any]) -> dict[str, Any]:
+    if document.get("schema_version") == "0.1.0":
+        _check_previous_events(document)
+        document = copy.deepcopy(document)
+        document["schema_version"] = SCHEMA_VERSION
+    return document
+
+
 def parse_trace(value: Any) -> Trace:
     """Parse a JSON-compatible current or versionless legacy trace value.
 
@@ -444,6 +533,7 @@ def parse_trace(value: Any) -> Trace:
     if "schema_version" not in document:
         document = _upgrade_legacy_trace(document)
 
+    document = _upgrade_version(document)
     return Trace.model_validate_json(json.dumps(document))
 
 
@@ -461,7 +551,7 @@ def parse_trace_document(value: Any) -> TraceDocument:
     if "schema_version" not in document:
         return parse_trace(document)
 
-    return _TRACE_DOCUMENT_ADAPTER.validate_json(json.dumps(document))
+    return _TRACE_DOCUMENT_ADAPTER.validate_json(json.dumps(_upgrade_version(document)))
 
 
 def parse_trace_document_json(data: str | bytes | bytearray) -> TraceDocument:

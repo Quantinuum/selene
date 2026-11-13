@@ -48,7 +48,7 @@ def header():
     return {
         "format": FORMAT,
         "format_version": FORMAT_VERSION,
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
     }
 
 
@@ -241,7 +241,7 @@ def test_failed_producer_cannot_leave_a_valid_stream(tmp_path):
 @pytest.mark.parametrize("compressed", [False, True])
 def test_json_is_not_a_trace_stream(tmp_path, compressed):
     path = tmp_path / "not-a-stream"
-    contents = json.dumps({"schema_version": "0.1.0", "events": []}).encode()
+    contents = json.dumps({"schema_version": "0.2.0", "events": []}).encode()
     path.write_bytes(gzip.compress(contents) if compressed else contents)
     with pytest.raises(ValueError):
         list(iter_trace_stream(path))
@@ -259,3 +259,30 @@ def test_shared_messagepack_fixture(tmp_path):
     written = tmp_path / "written.msgpack.gz"
     write_trace_stream(written, [event()])
     assert gzip.decompress(written.read_bytes()) == contents
+
+
+@pytest.mark.parametrize("shot", [None, 0, 7, 2**53 - 1, 2**64 - 1])
+def test_stream_shot_metadata(tmp_path, shot):
+    from selene_formats.trace_stream import read_trace_stream_header
+
+    path = tmp_path / "shot.msgpack.gz"
+    write_trace_stream(path, [event()], shot=shot)
+    assert read_trace_stream_header(path).shot == shot
+    assert list(iter_trace_stream(path)) == [event()]
+
+
+@pytest.mark.parametrize("shot", [-1, 1.5, True, "7", None])
+def test_invalid_stream_shot_header(tmp_path, shot):
+    path = tmp_path / "bad-shot.msgpack.gz"
+    metadata = {**header(), "shot": shot}
+    path.write_bytes(gzip.compress(msgpack.packb(metadata) + msgpack.packb(None)))
+    with pytest.raises(ValueError, match="shot"):
+        list(iter_trace_stream_records(path))
+
+
+@pytest.mark.parametrize("shot", [-1, 2**64, 1.5, True, "7"])
+def test_invalid_stream_shot_is_rejected_before_creating_file(tmp_path, shot):
+    path = tmp_path / "invalid-shot.msgpack.gz"
+    with pytest.raises(ValueError, match="shot"):
+        write_trace_stream(path, [], shot=shot)
+    assert not path.exists()

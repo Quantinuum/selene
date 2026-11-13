@@ -1,7 +1,7 @@
 """Transported raw records can be processed independently of a running Selene."""
 
 from unittest.mock import Mock
-from selene_core.trace import SCHEMA_VERSION, Trace, ResetEvent
+from selene_formats.trace import SCHEMA_VERSION, Trace, ResetEvent
 
 import pytest
 

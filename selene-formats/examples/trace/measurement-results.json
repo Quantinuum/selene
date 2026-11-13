@@ -1,0 +1,114 @@
+{
+  "schema_version": "0.2.0",
+  "shot": 7,
+  "events": [
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 0,
+        "end_time": 5
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 0,
+        "measurement_type": "Standard",
+        "result_id": 42
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 0
+      },
+      "event": {
+        "kind": "FutureRead",
+        "result_id": 42
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 5,
+        "end_time": 5
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 42,
+        "outcome": 1
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 5,
+        "end_time": 12
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 1,
+        "measurement_type": "Leaked",
+        "result_id": 43
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 1
+      },
+      "event": {
+        "kind": "FutureRead",
+        "result_id": 43
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 12,
+        "end_time": 12
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 43,
+        "outcome": 2
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 12,
+        "end_time": 15
+      },
+      "event": {
+        "kind": "Measurement",
+        "qubit": 2,
+        "measurement_type": "com.example/Parity",
+        "result_id": 44
+      }
+    },
+    {
+      "source": {
+        "kind": "UserProgram",
+        "index": 2
+      },
+      "event": {
+        "kind": "FutureRead",
+        "result_id": 44
+      }
+    },
+    {
+      "source": {
+        "kind": "Runtime",
+        "start_time": 15,
+        "end_time": 15
+      },
+      "event": {
+        "kind": "FutureResult",
+        "result_id": 44,
+        "outcome": {
+          "parity": true,
+          "confidence": 0.875
+        }
+      }
+    }
+  ]
+}

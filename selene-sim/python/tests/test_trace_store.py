@@ -13,7 +13,7 @@ from selene_formats.trace import (
     SimulatorSource,
     EventRecord,
 )
-from selene_core.trace import Trace
+from selene_formats.trace import Trace
 from selene_sim.event_hooks import TraceStore, CircuitExtractor
 from selene_sim.event_hooks.instruction_log import CustomOperation, QAlloc, BatchStart
 from selene_formats.trace_stream import (
@@ -183,6 +183,7 @@ def test_interactive_trace_store():
     # events, not repeated copies of the whole shot, and the stored trace should
     # grow in place as we make more calls.
     assert first_trace is store.shots[0]
+    assert first_trace.get_trace().shot == 0
     assert [
         record.source.index
         for record in first_trace.iter_events()
@@ -197,6 +198,9 @@ def test_interactive_trace_store():
     assert len(store.shots) == 2
     assert list(store.shots[1].iter_events()) == []
     assert store.shots[0] is first_trace
+    q = stack.qalloc()
+    stack.qfree(q)
+    assert store.shots[1].get_trace().shot == 1
     stack.delete_run_directory()
 
 
@@ -366,3 +370,68 @@ def test_bad_compressed_trace_has_context(tmp_path, damage):
     store.try_invoke("TRACE", [str(path)])
     with pytest.raises(ValueError, match="damaged.msgpack.gz.*record"):
         list(store.shots[0].iter_events())
+
+
+def test_extension_measurements_are_readable_but_not_interpreted_as_standard(tmp_path):
+    from selene_formats.trace import MeasurementEvent, FutureResultEvent
+    from selene_sim.event_hooks.instruction_log import FutureResult
+
+    path = tmp_path / "extension.msgpack.gz"
+    source = RuntimeSource(start_time=0, end_time=1)
+    measurement = EventRecord(
+        source=source,
+        event=MeasurementEvent(
+            qubit=3, result_id=42, measurement_type="com.example/Custom"
+        ),
+    )
+    write_trace_stream(path, [measurement])
+    extractor = CircuitExtractor()
+    extractor.on_new_shot()
+    extractor.try_invoke("TRACE", [str(path)])
+    assert extractor.shots[0].get_trace().events == [measurement]
+    with pytest.raises(ValueError, match="Unsupported measurement type"):
+        list(extractor.shots[0])
+
+    outcome = {"value": [True, None, 7]}
+    result_path = tmp_path / "result.msgpack.gz"
+    write_trace_stream(
+        result_path,
+        [
+            EventRecord(
+                source=source, event=FutureResultEvent(result_id=42, outcome=outcome)
+            )
+        ],
+    )
+    results = CircuitExtractor()
+    results.on_new_shot()
+    results.try_invoke("TRACE", [str(result_path)])
+    assert next(iter(results.shots[0])).operation == FutureResult(42, outcome)
+
+
+@pytest.mark.parametrize("shot", [None, 0, 17, 2**53 - 1, 2**53, 2**64 - 1])
+def test_trace_materializes_stream_shot(tmp_path, shot):
+    store = TraceStore()
+    store.on_new_shot()
+    for index in range(2):
+        path = tmp_path / f"fragment-{index}.msgpack.gz"
+        write_trace_stream(path, [], shot=shot)
+        store.try_invoke("TRACE", [str(path)])
+    trace = store.shots[0]
+    assert trace.shot == shot
+    if shot is not None and shot >= 2**53:
+        with pytest.raises(ValueError, match="shot.*cannot be represented"):
+            trace.get_trace()
+    else:
+        assert trace.get_trace().shot == shot
+        assert trace.get_trace().events == []
+
+
+def test_trace_rejects_mixed_shots(tmp_path):
+    store = TraceStore()
+    store.on_new_shot()
+    for shot in [7, 8]:
+        path = tmp_path / f"{shot}.msgpack.gz"
+        write_trace_stream(path, [], shot=shot)
+        store.try_invoke("TRACE", [str(path)])
+    with pytest.raises(ValueError, match="inconsistent shot"):
+        store.shots[0].get_trace()

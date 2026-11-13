@@ -276,3 +276,48 @@ def test_examples_conform_to_python_model(example_name: str):
         assert trace.events[0].event == GateEvent(
             gate_name="RXY", qubits=[0], params=[0.5, 0]
         )
+
+
+@pytest.mark.parametrize("shot", [None, 0, 7, 2**53 - 1])
+def test_shot_round_trip_and_filters(shot):
+    from selene_formats.trace import parse_trace_document, parse_trace_json
+
+    trace = Trace(schema_version=SCHEMA_VERSION, shot=shot)
+    serialized = trace.model_dump(mode="json")
+    assert ("shot" in serialized) == (shot is not None)
+    assert parse_trace_json(trace.model_dump_json()).shot == shot
+    for filtered in (
+        trace.strip_custom_events(),
+        trace.strip_opaque_custom_events(),
+        trace.get_runtime_trace(),
+        trace.get_user_program_trace(),
+        trace.get_error_model_trace(),
+        trace.get_simulator_trace(),
+        trace.clear_simulator_perf_timing(),
+    ):
+        assert filtered.shot == shot
+    data = TraceData(shot=shot)
+    collection = Traces(schema_version=SCHEMA_VERSION, traces=[data])
+    assert (
+        parse_trace_document(collection.model_dump(mode="json")).traces[0].shot == shot
+    )
+
+
+@pytest.mark.parametrize("shot", [-1, 2**53, 1.5, True, "7"])
+@pytest.mark.parametrize("collection", [False, True])
+def test_shot_validation_and_mutation(shot, collection):
+    from pydantic_core import PydanticSerializationError
+
+    model = TraceData if collection else Trace
+    kwargs = {} if collection else {"schema_version": SCHEMA_VERSION}
+    with pytest.raises(ValueError):
+        model(shot=shot, **kwargs)
+    data = model(**kwargs)
+    data.shot = shot
+    with pytest.raises(PydanticSerializationError):
+        data.model_dump_json()
+    document = (
+        Traces(schema_version=SCHEMA_VERSION, traces=[data]) if collection else data
+    )
+    with pytest.raises(PydanticSerializationError):
+        document.model_dump_json()
