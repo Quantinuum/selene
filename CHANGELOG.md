@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.8](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.7...selene-sim-v0.3.8) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* extend measurement tracing with schema 0.2.0 ([#274](https://github.com/Quantinuum/selene/issues/274))
+
+### Features
+
+* extend measurement tracing with schema 0.2.0 ([#274](https://github.com/Quantinuum/selene/issues/274)) ([8ed6d7c](https://github.com/Quantinuum/selene/commit/8ed6d7c10d8856d05f0caaf55fcbfcb424f11326))
+
+
+### Bug Fixes
+
+* handle BitcodeString wrapper in QIR-QIS conversion ([#273](https://github.com/Quantinuum/selene/issues/273)) ([81b9e5f](https://github.com/Quantinuum/selene/commit/81b9e5fbfa6c4c91efd5342942d4ff0c5e75bd39))
+
+
+### Documentation
+
+* document standalone formats testing ([#255](https://github.com/Quantinuum/selene/issues/255)) ([675ceb6](https://github.com/Quantinuum/selene/commit/675ceb6d110efcb659cb8009df1d4f6d68ff13f3))
+
 ## [0.3.7](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.6...selene-sim-v0.3.7) (2026-10-20)
 
 
