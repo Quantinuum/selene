@@ -1,0 +1,36 @@
+[package]
+name = "selene-toolchain"
+version = "0.1.0"
+description = "LLVM compilation, inspection and linking through explicit build plans"
+repository.workspace = true
+readme = "../README.md"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "selene_toolchain"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+python = ["dep:pyo3", "dep:pyo3-build-config"]
+
+[dependencies]
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+fs2 = "0.4"
+rayon = "1.11"
+thiserror.workspace = true
+pyo3 = { version = "0.28", optional = true, features = ["extension-module", "abi3-py310", "generate-import-lib"] }
+
+[build-dependencies]
+pyo3-build-config = { version = "0.28", optional = true }
+sha2 = "0.10"
+cc = "1"
+shlex = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+

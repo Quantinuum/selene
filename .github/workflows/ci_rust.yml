@@ -5,6 +5,7 @@ on:
     branches:
     - main
     - 0.3-series
+    - 0.4-series
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -35,6 +36,9 @@ jobs:
             selene-rust-tests--${{ runner.os }}--
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
+        with:
+          packages: "llvm"
       - name: Run rust tests
         run: cargo test --all-features
       # ensure that C interfaces are up to date

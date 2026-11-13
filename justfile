@@ -96,4 +96,6 @@ build-ci:
     mkdir -p /tmp/ci-cache
     export CACHE_CARGO=true
     uv build --package selene-core --out-dir wheelhouse
+    uvx cibuildwheel==3.4.1 --config-file selene-toolchain/pyproject.toml selene-toolchain
+    export SELENE_TOOLCHAIN_WHEEL_DIR="$(pwd)/wheelhouse"
     uvx cibuildwheel==3.4.1 .
