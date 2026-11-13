@@ -1,9 +1,28 @@
-use crate::{Artifact, ArtifactKind, Input, Plan, Store, Toolchain};
+use crate::{Artifact, ArtifactKind, Executor, Input, Plan, Store, Toolchain};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use std::path::PathBuf;
 
+pyo3::create_exception!(selene_toolchain, LinkError, PyRuntimeError);
+
 fn error(error: crate::Error) -> PyErr {
-    PyRuntimeError::new_err(error.to_string())
+    match error {
+        crate::Error::Link(link) => Python::attach(|py| {
+            let exception = LinkError::new_err(link.to_string());
+            let value = exception.value(py);
+            let attributes = (|| -> PyResult<()> {
+                value.setattr("diagnostics", link.diagnostics)?;
+                value.setattr("raw_diagnostics", link.raw_diagnostics)?;
+                value.setattr("inputs", link.inputs)?;
+                value.setattr("entries", link.entries)?;
+                Ok(())
+            })();
+            match attributes {
+                Ok(()) => exception,
+                Err(error) => error,
+            }
+        }),
+        other => PyRuntimeError::new_err(other.to_string()),
+    }
 }
 fn kind(name: &str) -> PyResult<ArtifactKind> {
     match name {
@@ -23,16 +42,23 @@ struct PyArtifact {
 #[pymethods]
 impl PyArtifact {
     #[staticmethod]
-    fn from_bytes(kind_name: &str, bytes: Vec<u8>) -> PyResult<Self> {
-        Ok(Self {
-            inner: Artifact::from_bytes(kind(kind_name)?, bytes),
-        })
+    #[pyo3(signature = (kind_name, bytes, *, name=None))]
+    fn from_bytes(kind_name: &str, bytes: Vec<u8>, name: Option<String>) -> PyResult<Self> {
+        let mut inner = Artifact::from_bytes(kind(kind_name)?, bytes);
+        if let Some(name) = name {
+            inner = inner.with_name(name).map_err(error)?;
+        }
+        Ok(Self { inner })
     }
     #[staticmethod]
     fn from_path(kind_name: &str, path: PathBuf) -> PyResult<Self> {
         Ok(Self {
             inner: Artifact::from_path(kind(kind_name)?, path).map_err(error)?,
         })
+    }
+    #[getter]
+    fn name(&self) -> String {
+        self.inner.name().into()
     }
     #[getter]
     fn digest(&self) -> String {
@@ -186,6 +212,33 @@ impl PyStore {
         self.inner.root().into()
     }
 }
+
+#[pyclass(name = "Executor", frozen)]
+struct PyExecutor {
+    inner: Executor,
+}
+#[pymethods]
+impl PyExecutor {
+    #[new]
+    #[pyo3(signature = (store, *, jobs=1))]
+    fn new(store: &PyStore, jobs: usize) -> PyResult<Self> {
+        Ok(Self {
+            inner: Executor::new(store.inner.clone())
+                .with_jobs(jobs)
+                .map_err(error)?,
+        })
+    }
+    fn build(&self, py: Python<'_>, plan: &PyPlan) -> PyResult<PyResultRecord> {
+        let plan = plan.inner.clone();
+        py.detach(|| self.inner.build(&plan))
+            .map(|result| PyResultRecord { result })
+            .map_err(error)
+    }
+    #[getter]
+    fn jobs(&self) -> usize {
+        self.inner.jobs()
+    }
+}
 #[pymethods]
 impl PyResultRecord {
     #[getter]
@@ -218,11 +271,15 @@ fn _shutdown(py: Python<'_>) {
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add("LinkError", module.py().get_type::<LinkError>())?;
+    module.add_class::<crate::LinkDiagnostic>()?;
+    module.add_class::<crate::LinkReference>()?;
     module.add_function(wrap_pyfunction!(_shutdown, module)?)?;
     module.add_class::<PyArtifact>()?;
     module.add_class::<PyPlan>()?;
     module.add_class::<PyToolchain>()?;
     module.add_class::<PyStore>()?;
+    module.add_class::<PyExecutor>()?;
     module.add_class::<PyResultRecord>()?;
     Ok(())
 }

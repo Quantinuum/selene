@@ -1,6 +1,4 @@
-use crate::{
-    Artifact, ArtifactKind, Error, Input, LinkArg, Operation, Plan, Result, digest, path_string,
-};
+use crate::{Artifact, ArtifactKind, Error, Executor, Plan, Result, digest};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -56,12 +54,21 @@ impl Store {
             .write(true)
             .open(directory.join(name))?)
     }
+    /// Build with the default single-worker executor.
     pub fn build(&self, plan: &Plan) -> Result<BuildResult> {
+        Executor::new(self.clone()).build(plan)
+    }
+    pub(crate) fn with_build_lock<T>(&self, build: impl FnOnce() -> Result<T>) -> Result<T> {
         let lock = self.lock("store")?;
         FileExt::lock_shared(&lock)?;
-        self.build_inner(plan)
+        build()
     }
-    fn capture(&self, artifact: &Artifact) -> Result<PathBuf> {
+    pub(crate) fn temporary_directory(&self) -> Result<tempfile::TempDir> {
+        let root = self.root.join("temporary");
+        fs::create_dir_all(&root)?;
+        Ok(tempfile::tempdir_in(root)?)
+    }
+    pub(crate) fn capture(&self, artifact: &Artifact) -> Result<PathBuf> {
         let directory = self.root.join("artifacts").join(&artifact.digest);
         fs::create_dir_all(&directory)?;
         let path = directory.join(&artifact.name);
@@ -87,46 +94,22 @@ impl Store {
         }
         Ok(path)
     }
-    fn build_inner(&self, plan: &Plan) -> Result<BuildResult> {
-        let mut inputs = vec![];
-        if let Operation::Link {
-            inputs: dependencies,
-            ..
-        } = &plan.0.operation
-        {
-            for input in dependencies {
-                inputs.push(match input {
-                    Input::Artifact(a) => a.clone(),
-                    Input::Plan(p) => self.build_inner(p)?.artifact,
-                });
-            }
-        }
-        let mut description = plan.describe();
-        if let Operation::Link { .. } = &plan.0.operation {
-            // Link results contain paths to stored shared libraries. A local
-            // store is deliberately not yet a relocatable binary cache.
-            description["store"] = serde_json::json!(self.root);
-            // Depend on actual object bytes rather than how they were built.
-            description["inputs"] =
-                serde_json::json!(inputs.iter().map(Artifact::identity).collect::<Vec<_>>());
-        }
+    pub(crate) fn build_cached(
+        &self,
+        description: serde_json::Value,
+        kind: ArtifactKind,
+        cacheable: bool,
+        execute: impl FnOnce() -> Result<(Artifact, String)>,
+    ) -> Result<BuildResult> {
         let key = digest(&serde_json::to_vec(&description)?);
         let lock = self.lock(&key)?;
         lock.lock_exclusive()?;
         let directory = self.root.join("builds");
         fs::create_dir_all(&directory)?;
         let record_path = directory.join(format!("{key}.json"));
-        let cacheable = !matches!(
-            &plan.0.operation,
-            Operation::Link {
-                cacheable: false,
-                ..
-            }
-        );
         if cacheable && record_path.is_file() {
             let record: Record = serde_json::from_slice(&fs::read(&record_path)?)?;
-            if record.schema != 1 || record.description != description || record.kind != plan.kind()
-            {
+            if record.schema != 1 || record.description != description || record.kind != kind {
                 return Err(Error::Invalid(format!(
                     "Invalid build record: {}",
                     record_path.display()
@@ -154,57 +137,7 @@ impl Store {
                 });
             }
         }
-        let temporary_root = self.root.join("temporary");
-        fs::create_dir_all(&temporary_root)?;
-        let temporary = tempfile::tempdir_in(&temporary_root)?;
-        let mut diagnostics = String::new();
-        let artifact = match &plan.0.operation {
-            Operation::Compile {
-                source,
-                optimisation,
-                retarget,
-            } => {
-                self.capture(source)?;
-                let bytes = plan.0.backend.run(
-                    "compile",
-                    source.bytes(),
-                    &serde_json::json!({"target": plan.0.target, "optimisation": optimisation, "retarget": retarget}),
-                )?;
-                Artifact::from_bytes(ArtifactKind::Object, bytes)
-            }
-            Operation::Link {
-                arguments, kind, ..
-            } => {
-                let output = temporary.path().join(if *kind == ArtifactKind::Executable {
-                    "program.exe"
-                } else if cfg!(windows) {
-                    "library.dll"
-                } else if cfg!(target_os = "macos") {
-                    "library.dylib"
-                } else {
-                    "library.so"
-                });
-                let mut args = vec![];
-                for argument in arguments {
-                    match argument {
-                        LinkArg::Text(s) => args.push(s.clone()),
-                        LinkArg::Output => args.push(path_string(&output)?),
-                        LinkArg::File(a) => self.link_input(a, &mut args)?,
-                        LinkArg::Dependency(a) => {
-                            self.capture(a)?;
-                        }
-                        LinkArg::Input(i) => self.link_input(&inputs[*i], &mut args)?,
-                    }
-                }
-                diagnostics = String::from_utf8_lossy(&plan.0.backend.run(
-                    "link",
-                    &[],
-                    &serde_json::json!(args),
-                )?)
-                .into_owned();
-                Artifact::from_path(*kind, &output)?
-            }
-        };
+        let (artifact, diagnostics) = execute()?;
         let path = self.capture(&artifact)?;
         let record = Record {
             schema: 1,
@@ -230,25 +163,6 @@ impl Store {
             diagnostics,
             key,
         })
-    }
-    fn link_input(&self, artifact: &Artifact, args: &mut Vec<String>) -> Result<()> {
-        let path = self.capture(artifact)?;
-        if artifact.kind == ArtifactKind::SharedLibrary && !cfg!(windows) {
-            // Use a library search rather than an absolute input path so a
-            // library without a SONAME doesn't record a temporary filename.
-            let parent = path.parent().unwrap();
-            args.push(format!("-L{}", path_string(parent)?));
-            if cfg!(target_os = "macos") {
-                args.push(path_string(&path)?);
-            } else {
-                args.push(format!("-l:{}", artifact.name));
-            }
-            args.push("-rpath".into());
-            args.push(path_string(parent)?);
-        } else {
-            args.push(path_string(&path)?);
-        }
-        Ok(())
     }
     /// Evict cached results while preserving captured inputs and shared
     /// libraries that exported executables may still need. Full GC requires

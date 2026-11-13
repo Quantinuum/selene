@@ -77,7 +77,7 @@ impl Toolchain {
         Ok(serde_json::from_slice(&self.backend.run(
             operation,
             artifact.bytes(),
-            &serde_json::Value::Null,
+            &serde_json::json!({"name": artifact.name()}),
         )?)?)
     }
     pub fn compile(&self, source: impl Into<Artifact>) -> CompileBuilder {

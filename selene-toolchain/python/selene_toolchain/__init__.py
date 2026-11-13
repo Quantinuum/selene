@@ -22,6 +22,10 @@ if sys.platform == "win32":
 
 from . import _native  # noqa: E402
 
+LinkError = _native.LinkError
+LinkDiagnostic = _native.LinkDiagnostic
+LinkReference = _native.LinkReference
+
 if sys.platform == "win32":
     atexit.register(_native._shutdown)
 
@@ -57,8 +61,12 @@ class Artifact:
         return cls(_native.Artifact.from_path(cls._kind, Path(path)))
 
     @classmethod
-    def from_bytes(cls, data: bytes):
-        return cls(_native.Artifact.from_bytes(cls._kind, data))
+    def from_bytes(cls, data: bytes, *, name: str | None = None):
+        return cls(_native.Artifact.from_bytes(cls._kind, data, name=name))
+
+    @property
+    def name(self) -> str:
+        return self._handle.name
 
     @property
     def digest(self) -> str:
@@ -260,11 +268,31 @@ class Store:
         return self._handle.root
 
     def build(self, plan: Plan) -> BuildResult:
+        """Build with the default single-worker executor."""
         return BuildResult(self._handle.build(plan._handle))
 
     def clean(self, *, dry_run: bool = False) -> int:
         """Evict build records and temporary files, preserving captured libraries."""
         return self._handle.clean(dry_run)
+
+
+class Executor:
+    def __init__(self, store: Store | None = None, *, jobs: int = 1):
+        if jobs < 1:
+            raise ValueError("jobs must be greater than zero")
+        self._store = Store.default() if store is None else store
+        self._handle = _native.Executor(self._store._handle, jobs=jobs)
+
+    @property
+    def store(self) -> Store:
+        return self._store
+
+    @property
+    def jobs(self) -> int:
+        return self._handle.jobs
+
+    def build(self, plan: Plan) -> BuildResult:
+        return BuildResult(self._handle.build(plan._handle))
 
 
 def inspect_module(contents: str | Path | bytes) -> ModuleSymbols:

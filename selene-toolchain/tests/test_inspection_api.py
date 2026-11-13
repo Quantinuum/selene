@@ -10,6 +10,7 @@ import pytest
 
 from selene_toolchain import (
     Bitcode,
+    Executor,
     SharedLibrary,
     Store,
     Toolchain,
@@ -74,7 +75,7 @@ def test_python_exits_after_native_linking():
             "-c",
             textwrap.dedent("""\
                 from tempfile import TemporaryDirectory
-                from selene_toolchain import Bitcode, Store, Toolchain
+                from selene_toolchain import Bitcode, Executor, Store, Toolchain
 
                 toolchain = Toolchain.bundled()
                 with TemporaryDirectory() as root:
@@ -82,7 +83,7 @@ def test_python_exits_after_native_linking():
                     plan = toolchain.link_executable().object(
                         toolchain.compile(source).plan()
                     ).plan()
-                    Store.local(root).build(plan)
+                    Executor(Store.local(root), jobs=2).build(plan)
                 """),
         ],
         check=True,
@@ -124,21 +125,22 @@ def test_parallel_builds_share_a_result(toolchain, tmp_path):
     assert len({result.artifact.digest for result in results}) == 1
 
 
-def test_link_failure_doesnt_poison_backend_or_cache(toolchain, tmp_path):
-    store = Store.local(tmp_path / "store")
+@pytest.mark.parametrize("jobs", [1, 4])
+def test_link_failure_doesnt_poison_backend_or_cache(toolchain, tmp_path, jobs):
+    executor = Executor(Store.local(tmp_path / "store"), jobs=jobs)
     bad = Bitcode.from_bytes(
         b"declare void @missing()\ndefine i32 @main() { call void @missing() ret i32 0 }"
     )
     plan = toolchain.link_executable().object(toolchain.compile(bad).plan()).plan()
     with pytest.raises(RuntimeError, match="missing"):
-        store.build(plan)
+        executor.build(plan)
     good = (
         toolchain.link_executable()
         .object(toolchain.compile(Bitcode.from_bytes(PROGRAM)).plan())
         .plan()
     )
-    assert not store.build(good).cache_hit
-    assert store.build(good).cache_hit
+    assert not executor.build(good).cache_hit
+    assert executor.build(good).cache_hit
 
 
 def test_corrupt_cached_output_is_rejected(toolchain, tmp_path):

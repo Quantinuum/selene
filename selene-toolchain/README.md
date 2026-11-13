@@ -14,16 +14,17 @@ and macOS's `dsymutil`, serve debugging and symbolisation.
 
 ```python
 from pathlib import Path
-from selene_toolchain import Bitcode, Store, Toolchain
+from selene_toolchain import Bitcode, Executor, Store, Toolchain
 
 toolchain = Toolchain.bundled()
 store = Store.default()
+executor = Executor(store=store, jobs=4)
 
 module = Bitcode.from_bytes(b"define i32 @main() { ret i32 0 }")
 object_plan = toolchain.compile(module).optimisation(0).plan()
 plan = toolchain.link_executable().object(object_plan).plan()
 
-result = store.build(plan)
+result = executor.build(plan)
 result.artifact.copy_to(Path("program"))
 print(result.cache_hit, result.key)
 ```
@@ -58,6 +59,41 @@ artifacts because their contents don't capture their external file references.
 `compile_object()` and `link_executable()` remain compatibility adapters for
 Selene's existing planner. They construct these plans and use the same store.
 
+Link failures raise `LinkError`, a subclass of `RuntimeError`. Its `entries`
+contains `LinkDiagnostic` objects with severity, kind, message, optional symbol,
+references and details. Undefined and duplicate symbols are recognised by kind;
+other failures use `other`. References describe the source file, line and column
+when supplied, the object or archive member, and the referring function or
+linker context. These are Rust structs exposed as read-only Python objects.
+Symbol and context strings keep LLD's spelling, including decoration or
+demangling.
+
+`diagnostics` is a readable rendering of those structures. `raw_diagnostics`
+keeps the original LLD output, and `inputs` lists the input labels. Internal
+store paths are replaced by those labels before parsing. Equally named inputs
+with different contents get a short digest to distinguish them. The parser
+handles ELF, Mach-O and COFF forms, and keeps unfamiliar messages and details
+visible when it cannot classify them.
+
+Artifacts loaded from paths keep their filenames. Give in-memory inputs a name
+with `Bitcode.from_bytes(data, name="caller.ll")`; compilation carries that
+through to `caller.o`. Names participate in plan identities because they affect
+diagnostics and can affect generated object contents. Existing source filenames
+and debug information inside LLVM modules remain intact.
+
+```python
+from selene_toolchain import LinkError
+
+try:
+    executor.build(plan)
+except LinkError as error:
+    print(error)                  # readable diagnostic
+    for entry in error.entries:
+        if entry.kind == "undefined_symbol":
+            print(entry.symbol, entry.references)
+    print(error.raw_diagnostics)  # original LLD output for further investigation
+```
+
 ## Rust and the LLVM development prefix
 
 The crate is a member of this repository's Cargo workspace. Python bindings
@@ -83,17 +119,22 @@ to be located or installed at runtime. The native C++ source is inside the Rust
 crate, so Cargo path and Git dependencies contain everything needed to build it.
 
 ```rust,no_run
-use selene_toolchain::{Bitcode, Store, Toolchain};
+use selene_toolchain::{Bitcode, Executor, Store, Toolchain};
 
 # fn example() -> selene_toolchain::Result<()> {
 let toolchain = Toolchain::new()?;
 let module = Bitcode::from_bytes(b"define i32 @main() { ret i32 0 }".to_vec());
 let plan = toolchain.compile(module).optimisation(0).plan()?;
-let result = Store::default_location()?.build(&plan)?;
+let executor = Executor::new(Store::default_location()?).with_jobs(4)?;
+let result = executor.build(&plan)?;
 result.artifact.copy_to("program.o")?;
 # Ok(())
 # }
 ```
+
+Rust callers can name byte-based artifacts with `.with_name("caller.ll")?`,
+inspect their `.name()`, and match `Error::Link(error)` to access the same
+`entries`, `diagnostics`, `raw_diagnostics` and `inputs` fields.
 
 The prefix supplies the compiler implementation. Startup objects and platform
 runtime libraries for linking user programs are configured separately:
@@ -122,6 +163,28 @@ cargo run -p selene-toolchain --example build -- \
 ```
 
 ## Store and cache
+
+The store describes where artifacts and cached results live. An executor
+describes how plans run. Use `Executor(store=Store.local(path), jobs=4)` in
+Python, or `Executor::new(Store::local(path)?).with_jobs(4)?` in Rust to compile
+independent inputs in parallel. Executors use one worker by default;
+`Store.build(plan)` remains a convenience that uses a default single-worker
+executor. Python's `Executor()` uses `Store.default()` when no store is supplied.
+
+Executors with different worker limits can share a store and reuse its cached
+results. Clones of a Rust executor share its worker pool, including when several
+callers build concurrently. Nested dependencies use that same bounded pool.
+Changing the worker limit doesn't change a plan's cache key or linker input order.
+
+LLVM compilations use separate contexts and can overlap. Linking takes an
+exclusive native lock because LLD changes shared LLVM state, so it waits for
+active compilations and runs one link at a time. LLD also has its own internal
+worker threads; `jobs` bounds our plan workers rather than the total number
+of threads inside LLVM and LLD.
+
+From the repository environment, run
+`python selene-toolchain/benchmarks/parallel_builds.py` to compare uncached and
+cached multi-module builds with one, two and four workers.
 
 The default local store is under the platform's cache directory; override it
 with `SELENE_TOOLCHAIN_CACHE` or `Store.local(path)`. Build keys include the

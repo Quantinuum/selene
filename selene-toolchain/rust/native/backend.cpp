@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -48,7 +49,7 @@ ST_EXPORT unsigned st_abi_version();
 ST_EXPORT void st_shutdown();
 }
 
-static std::mutex backendMutex;
+static std::shared_mutex backendMutex;
 static bool usable = true;
 
 static STBuffer buffer(llvm::StringRef text, int status = 0) {
@@ -198,30 +199,36 @@ static STBuffer compile(llvm::MemoryBufferRef input, const llvm::json::Object &o
 
 extern "C" ST_EXPORT STBuffer st_call(const char *operation, const unsigned char *data,
                                        size_t length, const char *configuration) {
-    // LLD and LLVM have process-wide state. Serialise entry across all Rust
-    // toolchain instances, including callers that have released Python's GIL.
-    std::lock_guard<std::mutex> guard(backendMutex);
-    static bool initialised = false;
+    // Each compilation owns its context, target machine and pass managers, so
+    // independent modules can compile together. LLD changes global LLVM state,
+    // so linking and shutdown must wait for all those operations to finish.
+    std::shared_lock<std::shared_mutex> reader(backendMutex, std::defer_lock);
+    std::unique_lock<std::shared_mutex> writer(backendMutex, std::defer_lock);
+    if (std::strcmp(operation, "link") == 0) writer.lock();
+    else reader.lock();
+    static std::once_flag initialised;
     if (!usable) return buffer("LLVM backend is unusable after a fatal linker failure", 1);
-    if (!initialised) {
+    std::call_once(initialised, [] {
         llvm::InitializeAllTargetInfos();
         llvm::InitializeAllTargets();
         llvm::InitializeAllTargetMCs();
         llvm::InitializeAllAsmPrinters();
         llvm::InitializeAllAsmParsers();
-        initialised = true;
-    }
+    });
     llvm::StringRef op(operation);
+    auto options = llvm::json::parse(configuration);
+    if (!options) return buffer(llvm::toString(options.takeError()), 1);
+    llvm::StringRef name = "input";
+    if (const auto *object = options->getAsObject())
+        name = object->getString("name").value_or(name);
     // LLVM's textual parser expects a trailing NUL, including for an empty
     // module. Rust slices don't promise one, so give LLVM an owned buffer.
     auto memory = llvm::MemoryBuffer::getMemBufferCopy(
-        llvm::StringRef(reinterpret_cast<const char *>(data), length), "input");
+        llvm::StringRef(reinterpret_cast<const char *>(data), length), name);
     auto input = memory->getMemBufferRef();
     if (op == "version") return buffer(LLVM_VERSION_STRING);
     if (op == "inspect") return symbols(input, true);
     if (op == "inspect-object") return symbols(input, false);
-    auto options = llvm::json::parse(configuration);
-    if (!options) return buffer(llvm::toString(options.takeError()), 1);
     if (op == "compile" && options->getAsObject()) return compile(input, *options->getAsObject());
     if (op == "link" && options->getAsArray()) {
         std::vector<std::string> storage;
@@ -253,7 +260,7 @@ extern "C" ST_EXPORT void st_free(STBuffer value) { std::free(value.data); }
 extern "C" ST_EXPORT unsigned st_abi_version() { return 1; }
 
 extern "C" ST_EXPORT void st_shutdown() {
-    std::lock_guard<std::mutex> guard(backendMutex);
+    std::unique_lock<std::shared_mutex> guard(backendMutex);
     static bool stopped = false;
     if (stopped) return;
     stopped = true;

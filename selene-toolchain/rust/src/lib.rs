@@ -1,12 +1,16 @@
 //! Native LLVM builds described as immutable plans. This crate doesn't infer
 //! program interfaces or choose compilation routes; callers describe those.
 mod backend;
+mod diagnostics;
+mod executor;
 #[cfg(feature = "python")]
 mod python;
 mod store;
 mod toolchain;
 
 use backend::Backend;
+pub use diagnostics::{LinkDiagnostic, LinkError, LinkReference};
+pub use executor::Executor;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{path::Path, sync::Arc};
@@ -17,6 +21,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    Link(#[from] LinkError),
     #[error("{0}")]
     Io(#[from] std::io::Error),
     #[error("{0}")]
@@ -75,13 +81,33 @@ impl Artifact {
     }
     pub fn from_path(kind: ArtifactKind, path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let mut artifact = Self::from_bytes(kind, std::fs::read(path)?);
-        artifact.name = path
+        let artifact = Self::from_bytes(kind, std::fs::read(path)?);
+        let name = path
             .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| Error::Invalid("Artifact filename must be valid UTF-8".into()))?
-            .into();
-        Ok(artifact)
+            .to_owned();
+        artifact.with_name(name)
+    }
+    /// Give an in-memory artifact a filename for diagnostics and storage.
+    pub fn with_name(mut self, name: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        if name.is_empty()
+            || matches!(name.as_str(), "." | "..")
+            || name.contains(['/', '\\'])
+            || name.chars().any(char::is_control)
+            || Path::new(&name).file_name() != Some(std::ffi::OsStr::new(&name))
+        {
+            return Err(Error::Invalid(
+                "Artifact name must be a filename without path separators or control characters"
+                    .into(),
+            ));
+        }
+        self.name = name;
+        Ok(self)
+    }
+    pub fn name(&self) -> &str {
+        &self.name
     }
     pub fn kind(&self) -> ArtifactKind {
         self.kind
@@ -249,6 +275,12 @@ macro_rules! artifact_type {
             }
             pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
                 Self(Artifact::from_bytes(ArtifactKind::$kind, bytes))
+            }
+            pub fn with_name(self, name: impl Into<String>) -> Result<Self> {
+                Ok(Self(self.0.with_name(name)?))
+            }
+            pub fn name(&self) -> &str {
+                self.0.name()
             }
             pub fn digest(&self) -> &str {
                 self.0.digest()
