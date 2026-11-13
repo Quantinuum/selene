@@ -1,13 +1,13 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "hashes": {
     "macosx_11_0": {
       "aarch64": {
-        "llvm": "sha256-fXhBdrvz76ScXGQqhn8P9B3u5s0TG+ARM20f4vrumdk=",
+        "llvm": "sha256-v2qtNTKKz3nn9L0Z3CGNM5yq2vVDi0OSXn5ZCT2EPhs=",
         "tket": "sha256-avjhpfeFAqqJ9KiwqG87DSsHlmjZTh7gqUK9Cs8yYgc="
       },
       "x86_64": {
-        "llvm": "sha256-apq/sWSV1g8ld3R/NhSDF6YJZqL4cAuAeqO6LvNJWWY=",
+        "llvm": "sha256-Nnl0rnXET/3DLA9QBQX3Y8MHou+VmWCZAIx7zTDuHEg=",
         "tket": "sha256-osltla8c+HVHod1Ac145wReJL+fdsD9mPBhEReN1zlw="
       }
     },

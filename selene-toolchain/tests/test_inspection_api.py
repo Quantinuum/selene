@@ -186,6 +186,29 @@ def test_linker_escape_hatch_disables_cache(toolchain, tmp_path):
     assert plan.describe()["cacheable"] is False
 
 
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_linker_flags_can_find_bundled_libraries(
+    toolchain, tmp_path, monkeypatch, wrapped
+):
+    # Plugins still pass system libraries as raw linker flags. Windows needs
+    # MinGW's import library for userenv, even though the DLL comes with the OS.
+    # Use another bundled library on Unix so we exercise the same search path
+    # without asking the host compiler where to find it.
+    name = {"win32": "userenv", "darwin": "System"}.get(sys.platform, "gcc")
+    flag = f"-l{name}"
+    if wrapped:
+        flag = f"-Wl,{flag}"
+    plan = (
+        toolchain.link_executable()
+        .object(toolchain.compile(Bitcode.from_bytes(PROGRAM)).plan())
+        .link_flag(flag)
+        .plan()
+    )
+    monkeypatch.setenv("PATH", "")
+    result = Store.local(tmp_path / "store").build(plan)
+    assert result.artifact.symbols().defined_symbols >= {"main"}
+
+
 def test_native_target_mismatch_is_rejected(toolchain, tmp_path):
     wrong = (
         b'target triple = "wasm32-unknown-unknown"\ndefine i32 @main() { ret i32 0 }'

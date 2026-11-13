@@ -1,6 +1,8 @@
 """Link failures should identify user inputs and preserve LLD's diagnostics."""
 
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -128,6 +130,19 @@ def test_names_are_part_of_the_plan_identity():
 
 
 def test_duplicate_symbols_have_structured_definitions(tmp_path):
+    # A previous LLD bug left dangling pointers after a duplicate-symbol error
+    # and crashed the next link. Check recovery in a child process so that a
+    # regression reports this test's failure without taking down all of pytest.
+    result = subprocess.run(
+        [sys.executable, __file__, str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def check_duplicate_symbols_and_recovery(tmp_path):
     toolchain = Toolchain.bundled()
     executor = Executor(Store.local(tmp_path / "store"))
     first = toolchain.compile(
@@ -151,3 +166,12 @@ def test_duplicate_symbols_have_structured_definitions(tmp_path):
     assert entry.symbol.endswith("answer")
     assert {ref.artifact for ref in entry.references} == {"first.o", "second.o"}
     assert all(ref.relation == "defined_at" for ref in entry.references)
+    # Reuse the same backend after the error. The new link has no duplicate
+    # definitions, so it should succeed without replaying the old diagnostics.
+    plan = toolchain.link_executable().object(first).plan()
+    result = executor.build(plan)
+    assert result.artifact.symbols().defined_symbols >= {"main", "answer"}
+
+
+if __name__ == "__main__":
+    check_duplicate_symbols_and_recovery(Path(sys.argv[1]))

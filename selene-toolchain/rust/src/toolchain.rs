@@ -309,7 +309,10 @@ impl LinkBuilder {
                 args.push(LinkArg::Dependency(loader));
             }
         }
-        for directory in &self.search {
+        // Raw flags and object directives can ask LLD for additional libraries.
+        // The explicitly resolved inputs below don't need a search path, but
+        // these requests still need access to the bundled import libraries.
+        for directory in std::iter::once(&runtime).chain(&self.search) {
             text(&mut args, &format!("-L{}", path_string(directory)?));
         }
         if !cfg!(target_os = "macos") {
