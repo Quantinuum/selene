@@ -53,13 +53,17 @@ def test_link_errors_identify_the_input(tmp_path, from_file):
     assert "selene_missing_function" in error.raw_diagnostics
     assert "artifacts/" not in error.diagnostics.replace("\\", "/")
     assert str(error) == f"link failed:\n{error.diagnostics}"
-    assert len(error.entries) == 1
-    entry = error.entries[0]
+    # macOS can also warn that the host's system libraries are newer than our
+    # deployment target. We should keep those warnings, but there should still
+    # be just one error for the function we deliberately left undefined.
+    errors = [entry for entry in error.entries if entry.severity == "error"]
+    assert len(errors) == 1
+    entry = errors[0]
     assert isinstance(entry, LinkDiagnostic)
     assert entry.kind == "undefined_symbol"
     assert entry.severity == "error"
     assert entry.symbol.endswith("selene_missing_function")
-    assert str(entry) == error.diagnostics
+    assert "\n\n".join(str(item) for item in error.entries) == error.diagnostics
     assert "ld.lld: error:" not in error.diagnostics
     assert ">>>" not in error.diagnostics
     reference = entry.references[0]
