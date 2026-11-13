@@ -9,6 +9,7 @@
     "packages": {
         "selene-core": {
             "release-type": "python",
+            "release-as": "0.3.4",
             "package-name": "selene-core",
             "component": "selene-core",
             "draft": false,
@@ -44,6 +45,7 @@
         },
         ".": {
             "release-type": "python",
+            "release-as": "0.3.8",
             "package-name": "selene-sim",
             "component": "selene-sim",
             "draft": false,
