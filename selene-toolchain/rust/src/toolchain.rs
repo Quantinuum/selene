@@ -313,7 +313,10 @@ impl LinkBuilder {
         // The explicitly resolved inputs below don't need a search path, but
         // these requests still need access to the bundled import libraries.
         for directory in std::iter::once(&runtime).chain(&self.search) {
-            text(&mut args, &format!("-L{}", path_string(directory)?));
+            let path = path_string(directory)?;
+            #[cfg(windows)]
+            let path = normalise_library_search_path(&path);
+            text(&mut args, &format!("-L{path}"));
         }
         if !cfg!(target_os = "macos") {
             for name in &config.before {
@@ -400,6 +403,23 @@ impl LinkBuilder {
                 cacheable: self.flags.is_empty() && self.search.is_empty(),
             },
         })))
+    }
+}
+
+#[cfg(any(windows, test))]
+fn normalise_library_search_path(path: &str) -> String {
+    // Rust's canonical paths use Windows' verbatim prefix. LLD can open an
+    // explicit file through that path, but its MinGW library search fails
+    // when it appends filenames to a verbatim directory. Give that search
+    // an ordinary absolute path, preserving UNC server and share names.
+    if let Some(share) = path.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{share}")
+    } else if let Some(drive) = path.strip_prefix(r"\\?\")
+        && drive.as_bytes().get(1) == Some(&b':')
+    {
+        drive.into()
+    } else {
+        path.into()
     }
 }
 
@@ -519,4 +539,28 @@ fn linux_interpreter() -> Result<PathBuf> {
 #[cfg(not(target_os = "linux"))]
 fn linux_interpreter() -> Result<PathBuf> {
     unreachable!()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalise_library_search_path;
+
+    #[test]
+    fn library_search_accepts_canonical_windows_directories() {
+        for (path, expected) in [
+            (
+                r"\\?\C:\wheel with spaces\runtime",
+                r"C:\wheel with spaces\runtime",
+            ),
+            (r"\\?\UNC\server\share\runtime", r"\\server\share\runtime"),
+            (r"C:\wheel\runtime", r"C:\wheel\runtime"),
+            (r"\\server\share\runtime", r"\\server\share\runtime"),
+            (
+                r"\\?\Volume{identifier}\runtime",
+                r"\\?\Volume{identifier}\runtime",
+            ),
+        ] {
+            assert_eq!(normalise_library_search_path(path), expected);
+        }
+    }
 }
