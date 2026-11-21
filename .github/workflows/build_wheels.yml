@@ -139,6 +139,22 @@ jobs:
         #    mkdir /tmp/ci-cache
         #    chmod 755 /tmp/ci-cache
 
+      - name: Provide shasum on Windows
+        # hugrenv uses shasum to print hashes of downloaded files. It is not
+        # on the Windows PATH by default, but Git for Windows bundles it.
+        # Only a shim is exposed, as putting Git's usr/bin on PATH would
+        # shadow MSVC's link.exe.
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        shell: pwsh
+        run: |
+          $shimDir = Join-Path $env:RUNNER_TEMP 'shasum-shim'
+          New-Item -ItemType Directory -Force -Path $shimDir | Out-Null
+          $gitUsrBin = 'C:\Program Files\Git\usr\bin'
+          $script = Get-ChildItem -Path 'C:\Program Files\Git\usr\bin' -Recurse -Filter shasum | Select-Object -First 1
+          if (-not $script) { throw 'shasum not found in Git for Windows' }
+          Set-Content -Path (Join-Path $shimDir 'shasum.cmd') -Value "@echo off`r`n`"$gitUsrBin\perl.exe`" `"$($script.FullName)`" %*"
+          $shimDir | Out-File -FilePath $env:GITHUB_PATH -Append
+
       - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
         with:
           packages: "llvm"
