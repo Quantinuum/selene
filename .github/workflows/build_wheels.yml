@@ -241,6 +241,8 @@ jobs:
           # python 3.13 are available.
           - os: macos-15-intel
             python-version: '3.14'
+          - os: macos-15-intel
+            python-version: '3.15'
     name: "Install Selene (Python ${{ matrix.python-version }}, ${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     permissions:
