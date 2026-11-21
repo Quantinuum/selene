@@ -140,20 +140,19 @@ jobs:
         #    chmod 755 /tmp/ci-cache
 
       - name: Provide shasum on Windows
-        # hugrenv uses shasum to print hashes of downloaded files. It is not
-        # on the Windows PATH by default, but Git for Windows bundles it.
-        # Only a shim is exposed, as putting Git's usr/bin on PATH would
-        # shadow MSVC's link.exe.
+        # hugrenv uses `shasum -a 256` to print hashes of downloaded files.
+        # Git Bash on Windows lacks shasum, but has sha256sum. Only a shim
+        # directory is exposed, as putting Git's usr/bin on PATH would
+        # shadow MSVC's link.exe. The shim must be an extensionless script
+        # for bash to find it (a .cmd file is not resolved by bash).
         if: ${{ startsWith(matrix.os, 'windows-') }}
-        shell: pwsh
+        shell: bash
         run: |
-          $shimDir = Join-Path $env:RUNNER_TEMP 'shasum-shim'
-          New-Item -ItemType Directory -Force -Path $shimDir | Out-Null
-          $gitUsrBin = 'C:\Program Files\Git\usr\bin'
-          $script = Get-ChildItem -Path 'C:\Program Files\Git\usr\bin' -Recurse -Filter shasum | Select-Object -First 1
-          if (-not $script) { throw 'shasum not found in Git for Windows' }
-          Set-Content -Path (Join-Path $shimDir 'shasum.cmd') -Value "@echo off`r`n`"$gitUsrBin\perl.exe`" `"$($script.FullName)`" %*"
-          $shimDir | Out-File -FilePath $env:GITHUB_PATH -Append
+          shim_dir="$RUNNER_TEMP/shasum-shim"
+          mkdir -p "$shim_dir"
+          printf '#!/usr/bin/env bash\nshift 2\nexec sha256sum "$@"\n' > "$shim_dir/shasum"
+          chmod +x "$shim_dir/shasum"
+          cygpath -w "$shim_dir" >> "$GITHUB_PATH"
 
       - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
         with:
