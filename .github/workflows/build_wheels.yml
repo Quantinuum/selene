@@ -139,6 +139,21 @@ jobs:
         #    mkdir /tmp/ci-cache
         #    chmod 755 /tmp/ci-cache
 
+      - name: Provide shasum on Windows
+        # hugrenv uses `shasum -a 256` to print hashes of downloaded files.
+        # Git Bash on Windows lacks shasum, but has sha256sum. Only a shim
+        # directory is exposed, as putting Git's usr/bin on PATH would
+        # shadow MSVC's link.exe. The shim must be an extensionless script
+        # for bash to find it (a .cmd file is not resolved by bash).
+        if: ${{ startsWith(matrix.os, 'windows-') }}
+        shell: bash
+        run: |
+          shim_dir="$RUNNER_TEMP/shasum-shim"
+          mkdir -p "$shim_dir"
+          printf '#!/usr/bin/env bash\nshift 2\nexec sha256sum "$@"\n' > "$shim_dir/shasum"
+          chmod +x "$shim_dir/shasum"
+          cygpath -w "$shim_dir" >> "$GITHUB_PATH"
+
       - uses: quantinuum/hugrverse-env/install-hugrenv-action@main
         with:
           packages: "llvm"
@@ -219,15 +234,15 @@ jobs:
           - '3.12'
           - '3.13'
           - '3.14'
-          # TODO: enable when https://github.com/yaml/pyyaml/issues/951 is closed
-          # and a python3.15-compatible pyyaml release is available on pypi.
-          # - '3.15'
+          - '3.15'
         exclude:
           # llvmlite doesn't support x86-64 macos after 0.45.1.
           # For that version, only wheels up to and including
           # python 3.13 are available.
           - os: macos-15-intel
             python-version: '3.14'
+          - os: macos-15-intel
+            python-version: '3.15'
     name: "Install Selene (Python ${{ matrix.python-version }}, ${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     permissions:
