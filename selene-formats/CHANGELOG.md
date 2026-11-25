@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Quantinuum/selene/compare/selene-formats-v0.2.0...selene-formats-v0.2.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* ensure floating point precision is retained for trace (de)serialization ([#279](https://github.com/Quantinuum/selene/issues/279)) ([18cf97e](https://github.com/Quantinuum/selene/commit/18cf97ea03270de7daffc07a78edceb7b633f612))
+
 ## [0.2.0](https://github.com/Quantinuum/selene/compare/selene-formats-v0.1.2...selene-formats-v0.2.0) (2026-11-13)
 
 
