@@ -818,6 +818,18 @@ mod tests {
     }
 
     #[test]
+    fn preserves_json_precision() {
+        let trace = parse_trace_json(include_str!("../tests/fixtures/floating-point.json"))
+            .expect("floating-point fixture must deserialize");
+        let json = serde_json::to_string(&trace).expect("floating-point trace must serialize");
+        let (_, params) = json
+            .split_once(r#""params":["#)
+            .expect("serialized gate must include parameters");
+        let (parameter, _) = params.split_once(']').expect("parameters must be an array");
+        assert_eq!(parameter, "1.2082818773949187");
+    }
+
+    #[test]
     fn all_event_types_example_deserializes() {
         let trace: Trace =
             serde_json::from_str(include_str!("../tests/fixtures/all-event-types.json"))
