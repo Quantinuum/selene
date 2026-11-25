@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.8](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.8...selene-sim-v0.3.8) (2026-11-25)
+
+
+### Bug Fixes
+
+* ensure floating point precision is retained for trace (de)serialization ([#279](https://github.com/Quantinuum/selene/issues/279)) ([18cf97e](https://github.com/Quantinuum/selene/commit/18cf97ea03270de7daffc07a78edceb7b633f612))
+
 ## [0.3.8](https://github.com/Quantinuum/selene/compare/selene-sim-v0.3.7...selene-sim-v0.3.8) (2026-11-13)
 
 
