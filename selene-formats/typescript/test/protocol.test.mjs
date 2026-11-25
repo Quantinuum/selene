@@ -323,6 +323,14 @@ test("shared protocol examples identify the current protocol version", () => {
   }
 });
 
+test("trace JSON roundtrip preserves floating-point precision", () => {
+  const exampleUrl = new URL("../../examples/trace/floating-point.json", import.meta.url);
+  const parsed = trace.parseTraceJson(readFileSync(exampleUrl, "utf8"));
+  const serialized = JSON.stringify(trace.serializeTrace(parsed));
+
+  assert.match(serialized, /"params"\s*:\s*\[\s*1\.2082818773949187\s*\]/);
+});
+
 test("the shared traces example parses as a collection document", () => {
   const exampleUrl = new URL("../../examples/trace/traces.json", import.meta.url);
   const exampleJson = readFileSync(exampleUrl, "utf8");

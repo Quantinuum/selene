@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,14 @@ def test_trace_serializes_its_protocol_version():
         "schema_version": SCHEMA_VERSION,
         "events": [],
     }
+
+
+def test_trace_json_roundtrip_preserves_floating_point_precision():
+    example = Path(__file__).parents[2] / "examples" / "trace" / "floating-point.json"
+    trace = parse_trace_json(example.read_text())
+    serialized = trace.model_dump_json()
+
+    assert re.search(r'"params"\s*:\s*\[\s*1\.2082818773949187\s*\]', serialized)
 
 
 def test_trace_requires_a_supported_protocol_version():
